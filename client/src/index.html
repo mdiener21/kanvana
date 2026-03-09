@@ -394,11 +394,11 @@
       </header>
       <div class="login-options">
         <div class="login-tabs">
-          <button type="button" class="login-tab active" data-tab="social">Social Login</button>
-          <button type="button" class="login-tab" data-tab="email">Email Login</button>
+          <button type="button" class="login-tab active" data-tab="email">Email Login</button>
+          <button type="button" class="login-tab" data-tab="social">Social Login</button>
         </div>
 
-        <div id="social-login-pane" class="login-pane">
+        <div id="social-login-pane" class="login-pane hidden">
           <p>Choose a provider to sync your data across devices:</p>
           <button type="button" class="btn btn-secondary login-provider-btn" data-provider="google">
             <span data-lucide="user" aria-hidden="true"></span>
@@ -414,7 +414,7 @@
           </button>
         </div>
 
-        <div id="email-login-pane" class="login-pane hidden">
+        <div id="email-login-pane" class="login-pane">
           <form id="email-login-form">
             <div id="email-login-fields">
               <div class="form-group">

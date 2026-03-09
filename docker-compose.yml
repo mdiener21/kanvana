@@ -1,8 +1,20 @@
 services:
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    image: kanban_frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./client/src:/app/src
+    depends_on:
+      - api
   api:
     build:
       context: ./api
       dockerfile: Dockerfile
+    image: pb_api
     ports:
       - "8080:8080"
     volumes:

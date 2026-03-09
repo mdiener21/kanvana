@@ -96,12 +96,22 @@ npm run build
 ```
 Built files are in `dist/`.
 
-### Backend Setup (Optional)
-To run the PocketBase backend:
+### Docker Setup (Full Stack)
+To run both the frontend and PocketBase backend together:
 1. Ensure you have Docker and Docker Compose installed.
-2. Run `docker-compose up -d`.
-3. The PocketBase admin UI will be available at `http://localhost:8080/_/`.
-4. Configure OAuth2 providers in the PocketBase Admin UI (Settings > Auth providers).
+2. Build and start all services:
+   ```bash
+   docker compose up --build
+   ```
+3. The frontend will be available at `http://localhost:3000` and the PocketBase API at `http://localhost:8080`.
+4. Create a PocketBase superuser (required on first run):
+   ```bash
+   docker compose exec api ./main superuser create admin@example.com yourpassword
+   ```
+5. Access the PocketBase admin UI at `http://localhost:8080/_/` and log in with the superuser credentials.
+6. Configure OAuth2 providers in the PocketBase Admin UI (Settings > Auth providers).
+
+> **Note:** The frontend source (`client/src/`) is volume-mounted, so changes are reflected immediately via Vite hot-reload.
 
 ### Preview Production Build
 ```bash

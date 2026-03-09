@@ -22,11 +22,11 @@ The specification files include core data structures and details to be maintaine
 ## Architecture
 
 ### Entry Points
-- `src/kanban.js` - Main entry, wires UI handlers and calls `renderBoard()`
-- `src/index.html` - Main board UI
-- `src/reports.html` - Separate reports page with ECharts visualizations
+- `client/src/kanban.js` - Main entry, wires UI handlers and calls `renderBoard()`
+- `client/src/index.html` - Main board UI
+- `client/src/reports.html` - Separate reports page with ECharts visualizations
 
-### Module Structure (src/modules/)
+### Module Structure (client/src/modules/)
 - **render.js** - Centralized rendering via `renderBoard()`. After any data change, call this to refresh UI.
 - **storage.js** - Multi-board localStorage persistence. Keys: `kanbanBoards`, `kanbanActiveBoardId`, `kanbanBoard:<boardId>:columns|tasks|labels|settings`
 - **icons.js** - Lucide icons tree-shaking. To add an icon: import from `lucide`, add to `icons` object, call `renderIcons()` after dynamic DOM changes.
@@ -86,7 +86,7 @@ When asked to create a release/tag for unreleased changes:
 
 ## Vite Configuration
 
-- Root: `src/`
+- Root: `client/src/`
 - Output: `dist/`
 - Base path: `./` (relative, for static hosting)
 - Two entry points: index.html and reports.html

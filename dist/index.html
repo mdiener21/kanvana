@@ -7,10 +7,10 @@
   <title>Personal Kanban Board</title>
   <!-- Kanban favicon (inline SVG data URI) -->
   <link rel="icon" href="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='2' y='3' width='6' height='18' rx='1.5' fill='%233b82f6'/%3E%3Crect x='9' y='3' width='6' height='12' rx='1.5' fill='%2360a5fa'/%3E%3Crect x='16' y='3' width='6' height='8' rx='1.5' fill='%2393c5fd'/%3E%3C/svg%3E">
-  <script type="module" crossorigin src="./assets/index-CNJpYfrQ.js"></script>
-  <link rel="modulepreload" crossorigin href="./assets/vendor-pJTqpwCg.js">
-  <link rel="modulepreload" crossorigin href="./assets/theme-i8PqWue1.js">
-  <link rel="stylesheet" crossorigin href="./assets/theme-jzNs1Y5f.css">
+  <script type="module" crossorigin src="./assets/index-BDsbmUXj.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/vendor-Yp7iy9eK.js">
+  <link rel="modulepreload" crossorigin href="./assets/theme-CV-gDoG2.js">
+  <link rel="stylesheet" crossorigin href="./assets/theme-MgVPyTNe.css">
 </head>
 <body>
   <!-- Skip link for accessibility -->
@@ -88,6 +88,22 @@
           <span data-lucide="help-circle" aria-hidden="true"></span>
           <span>Help</span>
         </button>
+        <div class="auth-controls">
+          <button id="login-btn" class="control-btn" type="button">
+            <span data-lucide="user" aria-hidden="true"></span>
+            <span>Go Online</span>
+          </button>
+          <div id="user-info" class="user-info hidden">
+            <span id="user-name"></span>
+            <button id="sync-btn" class="control-btn" type="button" title="Sync with cloud">
+              <span data-lucide="refresh-cw" aria-hidden="true"></span>
+              <span>Sync</span>
+            </button>
+            <button id="logout-btn" class="control-btn" type="button">
+              <span>Logout</span>
+            </button>
+          </div>
+        </div>
       </div>
       
       <button id="desktop-menu-btn" class="control-btn icon-only" type="button" aria-label="Menu" aria-expanded="false" aria-controls="board-controls-menu">
@@ -366,6 +382,68 @@
           <button type="submit" id="board-create-submit-btn" class="btn btn-primary">Create Board</button>
         </div>
       </form>
+    </article>
+  </div>
+
+  <!-- Login Modal -->
+  <div id="login-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="login-modal-title">
+    <div class="modal-backdrop" data-close-modal></div>
+    <article class="modal-content">
+      <header class="modal-header-row">
+        <h3 id="login-modal-title">Go Online</h3>
+        <button id="login-close-btn" type="button" class="icon-btn" aria-label="Close" title="Close">
+          <span data-lucide="x" aria-hidden="true"></span>
+        </button>
+      </header>
+      <div class="login-options">
+        <div class="login-tabs">
+          <button type="button" class="login-tab active" data-tab="social">Social Login</button>
+          <button type="button" class="login-tab" data-tab="email">Email Login</button>
+        </div>
+
+        <div id="social-login-pane" class="login-pane">
+          <p>Choose a provider to sync your data across devices:</p>
+          <button type="button" class="btn btn-secondary login-provider-btn" data-provider="google">
+            <span data-lucide="user" aria-hidden="true"></span>
+            Continue with Google
+          </button>
+          <button type="button" class="btn btn-secondary login-provider-btn" data-provider="apple">
+            <span data-lucide="user" aria-hidden="true"></span>
+            Continue with Apple
+          </button>
+          <button type="button" class="btn btn-secondary login-provider-btn" data-provider="microsoftonline">
+            <span data-lucide="user" aria-hidden="true"></span>
+            Continue with Microsoft
+          </button>
+        </div>
+
+        <div id="email-login-pane" class="login-pane hidden">
+          <form id="email-login-form">
+            <div id="email-login-fields">
+              <div class="form-group">
+                <label for="login-email">Email</label>
+                <input type="email" id="login-email" required placeholder="your@email.com">
+              </div>
+              <div class="form-group">
+                <label for="login-password">Password</label>
+                <input type="password" id="login-password" required placeholder="••••••••">
+              </div>
+              <div id="signup-name-field" class="form-group hidden">
+                <label for="signup-name">Name</label>
+                <input type="text" id="signup-name" placeholder="Your Name">
+              </div>
+            </div>
+            <p id="auth-message" class="auth-message hidden"></p>
+            <div class="form-actions-column">
+              <button type="submit" id="email-auth-submit" class="btn btn-primary">Log In</button>
+              <button type="button" id="toggle-auth-mode" class="btn-link">Don't have an account? Sign Up</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" id="login-modal-cancel-btn" class="btn btn-secondary">Cancel</button>
+      </div>
     </article>
   </div>
 
