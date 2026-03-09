@@ -29,6 +29,8 @@ Experience it firsthand: **[Try the Live Demo](https://mdiener21.github.io/perso
    <a href="https://mdiener21.github.io/personal-kanban/"><img width="794" height="636" alt="image" src="https://github.com/user-attachments/assets/8c743e44-6810-4497-b93c-7dcdade8a820"></a>
    <br><br>
    <a href="https://mdiener21.github.io/personal-kanban/"><img width="1092" height="745" alt="image" src="https://github.com/user-attachments/assets/dc143944-bff6-47aa-b71a-0db6788c6b19"></a>
+   <br><br>
+   <a href="https://mdiener21.github.io/personal-kanban/"><img width="1273" height="1168" alt="image" src="https://github.com/user-attachments/assets/871a95fb-f7f7-41f8-a1b3-dc74f38ff6a2"></a>
 
 </div>
 
