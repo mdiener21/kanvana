@@ -1,5 +1,6 @@
 import { generateUUID } from './utils.js';
-import { loadTasks, saveTasks } from './storage.js';
+import { loadLabels, loadSettings, loadTasks, saveTasks } from './storage.js';
+import { applySwimLaneAssignment } from './swimlanes.js';
 
 const ALLOWED_PRIORITIES = new Set(['urgent', 'high', 'medium', 'low', 'none']);
 
@@ -108,16 +109,68 @@ export function deleteTask(taskId) {
 // Get current task positions from DOM
 export function getCurrentTaskOrder() {
   const tasks = [];
-  document.querySelectorAll('.task-column').forEach(column => {
-    const columnName = column.dataset.column;
-    column.querySelectorAll('.task').forEach(taskEl => {
-      tasks.push({
-        id: taskEl.dataset.taskId,
-        column: columnName
-      });
+  document.querySelectorAll('.task').forEach(taskEl => {
+    const columnContainer = taskEl.closest('[data-column]');
+    const columnName = columnContainer?.dataset?.column;
+    if (!columnName) return;
+    tasks.push({
+      id: taskEl.dataset.taskId,
+      column: columnName
     });
   });
   return tasks;
+}
+
+function getColumnContainer(node) {
+  return node?.closest?.('[data-column]') || null;
+}
+
+function getLaneKey(node) {
+  const direct = node?.dataset?.laneKey;
+  if (typeof direct === 'string') return direct;
+  return node?.closest?.('[data-lane-key]')?.dataset?.laneKey || '';
+}
+
+function buildOrderByColumnFromDom() {
+  const boardContainer = document.getElementById('board-container');
+  const isSwimlaneView = boardContainer?.dataset?.viewMode === 'swimlanes';
+  const orderByColumn = new Map();
+
+  if (!isSwimlaneView) {
+    document.querySelectorAll('.task-column[data-column]').forEach((columnEl) => {
+      const columnId = columnEl.dataset.column;
+      if (!columnId) return;
+      const order = [];
+      columnEl.querySelectorAll('.task').forEach((el, idx) => {
+        const taskId = el.dataset.taskId;
+        if (!taskId) return;
+        order.push({ id: taskId, order: idx + 1 });
+      });
+      orderByColumn.set(columnId, order);
+    });
+    return orderByColumn;
+  }
+
+  const flattenedByColumn = new Map();
+  document.querySelectorAll('.swimlane-row').forEach((rowEl) => {
+    rowEl.querySelectorAll('.swimlane-cell[data-column]').forEach((cellEl) => {
+      const columnId = cellEl.dataset.column;
+      if (!columnId) return;
+      if (!flattenedByColumn.has(columnId)) {
+        flattenedByColumn.set(columnId, []);
+      }
+      cellEl.querySelectorAll('.task').forEach((taskEl) => {
+        const taskId = taskEl.dataset.taskId;
+        if (taskId) flattenedByColumn.get(columnId).push(taskId);
+      });
+    });
+  });
+
+  flattenedByColumn.forEach((taskIds, columnId) => {
+    orderByColumn.set(columnId, taskIds.map((id, index) => ({ id, order: index + 1 })));
+  });
+
+  return orderByColumn;
 }
 
 /**
@@ -130,16 +183,22 @@ export function updateTaskPositionsFromDrop(evt) {
   const movedTaskId = evt.item?.dataset?.taskId;
   if (!movedTaskId) return null;
 
-  const fromColumnEl = evt.from.closest('.task-column');
-  const toColumnEl = evt.to.closest('.task-column');
+  const fromColumnEl = getColumnContainer(evt.from);
+  const toColumnEl = getColumnContainer(evt.to);
   if (!fromColumnEl || !toColumnEl) return null;
 
   const fromColumn = fromColumnEl.dataset.column;
   const toColumn = toColumnEl.dataset.column;
   const didChangeColumn = fromColumn !== toColumn;
+  const fromLaneKey = getLaneKey(evt.from);
+  const toLaneKey = getLaneKey(evt.to);
+  const didChangeLane = fromLaneKey !== toLaneKey;
 
   const tasks = loadTasks();
   const nowIso = new Date().toISOString();
+  const settings = loadSettings();
+  const labels = loadLabels();
+  const isSwimlaneView = settings.swimLanesEnabled === true;
 
   // Find the moved task
   const movedTaskIndex = tasks.findIndex(t => t.id === movedTaskId);
@@ -147,33 +206,21 @@ export function updateTaskPositionsFromDrop(evt) {
 
   const movedTask = tasks[movedTaskIndex];
 
-  // Build order maps for affected columns from DOM
   const affectedColumns = new Set([fromColumn, toColumn]);
-  const orderByColumn = new Map();
-
-  affectedColumns.forEach(columnId => {
-    const columnEl = document.querySelector(`.task-column[data-column="${columnId}"]`);
-    if (!columnEl) return;
-    
-    const taskEls = columnEl.querySelectorAll('.task');
-    const order = [];
-    taskEls.forEach((el, idx) => {
-      const taskId = el.dataset.taskId;
-      if (taskId) {
-        order.push({ id: taskId, order: idx + 1 });
-      }
-    });
-    orderByColumn.set(columnId, order);
-  });
+  const orderByColumn = buildOrderByColumnFromDom();
 
   // Update tasks
   const updatedTasks = tasks.map(task => {
     // Update the moved task
     if (task.id === movedTaskId) {
-      const nextTask = {
+      let nextTask = {
         ...task,
         column: toColumn
       };
+
+      if (isSwimlaneView) {
+        nextTask = applySwimLaneAssignment(nextTask, settings.swimLaneGroupBy, toLaneKey, labels);
+      }
 
       // Update order
       const toOrder = orderByColumn.get(toColumn);
@@ -183,8 +230,12 @@ export function updateTaskPositionsFromDrop(evt) {
       }
 
       // Only update history/dates if column changed
-      if (didChangeColumn) {
+      if (didChangeColumn || (isSwimlaneView && didChangeLane)) {
         nextTask.changeDate = nowIso;
+
+        if (!didChangeColumn) {
+          return nextTask;
+        }
 
         const history = Array.isArray(task.columnHistory) && task.columnHistory.length
           ? [...task.columnHistory]
@@ -220,7 +271,10 @@ export function updateTaskPositionsFromDrop(evt) {
     movedTaskId,
     fromColumn,
     toColumn,
+    fromLaneKey,
+    toLaneKey,
     didChangeColumn,
+    didChangeLane,
     tasks: updatedTasks
   };
 }

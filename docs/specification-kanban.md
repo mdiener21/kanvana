@@ -42,6 +42,8 @@
   column: "column-id",
   order: number,
   labels: ["label-id-1", "label-id-2"],
+  swimlaneLabelId: "label-id" | "", // optional explicit lane assignment when grouping by label; empty string means No Group
+  swimlaneLabelGroup: "Group Name" | "", // optional explicit lane assignment when grouping by label group; empty string means No Group
   creationDate: "YYYY-MM-DDTHH:MM:SSZ",
   changeDate: "YYYY-MM-DDTHH:MM:SSZ", // updated on task save (create, edit, change column)
   doneDate: "YYYY-MM-DDTHH:MM:SSZ", // set only when task enters the Done column; removed when leaving Done
@@ -96,6 +98,23 @@
 - Horizontal flexbox container with columns (scrollable horizontally on mobile)
 - Each column: header (drag handle, title, task counter, actions) + task list + optional show-all button
 - Task counter: circular blue badge showing task count, updates on any task add/remove/move
+- Optional swim lane view turns the board into a row-by-column grid while preserving the same workflow columns.
+  - Top row shows column headers with task counters and add-task actions.
+  - Left column shows sticky lane names.
+  - Each lane row contains one task cell per workflow column.
+  - Swim lanes are toggled entirely client-side without page reload.
+
+### Swim Lanes
+
+- Swim lanes are a per-board presentation mode controlled from the main toolbar.
+- Supported grouping modes:
+  - `label`: lane assignment uses `task.swimlaneLabelId` when present; otherwise the first task label is used as fallback.
+  - `label-group`: lane assignment uses `task.swimlaneLabelGroup` when present; otherwise the first assigned label with a non-empty `group` is used as fallback.
+- Tasks that resolve to no lane value are shown in the `No Group` lane.
+- Dragging a task between swim lanes updates its persisted lane assignment immediately.
+  - In `label` mode, moving into a label lane also prepends that label id to `task.labels` if it is not already present.
+  - Moving into `No Group` stores an explicit empty-string lane assignment so the task remains in `No Group` even if it still has other labels.
+- Task ordering remains flattened per column in storage so switching swim lanes off returns to the standard column view without data loss.
 
 ### Column Features
 
@@ -136,6 +155,7 @@
 - **Edit (close)**: The Edit Task modal includes a small **×** button in the top-right that closes the modal (same behavior as Cancel)
 - **Delete**: Click X button, confirm deletion
 - **Move**: Drag between columns, auto-saves new column and order
+- **Move (swim lanes)**: When swim lane view is enabled, drag-and-drop can move tasks between columns, between lanes, or both in a single drop.
 - **Display**:
   - Title (clickable, clamped to 1 line)
   - Header row: title left-aligned; priority badge + delete button right-aligned
@@ -193,6 +213,11 @@
   - Filtering is **in-memory** (no persistence) and applies to the currently rendered board.
   - A task matches if the search string appears in **task title**, **task description**, **task priority** (low/medium/high), the **label name**, or the **label group name** of any label assigned to the task (case-insensitive substring match).
 
+- Toolbar also includes a **Swim Lanes** toggle and a **Group swim lanes by** selector.
+  - Toggle enables/disables swim lane mode instantly.
+  - Grouping selector supports `Label` and `Label Group`.
+  - Grouping selector is disabled while swim lanes are off.
+
 - Single menu button (ellipsis) that opens a dropdown containing:
   - Board selector dropdown (shows all boards)
   - Manage Boards button (opens boards management modal)
@@ -220,6 +245,9 @@
   - Toggle to show/hide task updated date/time (`changeDate`)
   - Locale dropdown for formatting the updated timestamp
   - Default task priority dropdown (urgent/high/medium/low/none) used when creating new tasks
+- Persisted board settings also include swim lane state:
+  - `swimLanesEnabled`: boolean
+  - `swimLaneGroupBy`: `label` or `label-group`
 - Default locale is initialized from the browser (e.g. `navigator.language`).
 - Default priority is `none`.
 

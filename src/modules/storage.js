@@ -8,6 +8,7 @@ const LEGACY_TASKS_KEY = 'kanbanTasks';
 const LEGACY_LABELS_KEY = 'kanbanLabels';
 
 const DEFAULT_BOARD_ID = 'default';
+const ALLOWED_SWIMLANE_GROUP_BY = new Set(['label', 'label-group']);
 
 // Per-board in-memory cache to keep defaults stable within a session.
 const taskCacheByBoard = new Map();
@@ -212,7 +213,9 @@ function defaultSettings() {
     notificationDays: 3,
     // Countdown color thresholds
     countdownUrgentThreshold: 3,   // Red: tasks due within this many days
-    countdownWarningThreshold: 10  // Amber: tasks due within this many days (must be >= urgent threshold)
+    countdownWarningThreshold: 10,  // Amber: tasks due within this many days (must be >= urgent threshold)
+    swimLanesEnabled: false,
+    swimLaneGroupBy: 'label'
   };
 }
 
@@ -221,6 +224,11 @@ const ALLOWED_PRIORITIES = new Set(['urgent', 'high', 'medium', 'low', 'none']);
 function normalizePriority(value) {
   const v = (value || '').toString().trim().toLowerCase();
   return ALLOWED_PRIORITIES.has(v) ? v : 'none';
+}
+
+function normalizeSwimLaneGroupBy(value) {
+  const normalized = (value || '').toString().trim().toLowerCase();
+  return ALLOWED_SWIMLANE_GROUP_BY.has(normalized) ? normalized : 'label';
 }
 
 function migrateLegacySingleBoardIntoDefault() {
@@ -515,6 +523,8 @@ function normalizeSettings(raw) {
   const countdownWarningThreshold = Number.isFinite(rawWarningThreshold)
     ? Math.min(365, Math.max(countdownUrgentThreshold, rawWarningThreshold))
     : 10;
+  const swimLanesEnabled = obj.swimLanesEnabled === true;
+  const swimLaneGroupBy = normalizeSwimLaneGroupBy(obj.swimLaneGroupBy);
 
   return {
     showPriority,
@@ -525,7 +535,9 @@ function normalizeSettings(raw) {
     defaultPriority,
     notificationDays,
     countdownUrgentThreshold,
-    countdownWarningThreshold
+    countdownWarningThreshold,
+    swimLanesEnabled,
+    swimLaneGroupBy
   };
 }
 

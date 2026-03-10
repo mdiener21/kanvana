@@ -11,6 +11,12 @@
     font-size: 16px; /* avoids iOS zoom + improves readability */
     padding: 10px 12px;
   }
+
+  .swimlane-toolbar {
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
 }
 
 @media (max-width: 600px) {
@@ -64,6 +70,11 @@
     flex: none;
   }
 
+  .swimlane-toolbar {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+
   /* Scrollable columns horizontally with snap */
   .container,
   .board-container {
@@ -73,6 +84,15 @@
     scroll-snap-type: x mandatory;
     padding-bottom: 12px;
     min-height: 0;
+  }
+
+  .board-container-swimlanes {
+    display: block;
+  }
+
+  .swimlane-grid-header,
+  .swimlane-row {
+    grid-template-columns: minmax(140px, 160px) repeat(var(--swimlane-column-count, 3), minmax(240px, 72vw));
   }
 
   .footer{

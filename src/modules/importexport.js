@@ -91,7 +91,19 @@ function normalizeSettingsForExport(settings) {
   const notificationDays = Number.isFinite(rawNotificationDays)
     ? Math.min(365, Math.max(0, rawNotificationDays))
     : 3;
-  return { showPriority, showDueDate, showAge, showChangeDate, locale, defaultPriority, notificationDays };
+  const swimLanesEnabled = obj.swimLanesEnabled === true;
+  const swimLaneGroupBy = obj.swimLaneGroupBy === 'label-group' ? 'label-group' : 'label';
+  return {
+    showPriority,
+    showDueDate,
+    showAge,
+    showChangeDate,
+    locale,
+    defaultPriority,
+    notificationDays,
+    swimLanesEnabled,
+    swimLaneGroupBy
+  };
 }
 
 function normalizeDueDate(value) {
@@ -134,6 +146,8 @@ function normalizeTaskForExport(task) {
     ...(typeof changeDate === 'string' ? { changeDate: changeDate.toString().trim() } : {}),
     ...(isDone && doneDate ? { doneDate } : { doneDate: undefined }),
     ...(columnHistory && columnHistory.length ? { columnHistory } : { columnHistory: undefined }),
+    ...(typeof task?.swimlaneLabelId === 'string' ? { swimlaneLabelId: task.swimlaneLabelId } : {}),
+    ...(typeof task?.swimlaneLabelGroup === 'string' ? { swimlaneLabelGroup: task.swimlaneLabelGroup } : {}),
     // Avoid exporting the legacy field name.
     changedDate: undefined
   };
@@ -179,6 +193,8 @@ function normalizeImportedTasks(tasks) {
           })
           .filter(Boolean)
       : undefined;
+    const swimlaneLabelId = typeof t?.swimlaneLabelId === 'string' ? t.swimlaneLabelId.trim() : undefined;
+    const swimlaneLabelGroup = typeof t?.swimlaneLabelGroup === 'string' ? t.swimlaneLabelGroup.trim() : undefined;
 
     return {
       id: id.trim(),
@@ -192,6 +208,8 @@ function normalizeImportedTasks(tasks) {
       ...(typeof changeDate === 'string' && changeDate.trim() ? { changeDate: changeDate.trim() } : {}),
       ...(doneDate ? { doneDate } : {}),
       ...(columnHistory && columnHistory.length ? { columnHistory } : {}),
+      ...(swimlaneLabelId !== undefined ? { swimlaneLabelId } : {}),
+      ...(swimlaneLabelGroup !== undefined ? { swimlaneLabelGroup } : {}),
       labels
     };
   });
@@ -257,6 +275,8 @@ function normalizeImportedSettings(settings) {
   const notificationDays = Number.isFinite(rawNotificationDays)
     ? Math.min(365, Math.max(0, rawNotificationDays))
     : undefined;
+  const swimLanesEnabled = settings.swimLanesEnabled === true;
+  const swimLaneGroupBy = settings.swimLaneGroupBy === 'label-group' ? 'label-group' : 'label';
   return {
     showPriority,
     showDueDate,
@@ -265,6 +285,8 @@ function normalizeImportedSettings(settings) {
     ...(locale ? { locale } : {})
     ,...(defaultPriority ? { defaultPriority } : {})
     ,...(notificationDays !== undefined ? { notificationDays } : {})
+    ,swimLanesEnabled
+    ,swimLaneGroupBy
   };
 }
 

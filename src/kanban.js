@@ -11,6 +11,7 @@ import { confirmDialog } from './modules/dialog.js';
 import { initializeSettingsUI } from './modules/settings.js';
 import { initializeNotifications } from './modules/notifications.js';
 import { ensureBoardsInitialized, setActiveBoardId } from './modules/storage.js';
+import { initializeSwimLaneControls } from './modules/swimlanes.js';
 
 // Add task button listeners
 document.addEventListener('DOMContentLoaded', () => {
@@ -34,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Settings (per-board)
   initializeSettingsUI();
+  initializeSwimLaneControls(() => renderBoard());
 
   // Board-level filter (labels, title, description)
   const boardSearchInput = document.getElementById('board-search-input');

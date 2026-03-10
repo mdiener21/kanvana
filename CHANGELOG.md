@@ -10,7 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added (unreleased)
 
+- Toggleable swim lane board view with label and label-group grouping, sticky lane headers, `No Group` fallback lane, and persisted per-board settings
+- Swim lane-aware drag and drop that updates persisted lane assignment and allows moves across lanes, columns, or both in one gesture
+- Swim lane test coverage: pure logic unit tests plus Playwright integration tests for toggle/rendering, drag-drop movement, and settings persistence
+
 ### Changed (unreleased)
+
+- Board rendering now supports a swim lane grid mode while keeping the existing column-only layout unchanged when the feature is off
+- Board import/export now preserves swim lane settings and explicit task lane assignments
 
 ### Removed (unreleased)
 

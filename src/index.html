@@ -32,6 +32,18 @@
           aria-label="Search tasks by label, title, or description"
         >
       </div>
+
+      <div class="swimlane-toolbar" role="group" aria-label="Swim lane controls">
+        <label class="swimlane-toggle" for="swimlane-enabled-toggle">
+          <input id="swimlane-enabled-toggle" type="checkbox">
+          <span>Swim Lanes</span>
+        </label>
+        <label class="sr-only" for="swimlane-group-by">Group swim lanes by</label>
+        <select id="swimlane-group-by" class="control-select" aria-label="Group swim lanes by">
+          <option value="label">Label</option>
+          <option value="label-group">Label Group</option>
+        </select>
+      </div>
       
       <div id="board-controls-menu" class="controls-actions">
         <label class="sr-only" for="board-select">Select board</label>

@@ -7,6 +7,7 @@ import { confirmDialog, alertDialog } from './dialog.js';
 import { renderIcons } from './icons.js';
 import { refreshNotifications } from './notifications.js';
 import { calculateDaysUntilDue, formatCountdown, getCountdownClassName } from './dateutils.js';
+import { buildBoardGrid, groupTasksBySwimLane, syncSwimLaneToolbar } from './swimlanes.js';
 
 let columnMenuCloseHandlerAttached = false;
 
@@ -634,6 +635,143 @@ function createColumnElement(column) {
   return div;
 }
 
+function createSwimlaneHeaderCell(column, taskCount) {
+  const header = document.createElement('section');
+  header.classList.add('swimlane-column-header');
+  header.dataset.column = column.id;
+  if (column?.color) {
+    header.style.setProperty('--column-accent', column.color);
+  }
+
+  const title = document.createElement('h2');
+  title.textContent = column.name;
+
+  const counter = document.createElement('span');
+  counter.classList.add('task-counter');
+  counter.dataset.columnId = column.id;
+  counter.textContent = String(taskCount);
+  counter.setAttribute('aria-label', 'Task count');
+
+  const addBtn = document.createElement('button');
+  addBtn.classList.add('add-task-btn-icon');
+  addBtn.type = 'button';
+  addBtn.setAttribute('aria-label', `Add task to ${column.name}`);
+  addBtn.title = 'Add task';
+  const plusIcon = document.createElement('span');
+  plusIcon.dataset.lucide = 'plus';
+  plusIcon.setAttribute('aria-hidden', 'true');
+  addBtn.appendChild(plusIcon);
+  addBtn.addEventListener('click', () => showModal(column.id));
+
+  header.appendChild(title);
+  header.appendChild(counter);
+  header.appendChild(addBtn);
+  return header;
+}
+
+function createSwimlaneCell(column, lane, tasksInCell, settings, labelsMap, today) {
+  const cell = document.createElement('section');
+  cell.classList.add('swimlane-cell');
+  cell.dataset.column = column.id;
+  cell.dataset.laneKey = lane.key;
+  cell.dataset.laneLabel = lane.value;
+  cell.setAttribute('aria-label', `${lane.value}, ${column.name}`);
+
+  const tasksList = document.createElement('ul');
+  tasksList.classList.add('tasks', 'swimlane-tasks');
+  tasksList.dataset.column = column.id;
+  tasksList.dataset.laneKey = lane.key;
+  tasksList.dataset.laneLabel = lane.value;
+  tasksList.setAttribute('role', 'list');
+  tasksList.setAttribute('aria-label', `Tasks in ${lane.value}, ${column.name}`);
+
+  tasksInCell.forEach((task) => {
+    tasksList.appendChild(createTaskElement(task, settings, labelsMap, today));
+  });
+
+  cell.appendChild(tasksList);
+  return cell;
+}
+
+function renderStandardBoard(container, sortedColumns, visibleTasks, settings, labelsMap, today) {
+  sortedColumns.forEach(column => {
+    const columnEl = createColumnElement(column);
+    container.appendChild(columnEl);
+
+    const tasksList = columnEl.querySelector('.tasks');
+    const taskCounter = columnEl.querySelector('.task-counter');
+
+    const columnTasks = visibleTasks.filter(t => t.column === column.id)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+    const isDoneColumn = column.id === 'done';
+    const shouldVirtualize = isDoneColumn && columnTasks.length > DONE_INITIAL_BATCH_SIZE;
+    const tasksToRender = shouldVirtualize ? columnTasks.slice(0, doneVisibleCount) : columnTasks;
+
+    tasksToRender.forEach(task => {
+      tasksList.appendChild(createTaskElement(task, settings, labelsMap, today));
+    });
+
+    if (shouldVirtualize && doneVisibleCount < columnTasks.length) {
+      const showMoreBtn = document.createElement('button');
+      showMoreBtn.classList.add('show-more-btn');
+      showMoreBtn.type = 'button';
+      showMoreBtn.textContent = `Show more (${columnTasks.length - doneVisibleCount} remaining)`;
+      showMoreBtn.addEventListener('click', () => {
+        doneVisibleCount += DONE_LOAD_MORE_SIZE;
+        renderBoard();
+      });
+      tasksList.appendChild(showMoreBtn);
+    }
+
+    taskCounter.textContent = columnTasks.length;
+  });
+}
+
+function renderSwimlaneBoard(container, sortedColumns, visibleTasks, labels, settings, labelsMap, today) {
+  const lanes = groupTasksBySwimLane(visibleTasks, settings.swimLaneGroupBy, labels);
+  const grid = buildBoardGrid(sortedColumns, lanes, visibleTasks, settings.swimLaneGroupBy, labels);
+  const board = document.createElement('div');
+  board.classList.add('swimlane-board');
+  board.style.setProperty('--swimlane-column-count', String(sortedColumns.length));
+
+  const headerRow = document.createElement('div');
+  headerRow.classList.add('swimlane-grid-header');
+
+  const corner = document.createElement('div');
+  corner.classList.add('swimlane-corner-cell');
+  corner.textContent = 'Swim Lane';
+  headerRow.appendChild(corner);
+
+  sortedColumns.forEach((column) => {
+    const taskCount = visibleTasks.filter((task) => task.column === column.id).length;
+    headerRow.appendChild(createSwimlaneHeaderCell(column, taskCount));
+  });
+
+  board.appendChild(headerRow);
+
+  grid.forEach((lane) => {
+    const row = document.createElement('section');
+    row.classList.add('swimlane-row');
+    row.dataset.laneKey = lane.key;
+    row.dataset.laneLabel = lane.value;
+
+    const laneHeader = document.createElement('header');
+    laneHeader.classList.add('swimlane-row-header');
+    laneHeader.textContent = lane.value;
+    row.appendChild(laneHeader);
+
+    sortedColumns.forEach((column) => {
+      const tasksInCell = (lane.cells[column.id] || []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      row.appendChild(createSwimlaneCell(column, lane, tasksInCell, settings, labelsMap, today));
+    });
+
+    board.appendChild(row);
+  });
+
+  container.appendChild(board);
+}
+
 // Update the column select dropdown
 function updateColumnSelect() {
   const columns = loadColumns();
@@ -736,6 +874,7 @@ export function renderBoard() {
   const tasks = loadTasks();
   const labels = loadLabels();
   const settings = loadSettings();
+  syncSwimLaneToolbar(settings);
 
   // Memoize today's date for performance (avoid creating new Date for every task)
   const today = new Date();
@@ -751,47 +890,18 @@ export function renderBoard() {
     : tasks;
   const container = document.getElementById('board-container');
   container.innerHTML = '';
+  container.dataset.viewMode = settings.swimLanesEnabled === true ? 'swimlanes' : 'columns';
+  container.dataset.swimlaneGroupBy = settings.swimLaneGroupBy || '';
+  container.classList.toggle('board-container-swimlanes', settings.swimLanesEnabled === true);
   
   // Sort columns by order if present
   const sortedColumns = [...columns].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  
-  sortedColumns.forEach(column => {
-    const columnEl = createColumnElement(column);
-    container.appendChild(columnEl);
-    
-    const tasksList = columnEl.querySelector('.tasks');
-    const taskCounter = columnEl.querySelector('.task-counter');
-    
-    // Sort tasks by order within each column
-    const columnTasks = visibleTasks.filter(t => t.column === column.id)
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    
-    // Apply virtualization for Done column (performance optimization)
-    const isDoneColumn = column.id === 'done';
-    const shouldVirtualize = isDoneColumn && columnTasks.length > DONE_INITIAL_BATCH_SIZE;
-    const tasksToRender = shouldVirtualize ? columnTasks.slice(0, doneVisibleCount) : columnTasks;
-    
-    tasksToRender.forEach(task => {
-      tasksList.appendChild(createTaskElement(task, settings, labelsMap, today));
-    });
-    
-    // Add "Show more" button for virtualized Done column
-    if (shouldVirtualize && doneVisibleCount < columnTasks.length) {
-      const showMoreBtn = document.createElement('button');
-      showMoreBtn.classList.add('show-more-btn');
-      showMoreBtn.type = 'button';
-      showMoreBtn.textContent = `Show more (${columnTasks.length - doneVisibleCount} remaining)`;
-      showMoreBtn.addEventListener('click', () => {
-        doneVisibleCount += DONE_LOAD_MORE_SIZE;
-        renderBoard();
-      });
-      tasksList.appendChild(showMoreBtn);
-    }
-    
-    // Update task counter
-    taskCounter.textContent = columnTasks.length;
-    
-  });
+
+  if (settings.swimLanesEnabled === true) {
+    renderSwimlaneBoard(container, sortedColumns, visibleTasks, labels, settings, labelsMap, today);
+  } else {
+    renderStandardBoard(container, sortedColumns, visibleTasks, settings, labelsMap, today);
+  }
   
   initDragDrop();
   updateColumnSelect();

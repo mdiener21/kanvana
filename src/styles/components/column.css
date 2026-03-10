@@ -249,3 +249,101 @@ body.dragging-column .column-header * {
 .tasks::-webkit-scrollbar-track { background: var(--scrollbar-track); border-radius: 3px; }
 .tasks::-webkit-scrollbar-thumb { background: var(--column-accent); border-radius: 3px; }
 .tasks::-webkit-scrollbar-thumb:hover { background: var(--column-accent-hover); }
+
+.board-container-swimlanes {
+  display: block;
+  overflow: auto;
+}
+
+.swimlane-board {
+  display: grid;
+  gap: 12px;
+  min-width: fit-content;
+  padding: 10px;
+}
+
+.swimlane-grid-header,
+.swimlane-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 220px) repeat(var(--swimlane-column-count, 3), minmax(280px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.swimlane-corner-cell,
+.swimlane-row-header,
+.swimlane-column-header,
+.swimlane-cell {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.swimlane-corner-cell,
+.swimlane-row-header {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
+
+.swimlane-corner-cell {
+  display: flex;
+  align-items: center;
+  min-height: 76px;
+  padding: 16px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--surface) 92%, var(--surface-muted));
+}
+
+.swimlane-column-header {
+  --column-accent: #3b82f6;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 76px;
+  padding: 12px 14px;
+  box-shadow: var(--shadow-sm);
+}
+
+.swimlane-column-header h2 {
+  margin: 0;
+  flex: 1;
+  font-size: 18px;
+}
+
+.swimlane-column-header::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  border-radius: 10px 0 0 10px;
+  background: var(--column-accent);
+}
+
+.swimlane-row-header {
+  display: flex;
+  align-items: center;
+  min-height: 100%;
+  padding: 16px;
+  font-size: 15px;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--surface) 88%, var(--surface-muted));
+}
+
+.swimlane-cell {
+  min-width: 280px;
+  min-height: 140px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--surface) 96%, var(--surface-muted));
+}
+
+.swimlane-tasks {
+  min-height: 116px;
+}

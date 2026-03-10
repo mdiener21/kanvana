@@ -66,6 +66,30 @@
   box-shadow: 0 0 0 3px var(--input-focus-ring);
 }
 
+.swimlane-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.swimlane-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.swimlane-toggle input {
+  margin: 0;
+}
+
 .brand-icon {
   width: 24px;
   height: 24px;
