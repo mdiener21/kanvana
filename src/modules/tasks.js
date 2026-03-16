@@ -2,6 +2,30 @@ import { generateUUID } from './utils.js';
 import { loadLabels, loadSettings, loadTasks, saveTasks } from './storage.js';
 import { applySwimLaneAssignment } from './swimlanes.js';
 
+function reorderColumnTasks(tasks, columnId, pinnedTaskId = null) {
+  const columnTasks = tasks
+    .filter((task) => task.column === columnId)
+    .slice()
+    .sort((a, b) => {
+      if (a.id === pinnedTaskId) return -1;
+      if (b.id === pinnedTaskId) return 1;
+      return (a.order ?? 0) - (b.order ?? 0);
+    });
+
+  const orderById = new Map();
+  columnTasks.forEach((task, index) => {
+    orderById.set(task.id, index + 1);
+  });
+
+  return tasks.map((task) => {
+    if (task.column !== columnId) return task;
+    const nextOrder = orderById.get(task.id);
+    return typeof nextOrder === 'number' && nextOrder !== task.order
+      ? { ...task, order: nextOrder }
+      : task;
+  });
+}
+
 const ALLOWED_PRIORITIES = new Set(['urgent', 'high', 'medium', 'low', 'none']);
 
 function normalizePriority(priority) {
@@ -219,7 +243,7 @@ export function updateTaskPositionsFromDrop(evt) {
       };
 
       if (isSwimlaneView) {
-        nextTask = applySwimLaneAssignment(nextTask, settings.swimLaneGroupBy, toLaneKey, labels);
+        nextTask = applySwimLaneAssignment(nextTask, settings.swimLaneGroupBy, toLaneKey, labels, settings.swimLaneLabelGroup);
       }
 
       // Update order
@@ -265,7 +289,11 @@ export function updateTaskPositionsFromDrop(evt) {
     return task;
   });
 
-  saveTasks(updatedTasks);
+  const finalTasks = toColumn === 'done'
+    ? reorderColumnTasks(updatedTasks, toColumn, movedTaskId)
+    : updatedTasks;
+
+  saveTasks(finalTasks);
 
   return {
     movedTaskId,
@@ -275,7 +303,7 @@ export function updateTaskPositionsFromDrop(evt) {
     toLaneKey,
     didChangeColumn,
     didChangeLane,
-    tasks: updatedTasks
+    tasks: finalTasks
   };
 }
 
@@ -283,27 +311,8 @@ export function moveTaskToTopInColumn(taskId, columnId, tasksCache) {
   if (!taskId || !columnId) return null;
 
   const tasks = tasksCache || loadTasks();
-  const columnTasks = tasks
-    .filter((task) => task.column === columnId && task.id !== taskId)
-    .slice()
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-
-  const orderById = new Map();
-  orderById.set(taskId, 1);
-  columnTasks.forEach((task, index) => {
-    orderById.set(task.id, index + 2);
-  });
-
-  let didUpdate = false;
-  const updatedTasks = tasks.map((task) => {
-    if (task.column !== columnId && task.id !== taskId) return task;
-    const nextOrder = orderById.get(task.id);
-    if (typeof nextOrder === 'number' && nextOrder !== task.order) {
-      didUpdate = true;
-      return { ...task, order: nextOrder };
-    }
-    return task;
-  });
+  const updatedTasks = reorderColumnTasks(tasks, columnId, taskId);
+  const didUpdate = updatedTasks.some((task, index) => task !== tasks[index]);
 
   if (didUpdate) {
     saveTasks(updatedTasks);

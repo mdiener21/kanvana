@@ -10,14 +10,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added (unreleased)
 
-- Toggleable swim lane board view with label and label-group grouping, sticky lane headers, `No Group` fallback lane, and persisted per-board settings
+- Toggleable swim lane board view with label, label-group, and priority grouping, sticky lane headers, `No Group` fallback lane, and persisted per-board settings
 - Swim lane-aware drag and drop that updates persisted lane assignment and allows moves across lanes, columns, or both in one gesture
 - Swim lane test coverage: pure logic unit tests plus Playwright integration tests for toggle/rendering, drag-drop movement, and settings persistence
+- Accordion-style swim lane collapse/expand controls with persisted per-board collapsed lane state
+- Label-group swim lane configuration now lets the user pick a specific label group so each label value in that group renders as its own swim lane row
 
 ### Changed (unreleased)
 
 - Board rendering now supports a swim lane grid mode while keeping the existing column-only layout unchanged when the feature is off
 - Board import/export now preserves swim lane settings and explicit task lane assignments
+- Swim lane controls moved out of the board toolbar into the Settings modal
+- Expanded swim lane rows now hide done-column cards by default to keep lanes compact while preserving Done as a drag-and-drop target
+- Swim lane workflow headers now stay visible during vertical scrolling, and column collapse continues to work while swim lanes are enabled
+- In priority-grouped swim lanes, dragging a task between lanes now updates the task priority to match the target lane
 
 ### Removed (unreleased)
 

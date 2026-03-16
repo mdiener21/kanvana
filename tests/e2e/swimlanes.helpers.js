@@ -1,3 +1,5 @@
+import { expect } from '@playwright/test';
+
 export async function seedSwimlaneBoard(page, settingsOverrides = {}) {
   const fixture = {
     boardId: 'swimlane-test-board',
@@ -65,6 +67,8 @@ export async function seedSwimlaneBoard(page, settingsOverrides = {}) {
       countdownWarningThreshold: 10,
       swimLanesEnabled: false,
       swimLaneGroupBy: 'label',
+      swimLaneLabelGroup: '',
+      swimLaneCollapsedKeys: [],
       ...settingsOverrides
     }
   };
@@ -79,4 +83,13 @@ export async function seedSwimlaneBoard(page, settingsOverrides = {}) {
     localStorage.setItem(`kanbanBoard:${data.boardId}:labels`, JSON.stringify(data.labels));
     localStorage.setItem(`kanbanBoard:${data.boardId}:settings`, JSON.stringify(data.settings));
   }, fixture);
+}
+
+export async function openSwimlaneSettings(page) {
+  const settingsButton = page.locator('#settings-btn');
+  if (!(await settingsButton.isVisible())) {
+    await page.locator('#desktop-menu-btn').click();
+  }
+  await settingsButton.click();
+  await expect(page.locator('#settings-modal')).toBeVisible();
 }

@@ -8,7 +8,7 @@ const LEGACY_TASKS_KEY = 'kanbanTasks';
 const LEGACY_LABELS_KEY = 'kanbanLabels';
 
 const DEFAULT_BOARD_ID = 'default';
-const ALLOWED_SWIMLANE_GROUP_BY = new Set(['label', 'label-group']);
+const ALLOWED_SWIMLANE_GROUP_BY = new Set(['label', 'label-group', 'priority']);
 
 // Per-board in-memory cache to keep defaults stable within a session.
 const taskCacheByBoard = new Map();
@@ -215,7 +215,9 @@ function defaultSettings() {
     countdownUrgentThreshold: 3,   // Red: tasks due within this many days
     countdownWarningThreshold: 10,  // Amber: tasks due within this many days (must be >= urgent threshold)
     swimLanesEnabled: false,
-    swimLaneGroupBy: 'label'
+    swimLaneGroupBy: 'label',
+    swimLaneLabelGroup: '',
+    swimLaneCollapsedKeys: []
   };
 }
 
@@ -229,6 +231,23 @@ function normalizePriority(value) {
 function normalizeSwimLaneGroupBy(value) {
   const normalized = (value || '').toString().trim().toLowerCase();
   return ALLOWED_SWIMLANE_GROUP_BY.has(normalized) ? normalized : 'label';
+}
+
+function normalizeSwimLaneLabelGroup(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeSwimLaneCollapsedKeys(value) {
+  if (!Array.isArray(value)) return [];
+
+  const seen = new Set();
+  return value
+    .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+    .filter((entry) => {
+      if (!entry || seen.has(entry)) return false;
+      seen.add(entry);
+      return true;
+    });
 }
 
 function migrateLegacySingleBoardIntoDefault() {
@@ -525,6 +544,8 @@ function normalizeSettings(raw) {
     : 10;
   const swimLanesEnabled = obj.swimLanesEnabled === true;
   const swimLaneGroupBy = normalizeSwimLaneGroupBy(obj.swimLaneGroupBy);
+  const swimLaneLabelGroup = normalizeSwimLaneLabelGroup(obj.swimLaneLabelGroup);
+  const swimLaneCollapsedKeys = normalizeSwimLaneCollapsedKeys(obj.swimLaneCollapsedKeys);
 
   return {
     showPriority,
@@ -537,7 +558,9 @@ function normalizeSettings(raw) {
     countdownUrgentThreshold,
     countdownWarningThreshold,
     swimLanesEnabled,
-    swimLaneGroupBy
+    swimLaneGroupBy,
+    swimLaneLabelGroup,
+    swimLaneCollapsedKeys
   };
 }
 

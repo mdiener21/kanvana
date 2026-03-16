@@ -6,7 +6,10 @@ import {
   NO_GROUP_LANE_LABEL,
   SWIMLANE_GROUP_BY_LABEL,
   SWIMLANE_GROUP_BY_LABEL_GROUP,
+  SWIMLANE_GROUP_BY_PRIORITY,
+  SWIMLANE_HIDDEN_DONE_COLUMN_ID,
   buildBoardGrid,
+  getVisibleTasksForLane,
   getSwimLaneValue,
   groupTasksBySwimLane,
   moveTask
@@ -34,6 +37,22 @@ test('getSwimLaneValue returns fallback lane names for label mode', () => {
   assert.equal(getSwimLaneValue(explicitNoGroupTask, SWIMLANE_GROUP_BY_LABEL, labels), NO_GROUP_LANE_LABEL);
 });
 
+test('getSwimLaneValue returns normalized priority lane names for priority mode', () => {
+  const urgentTask = { id: 't1', column: 'todo', priority: 'urgent' };
+  const invalidPriorityTask = { id: 't2', column: 'todo', priority: 'invalid' };
+
+  assert.equal(getSwimLaneValue(urgentTask, SWIMLANE_GROUP_BY_PRIORITY, labels), 'Urgent');
+  assert.equal(getSwimLaneValue(invalidPriorityTask, SWIMLANE_GROUP_BY_PRIORITY, labels), 'None');
+});
+
+test('getSwimLaneValue returns label values from the selected label group', () => {
+  const task = { id: 't1', column: 'todo', labels: ['label-b', 'label-c'] };
+  const noGroupTask = { id: 't2', column: 'todo', labels: ['label-c'] };
+
+  assert.equal(getSwimLaneValue(task, SWIMLANE_GROUP_BY_LABEL_GROUP, labels, 'Projects'), 'Project B');
+  assert.equal(getSwimLaneValue(noGroupTask, SWIMLANE_GROUP_BY_LABEL_GROUP, labels, 'Projects'), NO_GROUP_LANE_LABEL);
+});
+
 test('groupTasksBySwimLane groups tasks into distinct lanes plus No Group', () => {
   const tasks = [
     { id: 't1', column: 'todo', order: 1, labels: ['label-a'] },
@@ -49,6 +68,31 @@ test('groupTasksBySwimLane groups tasks into distinct lanes plus No Group', () =
   );
   assert.deepEqual(grouped.find((lane) => lane.value === 'Project A')?.tasks.map((task) => task.id), ['t1']);
   assert.deepEqual(grouped.find((lane) => lane.value === NO_GROUP_LANE_LABEL)?.tasks.map((task) => task.id), ['t3']);
+});
+
+test('groupTasksBySwimLane sorts priority lanes in workflow order', () => {
+  const tasks = [
+    { id: 't1', column: 'todo', order: 1, priority: 'low' },
+    { id: 't2', column: 'todo', order: 2, priority: 'urgent' },
+    { id: 't3', column: 'todo', order: 3, priority: 'medium' },
+    { id: 't4', column: 'todo', order: 4, priority: 'none' }
+  ];
+
+  const grouped = groupTasksBySwimLane(tasks, SWIMLANE_GROUP_BY_PRIORITY, labels);
+
+  assert.deepEqual(grouped.map((lane) => lane.value), ['Urgent', 'Medium', 'Low', 'None']);
+});
+
+test('groupTasksBySwimLane includes one lane per label in the selected group', () => {
+  const tasks = [
+    { id: 't1', column: 'todo', order: 1, labels: ['label-a'] },
+    { id: 't2', column: 'done', order: 1, labels: [] }
+  ];
+
+  const grouped = groupTasksBySwimLane(tasks, SWIMLANE_GROUP_BY_LABEL_GROUP, labels, 'Projects');
+
+  assert.deepEqual(grouped.map((lane) => lane.value), ['Project A', 'Project B', NO_GROUP_LANE_LABEL]);
+  assert.deepEqual(grouped.find((lane) => lane.value === 'Project B')?.tasks, []);
 });
 
 test('buildBoardGrid places tasks into the correct lane and column cells', () => {
@@ -69,6 +113,14 @@ test('buildBoardGrid places tasks into the correct lane and column cells', () =>
   assert.deepEqual(noGroupLane?.cells.done.map((task) => task.id), ['t3']);
 });
 
+test('getVisibleTasksForLane hides done-column tasks but keeps active columns visible', () => {
+  const todoTasks = [{ id: 't1', column: 'todo', order: 1, labels: ['label-a'] }];
+  const doneTasks = [{ id: 't2', column: 'done', order: 1, labels: [] }];
+
+  assert.deepEqual(getVisibleTasksForLane(todoTasks, 'todo').map((task) => task.id), ['t1']);
+  assert.deepEqual(getVisibleTasksForLane(doneTasks, SWIMLANE_HIDDEN_DONE_COLUMN_ID), []);
+});
+
 test('moveTask updates both column and explicit label lane assignment', () => {
   const tasks = [
     { id: 't1', column: 'todo', order: 1, labels: ['label-a'] },
@@ -83,19 +135,36 @@ test('moveTask updates both column and explicit label lane assignment', () => {
   assert.deepEqual(task?.labels, ['label-b', 'label-a']);
 });
 
-test('moveTask supports label-group lanes and explicit No Group assignment', () => {
+test('moveTask supports selected label-group lanes and explicit No Group assignment', () => {
   const tasks = [
     { id: 't1', column: 'todo', order: 1, labels: ['label-c'] }
   ];
 
-  const movedToGroup = moveTask(tasks, 't1', 'inprogress', 'Projects', SWIMLANE_GROUP_BY_LABEL_GROUP, labels);
+  const movedToGroup = moveTask(tasks, 't1', 'inprogress', 'label-b', SWIMLANE_GROUP_BY_LABEL_GROUP, labels, 'Projects');
   const groupedTask = movedToGroup[0];
   assert.equal(groupedTask.column, 'inprogress');
   assert.equal(groupedTask.swimlaneLabelGroup, 'Projects');
+  assert.equal(groupedTask.swimlaneLabelId, 'label-b');
+  assert.deepEqual(groupedTask.labels, ['label-b', 'label-c']);
 
-  const movedToNoGroup = moveTask(movedToGroup, 't1', 'done', NO_GROUP_LANE_KEY, SWIMLANE_GROUP_BY_LABEL_GROUP, labels);
+  const movedToNoGroup = moveTask(movedToGroup, 't1', 'done', NO_GROUP_LANE_KEY, SWIMLANE_GROUP_BY_LABEL_GROUP, labels, 'Projects');
   const noGroupTask = movedToNoGroup[0];
   assert.equal(noGroupTask.column, 'done');
   assert.equal(noGroupTask.swimlaneLabelGroup, '');
-  assert.equal(getSwimLaneValue(noGroupTask, SWIMLANE_GROUP_BY_LABEL_GROUP, labels), NO_GROUP_LANE_LABEL);
+  assert.equal(noGroupTask.swimlaneLabelId, '');
+  assert.deepEqual(noGroupTask.labels, ['label-c']);
+  assert.equal(getSwimLaneValue(noGroupTask, SWIMLANE_GROUP_BY_LABEL_GROUP, labels, 'Projects'), NO_GROUP_LANE_LABEL);
+});
+
+test('moveTask updates priority when grouping by priority lane', () => {
+  const tasks = [
+    { id: 't1', column: 'todo', order: 1, priority: 'medium', labels: ['label-c'] }
+  ];
+
+  const moved = moveTask(tasks, 't1', 'inprogress', 'urgent', SWIMLANE_GROUP_BY_PRIORITY, labels);
+  const task = moved[0];
+
+  assert.equal(task.column, 'inprogress');
+  assert.equal(task.priority, 'urgent');
+  assert.equal(getSwimLaneValue(task, SWIMLANE_GROUP_BY_PRIORITY, labels), 'Urgent');
 });

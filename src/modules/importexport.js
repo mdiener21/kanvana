@@ -92,7 +92,15 @@ function normalizeSettingsForExport(settings) {
     ? Math.min(365, Math.max(0, rawNotificationDays))
     : 3;
   const swimLanesEnabled = obj.swimLanesEnabled === true;
-  const swimLaneGroupBy = obj.swimLaneGroupBy === 'label-group' ? 'label-group' : 'label';
+  const swimLaneGroupBy = ['label', 'label-group', 'priority'].includes(obj.swimLaneGroupBy)
+    ? obj.swimLaneGroupBy
+    : 'label';
+  const swimLaneLabelGroup = typeof obj.swimLaneLabelGroup === 'string' ? obj.swimLaneLabelGroup.trim() : '';
+  const swimLaneCollapsedKeys = Array.isArray(obj.swimLaneCollapsedKeys)
+    ? obj.swimLaneCollapsedKeys
+        .filter((entry) => typeof entry === 'string' && entry.trim())
+        .map((entry) => entry.trim())
+    : [];
   return {
     showPriority,
     showDueDate,
@@ -102,7 +110,9 @@ function normalizeSettingsForExport(settings) {
     defaultPriority,
     notificationDays,
     swimLanesEnabled,
-    swimLaneGroupBy
+    swimLaneGroupBy,
+    swimLaneLabelGroup,
+    swimLaneCollapsedKeys
   };
 }
 
@@ -276,7 +286,15 @@ function normalizeImportedSettings(settings) {
     ? Math.min(365, Math.max(0, rawNotificationDays))
     : undefined;
   const swimLanesEnabled = settings.swimLanesEnabled === true;
-  const swimLaneGroupBy = settings.swimLaneGroupBy === 'label-group' ? 'label-group' : 'label';
+  const swimLaneGroupBy = ['label', 'label-group', 'priority'].includes(settings.swimLaneGroupBy)
+    ? settings.swimLaneGroupBy
+    : 'label';
+  const swimLaneLabelGroup = typeof settings.swimLaneLabelGroup === 'string' ? settings.swimLaneLabelGroup.trim() : '';
+  const swimLaneCollapsedKeys = Array.isArray(settings.swimLaneCollapsedKeys)
+    ? settings.swimLaneCollapsedKeys
+        .filter((entry) => typeof entry === 'string' && entry.trim())
+        .map((entry) => entry.trim())
+    : [];
   return {
     showPriority,
     showDueDate,
@@ -287,6 +305,8 @@ function normalizeImportedSettings(settings) {
     ,...(notificationDays !== undefined ? { notificationDays } : {})
     ,swimLanesEnabled
     ,swimLaneGroupBy
+    ,swimLaneLabelGroup
+    ,swimLaneCollapsedKeys
   };
 }
 
