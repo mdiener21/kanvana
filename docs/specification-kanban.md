@@ -42,8 +42,8 @@
   column: "column-id",
   order: number,
   labels: ["label-id-1", "label-id-2"],
-  swimlaneLabelId: "label-id" | "", // optional explicit lane assignment when grouping by label; empty string means No Group
-  swimlaneLabelGroup: "Group Name" | "", // optional explicit lane assignment when grouping by label group; empty string means No Group
+  swimlaneLabelId: "label-id" | "", // optional explicit lane assignment when grouping by label or by a selected label-group value; empty string means No Group
+  swimlaneLabelGroup: "Group Name" | "", // optional metadata for the selected label-group swimlane assignment
   creationDate: "YYYY-MM-DDTHH:MM:SSZ",
   changeDate: "YYYY-MM-DDTHH:MM:SSZ", // updated on task save (create, edit, change column)
   doneDate: "YYYY-MM-DDTHH:MM:SSZ", // set only when task enters the Done column; removed when leaving Done
@@ -99,21 +99,37 @@
 - Each column: header (drag handle, title, task counter, actions) + task list + optional show-all button
 - Task counter: circular blue badge showing task count, updates on any task add/remove/move
 - Optional swim lane view turns the board into a row-by-column grid while preserving the same workflow columns.
-  - Top row shows column headers with task counters and add-task actions.
-  - Left column shows sticky lane names.
+  - Top row shows workflow column headers with task counters, add-task actions, and column collapse controls.
+  - The workflow column header row remains visible while the user scrolls vertically through the swim lane grid.
+  - Left column shows sticky lane headers with lane name, active-count badges, hidden-done summary, and collapse/expand control.
   - Each lane row contains one task cell per workflow column.
   - Swim lanes are toggled entirely client-side without page reload.
 
 ### Swim Lanes
 
-- Swim lanes are a per-board presentation mode controlled from the main toolbar.
+- Swim lanes are a per-board presentation mode controlled from the Settings modal.
 - Supported grouping modes:
   - `label`: lane assignment uses `task.swimlaneLabelId` when present; otherwise the first task label is used as fallback.
-  - `label-group`: lane assignment uses `task.swimlaneLabelGroup` when present; otherwise the first assigned label with a non-empty `group` is used as fallback.
+  - `label-group`: the user first chooses one concrete label group in Settings, then each label value inside that group becomes its own lane row.
+    - Lane assignment uses `task.swimlaneLabelId` when it points to a label inside the selected group; otherwise the first assigned label in the selected group is used as fallback.
+    - Tasks without any label from the selected group appear in `No Group`.
+    - Empty labels in the selected group still render as empty rows so the lane structure stays stable.
+  - `priority`: lane assignment uses `task.priority`, with stable lane order `Urgent`, `High`, `Medium`, `Low`, `None`.
 - Tasks that resolve to no lane value are shown in the `No Group` lane.
 - Dragging a task between swim lanes updates its persisted lane assignment immediately.
   - In `label` mode, moving into a label lane also prepends that label id to `task.labels` if it is not already present.
   - Moving into `No Group` stores an explicit empty-string lane assignment so the task remains in `No Group` even if it still has other labels.
+  - In selected `label-group` mode, moving into a lane replaces only labels that belong to the chosen label group and leaves labels from other groups unchanged.
+  - In `priority` mode, moving into a lane updates `task.priority` to that lane's normalized priority value.
+- Expanded swim lane rows hide task cards that are already in the `done` column to keep rows compact.
+  - The `done` cell still renders as an active drop zone and shows compact helper text instead of the hidden cards.
+  - Dragging a task into `done` in swim lane mode still persists the move and places the task at the top of the flattened done-column order.
+- Each swim lane row has an accordion-style collapse button.
+  - Collapsing a lane hides its row cells while keeping the lane header visible.
+  - Collapsed lane state is persisted per board using lane keys in Settings.
+- Workflow columns remain collapsible while swim lane view is enabled.
+  - Collapsing a workflow column applies across every swim lane row, turning that column into a narrow rail with compact summaries.
+  - The collapsed workflow column header remains visible so the column can be expanded again.
 - Task ordering remains flattened per column in storage so switching swim lanes off returns to the standard column view without data loss.
 
 ### Column Features
@@ -131,6 +147,7 @@
 - **Permanent Done column**: The column with id `done` cannot be deleted.
 - **Reorder**: Drag via grip icon handle, updates order property
 - **Collapse**: Toggle button (left of the grip handle) collapses a column into a ~20px vertical bar; state is stored per column. When collapsed, the column header displays the task count in the format "ColumnName (count)". Dragging a task over a collapsed column shows a dashed outline, and dropping places the task at the top of that column.
+  - This same collapse state is honored in swim lane mode, where the workflow header row stays visible and the collapsed column becomes a narrow rail across all swim lane rows.
 - **Actions**: Plus icon (add task), pencil (edit), trash (delete)
 
 #### Column Header Actions
@@ -213,11 +230,6 @@
   - Filtering is **in-memory** (no persistence) and applies to the currently rendered board.
   - A task matches if the search string appears in **task title**, **task description**, **task priority** (low/medium/high), the **label name**, or the **label group name** of any label assigned to the task (case-insensitive substring match).
 
-- Toolbar also includes a **Swim Lanes** toggle and a **Group swim lanes by** selector.
-  - Toggle enables/disables swim lane mode instantly.
-  - Grouping selector supports `Label` and `Label Group`.
-  - Grouping selector is disabled while swim lanes are off.
-
 - Single menu button (ellipsis) that opens a dropdown containing:
   - Board selector dropdown (shows all boards)
   - Manage Boards button (opens boards management modal)
@@ -245,9 +257,16 @@
   - Toggle to show/hide task updated date/time (`changeDate`)
   - Locale dropdown for formatting the updated timestamp
   - Default task priority dropdown (urgent/high/medium/low/none) used when creating new tasks
+  - Swim lane section containing:
+    - Toggle to enable/disable swim lanes
+    - Grouping selector (`Label`, `Label Group`, or `Priority`), disabled while swim lanes are off
+    - When `Label Group` is selected, a second selector for the specific label group to expand into one row per label value
+    - Informational copy that done-column cards remain hidden in swim lane rows while the done drop zone stays active
 - Persisted board settings also include swim lane state:
   - `swimLanesEnabled`: boolean
-  - `swimLaneGroupBy`: `label` or `label-group`
+  - `swimLaneGroupBy`: `label`, `label-group`, or `priority`
+  - `swimLaneLabelGroup`: selected label group name used when `swimLaneGroupBy = label-group`
+  - `swimLaneCollapsedKeys`: array of lane keys collapsed by the user in swim lane view
 - Default locale is initialized from the browser (e.g. `navigator.language`).
 - Default priority is `none`.
 

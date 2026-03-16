@@ -8,103 +8,182 @@ Plan:
 
 ### Test Suite 1: Swim Lane Toggle
 
-**TC-SL-001 — Enable swim lanes**
+**TC-SL-001 — Open swim lane settings modal**
 
 * **Given** the board is displayed in normal column-only mode
+* **When** the user opens swim lane settings
+* **Then** a dedicated swim lane settings modal should appear
+* **And** it should contain the swim lane toggle and grouping controls
+* **And** no page reload should occur
+
+**TC-SL-002 — Enable swim lanes from modal**
+
+* **Given** the board is displayed in normal column-only mode
+* **And** the swim lane settings modal is open
 * **When** the user turns on the swim lane toggle
 * **Then** the board should render tasks grouped into swim lane rows
 * **And** the existing columns should remain visible
 * **And** no page reload should occur
 
-**TC-SL-002 — Disable swim lanes**
+**TC-SL-003 — Disable swim lanes from modal**
 
 * **Given** swim lanes are enabled
+* **And** the swim lane settings modal is open
 * **When** the user turns off the swim lane toggle
 * **Then** the board should return to the standard column-only layout
 * **And** all tasks should still appear in their correct columns
 * **And** no tasks should be lost
 
-**TC-SL-003 — Toggle preserves task data**
+**TC-SL-004 — Toggle preserves task data**
 
 * **Given** a board with tasks already displayed
 * **When** the user enables swim lanes and then disables them
 * **Then** task ids, titles, column assignments, and metadata must remain unchanged
 
-**TC-SL-004 — Toggle state persists**
+**TC-SL-005 — Toggle state persists**
 
 * **Given** the user enabled swim lanes
 * **When** the app is reloaded
 * **Then** swim lanes should still be enabled from persisted settings
 
+**TC-SL-006 — Modal can close without applying unrelated changes**
+
+* **Given** the swim lane settings modal is open
+* **When** the user closes the modal without changing swim lane controls
+* **Then** the board should remain in its prior swim lane state
+
 ---
 
 ### Test Suite 2: Swim Lane Grouping Logic
 
-**TC-SL-005 — Group tasks by selected attribute**
+**TC-SL-007 — Group tasks by selected attribute**
 
-* **Given** swim lanes are enabled and grouping is set to `assignee`
+* **Given** swim lanes are enabled and grouping is set to `priority`
 * **When** the board is rendered
-* **Then** tasks should be placed into lanes matching their assignee value
+* **Then** tasks should be placed into lanes matching their priority value
 
-**TC-SL-006 — Tasks without grouping attribute go to default lane**
+**TC-SL-007B — Group tasks by values inside the selected label group**
+
+* **Given** swim lanes are enabled and grouping is set to `label-group`
+* **And** the user selected the label group `Teams`
+* **When** the board is rendered
+* **Then** each label in `Teams` should render as its own swim lane row
+* **And** tasks should appear under the row for their matching label value within `Teams`
+
+**TC-SL-007A — Priority lanes render in workflow order**
+
+* **Given** swim lanes are enabled and grouping is set to `priority`
+* **When** the board is rendered
+* **Then** lane order should remain `Urgent`, `High`, `Medium`, `Low`, `None`
+
+**TC-SL-008 — Tasks without grouping attribute go to default lane**
 
 * **Given** swim lanes are enabled
 * **And** some tasks do not have the selected grouping attribute
 * **When** the board is rendered
 * **Then** those tasks should appear in the `No Group` lane
 
-**TC-SL-007 — Empty swim lanes are handled correctly**
+**TC-SL-009 — Empty swim lanes are handled correctly**
 
 * **Given** swim lanes are enabled
-* **When** a possible swim lane has no tasks
-* **Then** the UI should either hide the empty lane or render it consistently per design
+* **And** grouping is set to a specific label group
+* **When** one label in the selected group has no tasks
+* **Then** the empty swim lane row for that label should still render
 * **And** should not break layout
 
-**TC-SL-008 — Lane headers render correct labels**
+**TC-SL-010 — Lane headers render correct labels**
 
 * **Given** swim lanes are enabled
 * **When** tasks are grouped by an attribute
 * **Then** each lane header should display the correct attribute value
 
-**TC-SL-009 — Grouping switch updates lanes**
+**TC-SL-011 — Grouping switch updates lanes from modal**
 
 * **Given** swim lanes are enabled and grouped by `label`
-* **When** the user changes grouping to `assignee`
-* **Then** the board should immediately regroup tasks by assignee
+* **And** the swim lane settings modal is open
+* **When** the user changes grouping to `priority`
+* **Then** the board should immediately regroup tasks by priority
 * **And** no page reload should occur
 
-**TC-SL-010 — Grouping selection persists**
+**TC-SL-011A — Selecting a concrete label group updates rows from modal**
+
+* **Given** swim lanes are enabled and grouping is set to `label-group`
+* **When** the user selects a different label group in the swim lane settings modal
+* **Then** the board should immediately rebuild rows so each row matches a label value from the newly selected group
+* **And** no page reload should occur
+
+**TC-SL-012 — Grouping selection persists**
 
 * **Given** the user selected a grouping type
 * **When** the app reloads
 * **Then** the same grouping type should be restored from persisted settings
 
+**TC-SL-012A — Selected label group persists**
+
+* **Given** the user selected grouping type `label-group` and chose a specific label group
+* **When** the app reloads
+* **Then** the same label group selection should be restored from persisted settings
+
 ---
 
 ### Test Suite 3: Rendering and Layout
 
-**TC-SL-011 — Board renders as row × column grid**
+**TC-SL-013 — Board renders as row × column grid**
 
 * **Given** swim lanes are enabled
 * **When** the board is rendered
 * **Then** each swim lane should contain one cell per workflow column
 * **And** tasks should appear only in the correct lane-column cell
 
-**TC-SL-012 — Column headers remain unchanged**
+**TC-SL-014 — Column headers remain unchanged**
 
 * **Given** swim lanes are enabled
 * **When** the board is rendered
 * **Then** existing column names and ordering should remain unchanged
 
-**TC-SL-013 — Large number of tasks renders correctly**
+**TC-SL-014A — Column headers stay visible during vertical scroll**
 
 * **Given** swim lanes are enabled
-* **And** a lane contains many tasks
+* **And** the board content is tall enough to scroll vertically
+* **When** the user scrolls down through the swim lane grid
+* **Then** the workflow column headers should remain visible at the top of the board
+
+**TC-SL-014B — Column collapse works in swim lane mode**
+
+* **Given** swim lanes are enabled
+* **When** the user collapses a workflow column from the swim lane header row
+* **Then** that column should collapse consistently across every swim lane row
+* **And** the header should remain visible so the column can be expanded again
+
+**TC-SL-014C — Expanding a collapsed swim lane column restores its contents**
+
+* **Given** a workflow column is collapsed while swim lanes are enabled
+* **When** the user expands that column again
+* **Then** the visible cells in that column should be restored across every swim lane row
+
+**TC-SL-015 — Large number of tasks renders correctly**
+
+* **Given** swim lanes are enabled
+* **And** a lane contains many completed tasks in the `Done` column
 * **When** the board is rendered
 * **Then** the UI should remain usable
-* **And** tasks should remain visible and scrollable as designed
+* **And** the expanded swim lane should not grow excessively because done items are excluded from the visible lane body
 
-**TC-SL-014 — Default board rendering unchanged when swim lanes off**
+**TC-SL-015A — Done column remains available as a drop target**
+
+* **Given** swim lanes are enabled
+* **When** the board is rendered with done items excluded from expanded lane content
+* **Then** the `Done` column should still render as a valid drop zone for task moves
+
+**TC-SL-015B — Swim lane can collapse and expand**
+
+* **Given** swim lanes are enabled
+* **When** the user activates the collapse control on a swim lane header
+* **Then** the swim lane body should be hidden while the header remains visible
+* **When** the user activates the control again
+* **Then** the swim lane body should be restored without a page reload
+
+**TC-SL-016 — Default board rendering unchanged when swim lanes off**
 
 * **Given** the current app behavior without swim lanes
 * **When** swim lanes are disabled
@@ -137,6 +216,22 @@ Plan:
 * **When** the task is dragged to lane `Project B`, column `Done`
 * **Then** both the lane grouping attribute and column status should update correctly
 
+**TC-SL-017B — Move task between priority lanes**
+
+* **Given** swim lanes are enabled and grouped by `priority`
+* **And** a task is in lane `Medium`, column `To Do`
+* **When** the task is dragged to lane `High` in the same column
+* **Then** the task priority should update to `high`
+* **And** the column should remain `To Do`
+
+**TC-SL-017A — Move active task into Done when done items are hidden**
+
+* **Given** swim lanes are enabled
+* **And** done items are excluded from the visible expanded swim lane body
+* **When** the user drags a task from an active column into `Done`
+* **Then** the move should succeed
+* **And** the task should persist with column status `Done`
+
 **TC-SL-018 — Drag task into No Group lane**
 
 * **Given** swim lanes are enabled
@@ -162,9 +257,15 @@ Plan:
 
 **TC-SL-021 — Persist swim lane grouping type**
 
-* **Given** the user selects grouping type `label`
+* **Given** the user selects grouping type `priority`
 * **When** board settings are saved
-* **Then** the persisted state should contain `swimLaneGroupBy = label`
+* **Then** the persisted state should contain `swimLaneGroupBy = priority`
+
+**TC-SL-021A — Persist selected label group**
+
+* **Given** the user selects grouping type `label-group` and chooses `Teams`
+* **When** board settings are saved
+* **Then** the persisted state should contain `swimLaneLabelGroup = Teams`
 
 **TC-SL-022 — Persist task after swim lane move**
 
@@ -178,6 +279,12 @@ Plan:
 * **When** the app initializes
 * **Then** the board should restore the correct toggle state, grouping type, task columns, and swim lane placement
 
+**TC-SL-023A — Restore swim lane collapsed state**
+
+* **Given** one or more swim lanes were collapsed and that UI state is persisted
+* **When** the app initializes
+* **Then** the same swim lanes should restore in their collapsed state
+
 ---
 
 ### Test Suite 6: Core Utility / Logic Functions
@@ -189,13 +296,14 @@ These are the most important function-level tests the AI should create.
 * Test with valid attribute present
 * Test with missing attribute
 * Test with empty string
-* Expected result should fall back to `No Group` mapping when needed
+* Expected result should fall back to `No Group` mapping when needed for label-based grouping and to `None` for priority grouping
 
 **TC-SL-025 — `groupTasksBySwimLane(tasks, groupBy)` groups tasks correctly**
 
 * Input tasks with mixed values
 * Verify output structure contains all expected lanes
 * Verify tasks are assigned to correct groups
+* Verify `label-group` mode creates one lane per label in the selected label group even when some lanes are empty
 
 **TC-SL-026 — `buildBoardGrid(columns, swimLanes, tasks)` places tasks in correct cells**
 
@@ -208,18 +316,32 @@ These are the most important function-level tests the AI should create.
 * Verify correct board renderer is called
 * Verify no task mutation occurs
 
+**TC-SL-027A — `getVisibleTasksForLane(...)` excludes done items from expanded lane content**
+
+* Verify tasks in non-done columns remain visible
+* Verify tasks in the `Done` column are excluded from expanded swim lane content
+* Verify hidden done items do not prevent the `Done` drop zone from rendering
+
 **TC-SL-028 — `moveTask(taskId, targetColumnId, targetLaneValue)` updates task correctly**
 
 * Verify column-only move
 * Verify lane-only move
 * Verify both together
+* Verify moving within a selected label-group lane replaces only labels that belong to the chosen label group
+* Verify moving within priority grouping updates `task.priority`
 * Verify persistence trigger occurs if applicable
 
 **TC-SL-029 — `saveBoardSettings(settings)` persists swim lane config**
 
 * Verify enabled flag is saved
 * Verify grouping type is saved
+* Verify selected label group is saved when `label-group` mode is active
 * Verify existing unrelated settings are not overwritten
+
+**TC-SL-029A — `saveBoardSettings(settings)` persists collapsed lane state when supported**
+
+* Verify collapsed lane ids or equivalent state is saved
+* Verify unrelated settings are preserved
 
 **TC-SL-030 — `loadBoardSettings()` handles missing or invalid data safely**
 
