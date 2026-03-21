@@ -459,6 +459,27 @@ body.dragging-column .column-header * {
   background: var(--surface-muted);
 }
 
+/* Collapsed swimlane row: header spans all columns, single horizontal line */
+.swimlane-row.is-collapsed .swimlane-row-header {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: center;
+  min-height: auto;
+  padding-block: 10px;
+}
+
+.swimlane-row.is-collapsed .swimlane-row-toggle {
+  order: -1;
+}
+
+.swimlane-row.is-collapsed .swimlane-row-header-main {
+  display: contents;
+}
+
+.swimlane-row.is-collapsed .swimlane-row-meta {
+  margin-top: 0;
+}
+
 .swimlane-row.is-collapsed .swimlane-cell {
   display: none;
 }
