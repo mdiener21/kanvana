@@ -217,7 +217,8 @@ function defaultSettings() {
     swimLanesEnabled: false,
     swimLaneGroupBy: 'label',
     swimLaneLabelGroup: '',
-    swimLaneCollapsedKeys: []
+    swimLaneCollapsedKeys: [],
+    swimLaneCellCollapsedKeys: []
   };
 }
 
@@ -238,6 +239,19 @@ function normalizeSwimLaneLabelGroup(value) {
 }
 
 function normalizeSwimLaneCollapsedKeys(value) {
+  if (!Array.isArray(value)) return [];
+
+  const seen = new Set();
+  return value
+    .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+    .filter((entry) => {
+      if (!entry || seen.has(entry)) return false;
+      seen.add(entry);
+      return true;
+    });
+}
+
+function normalizeSwimLaneCellCollapsedKeys(value) {
   if (!Array.isArray(value)) return [];
 
   const seen = new Set();
@@ -546,6 +560,7 @@ function normalizeSettings(raw) {
   const swimLaneGroupBy = normalizeSwimLaneGroupBy(obj.swimLaneGroupBy);
   const swimLaneLabelGroup = normalizeSwimLaneLabelGroup(obj.swimLaneLabelGroup);
   const swimLaneCollapsedKeys = normalizeSwimLaneCollapsedKeys(obj.swimLaneCollapsedKeys);
+  const swimLaneCellCollapsedKeys = normalizeSwimLaneCellCollapsedKeys(obj.swimLaneCellCollapsedKeys);
 
   return {
     showPriority,
@@ -560,7 +575,8 @@ function normalizeSettings(raw) {
     swimLanesEnabled,
     swimLaneGroupBy,
     swimLaneLabelGroup,
-    swimLaneCollapsedKeys
+    swimLaneCollapsedKeys,
+    swimLaneCellCollapsedKeys
   };
 }
 

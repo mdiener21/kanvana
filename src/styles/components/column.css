@@ -515,3 +515,55 @@ body.dragging-column .column-header * {
 .swimlane-cell.is-column-collapsed .swimlane-tasks {
   display: none;
 }
+
+/* Cell collapse toggle */
+.swimlane-cell-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.swimlane-cell.is-cell-collapsed .swimlane-cell-header {
+  margin-bottom: 0;
+}
+
+.swimlane-cell-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.swimlane-cell-toggle:hover {
+  background: var(--surface-muted);
+  color: var(--text);
+}
+
+.swimlane-cell-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
+.swimlane-cell.is-cell-collapsed {
+  min-height: auto;
+}
+
+.swimlane-cell.is-cell-collapsed .swimlane-tasks {
+  display: none;
+}
+
+.swimlane-cell-header .swimlane-cell-summary {
+  margin-bottom: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}

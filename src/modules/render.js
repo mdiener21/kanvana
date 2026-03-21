@@ -13,9 +13,11 @@ import {
   getVisibleTasksForLane,
   groupTasksBySwimLane,
   isSwimLaneCollapsed,
+  isSwimLaneCellCollapsed,
   SWIMLANE_HIDDEN_DONE_COLUMN_ID,
   syncSwimLaneControls,
-  toggleSwimLaneCollapsed
+  toggleSwimLaneCollapsed,
+  toggleSwimLaneCellCollapsed
 } from './swimlanes.js';
 
 let columnMenuCloseHandlerAttached = false;
@@ -743,15 +745,19 @@ function createSwimlaneLaneHeader(lane, activeTaskCount, hiddenDoneCount, isColl
   return laneHeader;
 }
 
-function createSwimlaneCell(column, lane, tasksInCell, visibleTasks, settings, labelsMap, today) {
+function createSwimlaneCell(column, lane, tasksInCell, visibleTasks, settings, labelsMap, today, cellCollapsed) {
   const cell = document.createElement('section');
   cell.classList.add('swimlane-cell');
   const isColumnCollapsed = column?.collapsed === true;
+  const isDoneColumn = column.id === SWIMLANE_HIDDEN_DONE_COLUMN_ID;
   if (isColumnCollapsed) {
     cell.classList.add('is-column-collapsed');
   }
-  if (column.id === SWIMLANE_HIDDEN_DONE_COLUMN_ID) {
+  if (isDoneColumn) {
     cell.classList.add('swimlane-cell-done');
+  }
+  if (cellCollapsed && !isColumnCollapsed && !isDoneColumn) {
+    cell.classList.add('is-cell-collapsed');
   }
   cell.dataset.column = column.id;
   cell.dataset.laneKey = lane.key;
@@ -760,7 +766,38 @@ function createSwimlaneCell(column, lane, tasksInCell, visibleTasks, settings, l
 
   const hiddenTaskCount = getHiddenTaskCountForLane(tasksInCell, column.id);
 
-  if (column.id === SWIMLANE_HIDDEN_DONE_COLUMN_ID || isColumnCollapsed) {
+  // Cell header with toggle (only for normal cells, not done or column-collapsed)
+  if (!isDoneColumn && !isColumnCollapsed) {
+    const cellHeader = document.createElement('div');
+    cellHeader.classList.add('swimlane-cell-header');
+
+    const toggleBtn = document.createElement('button');
+    toggleBtn.type = 'button';
+    toggleBtn.classList.add('swimlane-cell-toggle');
+    const isCollapsed = cellCollapsed === true;
+    toggleBtn.setAttribute('aria-expanded', String(!isCollapsed));
+    toggleBtn.setAttribute('aria-label', `${isCollapsed ? 'Expand' : 'Collapse'} tasks in ${lane.value}, ${column.name}`);
+    toggleBtn.innerHTML = `<i data-lucide="${isCollapsed ? 'chevron-right' : 'chevron-down'}"></i>`;
+    toggleBtn.addEventListener('click', () => {
+      toggleSwimLaneCellCollapsed(lane.key, column.id);
+      renderBoard();
+    });
+    cellHeader.appendChild(toggleBtn);
+
+    if (isCollapsed) {
+      const summary = document.createElement('span');
+      summary.classList.add('swimlane-cell-summary');
+      const taskCount = tasksInCell.length;
+      summary.textContent = taskCount > 0
+        ? `${taskCount} task${taskCount === 1 ? '' : 's'}`
+        : 'Empty';
+      cellHeader.appendChild(summary);
+    }
+
+    cell.appendChild(cellHeader);
+  }
+
+  if (isDoneColumn || isColumnCollapsed) {
     const summary = document.createElement('div');
     summary.classList.add('swimlane-cell-summary');
     if (isColumnCollapsed) {
@@ -778,7 +815,7 @@ function createSwimlaneCell(column, lane, tasksInCell, visibleTasks, settings, l
 
   const tasksList = document.createElement('ul');
   tasksList.classList.add('tasks', 'swimlane-tasks');
-  if (column.id === SWIMLANE_HIDDEN_DONE_COLUMN_ID || isColumnCollapsed) {
+  if (isDoneColumn || isColumnCollapsed) {
     tasksList.classList.add('swimlane-tasks-hidden-done');
   }
   tasksList.dataset.column = column.id;
@@ -877,12 +914,15 @@ function renderSwimlaneBoard(container, sortedColumns, visibleTasks, labels, set
 
     sortedColumns.forEach((column) => {
       const tasksInCell = (lane.cells[column.id] || []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      const cellCollapsed = isSwimLaneCellCollapsed(lane.key, column.id, settings);
       const visibleTasksInCell = collapsed
         ? []
         : column?.collapsed === true
           ? tasksInCell
-          : getVisibleTasksForLane(tasksInCell, column.id);
-      row.appendChild(createSwimlaneCell(column, lane, tasksInCell, visibleTasksInCell, settings, labelsMap, today));
+          : cellCollapsed
+            ? []
+            : getVisibleTasksForLane(tasksInCell, column.id);
+      row.appendChild(createSwimlaneCell(column, lane, tasksInCell, visibleTasksInCell, settings, labelsMap, today, cellCollapsed));
     });
 
     board.appendChild(row);

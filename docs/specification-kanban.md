@@ -130,6 +130,12 @@
 - Workflow columns remain collapsible while swim lane view is enabled.
   - Collapsing a workflow column applies across every swim lane row, turning that column into a narrow rail with compact summaries.
   - The collapsed workflow column header remains visible so the column can be expanded again.
+- Individual swim lane cells (the intersection of a swim lane row and workflow column) can be collapsed independently.
+  - Each cell has a small chevron toggle button that collapses/expands just the tasks in that cell.
+  - When collapsed, the cell shows a compact task count summary (e.g., "3 tasks") and hides the task list.
+  - Cell collapse state is persisted per board using composite keys (`laneKey::columnId`) in Settings.
+  - Cell toggles do not appear in done-column cells or column-collapsed cells.
+  - Row collapse and column collapse take precedence over cell collapse.
 - Task ordering remains flattened per column in storage so switching swim lanes off returns to the standard column view without data loss.
 
 ### Column Features
@@ -267,6 +273,7 @@
   - `swimLaneGroupBy`: `label`, `label-group`, or `priority`
   - `swimLaneLabelGroup`: selected label group name used when `swimLaneGroupBy = label-group`
   - `swimLaneCollapsedKeys`: array of lane keys collapsed by the user in swim lane view
+  - `swimLaneCellCollapsedKeys`: array of composite keys (`laneKey::columnId`) for individually collapsed swim lane cells
 - Default locale is initialized from the browser (e.g. `navigator.language`).
 - Default priority is `none`.
 

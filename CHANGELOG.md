@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Swim lane test coverage: pure logic unit tests plus Playwright integration tests for toggle/rendering, drag-drop movement, and settings persistence
 - Accordion-style swim lane collapse/expand controls with persisted per-board collapsed lane state
 - Label-group swim lane configuration now lets the user pick a specific label group so each label value in that group renders as its own swim lane row
+- Per-cell collapse/expand toggles in swim lane view allowing individual swimlane-column cells to be collapsed independently of row and column collapse
 
 ### Changed (unreleased)
 
