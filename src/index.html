@@ -32,7 +32,7 @@
           aria-label="Search tasks by label, title, or description"
         >
       </div>
-      
+
       <div id="board-controls-menu" class="controls-actions">
         <label class="sr-only" for="board-select">Select board</label>
         <select id="board-select" class="control-select" aria-label="Select board"></select>
@@ -354,6 +354,31 @@
             <option value="none" selected>None</option>
           </select>
         </div>
+        <section class="settings-section" aria-labelledby="settings-swimlanes-title">
+          <div class="settings-section-header">
+            <h4 id="settings-swimlanes-title">Swim Lanes</h4>
+            <p class="form-help">Done-column cards stay hidden in swim lane rows to keep the board compact, but you can still drag tasks into Done.</p>
+          </div>
+          <div class="form-group checkbox-group">
+            <label>
+              <input id="settings-swimlane-enabled" type="checkbox" aria-label="Swim Lanes">
+              Enable swim lanes
+            </label>
+          </div>
+          <div class="form-group">
+            <label for="settings-swimlane-group-by">Group swim lanes by</label>
+            <select id="settings-swimlane-group-by" aria-label="Group swim lanes by">
+              <option value="label">Label</option>
+              <option value="label-group">Label Group</option>
+              <option value="priority">Priority</option>
+            </select>
+          </div>
+          <div id="settings-swimlane-label-group-field" class="form-group" hidden>
+            <label for="settings-swimlane-label-group">Label group source</label>
+            <select id="settings-swimlane-label-group" aria-label="Select label group for swim lanes"></select>
+            <p class="form-help">Each label inside the selected group becomes its own swim lane row.</p>
+          </div>
+        </section>
         <div class="form-actions">
           <button type="button" id="settings-close-btn" class="btn btn-primary">Close</button>
         </div>

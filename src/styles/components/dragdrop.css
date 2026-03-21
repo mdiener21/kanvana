@@ -81,6 +81,35 @@ body.dragging .task-column.is-collapsed .tasks .show-more-btn {
     transform 120ms ease-out;
 }
 
+/* --- Swimlane collapsed column drop zones --- */
+
+body.dragging .swimlane-cell.is-column-collapsed {
+  position: relative;
+}
+
+body.dragging .swimlane-cell.is-column-collapsed .swimlane-tasks {
+  display: block;
+  position: absolute;
+  inset: 0;
+  min-height: unset;
+  padding: 0;
+  opacity: 0;
+  z-index: 1;
+}
+
+body.dragging .swimlane-cell.is-column-collapsed .swimlane-tasks .task {
+  display: none;
+}
+
+.swimlane-cell.is-column-collapsed.is-drop-hover {
+  outline: 2px dashed color-mix(in srgb, var(--column-accent) 80%, var(--border) 20%);
+  outline-offset: -2px;
+  background-color: color-mix(in srgb, var(--surface) 88%, var(--column-accent) 12%);
+  transition:
+    outline-color 120ms ease-out,
+    background-color 120ms ease-out;
+}
+
 /* Body state while dragging columns */
 body.dragging-column #board-container {
   /* Visual feedback during column drag */

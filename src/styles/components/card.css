@@ -4,6 +4,9 @@
 
 .task {
   position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
   overflow: hidden;
   background-color: color-mix(in srgb, var(--surface-muted), var(--task-bg-tint) 100%);
   border: 1px solid color-mix(in srgb, var(--border-subtle), var(--task-border-tint) 100%);

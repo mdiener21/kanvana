@@ -36,16 +36,38 @@ Experience it firsthand: **[Try the Live Demo](https://mdiener21.github.io/perso
 
 ## ✨ Key Features
 
-- **🚀 Blazing Fast & Simple**: Lightning-quick performance with a clean, intuitive interface.
-- **🔍 Powerful Search**: Find tasks instantly by label, title, description, or label groups.
-- **📊 Productivity Reports**: Visualize your progress with Cumulative Flow Diagrams and weekly completion stats.
-- **🔔 Smart Notifications**: Get reminded of due dates with customizable advance notices. Toggle on/off and view as a prioritized list.
-- **💻 100% Local-First**: No servers, no backend, no cloud. Your data never leaves your device.
-- **🎨 Drag & Drop**: Effortlessly move tasks and columns for seamless workflow management.
-- **🏷️ Custom Labels & Colors**: Organize with personalized labels, groups, and column colors.
-- **💾 Easy Backup**: Export/import boards as JSON files to your favorite cloud storage (OneDrive, Google Drive, Dropbox).
-- **📱 Fully Responsive**: Optimized for mobile and desktop—work from anywhere.
-- **🥇 Free & Open Source**: Always free, no hidden costs or subscriptions.
+### 🏊 Swim Lanes (New!)
+
+Organize your board into horizontal swim lanes for a powerful two-dimensional view of your workflow:
+
+- **Flexible Grouping**: Group tasks by **label**, **label group**, or **priority** — each mode creates distinct swim lane rows
+- **Drag & Drop Across Lanes**: Move tasks between columns, lanes, or both in a single gesture — lane assignments update automatically
+- **Per-Cell Control**: Collapse/expand individual swim lane cells, entire rows, or workflow columns independently
+- **Quick Task Creation**: Add tasks directly to any swim lane cell with automatic label/priority assignment
+- **Smart Done Column**: Done tasks are hidden in swim lanes to keep rows compact, while the Done column remains a drag-and-drop target
+- **Sticky Headers**: Lane headers stay pinned during horizontal scrolling; workflow headers stay visible during vertical scrolling
+- **Mobile Optimized**: Responsive flex layout with sticky lane headers and snap-scrolling columns on mobile
+- **Persistent State**: All swim lane settings, collapsed states, and lane assignments are saved per board
+
+Configure swim lanes in **Settings** — choose your grouping mode and start organizing!
+
+### Core Features
+
+- **🚀 Blazing Fast & Simple**: Lightning-quick performance with a clean, intuitive interface
+- **🔍 Powerful Search**: Find tasks instantly by label, title, description, or label groups
+- **📊 Productivity Reports**: Visualize your progress with Cumulative Flow Diagrams, weekly lead time, completion stats, and same-day completions tracking
+- **📅 Calendar View**: See tasks by due date on a monthly calendar with overdue highlighting
+- **🔔 Smart Notifications**: Get reminded of due dates with customizable advance notices and color-coded countdown timers (urgent/warning thresholds)
+- **💻 100% Local-First**: No servers, no backend, no cloud. Your data never leaves your device
+- **🎨 Drag & Drop**: Effortlessly move tasks and columns with optimized performance (handles 300+ tasks)
+- **🏷️ Custom Labels & Colors**: Organize with personalized labels, groups, and column colors
+- **📋 Multiple Boards**: Create and manage multiple boards with board templates
+- **💾 Easy Backup**: Export/import boards as JSON files to your favorite cloud storage (OneDrive, Google Drive, Dropbox)
+- **📱 Fully Responsive**: Optimized for mobile and desktop — work from anywhere
+- **🌗 Light & Dark Theme**: Toggle between themes with automatic persistence
+- **⚡ Collapsible Columns**: Collapse columns to save space while still accepting drag-and-drop
+- **⏱️ Due Date Countdown**: Color-coded countdown timers with configurable urgent and warning thresholds
+- **🥇 Free & Open Source**: Always free, no hidden costs or subscriptions
 
 ## 🛡️ Data Security & Persistence
 

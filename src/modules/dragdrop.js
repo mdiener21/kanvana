@@ -12,6 +12,14 @@ const COLLAPSED_DROP_HOVER_CLASS = 'is-drop-hover';
 let isDraggingTask = false;
 let activeTaskList = null;
 
+function isSwimlaneViewEnabled() {
+  return document.getElementById('board-container')?.dataset?.viewMode === 'swimlanes';
+}
+
+function getTaskContainerElement(node) {
+  return node?.closest?.('.task-column, .swimlane-cell, [data-column]') || null;
+}
+
 function shouldForceFallbackForTasks() {
   // Sortable's JS fallback is required on most mobile/touch environments
   // (native HTML5 drag/drop is unreliable or unavailable), but it also
@@ -127,11 +135,14 @@ function clearCollapsedDropHover() {
   document
     .querySelectorAll(`.task-column.is-collapsed.${COLLAPSED_DROP_HOVER_CLASS}`)
     .forEach((column) => column.classList.remove(COLLAPSED_DROP_HOVER_CLASS));
+  document
+    .querySelectorAll(`.swimlane-cell.is-column-collapsed.${COLLAPSED_DROP_HOVER_CLASS}`)
+    .forEach((cell) => cell.classList.remove(COLLAPSED_DROP_HOVER_CLASS));
 }
 
-function setCollapsedDropHover(columnEl) {
+function setCollapsedDropHover(el) {
   clearCollapsedDropHover();
-  if (columnEl) columnEl.classList.add(COLLAPSED_DROP_HOVER_CLASS);
+  if (el) el.classList.add(COLLAPSED_DROP_HOVER_CLASS);
 }
 
 // Track touch/mouse position globally during drag
@@ -150,11 +161,20 @@ function trackPointer(evt) {
 function updateCollapsedHoverFromPoint(x, y) {
   if (!x && !y) return;
   const target = document.elementFromPoint(x, y);
-  const column = target?.closest?.('.task-column');
-  if (column && column.classList.contains('is-collapsed')) {
-    setCollapsedDropHover(column);
+  if (isSwimlaneViewEnabled()) {
+    const cell = target?.closest?.('.swimlane-cell');
+    if (cell && cell.classList.contains('is-column-collapsed')) {
+      setCollapsedDropHover(cell);
+    } else {
+      clearCollapsedDropHover();
+    }
   } else {
-    clearCollapsedDropHover();
+    const column = target?.closest?.('.task-column');
+    if (column && column.classList.contains('is-collapsed')) {
+      setCollapsedDropHover(column);
+    } else {
+      clearCollapsedDropHover();
+    }
   }
 }
 
@@ -201,7 +221,9 @@ function initTaskSortables() {
         document.body.classList.add('dragging');
         isDraggingTask = true;
         activeTaskList = evt.from || null;
-        showCollapsedDropZones();
+        if (!isSwimlaneViewEnabled()) {
+          showCollapsedDropZones();
+        }
         startAutoScroll();
         // Add global move listener to track pointer
         document.addEventListener('touchmove', trackPointer, { passive: true });
@@ -211,11 +233,20 @@ function initTaskSortables() {
 
       onMove: function(evt) {
         activeTaskList = evt.to || activeTaskList;
-        const targetColumn = evt.to?.closest('.task-column');
-        if (targetColumn && targetColumn.classList.contains('is-collapsed')) {
-          setCollapsedDropHover(targetColumn);
+        if (isSwimlaneViewEnabled()) {
+          const targetCell = evt.to?.closest('.swimlane-cell');
+          if (targetCell && targetCell.classList.contains('is-column-collapsed')) {
+            setCollapsedDropHover(targetCell);
+          } else {
+            clearCollapsedDropHover();
+          }
         } else {
-          clearCollapsedDropHover();
+          const targetColumn = evt.to?.closest('.task-column');
+          if (targetColumn && targetColumn.classList.contains('is-collapsed')) {
+            setCollapsedDropHover(targetColumn);
+          } else {
+            clearCollapsedDropHover();
+          }
         }
       },
       
@@ -231,10 +262,11 @@ function initTaskSortables() {
         const dropResult = updateTaskPositionsFromDrop(evt);
         let cachedTasks = dropResult?.tasks || null;
 
-        const toColumnEl = evt.to?.closest('.task-column');
-        const isDropIntoDone = dropResult?.toColumn === 'done';
+        const isSwimlaneView = isSwimlaneViewEnabled();
+        const toColumnEl = getTaskContainerElement(evt.to);
+        const isDropIntoDone = !isSwimlaneView && dropResult?.toColumn === 'done';
 
-        if (dropResult && (toColumnEl?.classList.contains('is-collapsed') || isDropIntoDone)) {
+        if (dropResult && !isSwimlaneView && (toColumnEl?.classList.contains('is-collapsed') || isDropIntoDone)) {
           cachedTasks = moveTaskToTopInColumn(dropResult.movedTaskId, dropResult.toColumn, cachedTasks);
 
           // Move the DOM element to the top of the list so the user sees it snap there
@@ -244,9 +276,17 @@ function initTaskSortables() {
         }
 
         clearCollapsedDropHover();
-        hideCollapsedDropZones();
+        if (!isSwimlaneView) {
+          hideCollapsedDropZones();
+        }
 
         if (dropResult) {
+
+          if (isSwimlaneView && (dropResult.didChangeColumn || dropResult.didChangeLane)) {
+            const { renderBoard } = await import('./render.js');
+            renderBoard();
+            return;
+          }
 
           // Import helpers dynamically to avoid circular dependencies
           const { syncTaskCounters, syncCollapsedTitles, syncMovedTaskDueDate } = await import('./render.js');
@@ -273,6 +313,7 @@ function initTaskSortables() {
 function initColumnSortable() {
   const container = document.getElementById('board-container');
   if (!container) return;
+  if (isSwimlaneViewEnabled()) return;
   
   columnSortable = new Sortable(container, {
     animation: 150,

@@ -95,20 +95,33 @@ The app is built with **Vite**, uses **vanilla JavaScript/CSS/HTML**, and follow
 
 ## Core Features at a Glance
 
+### Swim Lanes (New!)
+
+Add a second dimension to your board by grouping tasks into horizontal swim lanes. Group by **label**, **label group**, or **priority** to see your work from different angles.
+
+- Drag and drop tasks across columns, lanes, or both in a single gesture
+- Collapse/expand individual cells, entire rows, or workflow columns independently
+- Add tasks directly into any swim lane cell with automatic label/priority assignment
+- Done tasks are hidden in lanes to keep rows compact while remaining a drop target
+- Sticky lane headers during horizontal scrolling and sticky workflow headers during vertical scrolling
+- Fully responsive on mobile with snap-scrolling columns and sticky lane headers
+- All swim lane settings, collapsed states, and lane assignments persist per board
+- Configure in **Settings** — choose grouping mode and start organizing
+
 ### Boards
-Multiple boards with independent columns, tasks, labels, and settings. Switch between contexts instantly.
+Multiple boards with independent columns, tasks, labels, and settings. Switch between contexts instantly. Create boards from built-in templates or start blank.
 
 ### Tasks
-Create tasks with titles, descriptions, priorities, due dates, and labels. Drag and drop to move between columns. Due dates include a countdown timer with configurable color-coded urgency indicators.
+Create tasks with titles, descriptions, priorities (urgent/high/medium/low/none), due dates, and labels. Drag and drop to move between columns. Due dates include a countdown timer with configurable color-coded urgency indicators. Optimized drag-and-drop performance handles 300+ tasks.
 
 ### Columns
-Customizable columns with colors, drag-to-reorder, collapse/expand, and sorting by due date or priority.
+Customizable columns with colors, drag-to-reorder, collapse/expand, and sorting by due date or priority. Collapsed columns still accept drag-and-drop with visual hover feedback. The Done column is permanent and optimized for large task counts with virtualization.
 
 ### Labels & Groups
-Color-coded labels organized into groups. Assign multiple labels per task. Search and filter across your board.
+Color-coded labels organized into groups. Assign multiple labels per task. Search and filter across your board by label name, group, title, description, or priority. Create labels inline from the task editor search.
 
 ### Notifications
-Banner and modal alerts for tasks approaching their due date. Configurable threshold for how far ahead to warn.
+Banner and modal alerts for tasks approaching their due date. Configurable threshold for how far ahead to warn. Quick-access bell icon in the header with live badge count.
 
 - Per-board customization: Different boards can have different thresholds
 - Flexible workflows: Adjust to your team's or personal preferences
@@ -122,10 +135,16 @@ For example, you could set:
 - Personal tasks: urgent=3 days, warning=10 days (default)
 
 ### Reports & Calendar
-Dedicated pages for activity heatmaps, lead time charts, cumulative flow diagrams, and a monthly due-date calendar.
+Dedicated pages for productivity analytics and date-based planning:
+
+- **Activity Heatmap**: Daily updates calendar covering the last 365 days
+- **Lead Time & Completion**: Weekly lead time chart with trend line, completion KPIs, and sparklines
+- **Same-Day Completions**: Track ad-hoc tasks created and completed on the same day with KPIs and 12-week sparkline
+- **Cumulative Flow Diagram**: Stacked area chart showing task distribution across columns over time
+- **Calendar View**: Monthly due-date calendar with overdue highlighting and clickable task links
 
 ### Settings
-Per-board configuration: toggle visibility of priority, due date, age, and timestamps. Set countdown thresholds, locale, and default priority.
+Per-board configuration: toggle visibility of priority, due date, age, and timestamps. Set countdown thresholds, locale, and default priority. Configure swim lane grouping mode and manage collapsed lane states.
 
 ---
 

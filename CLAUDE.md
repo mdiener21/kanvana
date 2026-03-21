@@ -9,9 +9,13 @@ Local-first personal kanban board with no backend. `docs/specification-kanban.md
 ## Commands
 
 ```bash
-npm run dev      # Start dev server at http://localhost:3000
-npm run build    # Production build to dist/
-npm run preview  # Preview production build
+npm run dev        # Start dev server at http://localhost:3000
+npm run build      # Production build to dist/
+npm run preview    # Preview production build
+npm test           # Run Playwright E2E tests
+npm run test:unit  # Run unit tests (Node --test)
+npm run test:ui    # Run Playwright tests with interactive UI
+npm run test:debug # Run Playwright tests in debug mode
 ```
 
 ## Specification
@@ -22,6 +26,7 @@ The specification files include core data structures and details to be maintaine
 ## Architecture
 
 ### Entry Points
+
 - `src/kanban.js` - Main entry, wires UI handlers and calls `renderBoard()`
 - `src/index.html` - Main board UI
 - `src/reports.html` - Separate reports page with ECharts visualizations
@@ -47,6 +52,7 @@ The specification files include core data structures and details to be maintaine
 - **accordion.js** - Reusable collapsible accordion. `createAccordionSection(title, items, expanded, renderItem)` builds a section with chevron toggle, count badge, and a body populated via the `renderItem` callback.
 - **importexport.js** - Per-board JSON export/import. Must update if data shapes change.
 - **theme.js** - Light/dark theme toggle and persistence
+- **swimlanes.js** - Swim lane grouping logic (label, label-group, priority), grid building, lane/cell collapse, lane-aware task assignment and drag-drop moves
 - **validation.js** - Form validation helpers
 - **utils.js** - UUID generation and shared utilities
 
@@ -70,8 +76,7 @@ Many modules use `await import('./render.js')` to call `renderBoard()` and avoid
 
 - **Technology constraints**: Vanilla JS/CSS/HTML only. No frameworks. Dependencies limited to Lucide, SortableJS, ECharts.
 - **Mobile-first**: All interactions must work on small screens.
-- **Specification doc**: `docs/specification-kanban.md` - keep updated when features change.
-- **Changelog**: `CHANGELOG.md` - update [Unreleased] section following Keep a Changelog format.
+- **Mandatory doc updates**: Every code change that adds, changes, or removes functionality **must** also update `CHANGELOG.md` (under `[Unreleased]`) and `docs/specification-kanban.md` in the same work session — never defer these to a follow-up.
 - **Theme**: Light/dark via `document.documentElement.dataset.theme`. Persistence key: `kanban-theme`.
 - **Done column**: Column with id `done` is permanent and cannot be deleted.
 - **New tasks**: Inserted at top of column (order 1).
