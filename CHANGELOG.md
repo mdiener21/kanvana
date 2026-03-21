@@ -5,10 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-
 ## Unreleased
 
 ### Added (unreleased)
+
+### Changed (unreleased)
+
+### Removed (unreleased)
+
+## [1.2.0] - 2026-03-21
+
+### Added (1.2.0)
 
 - Toggleable swim lane board view with label, label-group, and priority grouping, sticky lane headers, `No Group` fallback lane, and persisted per-board settings
 - Swim lane-aware drag and drop that updates persisted lane assignment and allows moves across lanes, columns, or both in one gesture
@@ -18,12 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Per-cell collapse/expand toggles in swim lane view allowing individual swimlane-column cells to be collapsed independently of row and column collapse
 - Add-task button in each swim lane cell that creates a task in the target column and automatically assigns the correct label or priority based on the swimlane
 
-### Fixed (unreleased)
+### Fixed (1.2.0)
 
 - Swim lane task cards now display the same column accent colors (left color bar, hover tint, border color) as standard column view
 - Collapsed workflow columns in swim lane view now accept drag-and-drop with visual hover feedback (dashed outline), matching standard column view behavior
 
-### Changed (unreleased)
+### Changed (1.2.0)
 
 - Swim lane row headers now render as a full-width bar above the row of column cells instead of a sidebar column, with `sticky; left: 0` positioning so the header stays pinned to the left viewport edge during horizontal scrolling
 - Collapsed workflow column headers in swim lane view now show only the collapse/expand toggle, hiding the title, task counter, and add-task button
@@ -38,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Swim lane row toggle button moved to the left of the lane name for consistent expand/collapse control placement
 - Mobile swim lane layout switched from CSS grid to flex so lane headers (36px vertical strip) stay sticky-visible on the left edge while swiping through 85vw snap-scrolling columns
 
-### Removed (unreleased)
+### Removed (1.2.0)
 
 ## [1.1.4] - 2026-02-19
 
