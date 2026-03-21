@@ -369,7 +369,7 @@ body.dragging-column .column-header * {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 5px 16px 5px 20px;
+  padding: 5px 16px 5px 0px;
   box-sizing: border-box;
 }
 
