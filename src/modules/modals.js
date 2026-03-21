@@ -150,7 +150,7 @@ function renderActiveTaskLabels() {
 
 export { setupModalCloseHandlers };
 
-export function showModal(columnName) {
+export function showModal(columnName, swimlaneContext) {
   currentColumn = columnName || loadColumns()[0]?.id || 'todo';
   editingTaskId = null;
   selectedTaskLabels = [];
@@ -160,7 +160,7 @@ export function showModal(columnName) {
   // Add task: keep the modal in its default size and hide full-page toggle.
   setTaskModalFullscreen(false);
   document.getElementById('task-fullpage-btn')?.classList.add('hidden');
-  
+
   const modal = document.getElementById('task-modal');
   const columnSelect = document.getElementById('task-column');
   const taskTitle = document.getElementById('task-title');
@@ -169,10 +169,10 @@ export function showModal(columnName) {
   const taskDueDate = document.getElementById('task-due-date');
   const modalTitle = document.getElementById('task-modal-title');
   const submitBtn = document.getElementById('task-submit-btn');
-  
+
   // Clear error state on the title field
   clearFieldError(taskTitle);
-  
+
   modalTitle.textContent = 'Add New Task';
   submitBtn.textContent = 'Add Task';
   columnSelect.value = currentColumn;
@@ -183,6 +183,22 @@ export function showModal(columnName) {
     taskPriority.value = settings.defaultPriority || 'none';
   }
   if (taskDueDate) taskDueDate.value = '';
+
+  // Pre-populate from swimlane context if provided
+  if (swimlaneContext) {
+    const { groupBy, laneKey } = swimlaneContext;
+    if (laneKey && laneKey !== '__no-group__') {
+      if (groupBy === 'priority' && taskPriority) {
+        taskPriority.value = laneKey;
+      } else if (groupBy === 'label' || groupBy === 'label-group') {
+        const labels = loadLabels();
+        const label = labels.find((l) => l.id === laneKey);
+        if (label) {
+          selectedTaskLabels = [label.id];
+        }
+      }
+    }
+  }
 
   const labelSearch = document.getElementById('task-label-search');
   if (labelSearch) labelSearch.value = '';

@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Accordion-style swim lane collapse/expand controls with persisted per-board collapsed lane state
 - Label-group swim lane configuration now lets the user pick a specific label group so each label value in that group renders as its own swim lane row
 - Per-cell collapse/expand toggles in swim lane view allowing individual swimlane-column cells to be collapsed independently of row and column collapse
+- Add-task button in each swim lane cell that creates a task in the target column and automatically assigns the correct label or priority based on the swimlane
+
+### Fixed (unreleased)
+
+- Swim lane task cards now display the same column accent colors (left color bar, hover tint, border color) as standard column view
 
 ### Changed (unreleased)
 

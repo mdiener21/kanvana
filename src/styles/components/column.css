@@ -388,13 +388,24 @@ body.dragging-column .column-header * {
 }
 
 .swimlane-row-header {
+  position: relative;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   min-height: 100%;
   padding: 16px;
+  padding-left: 20px;
   background: color-mix(in srgb, var(--surface) 88%, var(--surface-muted));
+}
+
+.swimlane-row-header[style*="--lane-accent"]::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--lane-accent);
+  border-radius: 0;
 }
 
 .swimlane-row-header-main {
@@ -453,6 +464,14 @@ body.dragging-column .column-header * {
 }
 
 .swimlane-cell {
+  --column-accent: #3b82f6;
+  --column-accent-hover: color-mix(in srgb, var(--column-accent) 80%, #000000);
+  --column-bg-tint: color-mix(in srgb, var(--column-accent) 8%, transparent);
+  --task-bg-tint: color-mix(in srgb, var(--column-accent) 7%, transparent);
+  --task-border-tint: color-mix(in srgb, var(--column-accent) 22%, transparent);
+  --task-hover-border-tint: color-mix(in srgb, var(--column-accent) 45%, transparent);
+  --task-hover-shadow: color-mix(in srgb, var(--column-accent) 18%, transparent);
+
   display: flex;
   flex-direction: column;
   min-height: 140px;
@@ -506,10 +525,7 @@ body.dragging-column .column-header * {
 .swimlane-cell .task {
   width: 100%;
   margin: 0;
-  background-color: color-mix(in srgb, var(--surface) 96%, white 4%);
-  border-color: color-mix(in srgb, var(--column-accent) 26%, var(--border-subtle) 74%);
   outline: none;
-  box-shadow: 0 1px 3px color-mix(in srgb, #000 14%, transparent);
 }
 
 .swimlane-cell.is-column-collapsed .swimlane-tasks {
@@ -566,4 +582,30 @@ body.dragging-column .column-header * {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
+}
+
+.swimlane-cell-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.swimlane-cell-add-btn:hover {
+  background: var(--surface-muted);
+  color: var(--column-accent);
+}
+
+.swimlane-cell-add-btn svg {
+  width: 14px;
+  height: 14px;
 }

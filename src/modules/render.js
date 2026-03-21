@@ -697,9 +697,12 @@ function createSwimlaneHeaderCell(column, taskCount) {
   return header;
 }
 
-function createSwimlaneLaneHeader(lane, activeTaskCount, hiddenDoneCount, isCollapsed) {
+function createSwimlaneLaneHeader(lane, activeTaskCount, hiddenDoneCount, isCollapsed, laneColor) {
   const laneHeader = document.createElement('header');
   laneHeader.classList.add('swimlane-row-header');
+  if (laneColor) {
+    laneHeader.style.setProperty('--lane-accent', laneColor);
+  }
 
   const main = document.createElement('div');
   main.classList.add('swimlane-row-header-main');
@@ -759,6 +762,9 @@ function createSwimlaneCell(column, lane, tasksInCell, visibleTasks, settings, l
   if (cellCollapsed && !isColumnCollapsed && !isDoneColumn) {
     cell.classList.add('is-cell-collapsed');
   }
+  if (column?.color) {
+    cell.style.setProperty('--column-accent', column.color);
+  }
   cell.dataset.column = column.id;
   cell.dataset.laneKey = lane.key;
   cell.dataset.laneLabel = lane.value;
@@ -793,6 +799,20 @@ function createSwimlaneCell(column, lane, tasksInCell, visibleTasks, settings, l
         : 'Empty';
       cellHeader.appendChild(summary);
     }
+
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.classList.add('swimlane-cell-add-btn');
+    addBtn.setAttribute('aria-label', `Add task to ${column.name}, ${lane.value}`);
+    addBtn.title = 'Add task';
+    addBtn.innerHTML = '<i data-lucide="plus" aria-hidden="true"></i>';
+    addBtn.addEventListener('click', () => {
+      showModal(column.id, {
+        groupBy: settings.swimLaneGroupBy,
+        laneKey: lane.key
+      });
+    });
+    cellHeader.appendChild(addBtn);
 
     cell.appendChild(cellHeader);
   }
@@ -909,7 +929,9 @@ function renderSwimlaneBoard(container, sortedColumns, visibleTasks, labels, set
       .reduce((count, column) => count + ((lane.cells[column.id] || []).length), 0);
     const hiddenDoneCount = (lane.cells[SWIMLANE_HIDDEN_DONE_COLUMN_ID] || []).length;
 
-    const laneHeader = createSwimlaneLaneHeader(lane, activeTaskCount, hiddenDoneCount, collapsed);
+    const laneLabel = labelsMap.get(lane.key);
+    const laneColor = laneLabel?.color || null;
+    const laneHeader = createSwimlaneLaneHeader(lane, activeTaskCount, hiddenDoneCount, collapsed, laneColor);
     row.appendChild(laneHeader);
 
     sortedColumns.forEach((column) => {

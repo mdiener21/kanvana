@@ -136,6 +136,11 @@
   - Cell collapse state is persisted per board using composite keys (`laneKey::columnId`) in Settings.
   - Cell toggles do not appear in done-column cells or column-collapsed cells.
   - Row collapse and column collapse take precedence over cell collapse.
+- Each swim lane cell has a small "+" button to add a task directly to that column and swimlane.
+  - Clicking the button opens the Add Task modal with the column pre-selected.
+  - In label or label-group mode, the swimlane's label is automatically pre-selected in the modal.
+  - In priority mode, the priority dropdown is pre-set to the swimlane's priority value.
+  - The "+" button does not appear in done-column cells or column-collapsed cells.
 - Task ordering remains flattened per column in storage so switching swim lanes off returns to the standard column view without data loss.
 
 ### Column Features
