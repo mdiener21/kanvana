@@ -1,6 +1,6 @@
 {
   "name": "personal-kanban",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "type": "module",
   "description": "A local-first personal kanban board for personal task management.",
   "scripts": {
