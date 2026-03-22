@@ -69,7 +69,10 @@ test.describe('Boards Management', () => {
     await openBtn.click();
 
     await expect(page.locator('#brand-text, .brand-text')).toHaveText(new RegExp(initialBrandText));
-    await expect(targetRow.locator('.task-label:has-text("Active")')).toBeVisible();
+
+    const reopenedModal = await openBoardsModal(page);
+    const activeRow = reopenedModal.locator('#boards-list .label-item', { hasText: initialBrandText }).first();
+    await expect(activeRow.locator('.task-label:has-text("Active")')).toBeVisible();
   });
 
   test('should display multiple boards in the manage-boards modal', async ({ page }) => {
