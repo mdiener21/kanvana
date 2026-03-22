@@ -1,6 +1,6 @@
 import { generateUUID } from './utils.js';
-import { renderBoard } from './render.js';
 import { setupModalCloseHandlers } from './modals.js';
+import { emit, DATA_CHANGED } from './events.js';
 import {
   ensureBoardsInitialized,
   listBoards,
@@ -15,6 +15,7 @@ import {
   saveSettings
 } from './storage.js';
 import { alertDialog } from './dialog.js';
+import { boardDisplayName } from './normalize.js';
 
 const builtInTemplateModules = import.meta.glob('../templates/*.json', {
   eager: true,
@@ -79,11 +80,6 @@ function applyBoardTemplate(templateBoard) {
   }
 }
 
-function boardDisplayName(board) {
-  const name = typeof board?.name === 'string' ? board.name.trim() : '';
-  return name || 'Untitled board';
-}
-
 function refreshBoardSelect(selectEl) {
   const boards = listBoards();
   const activeId = getActiveBoardId();
@@ -143,7 +139,7 @@ export function initializeBoardsUI() {
     if (!id) return;
     setActiveBoardId(id);
     refreshBrandText();
-    renderBoard();
+    emit(DATA_CHANGED);
 
     // Collapse the dropdown menu after a selection.
     const controlsActions = document.getElementById('board-controls-menu');
@@ -201,7 +197,7 @@ export function initializeBoardsUI() {
 
       refreshBoardSelect(selectEl);
       refreshBrandText();
-      renderBoard();
+      emit(DATA_CHANGED);
       hideBoardCreateModal();
 
       // Let other UI modules (e.g., Manage Boards modal) react without introducing

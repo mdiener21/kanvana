@@ -1,6 +1,8 @@
 import { generateUUID } from './utils.js';
 import { loadLabels, loadSettings, loadTasks, saveTasks } from './storage.js';
 import { applySwimLaneAssignment } from './swimlanes.js';
+import { normalizePriority } from './normalize.js';
+import { DONE_COLUMN_ID } from './constants.js';
 
 function reorderColumnTasks(tasks, columnId, pinnedTaskId = null) {
   const columnTasks = tasks
@@ -24,13 +26,6 @@ function reorderColumnTasks(tasks, columnId, pinnedTaskId = null) {
       ? { ...task, order: nextOrder }
       : task;
   });
-}
-
-const ALLOWED_PRIORITIES = new Set(['urgent', 'high', 'medium', 'low', 'none']);
-
-function normalizePriority(priority) {
-  const value = (priority || '').toString().trim().toLowerCase();
-  return ALLOWED_PRIORITIES.has(value) ? value : 'none';
 }
 
 function normalizeDueDate(value) {
@@ -75,7 +70,7 @@ export function addTask(title, description, priority, dueDate, columnName, label
     creationDate: nowIso,
     changeDate: nowIso,
     columnHistory: [{ column: columnName, at: nowIso }],
-    ...(columnName === 'done' ? { doneDate: nowIso } : {})
+    ...(columnName === DONE_COLUMN_ID ? { doneDate: nowIso } : {})
   };
 
   updatedTasks.push(newTask);
@@ -111,9 +106,9 @@ export function updateTask(taskId, title, description, priority, dueDate, column
       tasks[taskIndex].columnHistory.push({ column: nextColumn, at: nowIso });
     }
 
-    if (prevColumn !== 'done' && nextColumn === 'done') {
+    if (prevColumn !== DONE_COLUMN_ID && nextColumn === DONE_COLUMN_ID) {
       tasks[taskIndex].doneDate = nowIso;
-    } else if (prevColumn === 'done' && nextColumn !== 'done') {
+    } else if (prevColumn === DONE_COLUMN_ID && nextColumn !== DONE_COLUMN_ID) {
       delete tasks[taskIndex].doneDate;
     }
 
@@ -267,9 +262,9 @@ export function updateTaskPositionsFromDrop(evt) {
         history.push({ column: toColumn, at: nowIso });
         nextTask.columnHistory = history;
 
-        if (task.column !== 'done' && toColumn === 'done') {
+        if (task.column !== DONE_COLUMN_ID && toColumn === DONE_COLUMN_ID) {
           nextTask.doneDate = nowIso;
-        } else if (task.column === 'done' && toColumn !== 'done') {
+        } else if (task.column === DONE_COLUMN_ID && toColumn !== DONE_COLUMN_ID) {
           delete nextTask.doneDate;
         }
       }
@@ -289,7 +284,7 @@ export function updateTaskPositionsFromDrop(evt) {
     return task;
   });
 
-  const finalTasks = toColumn === 'done'
+  const finalTasks = toColumn === DONE_COLUMN_ID
     ? reorderColumnTasks(updatedTasks, toColumn, movedTaskId)
     : updatedTasks;
 
@@ -321,49 +316,3 @@ export function moveTaskToTopInColumn(taskId, columnId, tasksCache) {
   return tasks;
 }
 
-// Update task positions after drag (legacy - kept for compatibility)
-export function updateTaskPositions() {
-  const currentOrder = getCurrentTaskOrder();
-  const tasks = loadTasks();
-  const nowIso = new Date().toISOString();
-  
-  // Update each task with new column and order based on DOM position
-  const updatedTasks = tasks.map(task => {
-    const currentIndex = currentOrder.findIndex(c => c.id === task.id);
-    if (currentIndex !== -1) {
-      const current = currentOrder[currentIndex];
-      // Calculate order within column
-      const tasksInSameColumn = currentOrder.filter((t, i) => t.column === current.column && i <= currentIndex);
-      const nextColumn = current.column;
-      const nextOrder = tasksInSameColumn.length;
-      const didMove = task.column !== nextColumn;
-      const nextTask = {
-        ...task,
-        column: nextColumn,
-        order: nextOrder,
-        ...(didMove ? { changeDate: nowIso } : {})
-      };
-
-      if (didMove) {
-        const history = Array.isArray(task.columnHistory) && task.columnHistory.length
-          ? [...task.columnHistory]
-          : [{ column: task.column, at: task.creationDate || task.changeDate || nowIso }];
-        history.push({ column: nextColumn, at: nowIso });
-        nextTask.columnHistory = history;
-
-        if (task.column !== 'done' && nextColumn === 'done') {
-          nextTask.doneDate = nowIso;
-        } else if (task.column === 'done' && nextColumn !== 'done') {
-          delete nextTask.doneDate;
-        }
-      }
-
-      return {
-        ...nextTask
-      };
-    }
-    return task;
-  });
-  
-  saveTasks(updatedTasks);
-}

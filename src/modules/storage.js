@@ -1,4 +1,6 @@
 import { generateUUID } from './utils.js';
+import { normalizePriority as sharedNormalizePriority, isHexColor as sharedIsHexColor, normalizeStringKeys } from './normalize.js';
+import { DONE_COLUMN_ID } from './constants.js';
 
 const BOARDS_KEY = 'kanbanBoards';
 const ACTIVE_BOARD_KEY = 'kanbanActiveBoardId';
@@ -90,7 +92,7 @@ function defaultColumns() {
   return [
     { id: 'todo', name: 'To Do', color: '#3583ff' },
     { id: 'inprogress', name: 'In Progress', color: '#f59e0b' },
-    { id: 'done', name: 'Done', color: '#505050' }
+    { id: DONE_COLUMN_ID, name: 'Done', color: '#505050' }
   ];
 }
 
@@ -173,12 +175,12 @@ function defaultTasks() {
       description: 'Verify secure containment after retrieval.',
       priority: 'high',
       dueDate: '',
-      column: 'done',
+      column: DONE_COLUMN_ID,
       labels: ['urgent', 'feature'],
       creationDate: created,
       changeDate: created,
       doneDate: created,
-      columnHistory: [{ column: 'done', at: created }]
+      columnHistory: [{ column: DONE_COLUMN_ID, at: created }]
     },
     {
       id: generateUUID(),
@@ -186,12 +188,12 @@ function defaultTasks() {
       description: '',
       priority: 'low',
       dueDate: '',
-      column: 'done',
+      column: DONE_COLUMN_ID,
       labels: [],
       creationDate: created,
       changeDate: created,
       doneDate: created,
-      columnHistory: [{ column: 'done', at: created }]
+      columnHistory: [{ column: DONE_COLUMN_ID, at: created }]
     }
   ];
 }
@@ -222,11 +224,8 @@ function defaultSettings() {
   };
 }
 
-const ALLOWED_PRIORITIES = new Set(['urgent', 'high', 'medium', 'low', 'none']);
-
 function normalizePriority(value) {
-  const v = (value || '').toString().trim().toLowerCase();
-  return ALLOWED_PRIORITIES.has(v) ? v : 'none';
+  return sharedNormalizePriority(value);
 }
 
 function normalizeSwimLaneGroupBy(value) {
@@ -239,29 +238,11 @@ function normalizeSwimLaneLabelGroup(value) {
 }
 
 function normalizeSwimLaneCollapsedKeys(value) {
-  if (!Array.isArray(value)) return [];
-
-  const seen = new Set();
-  return value
-    .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
-    .filter((entry) => {
-      if (!entry || seen.has(entry)) return false;
-      seen.add(entry);
-      return true;
-    });
+  return normalizeStringKeys(value);
 }
 
 function normalizeSwimLaneCellCollapsedKeys(value) {
-  if (!Array.isArray(value)) return [];
-
-  const seen = new Set();
-  return value
-    .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
-    .filter((entry) => {
-      if (!entry || seen.has(entry)) return false;
-      seen.add(entry);
-      return true;
-    });
+  return normalizeStringKeys(value);
 }
 
 function migrateLegacySingleBoardIntoDefault() {
@@ -359,13 +340,13 @@ export function deleteBoard(boardId) {
 }
 
 function isHexColor(value) {
-  return typeof value === 'string' && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim());
+  return sharedIsHexColor(value);
 }
 
 function defaultColumnColor(id) {
   if (id === 'todo') return '#3b82f6';
   if (id === 'inprogress') return '#f59e0b';
-  if (id === 'done') return '#16a34a';
+  if (id === DONE_COLUMN_ID) return '#16a34a';
   return '#3b82f6';
 }
 
@@ -377,10 +358,10 @@ function normalizeColumn(c) {
 
 function ensureDoneColumn(columns) {
   const list = Array.isArray(columns) ? columns.slice() : [];
-  if (list.some((c) => c && c.id === 'done')) return list;
+  if (list.some((c) => c && c.id === DONE_COLUMN_ID)) return list;
 
   const maxOrder = list.reduce((max, c) => Math.max(max, Number.isFinite(c?.order) ? c.order : 0), 0);
-  list.push({ id: 'done', name: 'Done', color: '#16a34a', order: maxOrder + 1, collapsed: false });
+  list.push({ id: DONE_COLUMN_ID, name: 'Done', color: '#16a34a', order: maxOrder + 1, collapsed: false });
   return list;
 }
 
@@ -393,7 +374,7 @@ export function loadColumns() {
   if (parsed) {
     const normalized = ensureDoneColumn(parsed.map(normalizeColumn));
     // Persist back if done column was missing.
-    if (!normalized.some((c) => c && c.id === 'done') || normalized.length !== parsed.length) {
+    if (!normalized.some((c) => c && c.id === DONE_COLUMN_ID) || normalized.length !== parsed.length) {
       localStorage.setItem(keyFor(boardId, 'columns'), JSON.stringify(normalized));
     }
     return normalized;
@@ -428,7 +409,7 @@ export function loadTasks() {
         didChange = true;
       }
 
-      const isDone = task.column === 'done';
+      const isDone = task.column === DONE_COLUMN_ID;
       const hasDoneDate = typeof task.doneDate === 'string' && task.doneDate.trim() !== '';
       const changeDate = typeof task.changeDate === 'string' && task.changeDate.trim() ? task.changeDate.trim() : '';
       const creationDate = typeof task.creationDate === 'string' && task.creationDate.trim() ? task.creationDate.trim() : '';

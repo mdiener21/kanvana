@@ -25,11 +25,22 @@
 .label-item {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   padding: 8px;
   background-color: var(--surface-muted);
   border-radius: 6px;
   margin-bottom: 8px;
+}
+
+.board-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.board-active-badge {
+  background-color: var(--color-primary);
 }
 
 .label-name {

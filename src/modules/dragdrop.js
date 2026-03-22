@@ -1,6 +1,7 @@
 import Sortable from 'sortablejs';
 import { moveTaskToTopInColumn, updateTaskPositionsFromDrop } from './tasks.js';
 import { updateColumnPositions } from './columns.js';
+import { emit, DATA_CHANGED } from './events.js';
 
 // Store Sortable instances for cleanup
 let taskSortables = [];
@@ -283,12 +284,12 @@ function initTaskSortables() {
         if (dropResult) {
 
           if (isSwimlaneView && (dropResult.didChangeColumn || dropResult.didChangeLane)) {
-            const { renderBoard } = await import('./render.js');
-            renderBoard();
+            emit(DATA_CHANGED);
             return;
           }
 
-          // Import helpers dynamically to avoid circular dependencies
+          // Import helpers dynamically — these are sync helpers that don't
+          // cause circular deps when loaded lazily at call-time.
           const { syncTaskCounters, syncCollapsedTitles, syncMovedTaskDueDate } = await import('./render.js');
           const { refreshNotifications } = await import('./notifications.js');
 
@@ -345,15 +346,3 @@ function initColumnSortable() {
   });
 }
 
-// Legacy exports for compatibility - these now just call initDragDrop
-export function attachTaskListeners() {
-  // No-op: handled by initDragDrop
-}
-
-export function attachColumnListeners() {
-  // No-op: handled by initDragDrop
-}
-
-export function attachColumnDragListeners() {
-  // No-op: handled by initDragDrop
-}

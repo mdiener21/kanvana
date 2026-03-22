@@ -1,5 +1,6 @@
 import { loadSettings, saveSettings } from './storage.js';
 import { setupModalCloseHandlers } from './modals.js';
+import { emit, DATA_CHANGED } from './events.js';
 
 function uniq(values) {
   const out = [];
@@ -40,10 +41,9 @@ function hideSettingsModal() {
   document.getElementById('settings-modal')?.classList.add('hidden');
 }
 
-async function applyAndRerender(next) {
+function applyAndRerender(next) {
   saveSettings(next);
-  const { renderBoard } = await import('./render.js');
-  renderBoard();
+  emit(DATA_CHANGED);
 }
 
 export function initializeSettingsUI() {
@@ -103,56 +103,56 @@ export function initializeSettingsUI() {
     if (e.key === 'Escape') hideSettingsModal();
   });
 
-  showAgeEl.addEventListener('change', async () => {
+  showAgeEl.addEventListener('change', () => {
     const current = loadSettings();
-    await applyAndRerender({ ...current, showAge: Boolean(showAgeEl.checked) });
+    applyAndRerender({ ...current, showAge: Boolean(showAgeEl.checked) });
   });
 
-  showChangeDateEl.addEventListener('change', async () => {
+  showChangeDateEl.addEventListener('change', () => {
     const current = loadSettings();
-    await applyAndRerender({ ...current, showChangeDate: Boolean(showChangeDateEl.checked) });
+    applyAndRerender({ ...current, showChangeDate: Boolean(showChangeDateEl.checked) });
   });
 
-  showPriorityEl.addEventListener('change', async () => {
+  showPriorityEl.addEventListener('change', () => {
     const current = loadSettings();
-    await applyAndRerender({ ...current, showPriority: Boolean(showPriorityEl.checked) });
+    applyAndRerender({ ...current, showPriority: Boolean(showPriorityEl.checked) });
   });
 
-  showDueDateEl.addEventListener('change', async () => {
+  showDueDateEl.addEventListener('change', () => {
     const current = loadSettings();
-    await applyAndRerender({ ...current, showDueDate: Boolean(showDueDateEl.checked) });
+    applyAndRerender({ ...current, showDueDate: Boolean(showDueDateEl.checked) });
   });
 
-  notificationDaysEl.addEventListener('change', async () => {
+  notificationDaysEl.addEventListener('change', () => {
     const current = loadSettings();
     const raw = Number.parseInt(notificationDaysEl.value, 10);
     const notificationDays = Number.isFinite(raw) ? raw : 3;
-    await applyAndRerender({ ...current, notificationDays });
+    applyAndRerender({ ...current, notificationDays });
   });
 
-  countdownUrgentEl.addEventListener('change', async () => {
+  countdownUrgentEl.addEventListener('change', () => {
     const current = loadSettings();
     const raw = Number.parseInt(countdownUrgentEl.value, 10);
     const countdownUrgentThreshold = Number.isFinite(raw) && raw >= 1 ? raw : 3;
-    await applyAndRerender({ ...current, countdownUrgentThreshold });
+    applyAndRerender({ ...current, countdownUrgentThreshold });
   });
 
-  countdownWarningEl.addEventListener('change', async () => {
+  countdownWarningEl.addEventListener('change', () => {
     const current = loadSettings();
     const raw = Number.parseInt(countdownWarningEl.value, 10);
     const urgentThreshold = current.countdownUrgentThreshold || 3;
     // Warning threshold must be >= urgent threshold
     const countdownWarningThreshold = Number.isFinite(raw) && raw >= urgentThreshold ? raw : 10;
-    await applyAndRerender({ ...current, countdownWarningThreshold });
+    applyAndRerender({ ...current, countdownWarningThreshold });
   });
 
-  localeEl.addEventListener('change', async () => {
+  localeEl.addEventListener('change', () => {
     const current = loadSettings();
-    await applyAndRerender({ ...current, locale: localeEl.value });
+    applyAndRerender({ ...current, locale: localeEl.value });
   });
 
-  defaultPriorityEl.addEventListener('change', async () => {
+  defaultPriorityEl.addEventListener('change', () => {
     const current = loadSettings();
-    await applyAndRerender({ ...current, defaultPriority: defaultPriorityEl.value });
+    applyAndRerender({ ...current, defaultPriority: defaultPriorityEl.value });
   });
 }

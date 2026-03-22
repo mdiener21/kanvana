@@ -10,6 +10,9 @@ import {
 } from './storage.js';
 
 import { createBoard, getActiveBoardName, listBoards, setActiveBoardId } from './storage.js';
+import { emit, DATA_CHANGED } from './events.js';
+import { normalizePriority, isHexColor, boardDisplayName, normalizeDueDate } from './normalize.js';
+import { DONE_COLUMN_ID } from './constants.js';
 
 function safeParseArrayFromStorage(key) {
   if (!key) return null;
@@ -33,11 +36,6 @@ function safeParseObjectFromStorage(key) {
   } catch {
     return null;
   }
-}
-
-function boardDisplayName(board) {
-  const name = typeof board?.name === 'string' ? board.name.trim() : '';
-  return name || 'Untitled board';
 }
 
 function refreshBoardsUI(activeBoardId) {
@@ -66,16 +64,7 @@ function boardNameFromFile(file) {
   return name.replace(/\.[^.]+$/, '').trim();
 }
 
-function isHexColor(value) {
-  return typeof value === 'string' && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim());
-}
-
-const allowedPriorities = new Set(['urgent', 'high', 'medium', 'low', 'none']);
-
-function normalizePriority(value) {
-  const v = (value || '').toString().trim().toLowerCase();
-  return allowedPriorities.has(v) ? v : 'none';
-}
+// normalizePriority, isHexColor imported from normalize.js
 
 function normalizeSettingsForExport(settings) {
   const obj = settings && typeof settings === 'object' && !Array.isArray(settings) ? settings : {};
@@ -116,12 +105,7 @@ function normalizeSettingsForExport(settings) {
   };
 }
 
-function normalizeDueDate(value) {
-  const v = (value || '').toString().trim();
-  // Prefer storing/exporting YYYY-MM-DD; tolerate ISO and keep as-is if unknown.
-  if (v.length >= 10 && v.includes('T')) return v.slice(0, 10);
-  return v;
-}
+// normalizeDueDate imported from normalize.js as normalizeDueDateFn
 
 function normalizeTaskForExport(task) {
   const legacyTitle = typeof task?.text === 'string' ? task.text : '';
@@ -133,7 +117,7 @@ function normalizeTaskForExport(task) {
       ? task.changeDate
       : (typeof task?.changedDate === 'string' ? task.changedDate : undefined);
 
-  const isDone = task?.column === 'done';
+  const isDone = task?.column === DONE_COLUMN_ID;
   const doneDate = typeof task?.doneDate === 'string' ? task.doneDate.toString().trim() : '';
 
   const columnHistory = Array.isArray(task?.columnHistory)
@@ -188,7 +172,7 @@ function normalizeImportedTasks(tasks) {
         : (typeof t?.changedDate === 'string' ? t.changedDate : undefined);
 
     const doneDateRaw = typeof t?.doneDate === 'string' ? t.doneDate.trim() : '';
-    const isDone = column.trim() === 'done';
+    const isDone = column.trim() === DONE_COLUMN_ID;
     const doneDate = isDone
       ? (doneDateRaw || (typeof changeDate === 'string' ? changeDate.trim() : '') || (creationDate || ''))
       : '';
@@ -247,9 +231,9 @@ function normalizeImportedColumns(columns) {
   });
 
   // Ensure the permanent Done column always exists.
-  if (!normalized.some((c) => c.id === 'done')) {
+  if (!normalized.some((c) => c.id === DONE_COLUMN_ID)) {
     const maxOrder = normalized.reduce((max, c) => Math.max(max, Number.isFinite(c?.order) ? c.order : 0), 0);
-    normalized.push({ id: 'done', name: 'Done', color: '#16a34a', order: maxOrder + 1, collapsed: false });
+    normalized.push({ id: DONE_COLUMN_ID, name: 'Done', color: '#16a34a', order: maxOrder + 1, collapsed: false });
   }
 
   const isValid = normalized.every((c) => c.id && c.name);
@@ -400,7 +384,8 @@ export function importTasks(file) {
         settings = Object.prototype.hasOwnProperty.call(data, 'settings') ? data.settings : null;
         boardName = typeof data.boardName === 'string' ? data.boardName.trim() : null;
       } else {
-        alert('Invalid JSON file format');
+        const { alertDialog } = await import('./dialog.js');
+        await alertDialog({ title: 'Import Error', message: 'Invalid JSON file format.' });
         return;
       }
 
@@ -410,7 +395,8 @@ export function importTasks(file) {
       const normalizedSettings = settings ? normalizeImportedSettings(settings) : null;
 
       if (!normalizedTasks || (columns && !normalizedColumns) || (labels && !normalizedLabels) || (settings && !normalizedSettings)) {
-        alert('Invalid data structure');
+        const { alertDialog } = await import('./dialog.js');
+        await alertDialog({ title: 'Import Error', message: 'Invalid data structure.' });
         return;
       }
 
@@ -428,13 +414,14 @@ export function importTasks(file) {
       }
 
       refreshBoardsUI(newBoard?.id);
-      
-      const { renderBoard } = await import('./render.js');
-      renderBoard();
+
+      emit(DATA_CHANGED);
       document.dispatchEvent(new CustomEvent('kanban:boards-changed'));
-      alert('Board imported successfully!');
+      const { alertDialog } = await import('./dialog.js');
+      await alertDialog({ title: 'Import Complete', message: 'Board imported successfully!' });
     } catch (error) {
-      alert('Error parsing JSON file: ' + error.message);
+      const { alertDialog } = await import('./dialog.js');
+      await alertDialog({ title: 'Import Error', message: 'Error parsing JSON file: ' + error.message });
     }
   };
   reader.readAsText(file);

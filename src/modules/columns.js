@@ -1,13 +1,7 @@
 import { generateUUID } from './utils.js';
 import { loadColumns, saveColumns, loadTasks, saveTasks } from './storage.js';
-
-function isHexColor(value) {
-  return typeof value === 'string' && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim());
-}
-
-function normalizeColumnColor(color) {
-  return isHexColor(color) ? color.trim() : '#3b82f6';
-}
+import { normalizeHexColor } from './normalize.js';
+import { DONE_COLUMN_ID } from './constants.js';
 
 // Add a new column
 export function addColumn(name, color) {
@@ -16,7 +10,7 @@ export function addColumn(name, color) {
   const columns = loadColumns();
   const maxOrder = columns.reduce((max, c) => Math.max(max, c.order ?? 0), 0);
   const id = name.toLowerCase().replace(/\s+/g, '-') + '-' + generateUUID().substring(0, 8);
-  const newColumn = { id, name: name.trim(), color: normalizeColumnColor(color), order: maxOrder - 1, collapsed: false };
+  const newColumn = { id, name: name.trim(), color: normalizeHexColor(color), order: maxOrder - 1, collapsed: false };
   columns.push(newColumn);
   saveColumns(columns);
 }
@@ -42,14 +36,14 @@ export function updateColumn(columnId, name, color) {
   const columnIndex = columns.findIndex(c => c.id === columnId);
   if (columnIndex !== -1) {
     columns[columnIndex].name = name.trim();
-    columns[columnIndex].color = normalizeColumnColor(color);
+    columns[columnIndex].color = normalizeHexColor(color);
     saveColumns(columns);
   }
 }
 
 // Delete a column
 export function deleteColumn(columnId) {
-  if (columnId === 'done') {
+  if (columnId === DONE_COLUMN_ID) {
     return false;
   }
 
