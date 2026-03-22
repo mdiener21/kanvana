@@ -151,17 +151,44 @@ If your repo blocks Actions from opening PRs, enable repository setting:
 
 ### Run Tests
 
-Run all Playwright E2E tests:
+This project uses a four-layer test stack:
+
+- `Vitest` for pure unit tests in `tests/unit/`
+- `Vitest` + `@testing-library/dom` for DOM integration tests in `tests/dom/`
+- `MSW` for mocked API behavior shared by Vitest suites from `tests/mocks/`
+- `Playwright` for end-to-end and visual/accessibility smoke coverage in `tests/e2e/`
+
+Run the full automated test stack:
 
 ```bash
 npm test
 ```
 
-Run only the create-task tests ([tests/e2e/create-task.spec.ts](tests/e2e/create-task.spec.ts)):
+Run only the unit tests:
 
 ```bash
-npm test -- tests/e2e/create-task.spec.ts
+npm run test:unit
 ```
+
+Run only the DOM integration tests:
+
+```bash
+npm run test:dom
+```
+
+Run only the Playwright E2E tests:
+
+```bash
+npm run test:e2e
+```
+
+Run only the create-task E2E tests ([tests/e2e/create-task.spec.ts](tests/e2e/create-task.spec.ts)):
+
+```bash
+npm run test:e2e -- tests/e2e/create-task.spec.ts
+```
+
+The detailed strategy, folder layout, and naming convention live in [docs/testing-strategy.md](docs/testing-strategy.md).
 
 ## 📚 Documentation
 

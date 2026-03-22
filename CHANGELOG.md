@@ -9,7 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added (unreleased)
 
+- Documented and standardized the project test architecture around `Vitest`, `@testing-library/dom`, `MSW`, and `Playwright`, including a dedicated testing strategy reference and folder naming convention.
+- Added a split canonical specification set under `docs/spec/`, with `docs/specification-kanban.md` now acting as the spec index, governance entrypoint, and code-to-spec ownership map.
+- Added a pull request template and a CI spec-sync check that requires spec and changelog updates when files under `src/` change.
+
 ### Changed (unreleased)
+
+- `npm test` now runs the full unit, DOM integration, and Playwright end-to-end suites in sequence.
+- Added dedicated `npm run test:dom` and `npm run test:e2e` scripts for the standardized split between DOM integration and browser journey coverage.
+- Added initial DOM and MSW scaffold files with passing example tests to establish the new `tests/dom/` and `tests/mocks/` workflow.
+- Contributor guidance in `CLAUDE.md`, `.github/copilot-instructions.md`, and `docs/readme.md` now points to the new split specification structure instead of a single monolithic spec file.
 
 ### Removed (unreleased)
 

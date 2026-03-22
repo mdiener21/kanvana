@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Local-first personal kanban board with no backend. `docs/specification-kanban.md` outlines structure and features, all state lives in browser localStorage. Built with vanilla JavaScript, HTML, and CSS using Vite for bundling.
+Local-first personal kanban board with no backend. `docs/specification-kanban.md` is the specification index and governance entrypoint, and `docs/spec/` contains the canonical feature and data specifications. All state lives in browser localStorage. Built with vanilla JavaScript, HTML, and CSS using Vite for bundling.
 
 ## Commands
 
@@ -12,16 +12,20 @@ Local-first personal kanban board with no backend. `docs/specification-kanban.md
 npm run dev        # Start dev server at http://localhost:3000
 npm run build      # Production build to dist/
 npm run preview    # Preview production build
-npm test           # Run Playwright E2E tests
-npm run test:unit  # Run unit tests (Node --test)
+npm test           # Run unit + DOM + E2E suites
+npm run test:unit  # Run Vitest unit tests (tests/unit)
+npm run test:dom   # Run Vitest DOM integration tests (tests/dom)
+npm run test:e2e   # Run Playwright end-to-end tests (tests/e2e)
 npm run test:ui    # Run Playwright tests with interactive UI
 npm run test:debug # Run Playwright tests in debug mode
 ```
 
 ## Specification
 
-The specification files include core data structures and details to be maintained at all times.
-- `docs/specification-kanban.md` - Detailed description of the kanban board functionality, features, models, to be always updated after making changes to any functionality.
+The specification files include core data structures and feature behavior that must be maintained at all times.
+
+- `docs/specification-kanban.md` - Specification index, update policy, and code-to-spec ownership map.
+- `docs/spec/*.md` - Canonical feature, data, storage, workflow, and testing specifications.
 
 ## Architecture
 
@@ -76,7 +80,10 @@ Many modules use `await import('./render.js')` to call `renderBoard()` and avoid
 
 - **Technology constraints**: Vanilla JS/CSS/HTML only. No frameworks. Dependencies limited to Lucide, SortableJS, ECharts.
 - **Mobile-first**: All interactions must work on small screens.
-- **Mandatory doc updates**: Every code change that adds, changes, or removes functionality **must** also update `CHANGELOG.md` (under `[Unreleased]`) and `docs/specification-kanban.md` in the same work session — never defer these to a follow-up.
+- **Mandatory doc updates**: Every code change that adds, changes, or removes functionality **must** also update `CHANGELOG.md` (under `[Unreleased]`) and the relevant file in `docs/spec/` in the same work session. Update `docs/specification-kanban.md` too when the spec structure, ownership map, or process changes — never defer these to a follow-up.
+- **Testing stack**: Standardize on `Vitest` for unit tests, `Vitest` + `@testing-library/dom` for DOM integration, `MSW` for mocked API behavior, and `Playwright` for end-to-end coverage.
+- **Test folders**: `tests/unit/*.test.js`, `tests/dom/*.test.js`, `tests/mocks/*.js`, and `tests/e2e/*.spec.ts`.
+- **Test strategy reference**: Keep the canonical test architecture and naming conventions in `docs/testing-strategy.md`.
 - **Theme**: Light/dark via `document.documentElement.dataset.theme`. Persistence key: `kanban-theme`.
 - **Done column**: Column with id `done` is permanent and cannot be deleted.
 - **New tasks**: Inserted at top of column (order 1).
@@ -107,7 +114,7 @@ Fallback manual path should follow the same sequence if automation is unavailabl
 - **Commit message**: `Bump version to vX.Y.Z and update changelog`
 - **Tag**: Annotated `vX.Y.Z` with brief comma-separated summary
 - **Release automation**: `.github/workflows/release.yml` + `.github/workflows/publish-release.yml` + `scripts/prepare-release.mjs` + `scripts/extract-release-notes.mjs`
-- **Docs to update on feature changes**: `CHANGELOG.md`, `docs/specification-kanban.md`, `CLAUDE.md` (if module structure changes)
+- **Docs to update on feature changes**: `CHANGELOG.md`, relevant `docs/spec/*.md` files, `docs/specification-kanban.md` (when spec governance changes), `CLAUDE.md` (if module structure changes)
 
 ## Vite Configuration
 

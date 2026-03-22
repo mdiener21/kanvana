@@ -13,7 +13,7 @@ test.describe('Swim lane toggle', () => {
     await expect(page.locator('article.task-column[data-column="todo"] .task[data-task-id="task-a"]')).toBeVisible();
 
     await openSwimlaneSettings(page);
-    await page.getByLabel('Swim Lanes').check();
+    await page.locator('#settings-swimlane-enabled').check();
 
     await expect(page.locator('.swimlane-row')).toHaveCount(3);
     await expect(page.locator('.swimlane-row-header', { hasText: 'Project A' })).toBeVisible();
@@ -26,7 +26,7 @@ test.describe('Swim lane toggle', () => {
 
     await page.locator('#settings-close-btn').click();
     await openSwimlaneSettings(page);
-    await page.getByLabel('Swim Lanes').uncheck();
+    await page.locator('#settings-swimlane-enabled').uncheck();
 
     await expect(page.locator('.swimlane-row')).toHaveCount(0);
     await expect(page.locator('article.task-column[data-column="todo"] .task[data-task-id="task-a"]')).toBeVisible();
@@ -48,7 +48,7 @@ test.describe('Swim lane toggle', () => {
 
   test('collapses and expands a swim lane from its header', async ({ page }) => {
     await openSwimlaneSettings(page);
-    await page.getByLabel('Swim Lanes').check();
+    await page.locator('#settings-swimlane-enabled').check();
     await page.locator('#settings-close-btn').click();
 
     const projectARow = page.locator('.swimlane-row[data-lane-label="Project A"]');
@@ -64,7 +64,7 @@ test.describe('Swim lane toggle', () => {
 
   test('collapses and expands a workflow column while swim lanes are enabled', async ({ page }) => {
     await openSwimlaneSettings(page);
-    await page.getByLabel('Swim Lanes').check();
+    await page.locator('#settings-swimlane-enabled').check();
     await page.locator('#settings-close-btn').click();
 
     const inProgressHeader = page.locator('.swimlane-column-header[data-column="inprogress"]');
@@ -116,23 +116,34 @@ test.describe('Swim lane toggle', () => {
       localStorage.setItem(tasksKey, JSON.stringify(tasks));
     });
 
-    await page.reload();
     await openSwimlaneSettings(page);
-    await page.getByLabel('Swim Lanes').check();
+    await page.locator('#settings-swimlane-enabled').check();
     await page.locator('#settings-close-btn').click();
 
+    const boardContainer = page.locator('#board-container');
     const todoHeader = page.locator('.swimlane-column-header[data-column="todo"]');
     await expect(page.locator('.swimlane-row')).toHaveCount(21);
 
-    await page.evaluate(() => window.scrollTo(0, 900));
-    const box = await todoHeader.boundingBox();
+    await boardContainer.evaluate((element) => {
+      element.scrollTop = 900;
+    });
+    await expect
+      .poll(async () => boardContainer.evaluate((element) => element.scrollTop))
+      .toBeGreaterThan(0);
 
-    expect(box?.y ?? 999).toBeLessThan(24);
+    const [containerBox, box] = await Promise.all([
+      boardContainer.boundingBox(),
+      todoHeader.boundingBox()
+    ]);
+
+    expect(containerBox).not.toBeNull();
+    expect(box).not.toBeNull();
+    expect(Math.abs((box?.y ?? 999) - (containerBox?.y ?? 0))).toBeLessThan(12);
   });
 
   test('shows one row per label inside the selected label group', async ({ page }) => {
     await openSwimlaneSettings(page);
-    await page.getByLabel('Swim Lanes').check();
+    await page.locator('#settings-swimlane-enabled').check();
     await page.getByRole('combobox', { name: 'Group swim lanes by' }).selectOption('label-group');
     await page.getByRole('combobox', { name: 'Select label group for swim lanes' }).selectOption('Projects');
     await page.locator('#settings-close-btn').click();

@@ -10,14 +10,21 @@
     "release:prepare": "node scripts/prepare-release.mjs",
     "release:generate": "gh workflow run release.yml",
     "release:publish": "gh workflow run publish-release.yml",
-    "test": "playwright test",
-    "test:unit": "node --test tests/swimlanes/swimlanes-utils.test.js",
+    "test": "npm run test:unit && npm run test:dom && npm run test:e2e",
+    "test:unit": "vitest run --config vitest.config.js",
+    "test:dom": "vitest run --config vitest.dom.config.js",
+    "test:e2e": "playwright test",
     "test:ui": "playwright test --ui",
-    "test:debug": "playwright test --debug"
+    "test:debug": "playwright test --debug",
+    "check:spec-sync": "node scripts/check-spec-sync.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
-    "vite": "^7.3.1"
+    "@testing-library/dom": "^10.4.1",
+    "jsdom": "^29.0.1",
+    "msw": "^2.12.14",
+    "vite": "^7.3.1",
+    "vitest": "^4.1.0"
   },
   "dependencies": {
     "echarts": "^6.0.0",

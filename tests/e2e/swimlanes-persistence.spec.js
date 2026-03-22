@@ -10,7 +10,7 @@ test.describe('Swim lane persistence', () => {
 
   test('persists enabled state and grouping mode across reloads', async ({ page }) => {
     await openSwimlaneSettings(page);
-    await page.getByLabel('Swim Lanes').check();
+    await page.locator('#settings-swimlane-enabled').check();
     await page.getByRole('combobox', { name: 'Group swim lanes by' }).selectOption('label-group');
     await page.getByRole('combobox', { name: 'Select label group for swim lanes' }).selectOption('Projects');
     await page.locator('#settings-close-btn').click();
@@ -32,7 +32,7 @@ test.describe('Swim lane persistence', () => {
     await page.reload();
 
     await openSwimlaneSettings(page);
-    await expect(page.getByLabel('Swim Lanes')).toBeChecked();
+    await expect(page.locator('#settings-swimlane-enabled')).toBeChecked();
     await expect(page.getByRole('combobox', { name: 'Group swim lanes by' })).toHaveValue('label-group');
     await expect(page.getByRole('combobox', { name: 'Select label group for swim lanes' })).toHaveValue('Projects');
     await page.locator('#settings-close-btn').click();
@@ -44,7 +44,7 @@ test.describe('Swim lane persistence', () => {
 
   test('persists priority grouping mode across reloads', async ({ page }) => {
     await openSwimlaneSettings(page);
-    await page.getByLabel('Swim Lanes').check();
+    await page.locator('#settings-swimlane-enabled').check();
     await page.getByRole('combobox', { name: 'Group swim lanes by' }).selectOption('priority');
     await page.locator('#settings-close-btn').click();
 
@@ -73,7 +73,7 @@ test.describe('Swim lane persistence', () => {
 
   test('persists collapsed swim lane state across reloads', async ({ page }) => {
     await openSwimlaneSettings(page);
-    await page.getByLabel('Swim Lanes').check();
+    await page.locator('#settings-swimlane-enabled').check();
     await page.locator('#settings-close-btn').click();
 
     const projectARow = page.locator('.swimlane-row[data-lane-label="Project A"]');

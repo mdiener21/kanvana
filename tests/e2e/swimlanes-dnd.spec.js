@@ -10,7 +10,7 @@ test.describe('Swim lane drag and drop', () => {
 
   test('moves a task between swim lanes and columns', async ({ page }) => {
     const task = page.locator('.task[data-task-id="task-a"]');
-    const target = page.locator('.swimlane-row[data-lane-label="Project B"] .swimlane-cell[data-column="inprogress"] .tasks');
+    const target = page.locator('.swimlane-row[data-lane-label="Project B"] .swimlane-cell[data-column="inprogress"] .task[data-task-id="task-b"]');
 
     await task.dragTo(target);
 

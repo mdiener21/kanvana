@@ -74,6 +74,11 @@ export async function seedSwimlaneBoard(page, settingsOverrides = {}) {
   };
 
   await page.addInitScript((data) => {
+    const tasksKey = `kanbanBoard:${data.boardId}:tasks`;
+    if (localStorage.getItem('kanbanActiveBoardId') === data.boardId && localStorage.getItem(tasksKey)) {
+      return;
+    }
+
     localStorage.clear();
     const boards = [{ id: data.boardId, name: 'Swimlane Test Board', createdAt: new Date().toISOString() }];
     localStorage.setItem('kanbanBoards', JSON.stringify(boards));
