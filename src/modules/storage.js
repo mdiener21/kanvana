@@ -220,7 +220,8 @@ function defaultSettings() {
     swimLaneGroupBy: 'label',
     swimLaneLabelGroup: '',
     swimLaneCollapsedKeys: [],
-    swimLaneCellCollapsedKeys: []
+    swimLaneCellCollapsedKeys: [],
+    swimLaneOrder: []
   };
 }
 
@@ -542,6 +543,7 @@ function normalizeSettings(raw) {
   const swimLaneLabelGroup = normalizeSwimLaneLabelGroup(obj.swimLaneLabelGroup);
   const swimLaneCollapsedKeys = normalizeSwimLaneCollapsedKeys(obj.swimLaneCollapsedKeys);
   const swimLaneCellCollapsedKeys = normalizeSwimLaneCellCollapsedKeys(obj.swimLaneCellCollapsedKeys);
+  const swimLaneOrder = normalizeStringKeys(obj.swimLaneOrder);
 
   return {
     showPriority,
@@ -557,7 +559,8 @@ function normalizeSettings(raw) {
     swimLaneGroupBy,
     swimLaneLabelGroup,
     swimLaneCollapsedKeys,
-    swimLaneCellCollapsedKeys
+    swimLaneCellCollapsedKeys,
+    swimLaneOrder
   };
 }
 

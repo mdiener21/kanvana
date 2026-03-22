@@ -214,7 +214,7 @@ export function createSwimlaneCell(column, lane, tasksInCell, visibleTasks, sett
 }
 
 export function renderSwimlaneBoard(container, sortedColumns, visibleTasks, labels, settings, labelsMap, today) {
-  const lanes = groupTasksBySwimLane(visibleTasks, settings.swimLaneGroupBy, labels, settings.swimLaneLabelGroup);
+  const lanes = groupTasksBySwimLane(visibleTasks, settings.swimLaneGroupBy, labels, settings.swimLaneLabelGroup, settings.swimLaneOrder);
   const grid = buildBoardGrid(sortedColumns, lanes, visibleTasks, settings.swimLaneGroupBy, labels, settings.swimLaneLabelGroup);
   const board = document.createElement('div');
   board.classList.add('swimlane-board');

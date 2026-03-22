@@ -376,14 +376,6 @@ body.dragging-column .column-header * {
   display: contents;
 }
 
-.swimlane-row-header[style*="--lane-accent"]::before {
-  content: "";
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 4px;
-  background: var(--lane-accent);
-  border-radius: 5px 0 0 5px;
-}
 
 .swimlane-row-title {
   font-size: 15px;
@@ -422,13 +414,15 @@ body.dragging-column .column-header * {
   width: 36px;
   height: 36px;
   border-radius: 5px;
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: 1px solid transparent;
+  background: transparent;
   color: var(--text);
   flex: 0 0 auto;
+  cursor: pointer;
 }
 
 .swimlane-row-toggle:hover {
+  border-color: var(--border);
   background: var(--surface-muted);
 }
 

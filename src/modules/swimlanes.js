@@ -1,4 +1,5 @@
-import { loadLabels, loadSettings, saveSettings } from './storage.js';
+import Sortable from 'sortablejs';
+import { loadLabels, loadTasks, loadSettings, saveSettings } from './storage.js';
 
 export const SWIMLANE_GROUP_BY_LABEL = 'label';
 export const SWIMLANE_GROUP_BY_LABEL_GROUP = 'label-group';
@@ -245,7 +246,7 @@ export function getSwimLaneValue(task, groupBy, labelsInput, selectedLabelGroup 
   return getSwimLaneDescriptor(task, groupBy, labelsInput, selectedLabelGroup).value;
 }
 
-export function groupTasksBySwimLane(tasks, groupBy, labelsInput, selectedLabelGroup = '') {
+export function groupTasksBySwimLane(tasks, groupBy, labelsInput, selectedLabelGroup = '', swimLaneOrder = []) {
   const labels = normalizeLabelCollection(labelsInput);
   const normalizedGroupBy = normalizeGroupBy(groupBy);
   const byLane = new Map();
@@ -274,15 +275,29 @@ export function groupTasksBySwimLane(tasks, groupBy, labelsInput, selectedLabelG
     byLane.get(lane.key).tasks.push(task);
   });
 
-  return [...byLane.values()].sort((left, right) => {
+  const defaultSort = (left, right) => {
     if (normalizedGroupBy === SWIMLANE_GROUP_BY_PRIORITY) {
       return PRIORITY_LANE_ORDER.indexOf(left.key) - PRIORITY_LANE_ORDER.indexOf(right.key);
     }
-
     if (left.isDefault && !right.isDefault) return 1;
     if (!left.isDefault && right.isDefault) return -1;
     return left.value.localeCompare(right.value, undefined, { sensitivity: 'base' });
-  });
+  };
+
+  const lanes = [...byLane.values()];
+
+  if (Array.isArray(swimLaneOrder) && swimLaneOrder.length > 0) {
+    return lanes.sort((a, b) => {
+      const ai = swimLaneOrder.indexOf(a.key);
+      const bi = swimLaneOrder.indexOf(b.key);
+      if (ai === -1 && bi === -1) return defaultSort(a, b);
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
+  }
+
+  return lanes.sort(defaultSort);
 }
 
 export function buildBoardGrid(columns, swimLanes, tasks, groupBy, labelsInput, selectedLabelGroup = '') {
@@ -470,6 +485,116 @@ export function moveTask(tasks, taskId, targetColumnId, targetLaneKey, groupBy, 
   return nextTasks;
 }
 
+let laneOrderSortable = null;
+
+function getAvailableLanes(groupByMode, labels, selectedLabelGroup) {
+  const normalizedGroupBy = normalizeGroupBy(groupByMode);
+
+  if (normalizedGroupBy === SWIMLANE_GROUP_BY_PRIORITY) {
+    return PRIORITY_LANE_ORDER.map((key) => ({
+      key,
+      name: PRIORITY_LANE_LABELS[key],
+      color: null
+    }));
+  }
+
+  if (normalizedGroupBy === SWIMLANE_GROUP_BY_LABEL_GROUP) {
+    const groupLabels = getLabelsForSelectedGroup(labels, selectedLabelGroup);
+    const lanes = groupLabels.map((label) => ({
+      key: label.id,
+      name: label.name,
+      color: label.color || null
+    }));
+    lanes.push({ key: NO_GROUP_LANE_KEY, name: NO_GROUP_LANE_LABEL, color: null });
+    return lanes;
+  }
+
+  // label mode: show all labels + No Group
+  const lanes = [...labels.values()]
+    .sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }))
+    .map((label) => ({
+      key: label.id,
+      name: label.name,
+      color: label.color || null
+    }));
+  lanes.push({ key: NO_GROUP_LANE_KEY, name: NO_GROUP_LANE_LABEL, color: null });
+  return lanes;
+}
+
+function mergeWithSavedOrder(availableLanes, savedOrder) {
+  if (!Array.isArray(savedOrder) || savedOrder.length === 0) return availableLanes;
+  const laneMap = new Map(availableLanes.map((l) => [l.key, l]));
+  const ordered = [];
+  for (const key of savedOrder) {
+    const lane = laneMap.get(key);
+    if (lane) {
+      ordered.push(lane);
+      laneMap.delete(key);
+    }
+  }
+  // Append any new lanes not in saved order
+  for (const lane of laneMap.values()) {
+    ordered.push(lane);
+  }
+  return ordered;
+}
+
+function renderLaneOrderList(listEl, lanes) {
+  listEl.innerHTML = '';
+  for (const lane of lanes) {
+    const li = document.createElement('li');
+    li.className = 'swimlane-order-item';
+    li.dataset.laneKey = lane.key;
+
+    const handle = document.createElement('span');
+    handle.className = 'swimlane-order-handle';
+    handle.setAttribute('data-lucide', 'grip-vertical');
+    handle.setAttribute('aria-hidden', 'true');
+    li.appendChild(handle);
+
+    if (lane.color) {
+      const dot = document.createElement('span');
+      dot.className = 'lane-color';
+      dot.style.backgroundColor = lane.color;
+      li.appendChild(dot);
+    }
+
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = lane.name;
+    li.appendChild(nameSpan);
+
+    listEl.appendChild(li);
+  }
+}
+
+function initLaneOrderSortable(onChange) {
+  const orderList = document.getElementById('settings-swimlane-order-list');
+  if (!orderList) return;
+
+  if (laneOrderSortable) {
+    laneOrderSortable.destroy();
+    laneOrderSortable = null;
+  }
+
+  laneOrderSortable = new Sortable(orderList, {
+    animation: 150,
+    delay: 150,
+    delayOnTouchOnly: true,
+    handle: '.swimlane-order-handle',
+    ghostClass: 'swimlane-order-ghost',
+    chosenClass: 'swimlane-order-chosen',
+    draggable: '.swimlane-order-item',
+    direction: 'vertical',
+    onEnd() {
+      const keys = [...orderList.children].map((li) => li.dataset.laneKey);
+      const current = loadSettings();
+      const next = { ...current, swimLaneOrder: keys };
+      saveSettings(next);
+      onChange?.(next);
+    }
+  });
+}
+
 export function syncSwimLaneControls(settings = loadSettings()) {
   const toggle = document.getElementById('settings-swimlane-enabled');
   const quickToggle = document.getElementById('swimlane-quick-toggle');
@@ -509,6 +634,22 @@ export function syncSwimLaneControls(settings = loadSettings()) {
     labelGroupField.hidden = !showLabelGroupSelector;
     labelGroup.disabled = !showLabelGroupSelector || availableGroups.length === 0;
   }
+
+  // Populate the lane order list
+  const orderField = document.getElementById('settings-swimlane-order-field');
+  const orderList = document.getElementById('settings-swimlane-order-list');
+  if (orderField && orderList) {
+    const isEnabled = settings.swimLanesEnabled === true;
+    const currentGroupBy = normalizeGroupBy(settings.swimLaneGroupBy);
+    if (isEnabled) {
+      const availableLanes = getAvailableLanes(currentGroupBy, labels, selectedGroup);
+      const orderedLanes = mergeWithSavedOrder(availableLanes, settings.swimLaneOrder);
+      renderLaneOrderList(orderList, orderedLanes);
+      // Re-render icons for the grip handles
+      import('./icons.js').then((m) => m.renderIcons());
+    }
+    orderField.hidden = !isEnabled;
+  }
 }
 
 export function initializeSwimLaneControls(onChange) {
@@ -519,6 +660,7 @@ export function initializeSwimLaneControls(onChange) {
   if (!toggle || !groupBy) return;
 
   syncSwimLaneControls();
+  initLaneOrderSortable(onChange);
 
   quickToggle?.addEventListener('change', () => {
     const current = loadSettings();
@@ -557,6 +699,7 @@ export function initializeSwimLaneControls(onChange) {
     const next = {
       ...current,
       swimLaneGroupBy: nextGroupBy,
+      swimLaneOrder: [],
       swimLaneLabelGroup: nextGroupBy === SWIMLANE_GROUP_BY_LABEL_GROUP
         ? getSelectedLabelGroup(current.swimLaneLabelGroup, labels)
         : current.swimLaneLabelGroup
@@ -570,7 +713,8 @@ export function initializeSwimLaneControls(onChange) {
     const current = loadSettings();
     const next = {
       ...current,
-      swimLaneLabelGroup: normalizeSelectedLabelGroup(labelGroup.value)
+      swimLaneLabelGroup: normalizeSelectedLabelGroup(labelGroup.value),
+      swimLaneOrder: []
     };
     saveSettings(next);
     syncSwimLaneControls(next);

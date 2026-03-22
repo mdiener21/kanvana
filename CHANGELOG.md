@@ -10,9 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added (unreleased)
 
 - Quick-access swim lane toggle in the board controls menu for enabling/disabling swim lanes without opening Settings.
+- Drag-and-drop swim lane ordering in Settings modal — reorder lanes for any grouping mode, persisted per board.
 
 ### Changed (unreleased)
 
+- Swimlane row collapse button now shows only the chevron icon by default; the bordered box appears only on hover.
+- Removed colored left-border accent from swimlane row headers.
 
 ### Removed (unreleased)
 
