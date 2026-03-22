@@ -7,6 +7,9 @@
 
 **[Use it Live Here](https://mdiener21.github.io/personal-kanban/)**
 
+
+**Building with AI agents?** Try the new **AI Agent Ops Starter** board template to track 2–5 agents in parallel, review handoffs, and improve prompts in one local-first workspace. If that sounds useful, give the repo a ⭐ and help more agent builders discover it.
+
 ---
 
 ## What is Personal Kanban Board?
@@ -45,6 +48,7 @@ Import a pre-built board to get started immediately:
 | Board | Description |
 |-------|-------------|
 | [Personal Demo](example-boards/Personal_Demo_board.json) | Sample board showing the basics |
+| [AI Agent Ops Starter](example-boards/AI-Agent-Ops-Starter-Template.json) | Beginner-friendly workflow for supervising 2-5 parallel agents |
 | [Project Management](example-boards/Project-Management-Board-Template.json) | Backlog → To Do → In Progress → Review → Done |
 | [Personal Life](example-boards/Personal-Life-Board-Template.json) | A simple home/personal workflow |
 | [Sales Pipeline](example-boards/Sales_board_template.json) | Lead stages + activity labels |

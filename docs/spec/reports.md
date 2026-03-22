@@ -32,3 +32,4 @@
 - Series are ordered by workflow order and colored by column
 - Uses `task.columnHistory` to reconstruct which column a task occupied on each day
 - Legacy tasks without history are seeded from the earliest known timestamp and their current column
+- Report tooltips must treat imported board data as untrusted and escape any user-controlled labels before rendering tooltip HTML

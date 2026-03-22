@@ -11,6 +11,7 @@ import {
 import { BarChart, HeatmapChart, LineChart } from 'echarts/charts';
 import { CanvasRenderer } from 'echarts/renderers';
 import { renderIcons } from './icons.js';
+import { escapeHtml } from './security.js';
 import { initializeThemeToggle } from './theme.js';
 import { ensureBoardsInitialized, getActiveBoardId, getActiveBoardName } from './storage.js';
 import { loadColumns, loadTasks } from './storage.js';
@@ -253,7 +254,7 @@ function buildDailyUpdatesOption({ rangeStart, rangeEnd, data, maxValue, boardNa
       borderColor: theme.border,
       textStyle: { color: theme.text },
       formatter: (params) => {
-        const date = params?.value?.[0] || '';
+        const date = escapeHtml(params?.value?.[0] || '');
         const value = params?.value?.[1] ?? 0;
         return `${date}: ${value} update${value === 1 ? '' : 's'}`;
       }
@@ -419,7 +420,7 @@ function buildLeadTimeOption({ labels, avgLeadDays, trendLeadDays, completedCoun
       textStyle: { color: theme.text },
       formatter: (params) => {
         const items = Array.isArray(params) ? params : [];
-        const header = items[0]?.axisValueLabel || '';
+        const header = escapeHtml(items[0]?.axisValueLabel || '');
         const byName = new Map(items.map((p) => [p.seriesName, p.value]));
         const avg = byName.get('Avg lead time (days)');
         const trend = byName.get('Trend (4-week MA)');
@@ -641,13 +642,13 @@ function buildCfdOption({ labels, seriesDefs, boardName }) {
       textStyle: { color: theme.text },
       formatter: (params) => {
         const items = Array.isArray(params) ? params : [];
-        const date = items[0]?.axisValueLabel || '';
+        const date = escapeHtml(items[0]?.axisValueLabel || '');
         const lines = [`${date}`];
         let total = 0;
         for (const p of items) {
           const v = Number(p?.value) || 0;
           total += v;
-          lines.push(`${p.marker || ''}${p.seriesName}: ${v}`);
+          lines.push(`${escapeHtml(p?.seriesName || '')}: ${v}`);
         }
         lines.push(`<span style="opacity:.7">Total: ${total}</span>`);
         return lines.join('<br/>');

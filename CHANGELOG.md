@@ -9,8 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added (unreleased)
 
+- Import preflight review now checks JSON schema and file size before saving any board data, then asks for confirmation with a summary of imported counts and warnings.
+- Added a built-in AI Agent Ops starter board template with beginner-friendly columns, pre-labeled starter tasks, and grouped Agent/Workstream/Artifact labels for managing 2-5 parallel agents.
+
 
 ### Changed (unreleased)
+
+- Reports now escape user-controlled tooltip content, swimlane action buttons no longer rely on HTML injection for icons, and the app pages send a stricter Content Security Policy.
+- The main README now highlights the AI Agent Ops starter template near the top to better attract agent-building users to the project.
 
 
 ### Removed (unreleased)

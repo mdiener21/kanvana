@@ -20,6 +20,7 @@
 - Board selection persists and restores on page load
 - Manage Boards supports create, open, export, import, rename, and delete actions
 - New boards can be blank or created from a template
+- Built-in templates may preload workflow-specific starter columns, grouped labels, and labeled tasks so a new board is immediately usable
 - The last remaining board cannot be deleted
 - On mobile, the board selector has a larger touch target and the controls menu stays open while the selector is used
 

@@ -13,6 +13,7 @@ Use **columns** to track workflow state (To Do → In Progress → Done) and use
 
 Kickstart your setup with these ready-to-import boards featuring label examples:
 
+- **[AI-Agent-Ops-Starter-Template.json](example-boards/AI-Agent-Ops-Starter-Template.json)** — Agent/Workstream/Artifact label groups for small multi-agent setups.
 - **[Eisenhower-Method-Board.json](example-boards/Eisenhower-Method-Board.json)** — Prioritize with urgent/important quadrants.
 - **[Getting-Things-Done-Template.json](example-boards/Getting-Things-Done-Template.json)** — GTD workflow for productivity.
 - **[Personal-Work-Kanban-Template.json](example-boards/Personal-Work-Kanban-Template.json)** — Balanced personal and work tasks.
