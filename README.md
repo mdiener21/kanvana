@@ -8,6 +8,8 @@
 
 A beautiful, modern-designed personal Kanban board that runs entirely in your browser. No backend, no cloud, no data tracking. Everything stays local with browser `localStorage` persistence. Perfect for personal task management, work tracking, and staying organized.
 
+**Building with AI agents?** Try the new **AI Agent Ops Starter** board template to track 2–5 agents in parallel, review handoffs, and improve prompts in one local-first workspace. If that sounds useful, give the repo a ⭐ and help more agent builders discover it.
+
 ## 🚀 Live Demo
 
 Experience it firsthand: **[Try the Live Demo](https://mdiener21.github.io/personal-kanban/)**

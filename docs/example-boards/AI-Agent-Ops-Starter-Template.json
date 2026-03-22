@@ -1,0 +1,133 @@
+{
+  "boardName": "AI Agent Ops Starter",
+  "columns": [
+    { "id": "jobs-to-automate", "name": "Jobs to Automate", "color": "#64748b", "order": 1, "collapsed": false },
+    { "id": "ready-for-agent", "name": "Ready for Agent", "color": "#3b82f6", "order": 2, "collapsed": false },
+    { "id": "running", "name": "Running", "color": "#14b8a6", "order": 3, "collapsed": false },
+    { "id": "human-review", "name": "Human Review", "color": "#8b5cf6", "order": 4, "collapsed": false },
+    { "id": "improve", "name": "Improve Prompt/Tools", "color": "#f59e0b", "order": 5, "collapsed": false },
+    { "id": "done", "name": "Done", "color": "#505050", "order": 6, "collapsed": false }
+  ],
+  "tasks": [
+    {
+      "id": "7f0d0ae3-2dbe-4a7d-a86f-0a8ce4f72001",
+      "title": "Define the first Research Agent mission",
+      "description": "Pick one recurring research job, document the inputs it needs, and define the exact human-ready output format before you automate it.",
+      "priority": "high",
+      "dueDate": "2026-03-24",
+      "column": "jobs-to-automate",
+      "order": 1,
+      "labels": ["agent-planner", "work-discovery", "artifact-brief"],
+      "creationDate": "2026-03-22T09:00:00.000Z",
+      "changeDate": "2026-03-22T09:00:00.000Z",
+      "columnHistory": [{ "column": "jobs-to-automate", "at": "2026-03-22T09:00:00.000Z" }]
+    },
+    {
+      "id": "7f0d0ae3-2dbe-4a7d-a86f-0a8ce4f72002",
+      "title": "Draft a starter prompt pack for the Builder Agent",
+      "description": "Write the system prompt, guardrails, and one example input/output pair so the Builder Agent starts with a reliable pattern.",
+      "priority": "high",
+      "dueDate": "2026-03-25",
+      "column": "ready-for-agent",
+      "order": 1,
+      "labels": ["agent-builder", "work-prompting", "artifact-prompt-pack"],
+      "creationDate": "2026-03-22T09:05:00.000Z",
+      "changeDate": "2026-03-22T09:05:00.000Z",
+      "columnHistory": [{ "column": "ready-for-agent", "at": "2026-03-22T09:05:00.000Z" }]
+    },
+    {
+      "id": "7f0d0ae3-2dbe-4a7d-a86f-0a8ce4f72003",
+      "title": "Research Agent run: collect 10 competitor examples",
+      "description": "Use browsing and note-taking tools to gather examples, source links, and a short comparison table the human can scan quickly.",
+      "priority": "medium",
+      "dueDate": "2026-03-24",
+      "column": "running",
+      "order": 1,
+      "labels": ["agent-researcher", "work-discovery", "artifact-dataset"],
+      "creationDate": "2026-03-22T09:10:00.000Z",
+      "changeDate": "2026-03-22T09:10:00.000Z",
+      "columnHistory": [{ "column": "running", "at": "2026-03-22T09:10:00.000Z" }]
+    },
+    {
+      "id": "7f0d0ae3-2dbe-4a7d-a86f-0a8ce4f72004",
+      "title": "Ops Agent run: summarize yesterday's outcomes",
+      "description": "Create a short daily rollup of completed jobs, stalled jobs, and the next two items the human should review this morning.",
+      "priority": "medium",
+      "dueDate": "2026-03-23",
+      "column": "running",
+      "order": 2,
+      "labels": ["agent-ops", "work-reporting", "artifact-draft"],
+      "creationDate": "2026-03-22T09:15:00.000Z",
+      "changeDate": "2026-03-22T09:15:00.000Z",
+      "columnHistory": [{ "column": "running", "at": "2026-03-22T09:15:00.000Z" }]
+    },
+    {
+      "id": "7f0d0ae3-2dbe-4a7d-a86f-0a8ce4f72005",
+      "title": "Review the Reviewer Agent's source-check checklist",
+      "description": "Confirm which citation failures should block shipping and which should just trigger a follow-up note for the human.",
+      "priority": "medium",
+      "dueDate": "2026-03-26",
+      "column": "human-review",
+      "order": 1,
+      "labels": ["agent-reviewer", "work-qa", "artifact-workflow"],
+      "creationDate": "2026-03-22T09:20:00.000Z",
+      "changeDate": "2026-03-22T09:20:00.000Z",
+      "columnHistory": [{ "column": "human-review", "at": "2026-03-22T09:20:00.000Z" }]
+    },
+    {
+      "id": "7f0d0ae3-2dbe-4a7d-a86f-0a8ce4f72006",
+      "title": "Tighten Builder Agent tool instructions",
+      "description": "The agent found the answer but skipped the required markdown sections; update the instructions so every run returns the same structure.",
+      "priority": "medium",
+      "dueDate": "2026-03-27",
+      "column": "improve",
+      "order": 1,
+      "labels": ["agent-builder", "work-automation", "artifact-workflow"],
+      "creationDate": "2026-03-22T09:25:00.000Z",
+      "changeDate": "2026-03-22T09:25:00.000Z",
+      "columnHistory": [{ "column": "improve", "at": "2026-03-22T09:25:00.000Z" }]
+    },
+    {
+      "id": "7f0d0ae3-2dbe-4a7d-a86f-0a8ce4f72007",
+      "title": "Publish the human handoff checklist",
+      "description": "Create a reusable review checklist for approving agent output before it is shared, shipped, or copied into another system.",
+      "priority": "low",
+      "dueDate": "",
+      "column": "done",
+      "order": 1,
+      "labels": ["agent-ops", "work-qa", "artifact-workflow"],
+      "creationDate": "2026-03-21T15:00:00.000Z",
+      "changeDate": "2026-03-21T15:00:00.000Z",
+      "doneDate": "2026-03-21T15:00:00.000Z",
+      "columnHistory": [{ "column": "done", "at": "2026-03-21T15:00:00.000Z" }]
+    }
+  ],
+  "labels": [
+    { "id": "agent-planner", "name": "Planner", "color": "#3b82f6", "group": "Agent" },
+    { "id": "agent-researcher", "name": "Researcher", "color": "#14b8a6", "group": "Agent" },
+    { "id": "agent-builder", "name": "Builder", "color": "#8b5cf6", "group": "Agent" },
+    { "id": "agent-reviewer", "name": "Reviewer", "color": "#ec4899", "group": "Agent" },
+    { "id": "agent-ops", "name": "Ops", "color": "#f97316", "group": "Agent" },
+
+    { "id": "work-discovery", "name": "Discovery", "color": "#0ea5e9", "group": "Workstream" },
+    { "id": "work-prompting", "name": "Prompting", "color": "#a855f7", "group": "Workstream" },
+    { "id": "work-automation", "name": "Automation", "color": "#f59e0b", "group": "Workstream" },
+    { "id": "work-qa", "name": "QA", "color": "#ef4444", "group": "Workstream" },
+    { "id": "work-reporting", "name": "Reporting", "color": "#06b6d4", "group": "Workstream" },
+
+    { "id": "artifact-brief", "name": "Brief", "color": "#60a5fa", "group": "Artifact" },
+    { "id": "artifact-prompt-pack", "name": "Prompt Pack", "color": "#c084fc", "group": "Artifact" },
+    { "id": "artifact-workflow", "name": "Workflow", "color": "#fbbf24", "group": "Artifact" },
+    { "id": "artifact-draft", "name": "Draft", "color": "#fb7185", "group": "Artifact" },
+    { "id": "artifact-dataset", "name": "Dataset", "color": "#34d399", "group": "Artifact" }
+  ],
+  "settings": {
+    "showPriority": true,
+    "showDueDate": true,
+    "showAge": true,
+    "showChangeDate": true,
+    "locale": "en",
+    "defaultPriority": "none",
+    "notificationDays": 2
+  }
+}

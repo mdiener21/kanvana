@@ -13,6 +13,18 @@ import { createBoard, getActiveBoardName, listBoards, setActiveBoardId } from '.
 import { emit, DATA_CHANGED } from './events.js';
 import { normalizePriority, isHexColor, boardDisplayName, normalizeDueDate } from './normalize.js';
 import { DONE_COLUMN_ID } from './constants.js';
+import { formatBytes } from './security.js';
+
+export const IMPORT_LIMITS = {
+  maxFileSizeBytes: 2 * 1024 * 1024,
+  warningFileSizeBytes: 512 * 1024,
+  maxTasks: 5000,
+  warningTasks: 1000,
+  maxColumns: 100,
+  warningColumns: 25,
+  maxLabels: 500,
+  warningLabels: 100
+};
 
 function safeParseArrayFromStorage(key) {
   if (!key) return null;
@@ -62,6 +74,165 @@ function boardNameFromFile(file) {
   const name = typeof file?.name === 'string' ? file.name.trim() : '';
   if (!name) return '';
   return name.replace(/\.[^.]+$/, '').trim();
+}
+
+function getImportSections(data) {
+  if (Array.isArray(data)) {
+    return {
+      tasks: data,
+      columns: null,
+      labels: null,
+      settings: null,
+      boardName: null,
+      format: 'legacy-tasks'
+    };
+  }
+
+  if (data && typeof data === 'object' && data.tasks && data.columns) {
+    return {
+      tasks: data.tasks,
+      columns: data.columns,
+      labels: Object.prototype.hasOwnProperty.call(data, 'labels') ? data.labels : null,
+      settings: Object.prototype.hasOwnProperty.call(data, 'settings') ? data.settings : null,
+      boardName: typeof data.boardName === 'string' ? data.boardName.trim() : null,
+      format: 'board-export'
+    };
+  }
+
+  return null;
+}
+
+function pluralize(count, singular, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+export function validateImportFileMetadata(file) {
+  const errors = [];
+  const warnings = [];
+  const fileSize = Number.isFinite(file?.size) ? file.size : 0;
+
+  if (fileSize > IMPORT_LIMITS.maxFileSizeBytes) {
+    errors.push(`Import file is too large (${formatBytes(fileSize)}). Maximum supported size is ${formatBytes(IMPORT_LIMITS.maxFileSizeBytes)}.`);
+  } else if (fileSize > IMPORT_LIMITS.warningFileSizeBytes) {
+    warnings.push(`Large import file detected (${formatBytes(fileSize)}). Importing may be slow on some browsers.`);
+  }
+
+  return { errors, warnings, fileSize };
+}
+
+export function inspectImportPayload(data, file = null) {
+  const metadata = validateImportFileMetadata(file);
+  const errors = [...metadata.errors];
+  const warnings = [...metadata.warnings];
+  const fileSize = metadata.fileSize;
+
+  const sections = getImportSections(data);
+  if (!sections) {
+    errors.push('Invalid JSON file format. Expected either a task array or a board export object containing tasks and columns.');
+    return { errors, warnings, fileSize };
+  }
+
+  const { tasks, columns, labels, settings, boardName, format } = sections;
+  const normalizedTasks = normalizeImportedTasks(tasks);
+  const normalizedColumns = columns ? normalizeImportedColumns(columns) : null;
+  const normalizedLabels = labels ? normalizeImportedLabels(labels) : null;
+  const normalizedSettings = settings ? normalizeImportedSettings(settings) : null;
+
+  if (!normalizedTasks || (columns && !normalizedColumns) || (labels && !normalizedLabels) || (settings && !normalizedSettings)) {
+    errors.push('Invalid data structure. One or more imported sections do not match the expected schema.');
+    return { errors, warnings, fileSize, format };
+  }
+
+  if (format === 'legacy-tasks') {
+    warnings.push('Legacy task-only import detected. Default columns, labels, and settings will be used for the new board.');
+  }
+
+  if (normalizedTasks.length > IMPORT_LIMITS.maxTasks) {
+    errors.push(`Import contains too many tasks (${normalizedTasks.length}). Maximum supported task count is ${IMPORT_LIMITS.maxTasks}.`);
+  } else if (normalizedTasks.length > IMPORT_LIMITS.warningTasks) {
+    warnings.push(`Import contains ${normalizedTasks.length} tasks. Rendering and storage operations may feel slow.`);
+  }
+
+  const columnCount = normalizedColumns?.length ?? 0;
+  if (columnCount > IMPORT_LIMITS.maxColumns) {
+    errors.push(`Import contains too many columns (${columnCount}). Maximum supported column count is ${IMPORT_LIMITS.maxColumns}.`);
+  } else if (columnCount > IMPORT_LIMITS.warningColumns) {
+    warnings.push(`Import contains ${columnCount} columns. Board navigation may become difficult on smaller screens.`);
+  }
+
+  const labelCount = normalizedLabels?.length ?? 0;
+  if (labelCount > IMPORT_LIMITS.maxLabels) {
+    errors.push(`Import contains too many labels (${labelCount}). Maximum supported label count is ${IMPORT_LIMITS.maxLabels}.`);
+  } else if (labelCount > IMPORT_LIMITS.warningLabels) {
+    warnings.push(`Import contains ${labelCount} labels. Label pickers may become harder to manage.`);
+  }
+
+  if (normalizedColumns) {
+    const columnIds = new Set(normalizedColumns.map((column) => column.id));
+    const missingColumns = [...new Set(normalizedTasks.filter((task) => !columnIds.has(task.column)).map((task) => task.column))];
+    if (missingColumns.length > 0) {
+      errors.push(`Import references unknown columns: ${missingColumns.join(', ')}.`);
+    }
+  }
+
+  let tasksWithKnownLabels = normalizedTasks;
+  if (normalizedLabels) {
+    const labelIds = new Set(normalizedLabels.map((label) => label.id));
+    let removedLabelRefs = 0;
+    tasksWithKnownLabels = normalizedTasks.map((task) => {
+      const nextLabels = task.labels.filter((labelId) => labelIds.has(labelId));
+      removedLabelRefs += task.labels.length - nextLabels.length;
+      return nextLabels.length === task.labels.length ? task : { ...task, labels: nextLabels };
+    });
+
+    if (removedLabelRefs > 0) {
+      warnings.push(`Removed ${removedLabelRefs} label reference${removedLabelRefs === 1 ? '' : 's'} that did not exist in the imported label list.`);
+    }
+  }
+
+  const importedName = boardName || boardNameFromFile(file) || 'Imported board';
+
+  return {
+    errors,
+    warnings,
+    fileSize,
+    format,
+    importedName,
+    normalizedTasks: tasksWithKnownLabels,
+    normalizedColumns,
+    normalizedLabels,
+    normalizedSettings,
+    summary: {
+      tasks: tasksWithKnownLabels.length,
+      columns: columnCount,
+      labels: labelCount,
+      includesSettings: Boolean(normalizedSettings)
+    }
+  };
+}
+
+export function buildImportConfirmationMessage(preview) {
+  const summaryParts = [
+    pluralize(preview?.summary?.tasks ?? 0, 'task'),
+    pluralize(preview?.summary?.columns ?? 0, 'column'),
+    pluralize(preview?.summary?.labels ?? 0, 'label')
+  ];
+
+  if (preview?.summary?.includesSettings) {
+    summaryParts.push('settings included');
+  }
+
+  const parts = [
+    `This import will create a new board named "${preview?.importedName || 'Imported board'}" and switch to it.`,
+    `File size: ${formatBytes(preview?.fileSize ?? 0)}.`,
+    `Contents: ${summaryParts.join(', ')}.`
+  ];
+
+  if (Array.isArray(preview?.warnings) && preview.warnings.length > 0) {
+    parts.push(`Warnings: ${preview.warnings.join(' ')}`);
+  }
+
+  return parts.join(' ');
 }
 
 // normalizePriority, isHexColor imported from normalize.js
@@ -233,7 +404,7 @@ function normalizeImportedColumns(columns) {
   // Ensure the permanent Done column always exists.
   if (!normalized.some((c) => c.id === DONE_COLUMN_ID)) {
     const maxOrder = normalized.reduce((max, c) => Math.max(max, Number.isFinite(c?.order) ? c.order : 0), 0);
-    normalized.push({ id: DONE_COLUMN_ID, name: 'Done', color: '#16a34a', order: maxOrder + 1, collapsed: false });
+    normalized.push({ id: DONE_COLUMN_ID, name: 'Done', color: '#6d6d6d', order: maxOrder + 1, collapsed: false });
   }
 
   const isValid = normalized.every((c) => c.id && c.name);
@@ -361,56 +532,48 @@ export function exportBoard(boardId) {
 
 // Import tasks and columns from JSON file
 export function importTasks(file) {
+  const metadataPreview = validateImportFileMetadata(file);
+  if (metadataPreview.errors.length > 0) {
+    import('./dialog.js').then(({ alertDialog }) => alertDialog({
+      title: 'Import Error',
+      message: metadataPreview.errors.join(' ')
+    }));
+    return;
+  }
+
   const reader = new FileReader();
   reader.onload = async (e) => {
     try {
       const data = JSON.parse(e.target.result);
-      
-      // Support multiple formats for backward compatibility
-      let tasks, columns, labels, settings, boardName;
-      
-      if (Array.isArray(data)) {
-        // Old format: just tasks array
-        tasks = data;
-        columns = null;
-        labels = null;
-        settings = null;
-        boardName = null;
-      } else if (data.tasks && data.columns) {
-        // New format: object with columns and tasks (and optionally labels)
-        tasks = data.tasks;
-        columns = data.columns;
-        labels = Object.prototype.hasOwnProperty.call(data, 'labels') ? data.labels : null;
-        settings = Object.prototype.hasOwnProperty.call(data, 'settings') ? data.settings : null;
-        boardName = typeof data.boardName === 'string' ? data.boardName.trim() : null;
-      } else {
+
+      const preview = inspectImportPayload(data, file);
+      if (preview.errors.length > 0) {
         const { alertDialog } = await import('./dialog.js');
-        await alertDialog({ title: 'Import Error', message: 'Invalid JSON file format.' });
+        await alertDialog({ title: 'Import Error', message: preview.errors.join(' ') });
         return;
       }
 
-      const normalizedTasks = normalizeImportedTasks(tasks);
-      const normalizedColumns = columns ? normalizeImportedColumns(columns) : null;
-      const normalizedLabels = labels ? normalizeImportedLabels(labels) : null;
-      const normalizedSettings = settings ? normalizeImportedSettings(settings) : null;
+      const { confirmDialog } = await import('./dialog.js');
+      const confirmed = await confirmDialog({
+        title: 'Review Import',
+        message: buildImportConfirmationMessage(preview),
+        confirmText: 'Import Board',
+        cancelText: 'Cancel'
+      });
 
-      if (!normalizedTasks || (columns && !normalizedColumns) || (labels && !normalizedLabels) || (settings && !normalizedSettings)) {
-        const { alertDialog } = await import('./dialog.js');
-        await alertDialog({ title: 'Import Error', message: 'Invalid data structure.' });
-        return;
-      }
+      if (!confirmed) return;
 
-      const importedName = boardName || boardNameFromFile(file) || 'Imported board';
+      const importedName = preview.importedName || 'Imported board';
       const newBoard = createBoard(importedName);
       if (newBoard?.id) setActiveBoardId(newBoard.id);
 
-      if (normalizedColumns) saveColumns(normalizedColumns);
-      saveTasks(normalizedTasks);
-      if (normalizedLabels) saveLabels(normalizedLabels);
-      if (normalizedSettings) {
+      if (preview.normalizedColumns) saveColumns(preview.normalizedColumns);
+      saveTasks(preview.normalizedTasks);
+      if (preview.normalizedLabels) saveLabels(preview.normalizedLabels);
+      if (preview.normalizedSettings) {
         // Merge with current defaults (e.g., locale)
         const current = loadSettings();
-        saveSettings({ ...current, ...normalizedSettings });
+        saveSettings({ ...current, ...preview.normalizedSettings });
       }
 
       refreshBoardsUI(newBoard?.id);

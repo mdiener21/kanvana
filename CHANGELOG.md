@@ -9,15 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added (unreleased)
 
+### Chnaged (unreleased)
+
+### Removed (unreleased)
+
+### Added (1.2.2)
+
 - Quick-access swim lane toggle in the board controls menu for enabling/disabling swim lanes without opening Settings.
 - Drag-and-drop swim lane ordering in Settings modal — reorder lanes for any grouping mode, persisted per board.
 
-### Changed (unreleased)
+### Changed (1.2.2)
 
 - Swimlane row collapse button now shows only the chevron icon by default; the bordered box appears only on hover.
 - Removed colored left-border accent from swimlane row headers.
+- Import preflight review now checks JSON schema and file size before saving any board data, then asks for confirmation with a summary of imported counts and warnings.
+- Added a built-in AI Agent Ops starter board template with beginner-friendly columns, pre-labeled starter tasks, and grouped Agent/Workstream/Artifact labels for managing 2-5 parallel agents.
 
-### Removed (unreleased)
+### Changed (1.2.2)
+
+- Reports now escape user-controlled tooltip content, swimlane action buttons no longer rely on HTML injection for icons, and the app pages send a stricter Content Security Policy.
+- The main README now highlights the AI Agent Ops starter template near the top to better attract agent-building users to the project.
+
+### Removed (1.2.2)
 
 ## [1.2.1] - 2026-03-22
 

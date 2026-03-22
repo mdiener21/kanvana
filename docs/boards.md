@@ -23,6 +23,7 @@ Personal Kanban Boards adapt to any workflow. Below, explore common board types 
 
 Jumpstart with these pre-built boards:
 
+- **[AI-Agent-Ops-Starter-Template.json](example-boards/AI-Agent-Ops-Starter-Template.json)** — Beginner-friendly workflow for running 2–5 agents in parallel.
 - **[Eisenhower-Method-Board.json](example-boards/Eisenhower-Method-Board.json)** — Priority matrix for decisions.
 - **[Getting-Things-Done-Template.json](example-boards/Getting-Things-Done-Template.json)** — GTD productivity system.
 - **[Personal-Work-Kanban-Template.json](example-boards/Personal-Work-Kanban-Template.json)** — Balance personal and work tasks.
@@ -213,6 +214,25 @@ Adjust based on your needs—add, rename, or reorder columns anytime.
 **Typical Labels:** Feature, Bug, Tech Debt, UX, DevOps, Security, Release.
 
 **Why it works:** Aligns teams on product evolution.
+
+---
+
+### 11. 🤖 AI Agent Ops Starter Board
+
+**Perfect for:** People just starting with agent building who want to supervise a small set of parallel agents.
+
+**Recommended Columns:**
+
+- Jobs to Automate
+- Ready for Agent
+- Running
+- Human Review
+- Improve Prompt/Tools
+- Done
+
+**Typical Labels:** Agent, Workstream, Artifact.
+
+**Why it works:** Keeps workflow state in columns while the `Agent` label group makes it easy to see each agent's active work, especially when paired with swim lanes.
 
 ---
 

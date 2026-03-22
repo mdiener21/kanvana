@@ -146,7 +146,9 @@ export function createSwimlaneCell(column, lane, tasksInCell, visibleTasks, sett
     const isCollapsed = cellCollapsed === true;
     toggleBtn.setAttribute('aria-expanded', String(!isCollapsed));
     toggleBtn.setAttribute('aria-label', `${isCollapsed ? 'Expand' : 'Collapse'} tasks in ${lane.value}, ${column.name}`);
-    toggleBtn.innerHTML = `<i data-lucide="${isCollapsed ? 'chevron-right' : 'chevron-down'}"></i>`;
+    const toggleIcon = document.createElement('i');
+    toggleIcon.dataset.lucide = isCollapsed ? 'chevron-right' : 'chevron-down';
+    toggleBtn.appendChild(toggleIcon);
     toggleBtn.addEventListener('click', () => {
       toggleSwimLaneCellCollapsed(lane.key, column.id);
       emit(DATA_CHANGED);
@@ -168,7 +170,10 @@ export function createSwimlaneCell(column, lane, tasksInCell, visibleTasks, sett
     addBtn.classList.add('swimlane-cell-add-btn');
     addBtn.setAttribute('aria-label', `Add task to ${column.name}, ${lane.value}`);
     addBtn.title = 'Add task';
-    addBtn.innerHTML = '<i data-lucide="plus" aria-hidden="true"></i>';
+    const addIcon = document.createElement('i');
+    addIcon.dataset.lucide = 'plus';
+    addIcon.setAttribute('aria-hidden', 'true');
+    addBtn.appendChild(addIcon);
     addBtn.addEventListener('click', () => {
       showModal(column.id, {
         groupBy: settings.swimLaneGroupBy,
