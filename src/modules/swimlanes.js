@@ -472,6 +472,7 @@ export function moveTask(tasks, taskId, targetColumnId, targetLaneKey, groupBy, 
 
 export function syncSwimLaneControls(settings = loadSettings()) {
   const toggle = document.getElementById('settings-swimlane-enabled');
+  const quickToggle = document.getElementById('swimlane-quick-toggle');
   const groupBy = document.getElementById('settings-swimlane-group-by');
   const labelGroup = document.getElementById('settings-swimlane-label-group');
   const labelGroupField = document.getElementById('settings-swimlane-label-group-field');
@@ -483,6 +484,7 @@ export function syncSwimLaneControls(settings = loadSettings()) {
   const showLabelGroupSelector = settings.swimLanesEnabled === true && normalizeGroupBy(settings?.swimLaneGroupBy) === SWIMLANE_GROUP_BY_LABEL_GROUP;
 
   toggle.checked = settings.swimLanesEnabled === true;
+  if (quickToggle) quickToggle.checked = settings.swimLanesEnabled === true;
   groupBy.value = normalizeGroupBy(settings.swimLaneGroupBy);
   groupBy.disabled = settings.swimLanesEnabled !== true;
 
@@ -511,11 +513,27 @@ export function syncSwimLaneControls(settings = loadSettings()) {
 
 export function initializeSwimLaneControls(onChange) {
   const toggle = document.getElementById('settings-swimlane-enabled');
+  const quickToggle = document.getElementById('swimlane-quick-toggle');
   const groupBy = document.getElementById('settings-swimlane-group-by');
   const labelGroup = document.getElementById('settings-swimlane-label-group');
   if (!toggle || !groupBy) return;
 
   syncSwimLaneControls();
+
+  quickToggle?.addEventListener('change', () => {
+    const current = loadSettings();
+    const labels = normalizeLabelCollection(loadLabels());
+    const next = {
+      ...current,
+      swimLanesEnabled: quickToggle.checked === true,
+      swimLaneLabelGroup: normalizeGroupBy(current.swimLaneGroupBy) === SWIMLANE_GROUP_BY_LABEL_GROUP
+        ? getSelectedLabelGroup(current.swimLaneLabelGroup, labels)
+        : current.swimLaneLabelGroup
+    };
+    saveSettings(next);
+    syncSwimLaneControls(next);
+    onChange?.(next);
+  });
 
   toggle.addEventListener('change', () => {
     const current = loadSettings();

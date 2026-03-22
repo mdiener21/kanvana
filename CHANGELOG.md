@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added (unreleased)
 
+- Quick-access swim lane toggle in the board controls menu for enabling/disabling swim lanes without opening Settings.
 
 ### Changed (unreleased)
 

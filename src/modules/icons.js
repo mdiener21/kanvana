@@ -33,7 +33,8 @@ import {
   Bell,
   BellRing,
   Maximize2,
-  Minimize2
+  Minimize2,
+  Rows3
 } from 'lucide';
 
 // Map of all icons used in the app (PascalCase keys for createIcons)
@@ -67,7 +68,8 @@ const icons = {
   Bell,
   BellRing,
   Maximize2,
-  Minimize2
+  Minimize2,
+  Rows3
 };
 
 /**
