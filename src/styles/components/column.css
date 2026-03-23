@@ -261,7 +261,8 @@ body.dragging-column .column-header * {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  min-width: max-content;
+  min-width: 100%;
+  width: 100%;
   padding: 12px 16px 16px;
   box-sizing: border-box;
 }
