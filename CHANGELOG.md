@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chnaged (unreleased)
 
+- Swimlane active column width set to 100% to fit window flexibly and responsiveness
+
 ### Removed (unreleased)
 
 ### Added (1.2.2)
