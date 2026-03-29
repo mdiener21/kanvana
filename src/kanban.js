@@ -4,10 +4,9 @@ import './modules/icons.js';
 import { renderBoard, setBoardFilterQuery } from './modules/render.js';
 import { initializeModalHandlers } from './modules/modals.js';
 import { showEditModal } from './modules/modals.js';
-import { exportTasks, importTasks } from './modules/importexport.js';
+import { importTasks } from './modules/importexport.js';
 import { initializeThemeToggle } from './modules/theme.js';
 import { initializeBoardsUI } from './modules/boards.js';
-import { confirmDialog } from './modules/dialog.js';
 import { initializeSettingsUI } from './modules/settings.js';
 import { initializeNotifications } from './modules/notifications.js';
 import { ensureBoardsInitialized, setActiveBoardId } from './modules/storage.js';
@@ -54,30 +53,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initialize notifications
   initializeNotifications();
-
-  // Export button listener
-  document.getElementById('export-btn').addEventListener('click', async () => {
-    const ok = await confirmDialog({
-      title: 'Export Board (Active Only)',
-      message:
-        'Export ONLY saves the current active board. It does NOT back up all boards.\n\nTo back up everything, export each board individually.\n\nContinue with export?',
-      confirmText: 'Export'
-    });
-    if (!ok) return;
-    exportTasks();
-  });
-
-  // Import button listener
-  document.getElementById('import-btn').addEventListener('click', async () => {
-    const ok = await confirmDialog({
-      title: 'Import Board (New Board)',
-      message:
-        'Import will CREATE A NEW BOARD and switch to it. Your current active board will not be overwritten.\n\nContinue with import?',
-      confirmText: 'Import'
-    });
-    if (!ok) return;
-    document.getElementById('import-file').click();
-  });
 
   document.getElementById('import-file').addEventListener('change', (e) => {
     const file = e.target.files[0];

@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed (unreleased)
 
+- Import and export are now unified under Manage Boards; the main board toolbar no longer shows separate import/export buttons.
+- Board export now includes `exportMeta` metadata with app version, schema version, and export timestamp.
+- Export and import now share the same strict structural validation path for board payload integrity checks.
+- Unknown task-column references now return explicit manual repair guidance (add missing `columns[].id` entries or remap `task.column` to an existing id) instead of only a generic error.
+
 ### Depreciated (unreleased)
 
 ### Removed (unreleased)

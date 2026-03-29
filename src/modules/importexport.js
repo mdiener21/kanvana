@@ -26,6 +26,23 @@ export const IMPORT_LIMITS = {
   warningLabels: 100
 };
 
+const EXPORT_SCHEMA_VERSION = 1;
+
+function getCurrentAppVersion() {
+  if (typeof __APP_VERSION__ === 'string' && __APP_VERSION__.trim()) {
+    return __APP_VERSION__.trim();
+  }
+  return 'unknown';
+}
+
+function buildExportMeta() {
+  return {
+    appVersion: getCurrentAppVersion(),
+    schemaVersion: EXPORT_SCHEMA_VERSION,
+    exportedAt: new Date().toISOString()
+  };
+}
+
 function safeParseArrayFromStorage(key) {
   if (!key) return null;
   const raw = localStorage.getItem(key);
@@ -84,6 +101,7 @@ function getImportSections(data) {
       labels: null,
       settings: null,
       boardName: null,
+      exportMeta: null,
       format: 'legacy-tasks'
     };
   }
@@ -95,6 +113,7 @@ function getImportSections(data) {
       labels: Object.prototype.hasOwnProperty.call(data, 'labels') ? data.labels : null,
       settings: Object.prototype.hasOwnProperty.call(data, 'settings') ? data.settings : null,
       boardName: typeof data.boardName === 'string' ? data.boardName.trim() : null,
+      exportMeta: data.exportMeta && typeof data.exportMeta === 'object' ? data.exportMeta : null,
       format: 'board-export'
     };
   }
@@ -132,7 +151,7 @@ export function inspectImportPayload(data, file = null) {
     return { errors, warnings, fileSize };
   }
 
-  const { tasks, columns, labels, settings, boardName, format } = sections;
+  const { tasks, columns, labels, settings, boardName, exportMeta, format } = sections;
   const normalizedTasks = normalizeImportedTasks(tasks);
   const normalizedColumns = columns ? normalizeImportedColumns(columns) : null;
   const normalizedLabels = labels ? normalizeImportedLabels(labels) : null;
@@ -171,7 +190,12 @@ export function inspectImportPayload(data, file = null) {
     const columnIds = new Set(normalizedColumns.map((column) => column.id));
     const missingColumns = [...new Set(normalizedTasks.filter((task) => !columnIds.has(task.column)).map((task) => task.column))];
     if (missingColumns.length > 0) {
-      errors.push(`Import references unknown columns: ${missingColumns.join(', ')}.`);
+      const availableColumns = normalizedColumns.map((column) => column.id).join(', ') || '(none)';
+      errors.push(
+        `Import references unknown columns: ${missingColumns.join(', ')}. ` +
+        `Fix the JSON manually before importing: either add matching entries to columns[].id, ` +
+        `or change task.column values to existing column ids. Existing column ids: ${availableColumns}.`
+      );
     }
   }
 
@@ -197,6 +221,7 @@ export function inspectImportPayload(data, file = null) {
     warnings,
     fileSize,
     format,
+    exportMeta,
     importedName,
     normalizedTasks: tasksWithKnownLabels,
     normalizedColumns,
@@ -220,6 +245,10 @@ export function buildImportConfirmationMessage(preview) {
 
   if (preview?.summary?.includesSettings) {
     summaryParts.push('settings included');
+  }
+
+  if (typeof preview?.exportMeta?.appVersion === 'string' && preview.exportMeta.appVersion.trim()) {
+    summaryParts.push(`exported with app v${preview.exportMeta.appVersion.trim()}`);
   }
 
   const parts = [
@@ -475,7 +504,18 @@ export function exportTasks() {
   const labels = loadLabels();
   const settings = loadSettings();
   const boardName = getActiveBoardName();
-  const exportData = { boardName, columns, tasks, labels, settings };
+  const exportMeta = buildExportMeta();
+  const exportData = { boardName, columns, tasks, labels, settings, exportMeta };
+
+  const integrity = inspectImportPayload(exportData, null);
+  if (integrity.errors.length > 0) {
+    import('./dialog.js').then(({ alertDialog }) => alertDialog({
+      title: 'Export Blocked',
+      message: integrity.errors.join(' ')
+    }));
+    return;
+  }
+
   const dataStr = JSON.stringify(exportData, null, 2);
   const blob = new Blob([dataStr], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -515,8 +555,18 @@ export function exportBoard(boardId) {
   }));
   const labels = Array.isArray(rawLabels) ? rawLabels : [];
   const settings = normalizeSettingsForExport(rawSettings);
+  const exportMeta = buildExportMeta();
+  const exportData = { boardName, columns, tasks, labels, settings, exportMeta };
 
-  const exportData = { boardName, columns, tasks, labels, settings };
+  const integrity = inspectImportPayload(exportData, null);
+  if (integrity.errors.length > 0) {
+    import('./dialog.js').then(({ alertDialog }) => alertDialog({
+      title: 'Export Blocked',
+      message: integrity.errors.join(' ')
+    }));
+    return;
+  }
+
   const dataStr = JSON.stringify(exportData, null, 2);
   const blob = new Blob([dataStr], { type: 'application/json' });
   const url = URL.createObjectURL(blob);

@@ -12,7 +12,7 @@
 - Includes board-level task search beside the brand area
 - Search filters the rendered board in memory only
 - Search matches task title, description, priority, label name, and label group name
-- A menu button opens controls for boards, help, labels, settings, notifications, add column, calendar, export, and import
+- A menu button opens controls for boards, help, labels, settings, notifications, add column, and calendar
 - A quick-access bell button mirrors the notification modal and count badge shown in the menu
 
 ## Boards UI
