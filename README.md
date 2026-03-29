@@ -22,7 +22,17 @@ Experience it firsthand: **[Try the Live Demo](https://mdiener21.github.io/perso
 
 ## ✨ Key Features
 
-### 🏊 Swim Lanes (New!)
+### 🔗 Task Relationships (New!)
+
+Link tasks together to communicate dependencies and connections:
+
+- **Prerequisite** — another task must be completed before this one can begin
+- **Dependent** — this task is needed by another task before that task can start
+- **Related** — a general connection between two tasks without implying order
+
+Relationships are **bidirectional**: adding one automatically creates the inverse on the linked task, and removing it cleans up both sides. Search for tasks by short ID (e.g. `#ae2ry`) or title, view active relationships as color-coded badges in the task modal, and click any badge ID to jump straight to that task.
+
+### 🏊 Swim Lanes
 
 Organize your board into horizontal swim lanes for a powerful two-dimensional view of your workflow:
 
@@ -48,7 +58,7 @@ Configure swim lanes in **Settings** — choose your grouping mode and start org
 - **🎨 Drag & Drop**: Effortlessly move tasks and columns with optimized performance (handles 300+ tasks)
 - **🏷️ Custom Labels & Colors**: Organize with personalized labels, groups, and column colors
 - **📋 Multiple Boards**: Create and manage multiple boards with board templates
-- **💾 Easy Backup**: Export/import boards as JSON files to your favorite cloud storage (OneDrive, Google Drive, Dropbox)
+- **💾 Easy Backup**: Export/import boards as JSON via **Manage Boards** — save backups to your favorite cloud storage (OneDrive, Google Drive, Dropbox)
 - **📱 Fully Responsive**: Optimized for mobile and desktop — work from anywhere
 - **🌗 Light & Dark Theme**: Toggle between themes with automatic persistence
 - **⚡ Collapsible Columns**: Collapse columns to save space while still accepting drag-and-drop
