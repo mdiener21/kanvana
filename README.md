@@ -3,6 +3,7 @@
 [![GitHub stars](https://img.shields.io/github/stars/mdiener21/personal-kanban.svg?style=social)](https://github.com/mdiener21/personal-kanban/stargazers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Visit%20Now-blue)](https://mdiener21.github.io/personal-kanban/)
+[![Version](https://img.shields.io/badge/version-1.3.0-brightgreen)](CHANGELOG.md)
 
 > **Transform your productivity with a sleek, local-first Kanban board.** No servers, no tracking—just pure efficiency in your browser.
 
