@@ -38,6 +38,20 @@
 - The label search field can open the Add Label modal without losing in-progress task edits
 - When no label matches a search, the UI offers a create-label action prefilled with the search term
 
+## Relationships in Task Modal
+
+- The task edit modal includes a Relationships fieldset below the Labels fieldset
+- Users select a relationship type (Prerequisite, Dependent, Related) and search for a task by short ID (e.g. `#ae2ry`) or title text
+- Adding a relationship automatically creates the inverse on the target task; removing one removes the inverse
+- Active relationships are shown as compact badges displaying type and short ID; clicking the short ID opens that task
+- Already-linked tasks appear in search results with their current type shown; selecting replaces the type on both sides
+
+## Relationships on Task Cards
+
+- Cards with one or more relationships show a `git-branch` icon followed by `relationships (N)`
+- The indicator is placed below the labels section, above the footer
+- Cards with no relationships show no indicator
+
 ## Task List Size Controls
 
 - Columns with more than 12 tasks show a scrollbar and optional "Show all tasks (N)" control
@@ -51,3 +65,4 @@ Update this file when you change:
 - task card layout or footer rules
 - task ordering or drag behavior
 - task modal fields or inline label UX
+- relationship UI behavior or card indicator

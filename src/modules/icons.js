@@ -34,7 +34,8 @@ import {
   BellRing,
   Maximize2,
   Minimize2,
-  Rows3
+  Rows3,
+  GitBranch
 } from 'lucide';
 
 // Map of all icons used in the app (PascalCase keys for createIcons)
@@ -69,7 +70,8 @@ const icons = {
   BellRing,
   Maximize2,
   Minimize2,
-  Rows3
+  Rows3,
+  GitBranch
 };
 
 /**

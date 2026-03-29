@@ -17,6 +17,7 @@ This file is the entrypoint to the canonical application specification. Detailed
 - `docs/spec/reports.md` - reports calculations and layout rules
 - `docs/spec/calendar.md` - due-date calendar behavior
 - `docs/spec/import-export.md` - board JSON import/export rules and compatibility expectations
+- `docs/spec/relationships.md` - task relationship types, bidirectional sync, card display, modal UI
 - `docs/spec/testing.md` - testing stack, scripts, and coverage focus
 
 ## Update Policy
@@ -32,7 +33,8 @@ Use this mapping to decide which spec files to update alongside code changes.
 
 - `src/modules/storage.js` -> `docs/spec/storage.md`, `docs/spec/data-models.md`
 - `src/modules/importexport.js` -> `docs/spec/import-export.md`, `docs/spec/storage.md`, `docs/spec/data-models.md`
-- `src/modules/tasks.js` -> `docs/spec/tasks.md`, `docs/spec/data-models.md`
+- `src/modules/tasks.js` -> `docs/spec/tasks.md`, `docs/spec/data-models.md`, `docs/spec/relationships.md`
+- `src/modules/normalize.js`, `src/modules/task-modal.js`, `src/modules/task-card.js` -> `docs/spec/relationships.md` and any affected feature spec files
 - `src/modules/columns.js` -> `docs/spec/columns.md`
 - `src/modules/labels.js` -> `docs/spec/labels.md`
 - `src/modules/swimlanes.js` -> `docs/spec/swimlanes.md`, `docs/spec/settings.md`, `docs/spec/data-models.md`

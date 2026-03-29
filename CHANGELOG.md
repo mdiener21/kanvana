@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added (unreleased)
 
+- Task relationships: link tasks together with typed relationships — **Prerequisite** (another task must complete first), **Dependent** (this task is needed by another), and **Related** (general connection).
+- Relationships are bidirectional — adding a relationship automatically creates the inverse on the target task; removing one removes the inverse.
+- Relationship badges displayed in the task edit modal as color-coded pills showing type and short ID (e.g. `prerequisite #ae2ry`). Clicking the short ID opens the linked task directly.
+- Autocomplete search in the modal to find tasks by short ID (`#ae6a`) or title text; already-linked tasks show their current type and can be replaced by selecting them with a new type.
+- Task cards show a `git-branch` icon with `relationships (N)` count when one or more relationships exist.
+- New spec document `docs/spec/relationships.md` covering data model, bidirectional sync rules, UI behavior, and normalization.
+
 ### Changed (unreleased)
 
 - Import and export are now unified under Manage Boards; the main board toolbar no longer shows separate import/export buttons.

@@ -29,6 +29,9 @@
   doneDate: "YYYY-MM-DDTHH:MM:SSZ",
   columnHistory: [
     { column: "column-id", at: "YYYY-MM-DDTHH:MM:SSZ" }
+  ],
+  relationships: [
+    { type: "prerequisite" | "dependent" | "related", targetTaskId: "uuid" }
   ]
 }
 ```
@@ -41,6 +44,7 @@
 - `doneDate` exists only while the task is in the Done column
 - `columnHistory` is appended when a task changes columns and powers cumulative-flow reporting
 - `swimlaneLabelId` and `swimlaneLabelGroup` preserve explicit swim lane assignment metadata
+- `relationships` defaults to `[]`; each entry stores a `type` (`prerequisite`, `dependent`, or `related`) and the `targetTaskId` of the linked task; both sides of a relationship are always stored (bidirectional)
 
 ## Column Model
 

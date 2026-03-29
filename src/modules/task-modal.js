@@ -11,8 +11,15 @@ import { createAccordionSection } from './accordion.js';
 let currentColumn = 'todo';
 let editingTaskId = null;
 let selectedTaskLabels = [];
+let selectedTaskRelationships = []; // [{ type, targetTaskId }]
 let returnToTaskModalAfterLabelsManager = false;
 let selectCreatedLabelInTaskEditor = false;
+
+const RELATIONSHIP_LABELS = { prerequisite: 'Prerequisite', dependent: 'Dependent', related: 'Related' };
+
+function shortId(id) {
+  return '#' + (typeof id === 'string' ? id.slice(-5) : '');
+}
 
 // Expose state getters/setters for coordination with labels-modal
 export function getSelectedTaskLabels() { return selectedTaskLabels; }
@@ -87,6 +94,127 @@ function renderActiveTaskLabels() {
     pill.appendChild(removeBtn);
     container.appendChild(pill);
   });
+}
+
+function renderActiveTaskRelationships() {
+  const container = document.getElementById('task-active-relationships');
+  if (!container) return;
+
+  container.innerHTML = '';
+  container.style.display = selectedTaskRelationships.length > 0 ? 'flex' : 'none';
+
+  selectedTaskRelationships.forEach((rel) => {
+    const badge = document.createElement('span');
+    badge.classList.add('relationship-badge', `relationship-badge--${rel.type}`);
+
+    const typeLabel = document.createElement('span');
+    typeLabel.classList.add('relationship-badge__type');
+    typeLabel.textContent = RELATIONSHIP_LABELS[rel.type] || rel.type;
+
+    const idLink = document.createElement('button');
+    idLink.type = 'button';
+    idLink.classList.add('relationship-badge__id');
+    idLink.textContent = shortId(rel.targetTaskId);
+    idLink.setAttribute('aria-label', `Open task ${shortId(rel.targetTaskId)}`);
+    idLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      showEditModal(rel.targetTaskId);
+    });
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.classList.add('relationship-badge__remove');
+    removeBtn.setAttribute('aria-label', `Remove relationship with ${shortId(rel.targetTaskId)}`);
+    removeBtn.textContent = '×';
+    removeBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      selectedTaskRelationships = selectedTaskRelationships.filter((r) => r.targetTaskId !== rel.targetTaskId);
+      renderActiveTaskRelationships();
+    });
+
+    badge.appendChild(typeLabel);
+    badge.appendChild(idLink);
+    badge.appendChild(removeBtn);
+    container.appendChild(badge);
+  });
+}
+
+function updateRelationshipSearchResults(query) {
+  const resultsEl = document.getElementById('task-relationship-results');
+  if (!resultsEl) return;
+
+  const trimmed = (query || '').trim().toLowerCase();
+  if (!trimmed) {
+    resultsEl.hidden = true;
+    resultsEl.innerHTML = '';
+    return;
+  }
+
+  const allTasks = loadTasks();
+  const matches = allTasks.filter((t) => {
+    if (t.id === editingTaskId) return false;
+    if (t.column === 'done') return false;
+    const sid = shortId(t.id).toLowerCase();
+    const title = (t.title || '').toLowerCase();
+    return sid.includes(trimmed) || title.includes(trimmed);
+  }).slice(0, 8);
+
+  resultsEl.innerHTML = '';
+
+  if (matches.length === 0) {
+    const empty = document.createElement('div');
+    empty.classList.add('relationship-results__empty');
+    empty.textContent = 'No tasks found';
+    resultsEl.appendChild(empty);
+    resultsEl.hidden = false;
+    return;
+  }
+
+  matches.forEach((t) => {
+    const existing = selectedTaskRelationships.find((r) => r.targetTaskId === t.id);
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.classList.add('relationship-result-item');
+    if (existing) item.classList.add('relationship-result-item--linked');
+
+    const idSpan = document.createElement('span');
+    idSpan.classList.add('relationship-result-item__id');
+    idSpan.textContent = shortId(t.id);
+
+    const titleSpan = document.createElement('span');
+    titleSpan.classList.add('relationship-result-item__title');
+    titleSpan.textContent = t.title || '(untitled)';
+
+    if (existing) {
+      const currentType = document.createElement('span');
+      currentType.classList.add('relationship-result-item__current-type');
+      currentType.textContent = `[${RELATIONSHIP_LABELS[existing.type] || existing.type}]`;
+      item.appendChild(currentType);
+    }
+
+    item.appendChild(idSpan);
+    item.appendChild(titleSpan);
+
+    item.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      const typeSelect = document.getElementById('task-relationship-type');
+      const selectedType = typeSelect?.value || 'related';
+      // Upsert: replace if same target, otherwise add
+      selectedTaskRelationships = selectedTaskRelationships.filter((r) => r.targetTaskId !== t.id);
+      selectedTaskRelationships.push({ type: selectedType, targetTaskId: t.id });
+      renderActiveTaskRelationships();
+      const searchInput = document.getElementById('task-relationship-search');
+      if (searchInput) searchInput.value = '';
+      resultsEl.hidden = true;
+      resultsEl.innerHTML = '';
+    });
+
+    resultsEl.appendChild(item);
+  });
+
+  resultsEl.hidden = false;
 }
 
 function temporarilyHideTaskModalForLabelsManager() {
@@ -207,6 +335,7 @@ export function showModal(columnName, swimlaneContext) {
   currentColumn = columnName || loadColumns()[0]?.id || 'todo';
   editingTaskId = null;
   selectedTaskLabels = [];
+  selectedTaskRelationships = [];
   returnToTaskModalAfterLabelsManager = false;
   selectCreatedLabelInTaskEditor = false;
 
@@ -253,7 +382,13 @@ export function showModal(columnName, swimlaneContext) {
   const labelSearch = document.getElementById('task-label-search');
   if (labelSearch) labelSearch.value = '';
 
+  const relSearch = document.getElementById('task-relationship-search');
+  if (relSearch) relSearch.value = '';
+  const relResults = document.getElementById('task-relationship-results');
+  if (relResults) { relResults.hidden = true; relResults.innerHTML = ''; }
+
   updateTaskLabelsSelection();
+  renderActiveTaskRelationships();
   modal.classList.remove('hidden');
   taskTitle.focus();
 }
@@ -265,6 +400,7 @@ export function showEditModal(taskId) {
 
   editingTaskId = taskId;
   selectedTaskLabels = task.labels || [];
+  selectedTaskRelationships = Array.isArray(task.relationships) ? [...task.relationships] : [];
   returnToTaskModalAfterLabelsManager = false;
   selectCreatedLabelInTaskEditor = false;
 
@@ -298,7 +434,13 @@ export function showEditModal(taskId) {
   const labelSearch = document.getElementById('task-label-search');
   if (labelSearch) labelSearch.value = '';
 
+  const relSearch = document.getElementById('task-relationship-search');
+  if (relSearch) relSearch.value = '';
+  const relResults = document.getElementById('task-relationship-results');
+  if (relResults) { relResults.hidden = true; relResults.innerHTML = ''; }
+
   updateTaskLabelsSelection();
+  renderActiveTaskRelationships();
   modal.classList.remove('hidden');
   taskTitle.focus();
 }
@@ -307,7 +449,11 @@ function hideModal() {
   const modal = document.getElementById('task-modal');
   modal.classList.add('hidden');
   editingTaskId = null;
+  selectedTaskRelationships = [];
   returnToTaskModalAfterLabelsManager = false;
+
+  const relResults = document.getElementById('task-relationship-results');
+  if (relResults) { relResults.hidden = true; relResults.innerHTML = ''; }
 
   setTaskModalFullscreen(false);
   document.getElementById('task-fullpage-btn')?.classList.add('hidden');
@@ -316,6 +462,20 @@ function hideModal() {
 export function initializeTaskModalHandlers(setupModalCloseHandlers) {
   const taskLabelSearch = document.getElementById('task-label-search');
   taskLabelSearch?.addEventListener('input', updateTaskLabelsSelection);
+
+  const relSearch = document.getElementById('task-relationship-search');
+  relSearch?.addEventListener('input', (e) => updateRelationshipSearchResults(e.target.value));
+  relSearch?.addEventListener('focus', (e) => { if (e.target.value.trim()) updateRelationshipSearchResults(e.target.value); });
+
+  document.addEventListener('click', (e) => {
+    const resultsEl = document.getElementById('task-relationship-results');
+    if (!resultsEl || resultsEl.hidden) return;
+    const fieldset = document.getElementById('task-relationships-fieldset');
+    if (fieldset && !fieldset.contains(e.target)) {
+      resultsEl.hidden = true;
+      resultsEl.innerHTML = '';
+    }
+  });
 
   const taskAddLabelBtn = document.getElementById('task-add-label-btn');
   taskAddLabelBtn?.addEventListener('click', () => {
@@ -345,9 +505,9 @@ export function initializeTaskModalHandlers(setupModalCloseHandlers) {
     const column = document.getElementById('task-column').value;
 
     if (editingTaskId) {
-      updateTask(editingTaskId, title, description, priority, dueDate, column, selectedTaskLabels);
+      updateTask(editingTaskId, title, description, priority, dueDate, column, selectedTaskLabels, selectedTaskRelationships);
     } else {
-      addTask(title, description, priority, dueDate, column, selectedTaskLabels);
+      addTask(title, description, priority, dueDate, column, selectedTaskLabels, selectedTaskRelationships);
     }
     hideModal();
     emit(DATA_CHANGED);
