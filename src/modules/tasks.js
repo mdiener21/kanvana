@@ -1,7 +1,9 @@
 import { generateUUID } from './utils.js';
 import { loadLabels, loadSettings, loadTasks, saveTasks } from './storage.js';
 import { applySwimLaneAssignment } from './swimlanes.js';
-import { normalizePriority } from './normalize.js';
+import { normalizePriority, normalizeRelationships } from './normalize.js';
+
+const RELATIONSHIP_INVERSE = { prerequisite: 'dependent', dependent: 'prerequisite', related: 'related' };
 import { DONE_COLUMN_ID } from './constants.js';
 
 function reorderColumnTasks(tasks, columnId, pinnedTaskId = null) {
@@ -34,8 +36,34 @@ function normalizeDueDate(value) {
   return date;
 }
 
+/**
+ * Apply bidirectional relationship sync on a tasks array.
+ * Diffs oldRelationships vs newRelationships for a given taskId and mutates
+ * the target tasks in-place to keep inverses consistent.
+ */
+function syncRelationshipInverses(tasks, taskId, oldRelationships, newRelationships) {
+  const oldMap = new Map(oldRelationships.map((r) => [r.targetTaskId, r.type]));
+  const newMap = new Map(newRelationships.map((r) => [r.targetTaskId, r.type]));
+
+  for (const [targetId, newType] of newMap) {
+    const target = tasks.find((t) => t.id === targetId);
+    if (!target) continue;
+    if (!Array.isArray(target.relationships)) target.relationships = [];
+    // Remove any existing entry pointing back at taskId, then add the correct inverse.
+    target.relationships = target.relationships.filter((r) => r.targetTaskId !== taskId);
+    target.relationships.push({ type: RELATIONSHIP_INVERSE[newType], targetTaskId: taskId });
+  }
+
+  for (const [targetId] of oldMap) {
+    if (newMap.has(targetId)) continue; // handled above
+    const target = tasks.find((t) => t.id === targetId);
+    if (!target || !Array.isArray(target.relationships)) continue;
+    target.relationships = target.relationships.filter((r) => r.targetTaskId !== taskId);
+  }
+}
+
 // Add a new task
-export function addTask(title, description, priority, dueDate, columnName, labels = []) {
+export function addTask(title, description, priority, dueDate, columnName, labels = [], relationships = []) {
   if (!title || title.trim() === '') return;
   
   const tasks = loadTasks();
@@ -58,6 +86,7 @@ export function addTask(title, description, priority, dueDate, columnName, label
   });
   
   const nowIso = new Date().toISOString();
+  const normalizedRelationships = normalizeRelationships(relationships);
   const newTask = {
     id: generateUUID(),
     title: title.trim(),
@@ -67,6 +96,7 @@ export function addTask(title, description, priority, dueDate, columnName, label
     column: columnName,
     order: 1,
     labels: [...labels],
+    relationships: normalizedRelationships,
     creationDate: nowIso,
     changeDate: nowIso,
     columnHistory: [{ column: columnName, at: nowIso }],
@@ -74,11 +104,12 @@ export function addTask(title, description, priority, dueDate, columnName, label
   };
 
   updatedTasks.push(newTask);
+  syncRelationshipInverses(updatedTasks, newTask.id, [], normalizedRelationships);
   saveTasks(updatedTasks);
 }
 
 // Update an existing task
-export function updateTask(taskId, title, description, priority, dueDate, columnName, labels = []) {
+export function updateTask(taskId, title, description, priority, dueDate, columnName, labels = [], relationships = []) {
   if (!title || title.trim() === '') return;
   
   const tasks = loadTasks();
@@ -95,12 +126,18 @@ export function updateTask(taskId, title, description, priority, dueDate, column
       tasks[taskIndex].columnHistory = [{ column: seededColumn, at: seededAt }];
     }
 
+    const oldRelationships = Array.isArray(tasks[taskIndex].relationships) ? tasks[taskIndex].relationships : [];
+    const newRelationships = normalizeRelationships(relationships);
+
     tasks[taskIndex].title = title.trim();
     tasks[taskIndex].description = (description || '').toString().trim();
     tasks[taskIndex].priority = normalizePriority(priority);
     tasks[taskIndex].dueDate = normalizeDueDate(dueDate);
     tasks[taskIndex].column = nextColumn;
     tasks[taskIndex].labels = [...labels];
+    tasks[taskIndex].relationships = newRelationships;
+
+    syncRelationshipInverses(tasks, taskId, oldRelationships, newRelationships);
 
     if (prevColumn !== nextColumn) {
       tasks[taskIndex].columnHistory.push({ column: nextColumn, at: nowIso });

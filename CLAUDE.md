@@ -22,7 +22,8 @@ npm run test:debug # Run Playwright tests in debug mode
 
 ## Specification
 
-The specification files include core data structures and feature behavior that must be maintained at all times.
+The specification files include core data structures and feature behavior that must be maintained at all times. Create a new specification
+when planning new features and have user give feedback before proceeding.
 
 - `docs/specification-kanban.md` - Specification index, update policy, and code-to-spec ownership map.
 - `docs/spec/*.md` - Canonical feature, data, storage, workflow, and testing specifications.

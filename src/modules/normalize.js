@@ -43,6 +43,26 @@ export function normalizeDueDate(value) {
   return v;
 }
 
+const RELATIONSHIP_TYPES = new Set(['prerequisite', 'dependent', 'related']);
+
+/**
+ * Normalize a relationships array.
+ * Filters invalid entries and deduplicates by targetTaskId (first occurrence kept).
+ */
+export function normalizeRelationships(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  return value.filter((entry) => {
+    if (!entry || typeof entry !== 'object') return false;
+    const type = (entry.type || '').toString().trim();
+    const targetTaskId = (entry.targetTaskId || '').toString().trim();
+    if (!RELATIONSHIP_TYPES.has(type) || !targetTaskId) return false;
+    if (seen.has(targetTaskId)) return false;
+    seen.add(targetTaskId);
+    return true;
+  });
+}
+
 /**
  * Deduplicate an array of string keys, trimming whitespace.
  */

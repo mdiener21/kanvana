@@ -170,6 +170,22 @@ export function createTaskElement(task, settings, labelsMap = null, today = null
   li.appendChild(descriptionEl);
   li.appendChild(labelsContainer);
 
+  if (task.relationships && task.relationships.length > 0) {
+    const relRow = document.createElement('div');
+    relRow.classList.add('task-relationships-row');
+
+    const icon = document.createElement('span');
+    icon.dataset.lucide = 'git-branch';
+    icon.setAttribute('aria-hidden', 'true');
+
+    const label = document.createElement('span');
+    label.textContent = `relationships (${task.relationships.length})`;
+
+    relRow.appendChild(icon);
+    relRow.appendChild(label);
+    li.appendChild(relRow);
+  }
+
   const showChangeDate = settings?.showChangeDate !== false;
   const showAge = settings?.showAge !== false;
   const locale = settings?.locale;
