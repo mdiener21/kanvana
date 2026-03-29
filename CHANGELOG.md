@@ -5,9 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [Unreleased]
 
-### Added (unreleased)
+## [1.3.0] - 2026-03-30
+
+### Added
 
 - Task relationships: link tasks together with typed relationships — **Prerequisite** (another task must complete first), **Dependent** (this task is needed by another), and **Related** (general connection).
 - Relationships are bidirectional — adding a relationship automatically creates the inverse on the target task; removing one removes the inverse.
@@ -16,20 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Task cards show a `git-branch` icon with `relationships (N)` count when one or more relationships exist.
 - New spec document `docs/spec/relationships.md` covering data model, bidirectional sync rules, UI behavior, and normalization.
 
-### Changed (unreleased)
+### Changed
 
 - Import and export are now unified under Manage Boards; the main board toolbar no longer shows separate import/export buttons.
 - Board export now includes `exportMeta` metadata with app version, schema version, and export timestamp.
 - Export and import now share the same strict structural validation path for board payload integrity checks.
 - Unknown task-column references now return explicit manual repair guidance (add missing `columns[].id` entries or remap `task.column` to an existing id) instead of only a generic error.
-
-### Depreciated (unreleased)
-
-### Removed (unreleased)
-
-### Fixed (unreleased)
-
-### Security (unreleased)
 
 ## [1.2.3] - 2026-03-23
 
