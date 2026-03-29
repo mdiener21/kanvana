@@ -3,9 +3,11 @@
 ## Export Behavior
 
 - Export combines the selected board's `boardName`, tasks, columns, labels, and settings into one JSON file
-- Main-board export warns that only the active board is included
+- Import/export actions are accessed from Manage Boards; the main toolbar does not provide separate import/export buttons
 - Board-management export can export a chosen board directly
+- Export writes metadata in `exportMeta` including `appVersion`, `schemaVersion`, and `exportedAt`
 - Export filenames use `{boardName}-YYYY-MM-DD.json`
+- Export runs the same strict structural validation used by import preview; when invalid references are found, export is blocked and the user gets actionable guidance
 
 ## Import Behavior
 
@@ -16,6 +18,7 @@
 - Import performs a preflight review before saving any data: file size is checked first, the JSON shape is validated, and the user must confirm a summary of counts and warnings before the new board is created
 - Imports above the supported size limit are rejected, and unusually large but still supported imports show a caution message before confirmation
 - Imports reject schema mismatches such as malformed sections or task references to unknown imported columns
+- Unknown task column references are rejected with explicit manual-fix instructions (add the missing column ids in `columns[]` or remap `task.column` to an existing id)
 - When imported tasks reference labels not present in the imported label list, those missing label references are dropped and surfaced as a warning during the preflight review
 
 ## Compatibility Rules

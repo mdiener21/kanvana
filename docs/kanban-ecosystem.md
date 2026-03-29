@@ -1,19 +1,29 @@
 # Kanban Ecosystem
 
+Looking over other personal kanban boards and project management boards with kanban views.
+
 Search query link  https://github.com/topics/kanban?o=desc&s=stars
 
 
-## Open Source Kanban Boards
+## Open Source Kanban Focused Boards
 
-| repo-name                                                                           | repo-languages                                       | number-of-stars | license-name     | last-commit-date | demo url                       |
+| repo-name                                                                           | repo-languages                                       | number-of-stars | license-name     | last-commit-date |  url                       |
 | ----------------------------------------------------------------------------------- | ---------------------------------------------------- | --------------- | ---------------- | ---------------- | ------------------------------ |
 | [nishantpainter-personal-kanban](https://github.com/nishantpainter/personal-kanban) | React                                                | 536             | MIT              | 2020-12-10       | https://personalkanban.js.org/ |
 | [Kanri](https://github.com/kanriapp/kanri)                                          | Vue, Nuxt, TypeScript,  Rust                         | 1.6k            | GPL-3.0 license  | 2025-09-24       | https://www.kanriapp.com/      |
 | [Yaka Peronsal Kanban](https://github.com/Yajusta/Yaka)                             | FastAPI, Sqlite, Python, React, Tailwind, TypeScript | 2               | GPL-3.0          | 2025-12-02       | https://personalkanban.js.org/ |
 | [kan.bn Trello alternative](https://github.com/kanbn/kan)                           | Next.js, Tailwind, Drizzle, Postgresql, TypeScript   | 4.2k            | AGPL-3.0 license | 2026-01-06       | https://kan.bn/                |
-| [kanboard](https://github.com/kanboard/kanboard) | PhP,  | 9.4k |b | 2025-10-18 | https://kanboard.org/ |
+| [kanboard](https://github.com/kanboard/kanboard) | PhP,  | 9.4k |- | 2025-10-18 | https://kanboard.org/ |
+| [fizzy from basecamp](https://github.com/basecamp/fizzy) | Ruby,  | - |- | - | https://www.fizzy.do/ |
 
-[fizzy from basecamp](https://github.com/basecamp/fizzy)
+## Open Source Project Management Focused with Kanban Boards
+
+| repo-name                                                                           | repo-languages                                       | number-of-stars | license-name     | last-commit-date |  url                       |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------- | --------------- | ---------------- | ---------------- | ------------------------------ |
+| [vikunja](https://github.com/go-vikunja/vikunja) | Vue, Golang, Postgresql   | - | -   | 2026       | https://vikunja.io/ |
+| [Plane](https://github.com/makeplane/plane)  | Django, React, Node |      - | -                | 2026 ([GitHub][9])     | none | 
+| [Kaneo](https://github.com/usekaneo/kaneo)  | Hono, React, Postgresql |      - | -                | 2026    | none | 
+
 
 
 ## ChatGPT Search Results
@@ -61,7 +71,7 @@ Search query link  https://github.com/topics/kanban?o=desc&s=stars
 | `KBoards` – Next.js Kanban                                                                       | TypeScript       |        ~3 | MIT                | Jan 2 2026 ([GitHub][9])                                                  |
 | `SmartTodo` – Socket.io Kanban                                                                   | TypeScript       |        ~0 | MIT                | Jan 4 2026 ([GitHub][9])                                                  |
 | Additional simple Kanban starters                                                                | Various          |       low | MIT                | 2025-2026 ([GitHub][9])                                                   |
-| [Plane](https://github.com/makeplane/plane)  | Django, React, Node |      low | MIT                | 2025-2026 ([GitHub][9])     
+
 
 
 [1]: https://github.com/wekan/wekan?utm_source=chatgpt.com "GitHub - wekan/wekan: The Open Source kanban (built ..."
