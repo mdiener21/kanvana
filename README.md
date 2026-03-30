@@ -171,17 +171,19 @@ This is a normal commit — not a release trigger.
 **Step 2 — Trigger "Generate Release" on GitHub**
 
 1. Go to **Actions** → **Generate Release** → **Run workflow**
-2. Choose the bump type:
-   - `patch` — bug fixes (1.4.0 → 1.4.1)
-   - `minor` — new features, backwards compatible (1.4.0 → 1.5.0)
-   - `major` — breaking changes (1.4.0 → 2.0.0)
+2. Fill in the two inputs:
+   - **Version bump type** — `patch` (bug fixes), `minor` (new features), or `major` (breaking changes)
+   - **Skip tests** — leave unchecked to run the full test suite first (recommended); check to force a release without tests
 3. Click **Run workflow**
 
-The action will bump `package.json`, promote `## [Unreleased]` to a dated release section in `CHANGELOG.md`, update the README version badge, and open a pull request automatically.
+The workflow runs in two jobs:
+
+- **Run tests** — executes unit, DOM, and Playwright E2E tests (Firefox). If any test fails the workflow stops and no PR is created. Fix the failure and re-trigger. If _Skip tests_ was checked this job is skipped entirely.
+- **Create release PR** — only runs when tests passed or were deliberately skipped. Bumps `package.json`, promotes `## [Unreleased]` to a dated release section in `CHANGELOG.md`, updates the README version badge, and opens a pull request. The PR body clearly shows whether tests passed or were skipped.
 
 **Step 3 — Review and merge the PR**
 
-Check that the changelog and version look correct, then merge the pull request.
+Check that the changelog and version look correct, then merge the pull request. If the PR body shows tests were skipped, decide whether that is acceptable before merging.
 
 **Step 4 — Done**
 
