@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-03-30
+
 ### Added
 
 - Sub-tasks: lightweight checklist items inside tasks with inline creation, completion tracking, drag-to-reorder, inline editing, and a donut progress indicator on task cards
@@ -397,3 +399,7 @@ First public release. No backend. No tracking. No cloud, fully local in your own
 - Import/export JSON now includes `boardName` and import applies it to the active board
 - Import now creates a new board (no overwrite)
 - Default task priority is now `low` (configurable per board in Settings)
+
+[Unreleased]: https://github.com/mdiener21/personal-kanban/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/mdiener21/personal-kanban/compare/v1.3.0...v1.4.0
+[1.3.0]: https://github.com/mdiener21/personal-kanban/compare/v1.2.3...v1.3.0
