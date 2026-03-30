@@ -9,7 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Sub-task progress indicator on task cards redesigned from a linear progress bar to a donut circle visualization with `completed/total Done` label
+- Sub-task progress indicator on task cards redesigned from a linear progress bar to an inline donut circle visualization with `completed/total Done` label in the footer row
+- Relationship indicator row on task cards is now right-aligned
+- Task cards are fully clickable to open the edit modal — click anywhere on the card except the delete button to edit; drag-and-drop remains unaffected
 
 ## [1.3.0] - 2026-03-30
 

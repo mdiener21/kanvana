@@ -31,7 +31,7 @@ Break complex tasks into smaller, trackable steps without leaving the board:
 - **Checkbox completion** — check off each step; completed items are struck through and visually muted
 - **Inline editing** — click any sub-task title to edit it in place; press **Enter** to save or **Escape** to cancel
 - **Drag to reorder** — grab the handle and drag sub-tasks into the order that makes sense
-- **Progress indicator** — the task card shows a `completed / total` count and a progress bar that turns green when everything is done
+- **Progress indicator** — the task card shows a donut circle with `completed/total Done` count that turns green when everything is done
 - **Lightweight** — sub-tasks have no labels, priorities, or relationships; they stay scoped to their parent task
 
 Sub-tasks are saved with the parent task and survive export/import round-trips. Existing tasks default to zero sub-tasks with no migration needed.
