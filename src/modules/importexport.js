@@ -11,7 +11,7 @@ import {
 
 import { createBoard, getActiveBoardName, listBoards, setActiveBoardId } from './storage.js';
 import { emit, DATA_CHANGED } from './events.js';
-import { normalizePriority, isHexColor, boardDisplayName, normalizeDueDate } from './normalize.js';
+import { normalizePriority, isHexColor, boardDisplayName, normalizeDueDate, normalizeSubTasks } from './normalize.js';
 import { DONE_COLUMN_ID } from './constants.js';
 import { formatBytes } from './security.js';
 
@@ -337,6 +337,7 @@ function normalizeTaskForExport(task) {
     description: description.toString().trim(),
     priority: normalizePriority(task?.priority),
     dueDate,
+    subTasks: normalizeSubTasks(task?.subTasks),
     ...(typeof changeDate === 'string' ? { changeDate: changeDate.toString().trim() } : {}),
     ...(isDone && doneDate ? { doneDate } : { doneDate: undefined }),
     ...(columnHistory && columnHistory.length ? { columnHistory } : { columnHistory: undefined }),
@@ -397,6 +398,7 @@ function normalizeImportedTasks(tasks) {
       priority,
       dueDate: dueDate.trim(),
       column: column.trim(),
+      subTasks: normalizeSubTasks(t?.subTasks),
       ...(order !== undefined ? { order } : {}),
       ...(creationDate ? { creationDate } : {}),
       ...(typeof changeDate === 'string' && changeDate.trim() ? { changeDate: changeDate.trim() } : {}),

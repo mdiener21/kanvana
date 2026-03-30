@@ -186,6 +186,34 @@ export function createTaskElement(task, settings, labelsMap = null, today = null
     li.appendChild(relRow);
   }
 
+  if (task.subTasks && task.subTasks.length > 0) {
+    const completed = task.subTasks.filter((s) => s.completed).length;
+    const total = task.subTasks.length;
+
+    const stRow = document.createElement('div');
+    stRow.classList.add('task-subtasks-row');
+
+    const icon = document.createElement('span');
+    icon.dataset.lucide = 'list-checks';
+    icon.setAttribute('aria-hidden', 'true');
+
+    const countLabel = document.createElement('span');
+    countLabel.textContent = `${completed} / ${total}`;
+
+    const bar = document.createElement('div');
+    bar.classList.add('subtasks-progress-bar');
+    const fill = document.createElement('div');
+    fill.classList.add('subtasks-progress-fill');
+    fill.style.width = `${Math.round((completed / total) * 100)}%`;
+    if (completed === total) fill.classList.add('subtasks-progress-complete');
+    bar.appendChild(fill);
+
+    stRow.appendChild(icon);
+    stRow.appendChild(countLabel);
+    stRow.appendChild(bar);
+    li.appendChild(stRow);
+  }
+
   const showChangeDate = settings?.showChangeDate !== false;
   const showAge = settings?.showAge !== false;
   const locale = settings?.locale;

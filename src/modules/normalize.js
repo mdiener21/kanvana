@@ -64,6 +64,27 @@ export function normalizeRelationships(value) {
 }
 
 /**
+ * Normalize a subTasks array.
+ * Filters entries with missing id or title, coerces types.
+ */
+export function normalizeSubTasks(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((entry) => {
+      if (!entry || typeof entry !== 'object') return false;
+      const id = (entry.id || '').toString().trim();
+      const title = (entry.title || '').toString().trim();
+      return id && title;
+    })
+    .map((entry, index) => ({
+      id: entry.id.toString().trim(),
+      title: entry.title.toString().trim(),
+      completed: entry.completed === true,
+      order: Number.isFinite(entry.order) ? entry.order : index + 1
+    }));
+}
+
+/**
  * Deduplicate an array of string keys, trimming whitespace.
  */
 export function normalizeStringKeys(keys) {

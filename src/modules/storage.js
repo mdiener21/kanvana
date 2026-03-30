@@ -1,5 +1,5 @@
 import { generateUUID } from './utils.js';
-import { normalizePriority as sharedNormalizePriority, isHexColor as sharedIsHexColor, normalizeStringKeys, normalizeRelationships } from './normalize.js';
+import { normalizePriority as sharedNormalizePriority, isHexColor as sharedIsHexColor, normalizeStringKeys, normalizeRelationships, normalizeSubTasks } from './normalize.js';
 import { DONE_COLUMN_ID } from './constants.js';
 
 const BOARDS_KEY = 'kanbanBoards';
@@ -468,6 +468,13 @@ export function loadTasks() {
       const nextRelationships = normalizeRelationships(task.relationships);
       if (JSON.stringify(task.relationships) !== JSON.stringify(nextRelationships)) {
         task.relationships = nextRelationships;
+        didChange = true;
+      }
+
+      // Ensure subTasks field is always a valid normalized array.
+      const nextSubTasks = normalizeSubTasks(task.subTasks);
+      if (JSON.stringify(task.subTasks) !== JSON.stringify(nextSubTasks)) {
+        task.subTasks = nextSubTasks;
         didChange = true;
       }
 

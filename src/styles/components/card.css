@@ -232,3 +232,38 @@
 .task-text:hover {
   color: var(--column-accent);
 }
+
+/* Sub-tasks progress row on task card */
+.task-subtasks-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-top: 4px;
+}
+
+.task-subtasks-row [data-lucide] {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+.subtasks-progress-bar {
+  flex: 1;
+  height: 4px;
+  background: var(--color-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.subtasks-progress-fill {
+  height: 100%;
+  background: var(--color-primary, #3b82f6);
+  border-radius: 2px;
+  transition: width 0.2s;
+}
+
+.subtasks-progress-fill.subtasks-progress-complete {
+  background: var(--color-success, #22c55e);
+}

@@ -431,3 +431,103 @@
 :root[data-theme="dark"] .relationship-badge__remove:hover {
   background: rgba(255, 255, 255, 0.2);
 }
+
+/* ==========================================================================
+   Sub-tasks in task modal
+   ========================================================================== */
+
+.subtasks-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.subtask-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: var(--color-bg-secondary, #f8fafc);
+}
+
+.subtask-drag-handle {
+  cursor: grab;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.subtask-drag-handle:active {
+  cursor: grabbing;
+}
+
+.subtask-item input[type="checkbox"] {
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.subtask-title {
+  flex: 1;
+  font-size: 0.875rem;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subtask-item.subtask-completed .subtask-title {
+  text-decoration: line-through;
+  color: var(--color-text-muted);
+}
+
+.subtask-delete-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  border-radius: 3px;
+}
+
+.subtask-delete-btn:hover {
+  color: var(--color-danger, #ef4444);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.subtask-inline-input {
+  flex: 1;
+  font-size: 0.875rem;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  padding: 1px 4px;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.task-subtask-add-row {
+  margin-top: 6px;
+}
+
+.task-subtask-add-row input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.subtasks-progress-legend {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  font-weight: normal;
+  margin-left: 8px;
+}
+
+:root[data-theme="dark"] .subtask-item {
+  background: var(--color-bg-secondary, rgba(255, 255, 255, 0.05));
+}

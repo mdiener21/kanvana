@@ -191,6 +191,24 @@
               </div>
               <div id="task-relationship-results" class="relationship-results" role="listbox" aria-label="Task search results" hidden></div>
             </fieldset>
+            <fieldset class="form-group" id="task-subtasks-fieldset">
+              <legend>
+                <span data-lucide="list-checks" aria-hidden="true"></span>
+                Sub-tasks
+                <span id="task-subtasks-progress-legend" class="subtasks-progress-legend" hidden></span>
+              </legend>
+              <ul id="task-subtasks-list" class="subtasks-list" role="list" aria-label="Sub-tasks"></ul>
+              <div class="task-subtask-add-row">
+                <input
+                  type="text"
+                  id="task-subtask-input"
+                  placeholder="Add a sub-task and press Enter…"
+                  autocomplete="off"
+                  maxlength="200"
+                  aria-label="New sub-task title"
+                >
+              </div>
+            </fieldset>
           </div>
         </div>
         <div class="form-actions">
