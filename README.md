@@ -1,8 +1,12 @@
-# Personal Kanban Board
+# Kanvana: The Personal Kanban Board
 
-[![GitHub stars](https://img.shields.io/github/stars/mdiener21/personal-kanban.svg?style=social)](https://github.com/mdiener21/personal-kanban/stargazers)
+```js
+kanvana == "Kanban" + "nirvana" # smooth flow
+```
+
+[![GitHub stars](https://img.shields.io/github/stars/mdiener21/kanvana.svg?style=social)](https://github.com/mdiener21/kanvana/stargazers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Visit%20Now-blue)](https://mdiener21.github.io/personal-kanban/)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Visit%20Now-blue)](https://mdiener21.github.io/kanvana/)
 [![Version](https://img.shields.io/badge/version-1.4.0-brightgreen)](CHANGELOG.md)
 
 > **Transform your productivity with a sleek, local-first Kanban board.** No servers, no tracking—just pure efficiency in your browser.
@@ -13,11 +17,11 @@ A beautiful, modern-designed personal Kanban board that runs entirely in your br
 
 ## 🚀 Live Demo
 
-Experience it firsthand: **[Try the Live Demo](https://mdiener21.github.io/personal-kanban/)**
+Experience it firsthand: **[Try the Live Demo](https://mdiener21.github.io/kanvana/)**
 
 
 <div align="center">
-   <a href="https://mdiener21.github.io/personal-kanban/"><img width="1462" height="895" alt="image" src="https://github.com/user-attachments/assets/0d0ade47-e931-4caa-b1ec-4e0148733d5b"></a>
+   <a href="https://mdiener21.github.io/kanvana/"><img width="1462" height="895" alt="image" src="https://github.com/user-attachments/assets/0d0ade47-e931-4caa-b1ec-4e0148733d5b"></a>
 </div>
 
 
@@ -35,6 +39,12 @@ Break complex tasks into smaller, trackable steps without leaving the board:
 - **Lightweight** — sub-tasks have no labels, priorities, or relationships; they stay scoped to their parent task
 
 Sub-tasks are saved with the parent task and survive export/import round-trips. Existing tasks default to zero sub-tasks with no migration needed.
+
+
+<img width="355" height="190" alt="image" src="https://github.com/user-attachments/assets/f6cf23be-8178-4edb-ac27-ddc53741e92f" /><br>
+
+<img width="166" height="87" alt="image" src="https://github.com/user-attachments/assets/296070c9-0232-41c6-8f88-2f13fa7eb1b9" />
+
 
 ### 🔗 Task Relationships
 
@@ -82,13 +92,13 @@ Configure swim lanes in **Settings** — choose your grouping mode and start org
 ## 📸 Screenshots
 
 <div align="center">
-   <a href="https://mdiener21.github.io/personal-kanban/"><img width="1462" height="895" alt="image" src="https://github.com/user-attachments/assets/0d0ade47-e931-4caa-b1ec-4e0148733d5b"></a>
+   <a href="https://mdiener21.github.io/kanvana/"><img width="1462" height="895" alt="image" src="https://github.com/user-attachments/assets/0d0ade47-e931-4caa-b1ec-4e0148733d5b"></a>
    <br><br>Label Manager
-   <a href="https://mdiener21.github.io/personal-kanban/"><img width="582" height="703" alt="image" src="https://github.com/user-attachments/assets/dec3484f-2156-4163-8b87-b30d2a837c4d"></a>
+   <a href="https://mdiener21.github.io/kanvana/"><img width="582" height="703" alt="image" src="https://github.com/user-attachments/assets/dec3484f-2156-4163-8b87-b30d2a837c4d"></a>
    <br><br>Control Menu
-   <a href="https://mdiener21.github.io/personal-kanban/"><img width="273" height="556" alt="image" src="https://github.com/user-attachments/assets/2fbc476d-226a-4c5f-a1bd-a2d6713e5c01"></a>
+   <a href="https://mdiener21.github.io/kanvana/"><img width="273" height="556" alt="image" src="https://github.com/user-attachments/assets/2fbc476d-226a-4c5f-a1bd-a2d6713e5c01"></a>
    <br><br>
-   <a href="https://mdiener21.github.io/personal-kanban/"><img width="1273" height="1168" alt="image" src="https://github.com/user-attachments/assets/871a95fb-f7f7-41f8-a1b3-dc74f38ff6a2"></a>
+   <a href="https://mdiener21.github.io/kanvana/"><img width="1273" height="1168" alt="image" src="https://github.com/user-attachments/assets/871a95fb-f7f7-41f8-a1b3-dc74f38ff6a2"></a>
 
 </div>
 
@@ -102,7 +112,7 @@ Your data is stored securely in your browser's `localStorage`. It persists acros
 Get up and running in minutes!
 
 ### For Users: Try It Now
-1. Visit the **[Live Demo](https://mdiener21.github.io/personal-kanban/)**.
+1. Visit the **[Live Demo](https://mdiener21.github.io/kanvana/)**.
 2. Start creating boards, tasks, and labels immediately.
 3. Export your data anytime for backup.
 
@@ -122,8 +132,8 @@ The repository includes a pre-built static site in `dist/`. Simply upload it to 
 ### Installation
 1. Clone the repo:
    ```bash
-   git clone https://github.com/mdiener21/personal-kanban.git
-   cd personal-kanban
+   git clone https://github.com/mdiener21/kanvana.git
+   cd kanvana
    ```
 
 2. Install dependencies:
@@ -234,7 +244,7 @@ The detailed strategy, folder layout, and naming convention live in [docs/testin
 
 ## 📚 Documentation
 
-Dive deeper with our comprehensive docs: **[View Documentation](https://github.com/mdiener21/personal-kanban/tree/main/docs)**
+Dive deeper with our comprehensive docs: **[View Documentation](https://github.com/mdiener21/kanvana/tree/main/docs)**
 
 ## 🤝 Contributing
 
