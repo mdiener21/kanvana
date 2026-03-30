@@ -116,6 +116,7 @@
 .task-relationships-row {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 4px;
   font-size: 12px;
   color: var(--text-muted);
@@ -233,37 +234,34 @@
   color: var(--column-accent);
 }
 
-/* Sub-tasks progress row on task card */
+/* Sub-tasks donut progress — inline in footer row */
 .task-subtasks-row {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-  margin-top: 4px;
+  gap: 4px;
+  white-space: nowrap;
 }
 
-.task-subtasks-row [data-lucide] {
-  width: 12px;
-  height: 12px;
+.subtasks-donut {
   flex-shrink: 0;
 }
 
-.subtasks-progress-bar {
-  flex: 1;
-  height: 4px;
-  background: var(--color-border);
-  border-radius: 2px;
-  overflow: hidden;
+.subtasks-donut-bg {
+  fill: none;
+  stroke: var(--color-border);
+  stroke-width: 2.5;
 }
 
-.subtasks-progress-fill {
-  height: 100%;
-  background: var(--color-primary, #3b82f6);
-  border-radius: 2px;
-  transition: width 0.2s;
+.subtasks-donut-fill {
+  fill: none;
+  stroke: var(--color-primary, #3b82f6);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: center;
+  transition: stroke-dashoffset 0.3s;
 }
 
-.subtasks-progress-fill.subtasks-progress-complete {
-  background: var(--color-success, #22c55e);
+.subtasks-donut-fill.subtasks-donut-complete {
+  stroke: var(--color-success, #22c55e);
 }

@@ -163,8 +163,8 @@ test.describe('Sub-tasks', () => {
     const taskCard = page.getByRole('listitem', { name: /Task: Card progress task/i });
     await expect(taskCard).toBeVisible();
     await expect(taskCard.locator('.task-subtasks-row')).toBeVisible();
-    await expect(taskCard.locator('.task-subtasks-row')).toContainText('0 / 3');
-    await expect(taskCard.locator('.subtasks-progress-bar')).toBeVisible();
+    await expect(taskCard.locator('.task-subtasks-row')).toContainText('0/3 Done');
+    await expect(taskCard.locator('.subtasks-donut')).toBeVisible();
   });
 
   test('No progress indicator on card when task has no sub-tasks', async ({ page }) => {
@@ -205,7 +205,7 @@ test.describe('Sub-tasks', () => {
     await expect(taskModal(page).locator('#task-subtasks-progress-legend')).toHaveText('1 / 2');
   });
 
-  test('Card progress bar turns green when all sub-tasks are completed', async ({ page }) => {
+  test('Card donut turns green when all sub-tasks are completed', async ({ page }) => {
     await page.goto('/');
     await openAddTaskModal(page);
     await taskModal(page).locator('#task-title').fill('All done task');
@@ -218,10 +218,10 @@ test.describe('Sub-tasks', () => {
     await subtasksList(page).locator('.subtask-item').first().locator('input[type="checkbox"]').check();
     await taskModal(page).getByRole('button', { name: 'Save Changes', exact: true }).click();
 
-    // Card should show 1 / 1 and green fill
+    // Card should show 1/1 Done and green donut
     const taskCard = page.getByRole('listitem', { name: /Task: All done task/i });
-    await expect(taskCard.locator('.task-subtasks-row')).toContainText('1 / 1');
-    await expect(taskCard.locator('.subtasks-progress-fill')).toHaveClass(/subtasks-progress-complete/);
+    await expect(taskCard.locator('.task-subtasks-row')).toContainText('1/1 Done');
+    await expect(taskCard.locator('.subtasks-donut-fill')).toHaveClass(/subtasks-donut-complete/);
   });
 
   test('Inline edit: click sub-task title to edit and commit with Enter', async ({ page }) => {

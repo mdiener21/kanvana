@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Sub-task progress indicator on task cards redesigned from a linear progress bar to a donut circle visualization with `completed/total Done` label
+
 ## [1.3.0] - 2026-03-30
 
 ### Added

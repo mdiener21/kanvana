@@ -55,7 +55,7 @@
 ## Sub-tasks on Task Cards
 
 - Cards with one or more sub-tasks show a progress row below the relationships indicator and above the footer
-- The row contains a `list-checks` icon, a `completed / total` label, and a progress bar
+- The row contains a donut circle (SVG) and a `completed/total Done` label
 - Cards with no sub-tasks show no indicator
 - See [sub-tasks.md](sub-tasks.md) for full sub-task specification
 

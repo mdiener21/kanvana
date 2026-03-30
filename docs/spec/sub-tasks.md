@@ -46,8 +46,8 @@ Sub-tasks do not support labels, relationships, priorities, due dates, or column
 ## Sub-tasks on Task Cards
 
 - If a task has one or more sub-tasks, the card shows a progress row below the relationships indicator and above the footer
-- The progress row contains a `list-checks` icon, a `completed / total` label, and a progress bar
-- The progress bar fill is blue by default; it turns green when all sub-tasks are completed
+- The progress row contains a donut circle (SVG) and a `completed/total Done` label
+- The donut stroke is blue by default; it turns green when all sub-tasks are completed
 - If a task has no sub-tasks, no progress row is shown
 
 ## Persistence

@@ -186,34 +186,6 @@ export function createTaskElement(task, settings, labelsMap = null, today = null
     li.appendChild(relRow);
   }
 
-  if (task.subTasks && task.subTasks.length > 0) {
-    const completed = task.subTasks.filter((s) => s.completed).length;
-    const total = task.subTasks.length;
-
-    const stRow = document.createElement('div');
-    stRow.classList.add('task-subtasks-row');
-
-    const icon = document.createElement('span');
-    icon.dataset.lucide = 'list-checks';
-    icon.setAttribute('aria-hidden', 'true');
-
-    const countLabel = document.createElement('span');
-    countLabel.textContent = `${completed} / ${total}`;
-
-    const bar = document.createElement('div');
-    bar.classList.add('subtasks-progress-bar');
-    const fill = document.createElement('div');
-    fill.classList.add('subtasks-progress-fill');
-    fill.style.width = `${Math.round((completed / total) * 100)}%`;
-    if (completed === total) fill.classList.add('subtasks-progress-complete');
-    bar.appendChild(fill);
-
-    stRow.appendChild(icon);
-    stRow.appendChild(countLabel);
-    stRow.appendChild(bar);
-    li.appendChild(stRow);
-  }
-
   const showChangeDate = settings?.showChangeDate !== false;
   const showAge = settings?.showAge !== false;
   const locale = settings?.locale;
@@ -272,6 +244,54 @@ export function createTaskElement(task, settings, labelsMap = null, today = null
     const ageText = formatTaskAge(task);
     ageEl.textContent = ageText ? `Age ${ageText}` : '';
     footerRow.appendChild(ageEl);
+  }
+
+  if (task.subTasks && task.subTasks.length > 0) {
+    const completed = task.subTasks.filter((s) => s.completed).length;
+    const total = task.subTasks.length;
+    const pct = Math.round((completed / total) * 100);
+    const isComplete = completed === total;
+
+    const stRow = document.createElement('span');
+    stRow.classList.add('task-subtasks-row');
+
+    const size = 16;
+    const strokeWidth = 2.5;
+    const radius = (size - strokeWidth) / 2;
+    const circumference = 2 * Math.PI * radius;
+    const offset = circumference - (pct / 100) * circumference;
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', size);
+    svg.setAttribute('height', size);
+    svg.setAttribute('viewBox', `0 0 ${size} ${size}`);
+    svg.classList.add('subtasks-donut');
+    svg.setAttribute('aria-hidden', 'true');
+
+    const bgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    bgCircle.setAttribute('cx', size / 2);
+    bgCircle.setAttribute('cy', size / 2);
+    bgCircle.setAttribute('r', radius);
+    bgCircle.classList.add('subtasks-donut-bg');
+
+    const fgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    fgCircle.setAttribute('cx', size / 2);
+    fgCircle.setAttribute('cy', size / 2);
+    fgCircle.setAttribute('r', radius);
+    fgCircle.classList.add('subtasks-donut-fill');
+    if (isComplete) fgCircle.classList.add('subtasks-donut-complete');
+    fgCircle.style.strokeDasharray = circumference;
+    fgCircle.style.strokeDashoffset = offset;
+
+    svg.appendChild(bgCircle);
+    svg.appendChild(fgCircle);
+
+    const countLabel = document.createElement('span');
+    countLabel.textContent = `${completed}/${total} Done`;
+
+    stRow.appendChild(svg);
+    stRow.appendChild(countLabel);
+    footerRow.appendChild(stRow);
   }
 
   const hasFooterRowContent = Array.from(footerRow.childNodes).some((n) => (n.textContent || '').trim() !== '');
