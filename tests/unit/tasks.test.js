@@ -161,3 +161,86 @@ test('moveTaskToTopInColumn returns null for missing args', () => {
   expect(moveTaskToTopInColumn(null, 'todo')).toBeNull();
   expect(moveTaskToTopInColumn('t1', null)).toBeNull();
 });
+
+// ── subTasks ────────────────────────────────────────────────────────
+
+test('addTask stores subTasks when provided', () => {
+  const subTasks = [
+    { id: 'st1', title: 'Step one', completed: false, order: 1 },
+    { id: 'st2', title: 'Step two', completed: true, order: 2 }
+  ];
+  addTask('Parent', '', 'none', '', 'todo', [], [], subTasks);
+  const task = loadTasks()[0];
+  expect(Array.isArray(task.subTasks)).toBe(true);
+  expect(task.subTasks.length).toBe(2);
+  expect(task.subTasks[0].title).toBe('Step one');
+  expect(task.subTasks[0].completed).toBe(false);
+  expect(task.subTasks[1].title).toBe('Step two');
+  expect(task.subTasks[1].completed).toBe(true);
+});
+
+test('addTask stores empty subTasks array when none provided', () => {
+  addTask('Plain', '', 'none', '', 'todo', []);
+  const task = loadTasks()[0];
+  expect(Array.isArray(task.subTasks)).toBe(true);
+  expect(task.subTasks.length).toBe(0);
+});
+
+test('updateTask persists updated subTasks', () => {
+  addTask('Parent', '', 'none', '', 'todo', [], [], [
+    { id: 'st1', title: 'Original', completed: false, order: 1 }
+  ]);
+  const task = loadTasks()[0];
+
+  updateTask(task.id, 'Parent', '', 'none', '', 'todo', [], [], [
+    { id: 'st1', title: 'Updated', completed: true, order: 1 },
+    { id: 'st2', title: 'New step', completed: false, order: 2 }
+  ]);
+
+  const updated = loadTasks().find(t => t.id === task.id);
+  expect(updated.subTasks.length).toBe(2);
+  expect(updated.subTasks[0].title).toBe('Updated');
+  expect(updated.subTasks[0].completed).toBe(true);
+  expect(updated.subTasks[1].title).toBe('New step');
+});
+
+test('updateTask clears subTasks when empty array passed', () => {
+  addTask('Parent', '', 'none', '', 'todo', [], [], [
+    { id: 'st1', title: 'Step', completed: false, order: 1 }
+  ]);
+  const task = loadTasks()[0];
+
+  updateTask(task.id, 'Parent', '', 'none', '', 'todo', [], [], []);
+
+  const updated = loadTasks().find(t => t.id === task.id);
+  expect(updated.subTasks.length).toBe(0);
+});
+
+test('updateTask normalizes invalid subTask entries', () => {
+  addTask('Parent', '', 'none', '', 'todo', []);
+  const task = loadTasks()[0];
+
+  updateTask(task.id, 'Parent', '', 'none', '', 'todo', [], [], [
+    { id: 'st1', title: 'Valid', completed: false, order: 1 },
+    { id: '', title: 'No id', completed: false, order: 2 },
+    { id: 'st3', title: '', completed: false, order: 3 }
+  ]);
+
+  const updated = loadTasks().find(t => t.id === task.id);
+  expect(updated.subTasks.length).toBe(1);
+  expect(updated.subTasks[0].id).toBe('st1');
+});
+
+test('subTasks persist through storage round-trip', () => {
+  const subTasks = [
+    { id: 'st1', title: 'Persist me', completed: true, order: 1 }
+  ];
+  addTask('Parent', '', 'none', '', 'todo', [], [], subTasks);
+
+  // Re-load from storage
+  const reloaded = loadTasks();
+  const task = reloaded[0];
+  expect(task.subTasks[0].title).toBe('Persist me');
+  expect(task.subTasks[0].completed).toBe(true);
+});
+

@@ -18,6 +18,8 @@
 ## Card Display
 
 - Task cards show title, optional description, labels, priority badge, delete button, and optional footer metadata
+- Clicking anywhere on a task card opens the edit modal, except the delete button which triggers deletion
+- Drag-and-drop is distinguished from clicks by pointer movement threshold
 - Titles are clamped to one line and descriptions to a short preview
 - Footer content is controlled by settings and can include change date, due date, countdown, and task age
 
@@ -49,8 +51,15 @@
 ## Relationships on Task Cards
 
 - Cards with one or more relationships show a `git-branch` icon followed by `relationships (N)`
-- The indicator is placed below the labels section, above the footer
+- The indicator is right-aligned and placed below the labels section, above the footer
 - Cards with no relationships show no indicator
+
+## Sub-tasks on Task Cards
+
+- Cards with one or more sub-tasks show a donut circle and `completed/total Done` label inline in the footer row
+- The donut stroke is blue by default and turns green when all sub-tasks are completed
+- Cards with no sub-tasks show no indicator
+- See [sub-tasks.md](sub-tasks.md) for full sub-task specification
 
 ## Task List Size Controls
 
@@ -66,3 +75,4 @@ Update this file when you change:
 - task ordering or drag behavior
 - task modal fields or inline label UX
 - relationship UI behavior or card indicator
+- sub-task card indicator layout (full sub-task spec lives in [sub-tasks.md](sub-tasks.md))

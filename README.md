@@ -23,7 +23,20 @@ Experience it firsthand: **[Try the Live Demo](https://mdiener21.github.io/perso
 
 ## ✨ Key Features
 
-### 🔗 Task Relationships (New!)
+### ✅ Sub-tasks (New!)
+
+Break complex tasks into smaller, trackable steps without leaving the board:
+
+- **Inline creation** — type a sub-task title and press **Enter** to add it instantly
+- **Checkbox completion** — check off each step; completed items are struck through and visually muted
+- **Inline editing** — click any sub-task title to edit it in place; press **Enter** to save or **Escape** to cancel
+- **Drag to reorder** — grab the handle and drag sub-tasks into the order that makes sense
+- **Progress indicator** — the task card shows a donut circle with `completed/total Done` count that turns green when everything is done
+- **Lightweight** — sub-tasks have no labels, priorities, or relationships; they stay scoped to their parent task
+
+Sub-tasks are saved with the parent task and survive export/import round-trips. Existing tasks default to zero sub-tasks with no migration needed.
+
+### 🔗 Task Relationships
 
 Link tasks together to communicate dependencies and connections:
 

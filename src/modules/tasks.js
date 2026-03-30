@@ -1,7 +1,7 @@
 import { generateUUID } from './utils.js';
 import { loadLabels, loadSettings, loadTasks, saveTasks } from './storage.js';
 import { applySwimLaneAssignment } from './swimlanes.js';
-import { normalizePriority, normalizeRelationships } from './normalize.js';
+import { normalizePriority, normalizeRelationships, normalizeSubTasks } from './normalize.js';
 
 const RELATIONSHIP_INVERSE = { prerequisite: 'dependent', dependent: 'prerequisite', related: 'related' };
 import { DONE_COLUMN_ID } from './constants.js';
@@ -63,9 +63,9 @@ function syncRelationshipInverses(tasks, taskId, oldRelationships, newRelationsh
 }
 
 // Add a new task
-export function addTask(title, description, priority, dueDate, columnName, labels = [], relationships = []) {
+export function addTask(title, description, priority, dueDate, columnName, labels = [], relationships = [], subTasks = []) {
   if (!title || title.trim() === '') return;
-  
+
   const tasks = loadTasks();
   // Insert new tasks at the top of the column.
   // Normalize the column's existing task orders so they start at 2 (leaving 1 for the new task).
@@ -84,7 +84,7 @@ export function addTask(title, description, priority, dueDate, columnName, label
     const nextOrder = nextOrderById.get(task.id);
     return typeof nextOrder === 'number' ? { ...task, order: nextOrder } : task;
   });
-  
+
   const nowIso = new Date().toISOString();
   const normalizedRelationships = normalizeRelationships(relationships);
   const newTask = {
@@ -97,6 +97,7 @@ export function addTask(title, description, priority, dueDate, columnName, label
     order: 1,
     labels: [...labels],
     relationships: normalizedRelationships,
+    subTasks: normalizeSubTasks(subTasks),
     creationDate: nowIso,
     changeDate: nowIso,
     columnHistory: [{ column: columnName, at: nowIso }],
@@ -109,7 +110,7 @@ export function addTask(title, description, priority, dueDate, columnName, label
 }
 
 // Update an existing task
-export function updateTask(taskId, title, description, priority, dueDate, columnName, labels = [], relationships = []) {
+export function updateTask(taskId, title, description, priority, dueDate, columnName, labels = [], relationships = [], subTasks = []) {
   if (!title || title.trim() === '') return;
   
   const tasks = loadTasks();
@@ -136,6 +137,7 @@ export function updateTask(taskId, title, description, priority, dueDate, column
     tasks[taskIndex].column = nextColumn;
     tasks[taskIndex].labels = [...labels];
     tasks[taskIndex].relationships = newRelationships;
+    tasks[taskIndex].subTasks = normalizeSubTasks(subTasks);
 
     syncRelationshipInverses(tasks, taskId, oldRelationships, newRelationships);
 

@@ -6,12 +6,16 @@ import { renderIcons } from './icons.js';
 import { validateAndShowTaskTitleError, clearFieldError } from './validation.js';
 import { emit, DATA_CHANGED } from './events.js';
 import { createAccordionSection } from './accordion.js';
+import { generateUUID } from './utils.js';
+import Sortable from 'sortablejs';
 
 // Task modal state
 let currentColumn = 'todo';
 let editingTaskId = null;
 let selectedTaskLabels = [];
 let selectedTaskRelationships = []; // [{ type, targetTaskId }]
+let selectedTaskSubTasks = []; // [{ id, title, completed, order }]
+let subtaskSortable = null;
 let returnToTaskModalAfterLabelsManager = false;
 let selectCreatedLabelInTaskEditor = false;
 
@@ -331,11 +335,130 @@ export function updateTaskLabelsSelection() {
   });
 }
 
+function updateSubTasksProgressLegend() {
+  const legend = document.getElementById('task-subtasks-progress-legend');
+  if (!legend) return;
+  const total = selectedTaskSubTasks.length;
+  if (total === 0) {
+    legend.hidden = true;
+    legend.textContent = '';
+  } else {
+    const completed = selectedTaskSubTasks.filter((s) => s.completed).length;
+    legend.textContent = `${completed} / ${total}`;
+    legend.hidden = false;
+  }
+}
+
+function activateSubTaskInlineEdit(li, subtaskId) {
+  const titleSpan = li.querySelector('.subtask-title');
+  if (!titleSpan || li.querySelector('.subtask-inline-input')) return;
+
+  const st = selectedTaskSubTasks.find((s) => s.id === subtaskId);
+  if (!st) return;
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.classList.add('subtask-inline-input');
+  input.value = st.title;
+  input.maxLength = 200;
+  titleSpan.replaceWith(input);
+  input.focus();
+  input.select();
+
+  function commit() {
+    const val = input.value.trim();
+    if (val) st.title = val;
+    renderSubTaskList();
+  }
+
+  function cancel() {
+    renderSubTaskList();
+  }
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+  });
+  input.addEventListener('blur', commit);
+}
+
+function renderSubTaskList() {
+  const listEl = document.getElementById('task-subtasks-list');
+  if (!listEl) return;
+
+  // Sort by order before rendering
+  const sorted = [...selectedTaskSubTasks].sort((a, b) => a.order - b.order);
+
+  listEl.innerHTML = '';
+  sorted.forEach((st) => {
+    const li = document.createElement('li');
+    li.classList.add('subtask-item');
+    if (st.completed) li.classList.add('subtask-completed');
+    li.dataset.subtaskId = st.id;
+
+    const handle = document.createElement('span');
+    handle.classList.add('subtask-drag-handle');
+    handle.setAttribute('aria-hidden', 'true');
+    handle.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>';
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = st.completed;
+    checkbox.setAttribute('aria-label', `Mark "${st.title}" complete`);
+    checkbox.addEventListener('change', () => {
+      st.completed = checkbox.checked;
+      li.classList.toggle('subtask-completed', st.completed);
+      updateSubTasksProgressLegend();
+    });
+
+    const titleSpan = document.createElement('span');
+    titleSpan.classList.add('subtask-title');
+    titleSpan.textContent = st.title;
+    titleSpan.title = 'Click to edit';
+    titleSpan.addEventListener('click', () => activateSubTaskInlineEdit(li, st.id));
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.classList.add('subtask-delete-btn');
+    deleteBtn.setAttribute('aria-label', `Delete sub-task "${st.title}"`);
+    deleteBtn.title = 'Delete sub-task';
+    deleteBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+    deleteBtn.addEventListener('click', () => {
+      selectedTaskSubTasks = selectedTaskSubTasks.filter((s) => s.id !== st.id);
+      renderSubTaskList();
+      updateSubTasksProgressLegend();
+    });
+
+    li.appendChild(handle);
+    li.appendChild(checkbox);
+    li.appendChild(titleSpan);
+    li.appendChild(deleteBtn);
+    listEl.appendChild(li);
+  });
+
+  // Init/reinit SortableJS
+  if (subtaskSortable) subtaskSortable.destroy();
+  subtaskSortable = new Sortable(listEl, {
+    animation: 150,
+    handle: '.subtask-drag-handle',
+    onEnd: () => {
+      const items = listEl.querySelectorAll('[data-subtask-id]');
+      items.forEach((el, i) => {
+        const s = selectedTaskSubTasks.find((x) => x.id === el.dataset.subtaskId);
+        if (s) s.order = i + 1;
+      });
+    }
+  });
+
+  updateSubTasksProgressLegend();
+}
+
 export function showModal(columnName, swimlaneContext) {
   currentColumn = columnName || loadColumns()[0]?.id || 'todo';
   editingTaskId = null;
   selectedTaskLabels = [];
   selectedTaskRelationships = [];
+  selectedTaskSubTasks = [];
   returnToTaskModalAfterLabelsManager = false;
   selectCreatedLabelInTaskEditor = false;
 
@@ -389,6 +512,7 @@ export function showModal(columnName, swimlaneContext) {
 
   updateTaskLabelsSelection();
   renderActiveTaskRelationships();
+  renderSubTaskList();
   modal.classList.remove('hidden');
   taskTitle.focus();
 }
@@ -401,6 +525,7 @@ export function showEditModal(taskId) {
   editingTaskId = taskId;
   selectedTaskLabels = task.labels || [];
   selectedTaskRelationships = Array.isArray(task.relationships) ? [...task.relationships] : [];
+  selectedTaskSubTasks = Array.isArray(task.subTasks) ? task.subTasks.map((s) => ({ ...s })) : [];
   returnToTaskModalAfterLabelsManager = false;
   selectCreatedLabelInTaskEditor = false;
 
@@ -441,6 +566,7 @@ export function showEditModal(taskId) {
 
   updateTaskLabelsSelection();
   renderActiveTaskRelationships();
+  renderSubTaskList();
   modal.classList.remove('hidden');
   taskTitle.focus();
 }
@@ -450,6 +576,8 @@ function hideModal() {
   modal.classList.add('hidden');
   editingTaskId = null;
   selectedTaskRelationships = [];
+  selectedTaskSubTasks = [];
+  if (subtaskSortable) { subtaskSortable.destroy(); subtaskSortable = null; }
   returnToTaskModalAfterLabelsManager = false;
 
   const relResults = document.getElementById('task-relationship-results');
@@ -492,6 +620,18 @@ export function initializeTaskModalHandlers(setupModalCloseHandlers) {
     setTaskModalFullscreen(!modal.classList.contains('fullscreen'));
   });
 
+  const subtaskInput = document.getElementById('task-subtask-input');
+  subtaskInput?.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const val = subtaskInput.value.trim();
+    if (!val) return;
+    const nextOrder = selectedTaskSubTasks.length + 1;
+    selectedTaskSubTasks.push({ id: generateUUID(), title: val, completed: false, order: nextOrder });
+    subtaskInput.value = '';
+    renderSubTaskList();
+  });
+
   document.getElementById('task-form').addEventListener('submit', (e) => {
     e.preventDefault();
     const titleInput = document.getElementById('task-title');
@@ -505,9 +645,9 @@ export function initializeTaskModalHandlers(setupModalCloseHandlers) {
     const column = document.getElementById('task-column').value;
 
     if (editingTaskId) {
-      updateTask(editingTaskId, title, description, priority, dueDate, column, selectedTaskLabels, selectedTaskRelationships);
+      updateTask(editingTaskId, title, description, priority, dueDate, column, selectedTaskLabels, selectedTaskRelationships, selectedTaskSubTasks);
     } else {
-      addTask(title, description, priority, dueDate, column, selectedTaskLabels, selectedTaskRelationships);
+      addTask(title, description, priority, dueDate, column, selectedTaskLabels, selectedTaskRelationships, selectedTaskSubTasks);
     }
     hideModal();
     emit(DATA_CHANGED);

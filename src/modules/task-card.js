@@ -67,6 +67,24 @@ export function createTaskElement(task, settings, labelsMap = null, today = null
   li.setAttribute('role', 'listitem');
   li.setAttribute('aria-label', `Task: ${task.title || task.text || 'Untitled'}`);
 
+  // Card-level click-to-edit: open edit modal on click anywhere except the delete button.
+  // Track pointer position to distinguish clicks from drag gestures.
+  let pointerDownPos = null;
+  li.addEventListener('pointerdown', (e) => {
+    pointerDownPos = { x: e.clientX, y: e.clientY };
+  });
+  li.addEventListener('click', (e) => {
+    // Skip if click is on or inside the delete button
+    if (e.target.closest('.delete-task-btn')) return;
+    // Skip if pointer moved significantly (user was dragging)
+    if (pointerDownPos) {
+      const dx = Math.abs(e.clientX - pointerDownPos.x);
+      const dy = Math.abs(e.clientY - pointerDownPos.y);
+      if (dx > 5 || dy > 5) return;
+    }
+    showEditModal(task.id);
+  });
+
   // Labels container
   const labelsContainer = document.createElement('div');
   labelsContainer.classList.add('task-labels');
@@ -96,17 +114,8 @@ export function createTaskElement(task, settings, labelsMap = null, today = null
 
   const titleEl = document.createElement('div');
   titleEl.classList.add('task-title');
-  titleEl.setAttribute('role', 'button');
-  titleEl.setAttribute('tabindex', '0');
   const legacyTitle = typeof task.text === 'string' ? task.text : '';
   titleEl.textContent = (typeof task.title === 'string' && task.title.trim() !== '') ? task.title : legacyTitle;
-  titleEl.addEventListener('click', () => showEditModal(task.id));
-  titleEl.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      showEditModal(task.id);
-    }
-  });
 
   const actions = document.createElement('div');
   actions.classList.add('task-actions');
@@ -120,19 +129,6 @@ export function createTaskElement(task, settings, labelsMap = null, today = null
     priorityEl.classList.add('task-priority', `priority-${priority}`, 'task-priority-header');
     priorityEl.textContent = priority;
     priorityEl.setAttribute('aria-label', `Priority: ${priority}`);
-    priorityEl.setAttribute('role', 'button');
-    priorityEl.setAttribute('tabindex', '0');
-    priorityEl.title = 'Edit task';
-    priorityEl.addEventListener('click', (e) => {
-      e.stopPropagation();
-      showEditModal(task.id);
-    });
-    priorityEl.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        showEditModal(task.id);
-      }
-    });
     actions.appendChild(priorityEl);
   }
 
@@ -164,7 +160,6 @@ export function createTaskElement(task, settings, labelsMap = null, today = null
   descriptionEl.classList.add('task-description');
   descriptionEl.textContent = descriptionValue;
   descriptionEl.style.display = descriptionValue ? 'block' : 'none';
-  descriptionEl.addEventListener('click', () => showEditModal(task.id));
 
   li.appendChild(header);
   li.appendChild(descriptionEl);
@@ -244,6 +239,54 @@ export function createTaskElement(task, settings, labelsMap = null, today = null
     const ageText = formatTaskAge(task);
     ageEl.textContent = ageText ? `Age ${ageText}` : '';
     footerRow.appendChild(ageEl);
+  }
+
+  if (task.subTasks && task.subTasks.length > 0) {
+    const completed = task.subTasks.filter((s) => s.completed).length;
+    const total = task.subTasks.length;
+    const pct = Math.round((completed / total) * 100);
+    const isComplete = completed === total;
+
+    const stRow = document.createElement('span');
+    stRow.classList.add('task-subtasks-row');
+
+    const size = 16;
+    const strokeWidth = 2.5;
+    const radius = (size - strokeWidth) / 2;
+    const circumference = 2 * Math.PI * radius;
+    const offset = circumference - (pct / 100) * circumference;
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', size);
+    svg.setAttribute('height', size);
+    svg.setAttribute('viewBox', `0 0 ${size} ${size}`);
+    svg.classList.add('subtasks-donut');
+    svg.setAttribute('aria-hidden', 'true');
+
+    const bgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    bgCircle.setAttribute('cx', size / 2);
+    bgCircle.setAttribute('cy', size / 2);
+    bgCircle.setAttribute('r', radius);
+    bgCircle.classList.add('subtasks-donut-bg');
+
+    const fgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    fgCircle.setAttribute('cx', size / 2);
+    fgCircle.setAttribute('cy', size / 2);
+    fgCircle.setAttribute('r', radius);
+    fgCircle.classList.add('subtasks-donut-fill');
+    if (isComplete) fgCircle.classList.add('subtasks-donut-complete');
+    fgCircle.style.strokeDasharray = circumference;
+    fgCircle.style.strokeDashoffset = offset;
+
+    svg.appendChild(bgCircle);
+    svg.appendChild(fgCircle);
+
+    const countLabel = document.createElement('span');
+    countLabel.textContent = `${completed}/${total} Done`;
+
+    stRow.appendChild(svg);
+    stRow.appendChild(countLabel);
+    footerRow.appendChild(stRow);
   }
 
   const hasFooterRowContent = Array.from(footerRow.childNodes).some((n) => (n.textContent || '').trim() !== '');

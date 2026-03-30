@@ -5,7 +5,8 @@ import {
   normalizeHexColor,
   boardDisplayName,
   normalizeDueDate,
-  normalizeStringKeys
+  normalizeStringKeys,
+  normalizeSubTasks
 } from '../../src/modules/normalize.js';
 import { DEFAULT_COLUMN_COLOR } from '../../src/modules/constants.js';
 
@@ -124,4 +125,76 @@ test('normalizeStringKeys returns empty array for non-array input', () => {
   expect(normalizeStringKeys(null)).toEqual([]);
   expect(normalizeStringKeys('string')).toEqual([]);
   expect(normalizeStringKeys(undefined)).toEqual([]);
+});
+
+// ── normalizeSubTasks ───────────────────────────────────────────────
+
+test('normalizeSubTasks returns empty array for non-array input', () => {
+  expect(normalizeSubTasks(null)).toEqual([]);
+  expect(normalizeSubTasks(undefined)).toEqual([]);
+  expect(normalizeSubTasks('string')).toEqual([]);
+  expect(normalizeSubTasks(42)).toEqual([]);
+});
+
+test('normalizeSubTasks returns empty array for empty array input', () => {
+  expect(normalizeSubTasks([])).toEqual([]);
+});
+
+test('normalizeSubTasks filters entries with missing id or title', () => {
+  const input = [
+    { id: 'abc', title: 'Valid', completed: false, order: 1 },
+    { id: '', title: 'No id', completed: false, order: 2 },
+    { id: 'xyz', title: '', completed: false, order: 3 },
+    { id: 'def', title: '   ', completed: false, order: 4 }
+  ];
+  const result = normalizeSubTasks(input);
+  expect(result.length).toBe(1);
+  expect(result[0].id).toBe('abc');
+});
+
+test('normalizeSubTasks coerces completed to boolean', () => {
+  const result = normalizeSubTasks([
+    { id: 'a', title: 'Done', completed: true, order: 1 },
+    { id: 'b', title: 'Not done', completed: false, order: 2 },
+    { id: 'c', title: 'Truthy', completed: 1, order: 3 },
+    { id: 'd', title: 'Falsy', completed: 0, order: 4 }
+  ]);
+  expect(result[0].completed).toBe(true);
+  expect(result[1].completed).toBe(false);
+  expect(result[2].completed).toBe(false); // only strict true passes
+  expect(result[3].completed).toBe(false);
+});
+
+test('normalizeSubTasks preserves order when valid', () => {
+  const result = normalizeSubTasks([
+    { id: 'a', title: 'First', completed: false, order: 3 },
+    { id: 'b', title: 'Second', completed: false, order: 1 }
+  ]);
+  expect(result[0].order).toBe(3);
+  expect(result[1].order).toBe(1);
+});
+
+test('normalizeSubTasks assigns index-based order when order is missing or non-finite', () => {
+  const result = normalizeSubTasks([
+    { id: 'a', title: 'First', completed: false },
+    { id: 'b', title: 'Second', completed: false, order: null },
+    { id: 'c', title: 'Third', completed: false, order: 'x' }
+  ]);
+  expect(result[0].order).toBe(1);
+  expect(result[1].order).toBe(2);
+  expect(result[2].order).toBe(3);
+});
+
+test('normalizeSubTasks trims id and title', () => {
+  const result = normalizeSubTasks([
+    { id: '  abc  ', title: '  My task  ', completed: false, order: 1 }
+  ]);
+  expect(result[0].id).toBe('abc');
+  expect(result[0].title).toBe('My task');
+});
+
+test('normalizeSubTasks ignores non-object entries', () => {
+  const result = normalizeSubTasks([null, undefined, 'string', 42, { id: 'ok', title: 'Valid', completed: false, order: 1 }]);
+  expect(result.length).toBe(1);
+  expect(result[0].id).toBe('ok');
 });

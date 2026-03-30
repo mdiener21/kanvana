@@ -116,6 +116,7 @@
 .task-relationships-row {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 4px;
   font-size: 12px;
   color: var(--text-muted);
@@ -231,4 +232,36 @@
 
 .task-text:hover {
   color: var(--column-accent);
+}
+
+/* Sub-tasks donut progress — inline in footer row */
+.task-subtasks-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.subtasks-donut {
+  flex-shrink: 0;
+}
+
+.subtasks-donut-bg {
+  fill: none;
+  stroke: var(--color-border);
+  stroke-width: 2.5;
+}
+
+.subtasks-donut-fill {
+  fill: none;
+  stroke: var(--color-primary, #3b82f6);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: center;
+  transition: stroke-dashoffset 0.3s;
+}
+
+.subtasks-donut-fill.subtasks-donut-complete {
+  stroke: var(--color-success, #22c55e);
 }
