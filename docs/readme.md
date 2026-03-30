@@ -99,6 +99,16 @@ The app is built with **Vite**, uses **vanilla JavaScript/CSS/HTML**, and follow
 
 ## Core Features at a Glance
 
+### Sub-tasks (New!)
+
+Break any task into a checklist of smaller steps managed directly inside the task modal:
+
+- Type a title and press **Enter** to add a sub-task; drag the handle to reorder
+- Check a sub-task to mark it complete — title is struck through and muted
+- Click a title to edit it inline; press **Enter** to save or **Escape** to cancel
+- Each task card shows a `completed / total` progress indicator and a progress bar (turns green when all done)
+- Sub-tasks persist with the parent task and are included in board exports
+
 ### Swim Lanes (New!)
 
 Add a second dimension to your board by grouping tasks into horizontal swim lanes. Group by **label**, **label group**, or **priority** to see your work from different angles.
@@ -116,7 +126,17 @@ Add a second dimension to your board by grouping tasks into horizontal swim lane
 Multiple boards with independent columns, tasks, labels, and settings. Switch between contexts instantly. Create boards from built-in templates or start blank.
 
 ### Tasks
-Create tasks with titles, descriptions, priorities (urgent/high/medium/low/none), due dates, and labels. Drag and drop to move between columns. Due dates include a countdown timer with configurable color-coded urgency indicators. Optimized drag-and-drop performance handles 300+ tasks.
+Create tasks with titles, descriptions, priorities (urgent/high/medium/low/none), due dates, labels, and sub-tasks. Drag and drop to move between columns. Break work down further with inline sub-task checklists — each task card shows sub-task progress at a glance. Due dates include a countdown timer with configurable color-coded urgency indicators. Optimized drag-and-drop performance handles 300+ tasks.
+
+### Task Relationships
+
+Link tasks together to model dependencies and connections:
+
+- **Prerequisite** — another task must be completed before this one can begin
+- **Dependent** — this task is needed by another before that task can start
+- **Related** — a general connection without implying order
+
+Relationships are bidirectional: adding one automatically creates the inverse on the linked task, and removing it cleans up both sides. Search for tasks by short ID (e.g. `#ae2ry`) or title, view active relationships as color-coded badges in the task modal, and click any badge ID to jump to that task. Cards with relationships show a count indicator below the labels.
 
 ### Columns
 Customizable columns with colors, drag-to-reorder, collapse/expand, and sorting by due date or priority. Collapsed columns still accept drag-and-drop with visual hover feedback. The Done column is permanent and optimized for large task counts with virtualization.

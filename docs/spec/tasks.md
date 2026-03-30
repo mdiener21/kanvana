@@ -52,6 +52,13 @@
 - The indicator is placed below the labels section, above the footer
 - Cards with no relationships show no indicator
 
+## Sub-tasks on Task Cards
+
+- Cards with one or more sub-tasks show a progress row below the relationships indicator and above the footer
+- The row contains a `list-checks` icon, a `completed / total` label, and a progress bar
+- Cards with no sub-tasks show no indicator
+- See [sub-tasks.md](sub-tasks.md) for full sub-task specification
+
 ## Task List Size Controls
 
 - Columns with more than 12 tasks show a scrollbar and optional "Show all tasks (N)" control
@@ -66,3 +73,4 @@ Update this file when you change:
 - task ordering or drag behavior
 - task modal fields or inline label UX
 - relationship UI behavior or card indicator
+- sub-task card indicator layout (full sub-task spec lives in [sub-tasks.md](sub-tasks.md))
