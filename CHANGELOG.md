@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Renamed the project from "personal-kanban" to "kanvana"  kanvana == "Kanban" + "nirvana" # smooth flow
+- Renamed link in page footer to Github Docs instead of "Documentation"
 
 ## [1.4.0] - 2026-03-30
 
