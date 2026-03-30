@@ -7,13 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- RAID template board for project management and customer labels with label groups
+
+### Changed
+
 ## [1.4.0] - 2026-03-30
 
-### Added
+### Added (1.4.0)
 
 - Sub-tasks: lightweight checklist items inside tasks with inline creation, completion tracking, drag-to-reorder, inline editing, and a donut progress indicator on task cards
 
-### Changed
+### Changed (1.4.0)
 
 - Sub-task progress indicator on task cards redesigned from a linear progress bar to an inline donut circle visualization with `completed/total Done` label in the footer row
 - Relationship indicator row on task cards is now right-aligned
@@ -21,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.3.0] - 2026-03-30
 
-### Added
+### Added (1.3.0)
 
 - Task relationships: link tasks together with typed relationships — **Prerequisite** (another task must complete first), **Dependent** (this task is needed by another), and **Related** (general connection).
 - Relationships are bidirectional — adding a relationship automatically creates the inverse on the target task; removing one removes the inverse.
@@ -30,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Task cards show a `git-branch` icon with `relationships (N)` count when one or more relationships exist.
 - New spec document `docs/spec/relationships.md` covering data model, bidirectional sync rules, UI behavior, and normalization.
 
-### Changed
+### Changed (1.3.0)
 
 - Import and export are now unified under Manage Boards; the main board toolbar no longer shows separate import/export buttons.
 - Board export now includes `exportMeta` metadata with app version, schema version, and export timestamp.

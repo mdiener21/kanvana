@@ -1,0 +1,156 @@
+{
+  "boardName": "RAID Board",
+  "columns": [
+    { "id": "identified", "name": "Identified", "color": "#38bdf8", "order": 1, "collapsed": false },
+    { "id": "triaged", "name": "Triaged", "color": "#60a5fa", "order": 2, "collapsed": false },
+    { "id": "planned", "name": "Planned", "color": "#34d399", "order": 3, "collapsed": false },
+    { "id": "in-progress", "name": "In Progress", "color": "#818cf8", "order": 4, "collapsed": false },
+    { "id": "monitoring", "name": "Monitoring", "color": "#f59e0b", "order": 5, "collapsed": false },
+    { "id": "blocked", "name": "Blocked", "color": "#fb7185", "order": 6, "collapsed": false },
+    { "id": "done", "name": "Closed", "color": "#505050", "order": 7, "collapsed": false }
+  ],
+  "tasks": [
+    {
+      "id": "a3d4d7f1-6df8-4b59-9fcb-6d91f7ef0001",
+      "title": "Risk: Vendor API may miss delivery milestone",
+      "description": "External vendor integration API is at risk of slipping by two weeks, which may impact UAT start.",
+      "priority": "high",
+      "dueDate": "2026-04-08",
+      "column": "identified",
+      "order": 1,
+      "labels": ["type-risk", "status-open", "owner-pmo", "impact-schedule", "source-vendor"],
+      "creationDate": "2026-03-30T08:00:00.000Z",
+      "changeDate": "2026-03-30T08:00:00.000Z",
+      "columnHistory": [{ "column": "identified", "at": "2026-03-30T08:00:00.000Z" }]
+    },
+    {
+      "id": "a3d4d7f1-6df8-4b59-9fcb-6d91f7ef0002",
+      "title": "Assumption: Security review will complete within 10 business days",
+      "description": "Project plan assumes standard security review turnaround with no major findings.",
+      "priority": "medium",
+      "dueDate": "2026-04-04",
+      "column": "triaged",
+      "order": 1,
+      "labels": ["type-assumption", "status-open", "owner-security", "impact-timeline", "source-internal"],
+      "creationDate": "2026-03-30T08:05:00.000Z",
+      "changeDate": "2026-03-30T08:05:00.000Z",
+      "columnHistory": [{ "column": "triaged", "at": "2026-03-30T08:05:00.000Z" }]
+    },
+    {
+      "id": "a3d4d7f1-6df8-4b59-9fcb-6d91f7ef0003",
+      "title": "Issue: Test environment SSL certificate expired",
+      "description": "Integration testing is blocked until certificate is renewed and deployed to the shared environment.",
+      "priority": "high",
+      "dueDate": "2026-03-31",
+      "column": "planned",
+      "order": 1,
+      "labels": ["type-issue", "status-open", "owner-platform", "impact-delivery", "source-environment"],
+      "creationDate": "2026-03-30T08:10:00.000Z",
+      "changeDate": "2026-03-30T08:10:00.000Z",
+      "columnHistory": [{ "column": "planned", "at": "2026-03-30T08:10:00.000Z" }]
+    },
+    {
+      "id": "a3d4d7f1-6df8-4b59-9fcb-6d91f7ef0004",
+      "title": "Dependency: Await legal approval of data sharing agreement",
+      "description": "Production data exchange cannot begin until both parties sign the updated agreement.",
+      "priority": "medium",
+      "dueDate": "2026-04-12",
+      "column": "in-progress",
+      "order": 1,
+      "labels": ["type-dependency", "status-open", "owner-legal", "impact-compliance", "source-external"],
+      "creationDate": "2026-03-30T08:15:00.000Z",
+      "changeDate": "2026-03-30T08:15:00.000Z",
+      "columnHistory": [{ "column": "in-progress", "at": "2026-03-30T08:15:00.000Z" }]
+    },
+    {
+      "id": "a3d4d7f1-6df8-4b59-9fcb-6d91f7ef0005",
+      "title": "Risk: Infrastructure capacity may be insufficient for load test",
+      "description": "Current non-prod cluster sizing may not support planned performance testing volume.",
+      "priority": "medium",
+      "dueDate": "2026-04-15",
+      "column": "monitoring",
+      "order": 1,
+      "labels": ["type-risk", "status-watch", "owner-architecture", "impact-performance", "source-internal"],
+      "creationDate": "2026-03-30T08:20:00.000Z",
+      "changeDate": "2026-03-30T08:20:00.000Z",
+      "columnHistory": [{ "column": "monitoring", "at": "2026-03-30T08:20:00.000Z" }]
+    },
+    {
+      "id": "a3d4d7f1-6df8-4b59-9fcb-6d91f7ef0006",
+      "title": "Issue: Missing firewall rule to external document service",
+      "description": "Connectivity from application subnet to the document service endpoint is not yet opened.",
+      "priority": "high",
+      "dueDate": "2026-04-01",
+      "column": "blocked",
+      "order": 1,
+      "labels": ["type-issue", "status-blocked", "owner-network", "impact-integration", "source-infrastructure"],
+      "creationDate": "2026-03-29T14:00:00.000Z",
+      "changeDate": "2026-03-30T08:25:00.000Z",
+      "columnHistory": [
+        { "column": "identified", "at": "2026-03-29T14:00:00.000Z" },
+        { "column": "triaged", "at": "2026-03-29T16:00:00.000Z" },
+        { "column": "blocked", "at": "2026-03-30T08:25:00.000Z" }
+      ]
+    },
+    {
+      "id": "a3d4d7f1-6df8-4b59-9fcb-6d91f7ef0007",
+      "title": "Assumption: Stakeholder training can be delivered remotely",
+      "description": "Confirmed that remote training format is accepted and no onsite session is required.",
+      "priority": "none",
+      "dueDate": "",
+      "column": "done",
+      "order": 1,
+      "labels": ["type-assumption", "status-validated", "owner-pmo", "impact-adoption", "source-business"],
+      "creationDate": "2026-03-25T10:00:00.000Z",
+      "changeDate": "2026-03-27T15:30:00.000Z",
+      "doneDate": "2026-03-27T15:30:00.000Z",
+      "columnHistory": [
+        { "column": "identified", "at": "2026-03-25T10:00:00.000Z" },
+        { "column": "triaged", "at": "2026-03-25T13:00:00.000Z" },
+        { "column": "done", "at": "2026-03-27T15:30:00.000Z" }
+      ]
+    }
+  ],
+  "labels": [
+    { "id": "type-risk", "name": "Risk", "color": "#ef4444", "group": "Type" },
+    { "id": "type-assumption", "name": "Assumption", "color": "#8b5cf6", "group": "Type" },
+    { "id": "type-issue", "name": "Issue", "color": "#f97316", "group": "Type" },
+    { "id": "type-dependency", "name": "Dependency", "color": "#06b6d4", "group": "Type" },
+
+    { "id": "status-open", "name": "Open", "color": "#3b82f6", "group": "Status" },
+    { "id": "status-watch", "name": "Watch", "color": "#eab308", "group": "Status" },
+    { "id": "status-blocked", "name": "Blocked", "color": "#fb7185", "group": "Status" },
+    { "id": "status-validated", "name": "Validated", "color": "#22c55e", "group": "Status" },
+
+    { "id": "owner-pmo", "name": "PMO", "color": "#6366f1", "group": "Owner" },
+    { "id": "owner-security", "name": "Security", "color": "#0ea5e9", "group": "Owner" },
+    { "id": "owner-platform", "name": "Platform", "color": "#14b8a6", "group": "Owner" },
+    { "id": "owner-legal", "name": "Legal", "color": "#f59e0b", "group": "Owner" },
+    { "id": "owner-architecture", "name": "Architecture", "color": "#84cc16", "group": "Owner" },
+    { "id": "owner-network", "name": "Network", "color": "#ec4899", "group": "Owner" },
+
+    { "id": "impact-schedule", "name": "Schedule", "color": "#f43f5e", "group": "Impact" },
+    { "id": "impact-timeline", "name": "Timeline", "color": "#fb7185", "group": "Impact" },
+    { "id": "impact-delivery", "name": "Delivery", "color": "#f97316", "group": "Impact" },
+    { "id": "impact-compliance", "name": "Compliance", "color": "#8b5cf6", "group": "Impact" },
+    { "id": "impact-performance", "name": "Performance", "color": "#0ea5e9", "group": "Impact" },
+    { "id": "impact-integration", "name": "Integration", "color": "#06b6d4", "group": "Impact" },
+    { "id": "impact-adoption", "name": "Adoption", "color": "#22c55e", "group": "Impact" },
+
+    { "id": "source-vendor", "name": "Vendor", "color": "#64748b", "group": "Source" },
+    { "id": "source-internal", "name": "Internal", "color": "#94a3b8", "group": "Source" },
+    { "id": "source-environment", "name": "Environment", "color": "#475569", "group": "Source" },
+    { "id": "source-external", "name": "External", "color": "#334155", "group": "Source" },
+    { "id": "source-infrastructure", "name": "Infrastructure", "color": "#1e293b", "group": "Source" },
+    { "id": "source-business", "name": "Business", "color": "#78716c", "group": "Source" }
+  ],
+  "settings": {
+    "showPriority": true,
+    "showDueDate": true,
+    "showAge": true,
+    "showChangeDate": true,
+    "locale": "en",
+    "defaultPriority": "none",
+    "notificationDays": 3
+  }
+}
