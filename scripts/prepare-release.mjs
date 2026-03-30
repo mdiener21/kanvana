@@ -50,48 +50,70 @@ function bumpVersion(version, bump) {
   return `${major}.${minor}.${patch + 1}`;
 }
 
-function normalizeSectionBody(body) {
-  if (!body) return '';
-  return body
-    .replace(/^\n+/, '')
-    .replace(/\s+$/, '')
-    .replace(/\r\n/g, '\n');
-}
+// Keep a Changelog standard section order
+const SECTION_NAMES = ['Added', 'Changed', 'Deprecated', 'Removed', 'Fixed', 'Security'];
 
-function extractSectionBody(unreleasedBlock, sectionName) {
-  const heading = `### ${sectionName} (unreleased)`;
-  const start = unreleasedBlock.indexOf(heading);
-  if (start === -1) {
-    return '';
+/**
+ * Extract populated sections from the text between ## [Unreleased] and the
+ * next ## [ release header. Handles plain "### SectionName" headings (no suffix).
+ */
+function extractSections(unreleasedBlock) {
+  // Collect all heading positions so we can slice between them accurately
+  const headingPositions = [];
+
+  for (const name of SECTION_NAMES) {
+    const heading = `### ${name}`;
+    let searchFrom = 0;
+
+    while (true) {
+      const index = unreleasedBlock.indexOf(heading, searchFrom);
+      if (index === -1) break;
+
+      // Only match at the start of a line
+      if (index === 0 || unreleasedBlock[index - 1] === '\n') {
+        headingPositions.push({ name, index, headingLength: heading.length });
+      }
+
+      searchFrom = index + heading.length;
+    }
   }
 
-  const contentStart = start + heading.length;
-  const followingHeadings = [
-    '### Added (unreleased)',
-    '### Changed (unreleased)',
-    '### Removed (unreleased)'
-  ]
-    .map((candidate) => unreleasedBlock.indexOf(candidate, contentStart))
-    .filter((position) => position !== -1)
-    .sort((a, b) => a - b);
+  headingPositions.sort((a, b) => a.index - b.index);
 
-  const contentEnd = followingHeadings.length > 0 ? followingHeadings[0] : unreleasedBlock.length;
-  const rawBody = unreleasedBlock.slice(contentStart, contentEnd);
+  const sections = {};
 
-  return normalizeSectionBody(rawBody);
-}
+  for (let i = 0; i < headingPositions.length; i++) {
+    const { name, index, headingLength } = headingPositions[i];
+    const contentStart = index + headingLength;
+    const contentEnd =
+      i + 1 < headingPositions.length
+        ? headingPositions[i + 1].index
+        : unreleasedBlock.length;
 
-function hasBulletContent(value) {
-  return /^\s*-\s+/m.test(value || '');
-}
+    const rawBody = unreleasedBlock
+      .slice(contentStart, contentEnd)
+      .replace(/^\n+/, '')
+      .replace(/\s+$/, '');
 
-function buildReleaseSection(name, version, body) {
-  const heading = `### ${name} (${version})`;
-  if (!body) {
-    return `${heading}\n`;
+    // Only include sections that have at least one bullet point
+    if (/^\s*-\s+/m.test(rawBody)) {
+      sections[name] = rawBody;
+    }
   }
 
-  return `${heading}\n\n${body}\n`;
+  return sections;
+}
+
+function buildReleaseBlock(version, dateIso, sections) {
+  const parts = [`## [${version}] - ${dateIso}`];
+
+  for (const name of SECTION_NAMES) {
+    if (sections[name]) {
+      parts.push('', `### ${name}`, '', sections[name]);
+    }
+  }
+
+  return parts.join('\n');
 }
 
 function todayIsoDate() {
@@ -100,66 +122,39 @@ function todayIsoDate() {
 
 function updateChangelog(changelogPath, version, dateIso, notesFilePath) {
   const changelogRaw = fs.readFileSync(changelogPath, 'utf8').replace(/\r\n/g, '\n');
-  const unreleasedHeader = '## Unreleased';
+
+  const unreleasedHeader = '## [Unreleased]';
   const unreleasedStart = changelogRaw.indexOf(unreleasedHeader);
 
   if (unreleasedStart === -1) {
-    throw new Error('CHANGELOG.md is missing the "## Unreleased" section.');
+    throw new Error('CHANGELOG.md is missing the "## [Unreleased]" section.');
   }
 
-  const nextReleaseHeaderIndex = changelogRaw.indexOf('\n## [', unreleasedStart + unreleasedHeader.length);
-  const unreleasedEnd = nextReleaseHeaderIndex === -1 ? changelogRaw.length : nextReleaseHeaderIndex + 1;
+  // Find where the next versioned release section starts
+  const nextReleaseIndex = changelogRaw.indexOf('\n## [', unreleasedStart + unreleasedHeader.length);
+  const unreleasedEnd = nextReleaseIndex === -1 ? changelogRaw.length : nextReleaseIndex + 1;
 
   const before = changelogRaw.slice(0, unreleasedStart);
-  const unreleasedBlock = changelogRaw.slice(unreleasedStart, unreleasedEnd).trimEnd();
+  const unreleasedBody = changelogRaw.slice(
+    unreleasedStart + unreleasedHeader.length,
+    unreleasedEnd
+  );
   const after = changelogRaw.slice(unreleasedEnd);
 
-  const addedBody = extractSectionBody(unreleasedBlock, 'Added');
-  const changedBody = extractSectionBody(unreleasedBlock, 'Changed');
-  const removedBody = extractSectionBody(unreleasedBlock, 'Removed');
+  const sections = extractSections(unreleasedBody);
 
-  if (![addedBody, changedBody, removedBody].some((value) => hasBulletContent(value))) {
-    throw new Error('Unreleased changelog has no bullet entries to release.');
+  if (Object.keys(sections).length === 0) {
+    throw new Error('## [Unreleased] has no bullet entries to release. Add changelog entries first.');
   }
 
-  const releaseSections = [
-    buildReleaseSection('Added', version, addedBody),
-    buildReleaseSection('Changed', version, changedBody),
-    buildReleaseSection('Removed', version, removedBody)
-  ].join('\n');
+  const newReleaseBlock = buildReleaseBlock(version, dateIso, sections);
+  const freshUnreleased = '## [Unreleased]\n';
 
-  const newReleaseBlock = [
-    `## [${version}] - ${dateIso}`,
-    '',
-    releaseSections.trimEnd()
-  ].join('\n');
+  const updatedChangelog =
+    `${before}${freshUnreleased}\n${newReleaseBlock}\n\n${after.replace(/^\n+/, '')}`;
 
-  const resetUnreleasedBlock = [
-    '## Unreleased',
-    '',
-    '### Added (unreleased)',
-    '',
-    '### Changed (unreleased)',
-    '',
-    '### Removed (unreleased)',
-    ''
-  ].join('\n');
-
-  const updatedChangelog = `${before}${resetUnreleasedBlock}\n${newReleaseBlock}\n\n${after.replace(/^\n+/, '')}`;
   fs.writeFileSync(changelogPath, updatedChangelog, 'utf8');
-
-  const releaseNotes = [
-    `## ${version} - ${dateIso}`,
-    '',
-    buildReleaseSection('Added', version, addedBody).trimEnd(),
-    '',
-    buildReleaseSection('Changed', version, changedBody).trimEnd(),
-    '',
-    buildReleaseSection('Removed', version, removedBody).trimEnd(),
-    ''
-  ].join('\n');
-
-  fs.writeFileSync(notesFilePath, releaseNotes, 'utf8');
+  fs.writeFileSync(notesFilePath, `${newReleaseBlock}\n`, 'utf8');
 }
 
 function updatePackageVersion(packageJsonPath, nextVersion) {
@@ -169,6 +164,20 @@ function updatePackageVersion(packageJsonPath, nextVersion) {
   fs.writeFileSync(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`, 'utf8');
 }
 
+function updateReadmeBadge(readmePath, nextVersion) {
+  if (!fs.existsSync(readmePath)) return;
+
+  const raw = fs.readFileSync(readmePath, 'utf8');
+  const updated = raw.replace(
+    /(\[!\[Version\]\(https:\/\/img\.shields\.io\/badge\/version-)[^-]+(brightgreen\)\]\(CHANGELOG\.md\))/,
+    `$1${nextVersion}-$2`
+  );
+
+  if (updated !== raw) {
+    fs.writeFileSync(readmePath, updated, 'utf8');
+  }
+}
+
 function main() {
   const { bump, notesFile, date } = parseArgs(process.argv.slice(2));
   assertSupportedBumpType(bump);
@@ -176,6 +185,7 @@ function main() {
   const cwd = process.cwd();
   const packageJsonPath = path.join(cwd, 'package.json');
   const changelogPath = path.join(cwd, 'CHANGELOG.md');
+  const readmePath = path.join(cwd, 'README.md');
   const notesFilePath = path.join(cwd, notesFile);
 
   const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
@@ -184,6 +194,7 @@ function main() {
 
   updatePackageVersion(packageJsonPath, nextVersion);
   updateChangelog(changelogPath, nextVersion, date || todayIsoDate(), notesFilePath);
+  updateReadmeBadge(readmePath, nextVersion);
 
   process.stdout.write(`${nextVersion}`);
 }
