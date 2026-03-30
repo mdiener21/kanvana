@@ -12,14 +12,49 @@ on:
           - patch
           - minor
           - major
+      skip_tests:
+        description: Skip tests and proceed with release anyway
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
   pull-requests: write
 
 jobs:
-  release-pr:
+  test:
+    name: Run tests
     runs-on: ubuntu-latest
+    if: ${{ !inputs.skip_tests }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit and DOM tests
+        run: npm run test:unit && npm run test:dom
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps firefox
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+
+  release-pr:
+    name: Create release PR
+    runs-on: ubuntu-latest
+    needs: [test]
+    if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped')
 
     steps:
       - name: Ensure main branch
@@ -71,10 +106,13 @@ jobs:
           body: |
             Automated release preparation for **v${{ steps.prepare.outputs.version }}**.
 
+            **Tests:** ${{ inputs.skip_tests && '⚠️ Skipped — release was forced without running tests.' || '✅ All tests passed.' }}
+
             This PR includes:
             - `package.json` version bump
             - `package-lock.json` sync update
             - `CHANGELOG.md` promotion from Unreleased
+            - `README.md` version badge update
 
             After merge to `main`, workflow `.github/workflows/publish-release.yml` will:
             - create/push tag `v${{ steps.prepare.outputs.version }}`
