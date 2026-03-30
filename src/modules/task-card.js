@@ -67,6 +67,24 @@ export function createTaskElement(task, settings, labelsMap = null, today = null
   li.setAttribute('role', 'listitem');
   li.setAttribute('aria-label', `Task: ${task.title || task.text || 'Untitled'}`);
 
+  // Card-level click-to-edit: open edit modal on click anywhere except the delete button.
+  // Track pointer position to distinguish clicks from drag gestures.
+  let pointerDownPos = null;
+  li.addEventListener('pointerdown', (e) => {
+    pointerDownPos = { x: e.clientX, y: e.clientY };
+  });
+  li.addEventListener('click', (e) => {
+    // Skip if click is on or inside the delete button
+    if (e.target.closest('.delete-task-btn')) return;
+    // Skip if pointer moved significantly (user was dragging)
+    if (pointerDownPos) {
+      const dx = Math.abs(e.clientX - pointerDownPos.x);
+      const dy = Math.abs(e.clientY - pointerDownPos.y);
+      if (dx > 5 || dy > 5) return;
+    }
+    showEditModal(task.id);
+  });
+
   // Labels container
   const labelsContainer = document.createElement('div');
   labelsContainer.classList.add('task-labels');
@@ -96,17 +114,8 @@ export function createTaskElement(task, settings, labelsMap = null, today = null
 
   const titleEl = document.createElement('div');
   titleEl.classList.add('task-title');
-  titleEl.setAttribute('role', 'button');
-  titleEl.setAttribute('tabindex', '0');
   const legacyTitle = typeof task.text === 'string' ? task.text : '';
   titleEl.textContent = (typeof task.title === 'string' && task.title.trim() !== '') ? task.title : legacyTitle;
-  titleEl.addEventListener('click', () => showEditModal(task.id));
-  titleEl.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      showEditModal(task.id);
-    }
-  });
 
   const actions = document.createElement('div');
   actions.classList.add('task-actions');
@@ -120,19 +129,6 @@ export function createTaskElement(task, settings, labelsMap = null, today = null
     priorityEl.classList.add('task-priority', `priority-${priority}`, 'task-priority-header');
     priorityEl.textContent = priority;
     priorityEl.setAttribute('aria-label', `Priority: ${priority}`);
-    priorityEl.setAttribute('role', 'button');
-    priorityEl.setAttribute('tabindex', '0');
-    priorityEl.title = 'Edit task';
-    priorityEl.addEventListener('click', (e) => {
-      e.stopPropagation();
-      showEditModal(task.id);
-    });
-    priorityEl.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        showEditModal(task.id);
-      }
-    });
     actions.appendChild(priorityEl);
   }
 
@@ -164,7 +160,6 @@ export function createTaskElement(task, settings, labelsMap = null, today = null
   descriptionEl.classList.add('task-description');
   descriptionEl.textContent = descriptionValue;
   descriptionEl.style.display = descriptionValue ? 'block' : 'none';
-  descriptionEl.addEventListener('click', () => showEditModal(task.id));
 
   li.appendChild(header);
   li.appendChild(descriptionEl);
