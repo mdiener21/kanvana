@@ -148,30 +148,46 @@ Built files are in `dist/`.
 npm run preview
 ```
 
-### Generate a Release
+### Releasing a New Version
 
-Use the `Generate Release` workflow to automate release preparation:
-- `npm ci` + `npm run build`
-- version bump (`package.json` + `package-lock.json`)
-- changelog promotion from `Unreleased`
-- creation/update of a release PR (`release/vX.Y.Z` → `main`)
+Releases are fully automated via GitHub Actions — no local commands needed.
 
-After the release PR is merged, `Publish Release` runs automatically on `main` and:
-- creates/pushes tag `vX.Y.Z`
-- publishes GitHub Release with notes extracted from `CHANGELOG.md`
+**Step 1 — Keep `CHANGELOG.md` up to date during development**
 
-`Publish Release` is triggered on every push to `main`, but it only creates a tag/release when that version tag does not already exist.
+As you merge features and fixes, add bullet points under `## [Unreleased]` in `CHANGELOG.md`. Use the standard sections:
 
-GitHub CLI example:
+```markdown
+## [Unreleased]
 
-```bash
-gh workflow run release.yml --ref main -f bump=patch
+### Added
+- Some new feature
+
+### Fixed
+- Some bug fix
 ```
 
-Use `bump=minor` or `bump=major` when needed.
+This is a normal commit — not a release trigger.
 
-If your repo blocks Actions from opening PRs, enable repository setting:
-`Settings → Actions → General → Workflow permissions → Allow GitHub Actions to create and approve pull requests`.
+**Step 2 — Trigger "Generate Release" on GitHub**
+
+1. Go to **Actions** → **Generate Release** → **Run workflow**
+2. Choose the bump type:
+   - `patch` — bug fixes (1.4.0 → 1.4.1)
+   - `minor` — new features, backwards compatible (1.4.0 → 1.5.0)
+   - `major` — breaking changes (1.4.0 → 2.0.0)
+3. Click **Run workflow**
+
+The action will bump `package.json`, promote `## [Unreleased]` to a dated release section in `CHANGELOG.md`, update the README version badge, and open a pull request automatically.
+
+**Step 3 — Review and merge the PR**
+
+Check that the changelog and version look correct, then merge the pull request.
+
+**Step 4 — Done**
+
+Merging triggers the **Publish Release** workflow automatically. It reads the version from `package.json`, creates and pushes the git tag, and publishes the GitHub Release with the changelog notes. No further action needed.
+
+> If your repo blocks Actions from creating PRs, enable: **Settings → Actions → General → Workflow permissions → Allow GitHub Actions to create and approve pull requests**.
 
 ### Run Tests
 
