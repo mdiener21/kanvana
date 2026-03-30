@@ -1,13 +1,13 @@
 # 🏷️ Labels & Label Groups: Organize Your Tasks Like a Pro
 
-[![GitHub stars](https://img.shields.io/github/stars/mdiener21/personal-kanban.svg?style=social)](https://github.com/mdiener21/personal-kanban/stargazers)
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Visit%20Now-blue)](https://mdiener21.github.io/personal-kanban/)
+[![GitHub stars](https://img.shields.io/github/stars/mdiener21/kanvana.svg?style=social)](https://github.com/mdiener21/kanvana/stargazers)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Visit%20Now-blue)](https://mdiener21.github.io/kanvana/)
 
 > Labels help you categorize and filter tasks without changing your workflow columns.
 
 Use **columns** to track workflow state (To Do → In Progress → Done) and use **labels** for categories like type, area, context, and activity. With **label groups**, you can keep labels organized and easy to scan.
 
-**🚀 [Use it LIVE here](https://mdiener21.github.io/personal-kanban/) and see labels in action!**
+**🚀 [Use it LIVE here](https://mdiener21.github.io/kanvana/) and see labels in action!**
 
 ## 📁 Quick Example Boards
 
@@ -230,4 +230,4 @@ Track *what* the lead is (industry/region/source) and *what you did* (activity).
 
 **Customize to Fit**: These are starters—add, edit, or group as needed. Labels evolve with your workflow!
 
-**Loved this guide? ⭐ [Star the repo](https://github.com/mdiener21/personal-kanban) to support and get updates!** Share your label setups in issues or PRs. 🚀
+**Loved this guide? ⭐ [Star the repo](https://github.com/mdiener21/kanvana) to support and get updates!** Share your label setups in issues or PRs. 🚀

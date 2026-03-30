@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "personal-kanban",
+      "name": "kanvana",
       "dependencies": {
         "echarts": "^6.0.0",
         "lucide": "^0.469.0",

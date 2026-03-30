@@ -1,5 +1,5 @@
 {
-  "name": "personal-kanban",
+  "name": "kanvana",
   "version": "1.4.0",
   "type": "module",
   "description": "A local-first personal kanban board for personal task management.",

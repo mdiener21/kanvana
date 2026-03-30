@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Renamed the project from "personal-kanban" to "kanvana"  kanvana == "Kanban" + "nirvana" # smooth flow
+
 ## [1.4.0] - 2026-03-30
 
 ### Added (1.4.0)
@@ -406,6 +408,6 @@ First public release. No backend. No tracking. No cloud, fully local in your own
 - Import now creates a new board (no overwrite)
 - Default task priority is now `low` (configurable per board in Settings)
 
-[Unreleased]: https://github.com/mdiener21/personal-kanban/compare/v1.4.0...HEAD
-[1.4.0]: https://github.com/mdiener21/personal-kanban/compare/v1.3.0...v1.4.0
-[1.3.0]: https://github.com/mdiener21/personal-kanban/compare/v1.2.3...v1.3.0
+[Unreleased]: https://github.com/mdiener21/kanvana/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/mdiener21/kanvana/compare/v1.3.0...v1.4.0
+[1.3.0]: https://github.com/mdiener21/kanvana/compare/v1.2.3...v1.3.0

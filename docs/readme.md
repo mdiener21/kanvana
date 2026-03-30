@@ -1,11 +1,11 @@
 # Personal Kanban Board Documentation
 
-[![GitHub stars](https://img.shields.io/github/stars/mdiener21/personal-kanban.svg?style=social)](https://github.com/mdiener21/personal-kanban/stargazers)
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Visit%20Now-blue)](https://mdiener21.github.io/personal-kanban/)
+[![GitHub stars](https://img.shields.io/github/stars/mdiener21/kanvana.svg?style=social)](https://github.com/mdiener21/kanvana/stargazers)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Visit%20Now-blue)](https://mdiener21.github.io/kanvana/)
 
 > **Your data, your browser, your workflow.** A local-first Kanban board that runs entirely in your browser — no servers, no accounts, no tracking.
 
-**[Use it Live Here](https://mdiener21.github.io/personal-kanban/)**
+**[Use it Live Here](https://mdiener21.github.io/kanvana/)**
 
 
 **Building with AI agents?** Try the new **AI Agent Ops Starter** board template to track 2–5 agents in parallel, review handoffs, and improve prompts in one local-first workspace. If that sounds useful, give the repo a ⭐ and help more agent builders discover it.
@@ -172,4 +172,4 @@ Per-board configuration: toggle visibility of priority, due date, age, and times
 
 ---
 
-**Loved the app? [Star the repo on GitHub](https://github.com/mdiener21/personal-kanban) to support the project!** Contributions welcome — fork, improve, and share your ideas.
+**Loved the app? [Star the repo on GitHub](https://github.com/mdiener21/kanvana) to support the project!** Contributions welcome — fork, improve, and share your ideas.

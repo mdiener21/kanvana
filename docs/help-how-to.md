@@ -1,7 +1,7 @@
 # Help (In-App)
 
-[![GitHub stars](https://img.shields.io/github/stars/mdiener21/personal-kanban.svg?style=social)](https://github.com/mdiener21/personal-kanban/stargazers)
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Visit%20Now-blue)](https://mdiener21.github.io/personal-kanban/)
+[![GitHub stars](https://img.shields.io/github/stars/mdiener21/kanvana.svg?style=social)](https://github.com/mdiener21/kanvana/stargazers)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Visit%20Now-blue)](https://mdiener21.github.io/kanvana/)
 
 This file is the canonical user-facing text for the in-app **Help** modal.
 
@@ -15,9 +15,9 @@ This file is the canonical user-facing text for the in-app **Help** modal.
 
 Loving Personal Kanban Board? Help us grow!
 
-- **⭐ Star the Repo**: Show your support on [GitHub](https://github.com/mdiener21/personal-kanban) to help others discover it!
-- **📚 Full Documentation**: Dive deeper with guides, templates, and specs at [docs/](https://github.com/mdiener21/personal-kanban/tree/main/docs).
-- **🐛 Report Issues**: Found a bug? Suggest features on [GitHub Issues](https://github.com/mdiener21/personal-kanban/issues).
+- **⭐ Star the Repo**: Show your support on [GitHub](https://github.com/mdiener21/kanvana) to help others discover it!
+- **📚 Full Documentation**: Dive deeper with guides, templates, and specs at [docs/](https://github.com/mdiener21/kanvana/tree/main/docs).
+- **🐛 Report Issues**: Found a bug? Suggest features on [GitHub Issues](https://github.com/mdiener21/kanvana/issues).
 
 Your feedback keeps the app improving! 🚀
 
