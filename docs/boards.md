@@ -5,7 +5,7 @@
 
 > **Transform ideas into action!** Discover board templates tailored for projects, life, and creativity—paired with smart columns and labels for ultimate productivity.
 
-Personal Kanban Boards adapt to any workflow. Below, explore common board types with recommended columns and labels. These templates provide a solid foundation—customize as you go!
+Kanvana a personal + AI Agent Kanban Boards adapt to any workflow. Below, explore common board types with recommended columns and labels. These templates provide a solid foundation—customize as you go!
 
 **🚀 [Try the Live Demo](https://mdiener21.github.io/kanvana/) and experiment with boards!**
 

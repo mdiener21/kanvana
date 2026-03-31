@@ -1,4 +1,7 @@
-# Personal Kanban Board Documentation
+# Kanvana Documentation
+
+´´´Kanvana == "Kanban" + "Nirvana" a Kanban Board´´´
+
 
 [![GitHub stars](https://img.shields.io/github/stars/mdiener21/kanvana.svg?style=social)](https://github.com/mdiener21/kanvana/stargazers)
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Visit%20Now-blue)](https://mdiener21.github.io/kanvana/)
@@ -12,9 +15,9 @@
 
 ---
 
-## What is Personal Kanban Board?
+## What is Kanvana?
 
-Personal Kanban Board is a browser-based task manager built for speed, privacy, and simplicity. All your data stays in your browser's `localStorage` — nothing leaves your machine unless you choose to export it.
+Kanvana == "Kanban" + "Nirvana" is a Kanban Board, browser-based task manager built for speed, privacy, and simplicity. All your data stays in your browser's `localStorage` — nothing leaves your machine unless you choose to export it.
 
 **Key highlights:**
 

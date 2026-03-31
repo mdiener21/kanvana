@@ -11,7 +11,7 @@ kanvana == "Kanban" + "nirvana" # smooth flow
 
 > **Transform your productivity with a sleek, local-first Kanban board.** No servers, no tracking—just pure efficiency in your browser.
 
-A beautiful, modern-designed personal Kanban board that runs entirely in your browser. No backend, no cloud, no data tracking. Everything stays local with browser `localStorage` persistence. Perfect for personal task management, work tracking, and staying organized.
+A beautiful, modern-designed personal + AI-Agent Kanban board that runs entirely in your browser. No backend, no cloud, no data tracking. Everything stays local with browser `localStorage` persistence. Perfect for personal task management, work tracking, and staying organized.
 
 **Building with AI agents?** Try the new **AI Agent Ops Starter** board template to track 2–5 agents in parallel, review handoffs, and improve prompts in one local-first workspace. If that sounds useful, give the repo a ⭐ and help more agent builders discover it.
 
@@ -121,7 +121,7 @@ The repository includes a pre-built static site in `dist/`. Simply upload it to 
 
 1. Copy the `dist/` folder.
 2. Upload to your web host (e.g., [Hetzner](https://www.hetzner.com/de/webhosting), Netlify, Vercel).
-3. Done! Your personal Kanban board is live.
+3. Done! Your Kanvana achieved and the Kanban board is live.
 
 ## 🛠️ Development
 

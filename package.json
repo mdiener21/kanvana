@@ -2,7 +2,7 @@
   "name": "kanvana",
   "version": "1.4.0",
   "type": "module",
-  "description": "A local-first personal kanban board for personal task management.",
+  "description": "A local-first personal + AI Agent kanban board for task project people anything management.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

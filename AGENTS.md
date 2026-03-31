@@ -4,7 +4,7 @@ This file provides guidance to AI LLM Agents like Claude Code (claude.ai/code), 
 
 ## Project Overview
 
-Local-first personal kanban board with no backend. `docs/specification-kanban.md` is the specification index and governance entrypoint, and `docs/spec/` contains the canonical feature and data specifications. All state lives in browser localStorage. Built with vanilla JavaScript, HTML, and CSS using Vite for bundling.
+Kanvana a local-first personal + AI Agent kanban board with no backend. `docs/specification-kanban.md` is the specification index and governance entrypoint, and `docs/spec/` contains the canonical feature and data specifications. All state lives in browser localStorage. Built with vanilla JavaScript, HTML, and CSS using Vite for bundling.
 
 ## Commands
 
