@@ -1,12 +1,12 @@
-# Kanvana: The Personal Kanban Board
+# Kanvana: The Personal + AI Agent Kanban Board
 
 ```js
-kanvana == "Kanban" + "nirvana" # smooth flow
+kanvana == "Kanban" + "Nirvana" # smooth flow
 ```
 
 [![GitHub stars](https://img.shields.io/github/stars/mdiener21/kanvana.svg?style=social)](https://github.com/mdiener21/kanvana/stargazers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Visit%20Now-blue)](https://mdiener21.github.io/kanvana/)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Visit%20Now-blue)](https://kanvana.com)
 [![Version](https://img.shields.io/badge/version-1.4.0-brightgreen)](CHANGELOG.md)
 
 > **Transform your productivity with a sleek, local-first Kanban board.** No servers, no tracking—just pure efficiency in your browser.
@@ -17,11 +17,11 @@ A beautiful, modern-designed personal + AI-Agent Kanban board that runs entirely
 
 ## 🚀 Live Demo
 
-Experience it firsthand: **[Try the Live Demo](https://mdiener21.github.io/kanvana/)**
+Experience it firsthand: **[Try the Live Demo](https://kanvana.com)**
 
 
 <div align="center">
-   <a href="https://mdiener21.github.io/kanvana/"><img width="1462" height="895" alt="image" src="https://github.com/user-attachments/assets/0d0ade47-e931-4caa-b1ec-4e0148733d5b"></a>
+   <a href="https://kanvana.com"><img width="1462" height="895" alt="image" src="https://github.com/user-attachments/assets/0d0ade47-e931-4caa-b1ec-4e0148733d5b"></a>
 </div>
 
 
@@ -92,13 +92,13 @@ Configure swim lanes in **Settings** — choose your grouping mode and start org
 ## 📸 Screenshots
 
 <div align="center">
-   <a href="https://mdiener21.github.io/kanvana/"><img width="1462" height="895" alt="image" src="https://github.com/user-attachments/assets/0d0ade47-e931-4caa-b1ec-4e0148733d5b"></a>
+   <a href="https://kanvana.com"><img width="1462" height="895" alt="image" src="https://github.com/user-attachments/assets/0d0ade47-e931-4caa-b1ec-4e0148733d5b"></a>
    <br><br>Label Manager
-   <a href="https://mdiener21.github.io/kanvana/"><img width="582" height="703" alt="image" src="https://github.com/user-attachments/assets/dec3484f-2156-4163-8b87-b30d2a837c4d"></a>
+   <a href="https://kanvana.com"><img width="582" height="703" alt="image" src="https://github.com/user-attachments/assets/dec3484f-2156-4163-8b87-b30d2a837c4d"></a>
    <br><br>Control Menu
-   <a href="https://mdiener21.github.io/kanvana/"><img width="273" height="556" alt="image" src="https://github.com/user-attachments/assets/2fbc476d-226a-4c5f-a1bd-a2d6713e5c01"></a>
+   <a href="https://kanvana.com"><img width="273" height="556" alt="image" src="https://github.com/user-attachments/assets/2fbc476d-226a-4c5f-a1bd-a2d6713e5c01"></a>
    <br><br>
-   <a href="https://mdiener21.github.io/kanvana/"><img width="1273" height="1168" alt="image" src="https://github.com/user-attachments/assets/871a95fb-f7f7-41f8-a1b3-dc74f38ff6a2"></a>
+   <a href="https://kanvana.com"><img width="1273" height="1168" alt="image" src="https://github.com/user-attachments/assets/871a95fb-f7f7-41f8-a1b3-dc74f38ff6a2"></a>
 
 </div>
 
@@ -112,7 +112,7 @@ Your data is stored securely in your browser's `localStorage`. It persists acros
 Get up and running in minutes!
 
 ### For Users: Try It Now
-1. Visit the **[Live Demo](https://mdiener21.github.io/kanvana/)**.
+1. Visit the **[Live Demo](https://kanvana.com)**.
 2. Start creating boards, tasks, and labels immediately.
 3. Export your data anytime for backup.
 
