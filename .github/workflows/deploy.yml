@@ -1,0 +1,40 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Install lftp
+        run: sudo apt-get update && sudo apt-get install -y lftp ca-certificates
+
+      - name: Deploy via lftp
+        run: |
+          lftp -c "
+            set net:max-retries 3;
+            set net:timeout 20;
+            set ftp:passive-mode true;
+            set ssl:verify-certificate false;
+            set ftp:ssl-allow true;
+            set ftp:ssl-force true;
+            set ftp:ssl-protect-data yes;
+            open -u ${FTP_USER},${FTP_PASSWORD} -p 21 kanvana.com;
+            mirror --reverse --delete --verbose ./dist/ ./public_html/;
+            bye;
+          "
+        env:
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
