@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - RAID template board for project management and customer labels with label groups
+- Legal/Impressum page (`impressum.html`) with publisher info, privacy policy, and obfuscated email reveal
+- "Legal/Impressum" link at the bottom of the control menu with visual separator
 
 ### Changed
 

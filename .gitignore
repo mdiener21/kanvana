@@ -10,3 +10,7 @@ playwright-report
 test-results
 
 .claude/
+skills/
+.agent/
+
+
