@@ -1,14 +1,12 @@
+const ownerEmail = {
+	local: [109, 100],
+	domain: [109, 105, 99, 104, 97, 101, 108, 45, 100, 105, 101, 110, 101, 114],
+	tld: [99, 111, 109]
+};
+
 const emailPartsByTargetId = {
-	publisherEmail: {
-		local: [109, 100],
-		domain: [109, 105, 99, 104, 97, 101, 108, 45, 100, 105, 101, 110, 101, 114],
-		tld: [99, 111, 109]
-	},
-	contactEmail: {
-		local: [109, 100],
-		domain: [109, 105, 99, 104, 97, 101, 108, 45, 100, 105, 101, 110, 101, 114],
-		tld: [99, 111, 109]
-	}
+	publisherEmail: ownerEmail,
+	contactEmail: ownerEmail
 };
 
 function decodeText(charCodes) {

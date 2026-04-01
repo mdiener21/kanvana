@@ -5,7 +5,7 @@
 - The board uses a horizontal column layout with mobile-friendly horizontal scrolling
 - Each column contains a header, task list, and optional "Show all tasks" expansion control
 - Task counters appear in column headers and update after adds, deletes, and moves
-- Brand text shows the active board name rather than a fixed app title
+- The brand area shows the Kanvana SVG logo and brand text shows the active board name rather than a fixed app title
 
 ## Controls Bar
 

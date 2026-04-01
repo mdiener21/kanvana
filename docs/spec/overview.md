@@ -2,7 +2,7 @@
 
 ## Product Scope
 
-Personal Kanban Board is a local-first kanban application with no backend. All application state lives in the browser and can be exported to or imported from JSON files.
+Kanvana is a Kanban Board, a local-first kanban application with no backend. All application state lives in the browser and can be exported to or imported from JSON files.
 
 ## Technology Rules and Principles
 
@@ -11,7 +11,7 @@ Personal Kanban Board is a local-first kanban application with no backend. All a
   - `lucide` for tree-shaken icons via `src/modules/icons.js`
   - `sortablejs` for task and column drag and drop
   - `echarts` for reports and calendar visualizations only
-- Storage: browser `localStorage` only
+- Storage: browser **IndexedDB** via the `idb` wrapper (migrated from localStorage)
 - Data persistence: JSON import/export to local disk
 - No server, no frameworks
 - Build tooling: Vite with ES modules
@@ -27,7 +27,7 @@ Personal Kanban Board is a local-first kanban application with no backend. All a
 ## Module Map
 
 - `src/modules/render.js` - centralized board rendering and incremental sync helpers
-- `src/modules/storage.js` - multi-board localStorage persistence
+- `src/modules/storage.js` - multi-board IndexedDB persistence with in-memory state
 - `src/modules/tasks.js` - task CRUD and drop-position updates
 - `src/modules/columns.js` - column CRUD, collapse, ordering, sorting
 - `src/modules/boards.js` - board management and templates
@@ -45,8 +45,21 @@ Personal Kanban Board is a local-first kanban application with no backend. All a
 - `src/modules/importexport.js` - board JSON export/import normalization
 - `src/modules/theme.js` - theme toggle and persistence
 - `src/modules/swimlanes.js` - swim lane grouping, collapse, assignment, and lane-aware moves
+- `src/modules/swimlane-renderer.js` - swim lane DOM rendering helpers
 - `src/modules/validation.js` - form validation helpers
 - `src/modules/utils.js` - UUID generation and shared utilities
+- `src/modules/normalize.js` - data normalization, priority/color/relationship validation
+- `src/modules/security.js` - HTML escaping (`escapeHtml`) and byte formatting utilities
+- `src/modules/dom.js` - minimal DOM construction helper (`el()` factory)
+- `src/modules/events.js` - lightweight event bus replacing circular dynamic imports
+- `src/modules/constants.js` - domain constants (priorities, column IDs, defaults)
+- `src/modules/task-card.js` - task card DOM element builder
+- `src/modules/task-modal.js` - task edit/create modal logic
+- `src/modules/column-element.js` - column DOM element builder
+- `src/modules/column-modal.js` - column edit/create modal logic
+- `src/modules/boards-modal.js` - manage boards modal logic
+- `src/modules/labels-modal.js` - label management modal UI
+- `src/modules/impressum.js` - impressum/imprint page logic
 
 ## Data Flow
 
@@ -102,5 +115,5 @@ The app uses CSS custom properties and `html[data-theme]` for theming.
 
 ## Footer and Help
 
-- Footer reminds users that data lives in localStorage and should be exported
+- Footer reminds users that data lives in the browser and should be exported
 - The canonical help copy lives in `docs/help-how-to.md`

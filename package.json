@@ -21,6 +21,7 @@
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "@testing-library/dom": "^10.4.1",
+    "fake-indexeddb": "^6.2.5",
     "jsdom": "^29.0.1",
     "msw": "^2.12.14",
     "vite": "^7.3.1",
@@ -28,6 +29,7 @@
   },
   "dependencies": {
     "echarts": "^6.0.0",
+    "idb": "^8.0.3",
     "lucide": "^0.469.0",
     "sortablejs": "^1.15.6"
   }

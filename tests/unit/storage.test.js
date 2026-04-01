@@ -41,10 +41,10 @@ test('ensureBoardsInitialized is idempotent', () => {
   expect(boards1[0].id).toBe(boards2[0].id);
 });
 
-test('listBoards returns empty array for corrupt data', () => {
-  localStorage.setItem('kanbanBoards', 'not-json');
-  const boards = listBoards();
-  expect(boards).toEqual([]);
+test('listBoards returns empty array before any board is initialised', () => {
+  // state.boards is [] after reset — listBoards() should return [] without throwing.
+  // (Corrupt-data resilience is exercised in storage-idb.test.js via initStorage.)
+  expect(listBoards()).toEqual([]);
 });
 
 test('createBoard creates board with correct keys', () => {
