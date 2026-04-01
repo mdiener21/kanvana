@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Updated `docs/spec/overview.md` to reflect IndexedDB storage (was still referencing localStorage in three places) and added all missing modules to the module map (normalize, security, dom, events, constants, task-card, task-modal, column-element, column-modal, boards-modal, labels-modal, swimlane-renderer, impressum)
 - Updated `docs/specification-kanban.md` ownership map to include all current modules with their corresponding spec files
+- Replaced the header's Lucide kanban icon with the Kanvana SVG logo while keeping the brand text bound to the active board name
 - **Storage backend migrated from `localStorage` to IndexedDB** (`idb` wrapper, `kanvana-db` database). All board data now persists in a key-value IDB object store (`kv`) instead of localStorage, removing the hard 5–10 MB browser limit. Writes are non-blocking (async fire-and-forget). One-time automatic migration runs on first load for existing users.
 - Added `initStorage()` async entry point called once per page load in `kanban.js`, `reports.js`, and `calendar.js` before any board rendering. All other storage functions remain synchronous via in-memory state.
 - Added `loadTasksForBoard(id)`, `loadColumnsForBoard(id)`, `loadLabelsForBoard(id)`, `loadSettingsForBoard(id)` helpers for cross-board reads (used by board export).

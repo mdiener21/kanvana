@@ -73,6 +73,13 @@
   stroke-width: 2.5;
 }
 
+.brand-logo {
+  display: block;
+  width: 32px;
+  height: auto;
+  flex: 0 0 auto;
+}
+
 .settings-section {
   margin-top: 20px;
   padding-top: 18px;
