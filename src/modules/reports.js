@@ -13,7 +13,7 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { renderIcons } from './icons.js';
 import { escapeHtml } from './security.js';
 import { initializeThemeToggle } from './theme.js';
-import { ensureBoardsInitialized, getActiveBoardId, getActiveBoardName } from './storage.js';
+import { initStorage, ensureBoardsInitialized, getActiveBoardId, getActiveBoardName } from './storage.js';
 import { loadColumns, loadTasks } from './storage.js';
 
 echarts.use([
@@ -862,4 +862,7 @@ function main() {
   });
 }
 
-main();
+initStorage().then(main).catch((err) => {
+  console.error('[Kanvana] Failed to initialise storage for reports:', err);
+  main(); // attempt to render with empty state rather than blank page
+});

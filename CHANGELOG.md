@@ -7,17 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Storage backend migrated from `localStorage` to IndexedDB** (`idb` wrapper, `kanvana-db` database). All board data now persists in a key-value IDB object store (`kv`) instead of localStorage, removing the hard 5–10 MB browser limit. Writes are non-blocking (async fire-and-forget). One-time automatic migration runs on first load for existing users.
+- Added `initStorage()` async entry point called once per page load in `kanban.js`, `reports.js`, and `calendar.js` before any board rendering. All other storage functions remain synchronous via in-memory state.
+- Added `loadTasksForBoard(id)`, `loadColumnsForBoard(id)`, `loadLabelsForBoard(id)`, `loadSettingsForBoard(id)` helpers for cross-board reads (used by board export).
+- Added non-blocking quota monitoring: logs a console warning when IDB usage exceeds 80% of the browser's storage quota.
+- Unit tests now use `fake-indexeddb` to polyfill IDB in Node.js; `_resetStorageForTesting()` resets in-memory state between tests. The reset function closes the IDB connection before nulling it so subsequent `deleteDB()` calls in test teardown are never blocked.
+- Added `_flushPersistsForTesting()` export that awaits all in-flight IDB writes (`_pendingPersists` Set) before assertions run, eliminating timing races in cross-session roundtrip tests.
+- Added `tests/unit/storage-idb.test.js` — 19 tests covering IDB-specific paths: fresh-start behaviour, cross-session persistence for tasks/columns/labels/settings/boards, `deleteBoard` IDB cleanup, multi-board and legacy single-board localStorage migration, idempotent re-migration guard, corrupt IDB resilience, and cross-board read helpers (`loadTasksForBoard` etc.).
+- Renamed the project from "personal-kanban" to "kanvana"  kanvana == "Kanban" + "nirvana" # smooth flow
+- Renamed link in page footer to Github Docs instead of "Documentation"
+- Documentation .md docs to refer to kanvana better reflect new name within the documentation.
+
 ### Added
 
 - RAID template board for project management and customer labels with label groups
 - Legal/Impressum page (`impressum.html`) with publisher info, privacy policy, and obfuscated email reveal
 - "Legal/Impressum" link at the bottom of the control menu with visual separator
 
-### Changed
-
-- Renamed the project from "personal-kanban" to "kanvana"  kanvana == "Kanban" + "nirvana" # smooth flow
-- Renamed link in page footer to Github Docs instead of "Documentation"
-- Documentation .md docs to refer to kanvana better reflect new name within the documentation.
 
 ## [1.4.0] - 2026-03-30
 

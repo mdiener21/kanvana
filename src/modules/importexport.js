@@ -9,7 +9,7 @@ import {
   saveSettings
 } from './storage.js';
 
-import { createBoard, getActiveBoardName, listBoards, setActiveBoardId } from './storage.js';
+import { createBoard, getActiveBoardName, listBoards, setActiveBoardId, loadTasksForBoard, loadColumnsForBoard, loadLabelsForBoard, loadSettingsForBoard } from './storage.js';
 import { emit, DATA_CHANGED } from './events.js';
 import { normalizePriority, isHexColor, boardDisplayName, normalizeDueDate, normalizeSubTasks } from './normalize.js';
 import { DONE_COLUMN_ID } from './constants.js';
@@ -43,29 +43,6 @@ function buildExportMeta() {
   };
 }
 
-function safeParseArrayFromStorage(key) {
-  if (!key) return null;
-  const raw = localStorage.getItem(key);
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function safeParseObjectFromStorage(key) {
-  if (!key) return null;
-  const raw = localStorage.getItem(key);
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
 
 function refreshBoardsUI(activeBoardId) {
   const brandEl = document.getElementById('brand-text') || document.querySelector('.brand-text');
@@ -539,15 +516,10 @@ export function exportBoard(boardId) {
   const board = listBoards().find((b) => b.id === id);
   const boardName = boardDisplayName(board);
 
-  const columnsKey = `kanbanBoard:${id}:columns`;
-  const tasksKey = `kanbanBoard:${id}:tasks`;
-  const labelsKey = `kanbanBoard:${id}:labels`;
-  const settingsKey = `kanbanBoard:${id}:settings`;
-
-  const rawTasks = safeParseArrayFromStorage(tasksKey) || [];
-  const rawColumns = safeParseArrayFromStorage(columnsKey) || [];
-  const rawLabels = safeParseArrayFromStorage(labelsKey) || [];
-  const rawSettings = safeParseObjectFromStorage(settingsKey) || null;
+  const rawTasks = loadTasksForBoard(id);
+  const rawColumns = loadColumnsForBoard(id);
+  const rawLabels = loadLabelsForBoard(id);
+  const rawSettings = loadSettingsForBoard(id);
 
   const tasks = rawTasks.map(normalizeTaskForExport);
   const columns = rawColumns.map((c) => ({

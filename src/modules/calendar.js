@@ -1,6 +1,6 @@
 import { renderIcons } from './icons.js';
 import { initializeThemeToggle } from './theme.js';
-import { ensureBoardsInitialized, getActiveBoardId, getActiveBoardName } from './storage.js';
+import { initStorage, ensureBoardsInitialized, getActiveBoardId, getActiveBoardName } from './storage.js';
 import { loadTasks } from './storage.js';
 
 function isoDateOnly(value) {
@@ -278,4 +278,7 @@ function main() {
   update();
 }
 
-main();
+initStorage().then(main).catch((err) => {
+  console.error('[Kanvana] Failed to initialise storage for calendar:', err);
+  main();
+});

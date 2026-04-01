@@ -1,5 +1,10 @@
 // Minimal browser API mocks for unit tests running in Node.
-// Import this file BEFORE any source module that uses localStorage or navigator.
+// Import this file BEFORE any source module that uses storage or navigator.
+
+// Polyfill IndexedDB with fake-indexeddb so the idb wrapper works in Node.
+import 'fake-indexeddb/auto';
+
+import { _resetStorageForTesting } from '../../src/modules/storage.js';
 
 const store = {};
 
@@ -25,4 +30,6 @@ if (typeof globalThis.navigator === 'undefined') {
 
 export function resetLocalStorage() {
   localStorage.clear();
+  // Also reset the in-memory IDB state so each test gets a clean slate.
+  _resetStorageForTesting();
 }

@@ -31,15 +31,17 @@ The specification files include core data structures and feature behavior that m
 
 ### Entry Points
 
-- `src/kanban.js` - Main entry, wires UI handlers and calls `renderBoard()`
+- `src/kanban.js` - Main entry, calls `await initStorage()` first, then wires UI handlers and calls `renderBoard()`
 - `src/index.html` - Main board UI
 - `src/reports.html` - Separate reports page with ECharts visualizations
 - `src/calendar.html` - Calendar view showing tasks by due date
 
+**Every new page entry point must call `await initStorage()` before accessing any storage functions.**
+
 ### Module Structure (src/modules/)
 
 - **render.js** - Centralized rendering via `renderBoard()`. After any data change, call this to refresh UI. Exports sync helpers (`syncTaskCounters`, `syncCollapsedTitles`, `syncMovedTaskDueDate`) for incremental updates.
-- **storage.js** - Multi-board localStorage persistence. Keys: `kanbanBoards`, `kanbanActiveBoardId`, `kanbanBoard:<boardId>:columns|tasks|labels|settings`
+- **storage.js** - Multi-board persistence via IndexedDB (`idb` wrapper, `kanvana-db` database, `kv` key-value store). All board data lives in in-memory `state`, loaded once by `await initStorage()` at page startup. All CRUD functions remain synchronous; IDB writes are fire-and-forget. Exports `loadTasksForBoard(id)`, `loadColumnsForBoard(id)`, `loadLabelsForBoard(id)`, `loadSettingsForBoard(id)` for cross-board reads without changing the active board.
 - **tasks.js** - Task CRUD, drag-drop position updates (`updateTaskPositionsFromDrop`, `moveTaskToTopInColumn`)
 - **columns.js** - Column CRUD, collapse toggle, position updates
 - **boards.js** - Multi-board management, board create/switch, template system
