@@ -36,14 +36,18 @@ Use this mapping to decide which spec files to update alongside code changes.
 - `src/modules/importexport.js` -> `docs/spec/import-export.md`, `docs/spec/storage.md`, `docs/spec/data-models.md`
 - `src/modules/tasks.js` -> `docs/spec/tasks.md`, `docs/spec/data-models.md`, `docs/spec/relationships.md`, `docs/spec/sub-tasks.md`
 - `src/modules/normalize.js`, `src/modules/task-modal.js`, `src/modules/task-card.js` -> `docs/spec/relationships.md`, `docs/spec/sub-tasks.md`, and any other affected feature spec files
-- `src/modules/columns.js` -> `docs/spec/columns.md`
-- `src/modules/labels.js` -> `docs/spec/labels.md`
-- `src/modules/swimlanes.js` -> `docs/spec/swimlanes.md`, `docs/spec/settings.md`, `docs/spec/data-models.md`
+- `src/modules/columns.js`, `src/modules/column-element.js`, `src/modules/column-modal.js` -> `docs/spec/columns.md`
+- `src/modules/labels.js`, `src/modules/labels-modal.js` -> `docs/spec/labels.md`
+- `src/modules/boards.js`, `src/modules/boards-modal.js` -> `docs/spec/board-ui.md`
+- `src/modules/swimlanes.js`, `src/modules/swimlane-renderer.js` -> `docs/spec/swimlanes.md`, `docs/spec/settings.md`, `docs/spec/data-models.md`
 - `src/modules/settings.js` -> `docs/spec/settings.md`
 - `src/modules/notifications.js` -> `docs/spec/notifications.md`, `docs/spec/tasks.md`
 - `src/modules/reports.js` -> `docs/spec/reports.md`
 - `src/modules/calendar.js` -> `docs/spec/calendar.md`
 - `src/modules/render.js`, `src/modules/dragdrop.js`, `src/index.html`, `src/styles/**` -> `docs/spec/board-ui.md` and any affected feature spec files
+- `src/modules/dom.js`, `src/modules/events.js`, `src/modules/constants.js`, `src/modules/security.js`, `src/modules/utils.js` -> `docs/spec/overview.md`
+- `src/modules/dialog.js`, `src/modules/modals.js` -> `docs/spec/board-ui.md`
+- `src/modules/theme.js`, `src/modules/icons.js` -> `docs/spec/overview.md`, `docs/spec/board-ui.md`
 - `tests/**`, `playwright.config.js`, `vitest*.config.js` -> `docs/spec/testing.md` and `docs/testing-strategy.md` when strategy or naming conventions change
 
 ## Contributor Workflow
