@@ -127,3 +127,21 @@ Examples:
 - `tests/dom/accordion.test.js` is the reference shape for a DOM integration test using `@testing-library/dom`.
 - `tests/dom/msw-example.test.js` demonstrates `Vitest` + `MSW` + `@testing-library/dom` working together.
 - `tests/mocks/handlers.js` and `tests/mocks/server.js` are the shared default mock entry points.
+
+## IDB Testing Convention
+
+When a module uses IndexedDB via `storage.js`, split its unit tests across two files:
+
+| File | What it tests |
+|---|---|
+| `<module>.test.js` | Synchronous logic against in-memory state — no `initStorage()` needed |
+| `<module>-idb.test.js` | Async IDB paths: cross-session persistence, migration, deleteDB cleanup |
+
+**Setup requirements for `*-idb.test.js`:**
+
+1. `tests/unit/setup.js` imports `'fake-indexeddb/auto'` — this polyfills `globalThis.indexedDB` for all unit tests automatically.
+2. `beforeEach` must call both `resetLocalStorage()` (closes DB + clears state) **and** `await deleteDB('<db-name>')` so each test starts with a completely empty database.
+3. Use `_flushPersistsForTesting()` before cross-session assertions to await all fire-and-forget IDB writes.
+4. Use `_resetStorageForTesting()` to simulate a new page load (drops in-memory state; IDB survives) then `await initStorage()` to reload.
+
+See `tests/unit/storage-idb.test.js` for the reference implementation.
