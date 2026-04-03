@@ -74,20 +74,56 @@ export async function seedSwimlaneBoard(page, settingsOverrides = {}) {
   };
 
   await page.addInitScript((data) => {
-    const tasksKey = `kanbanBoard:${data.boardId}:tasks`;
-    if (localStorage.getItem('kanbanActiveBoardId') === data.boardId && localStorage.getItem(tasksKey)) {
-      return;
-    }
+    // Skip re-seeding on reload so persistence tests can verify data survives navigation.
+    if (sessionStorage.getItem('__kanvanaTestSeeded')) return;
+    sessionStorage.setItem('__kanvanaTestSeeded', '1');
 
     localStorage.clear();
-    const boards = [{ id: data.boardId, name: 'Swimlane Test Board', createdAt: new Date().toISOString() }];
-    localStorage.setItem('kanbanBoards', JSON.stringify(boards));
-    localStorage.setItem('kanbanActiveBoardId', data.boardId);
-    localStorage.setItem(`kanbanBoard:${data.boardId}:columns`, JSON.stringify(data.columns));
-    localStorage.setItem(`kanbanBoard:${data.boardId}:tasks`, JSON.stringify(data.tasks));
-    localStorage.setItem(`kanbanBoard:${data.boardId}:labels`, JSON.stringify(data.labels));
-    localStorage.setItem(`kanbanBoard:${data.boardId}:settings`, JSON.stringify(data.settings));
+    indexedDB.deleteDatabase('kanvana-db');
+
+    // Open IDB and seed data inside the onupgradeneeded transaction.
+    // IDB serialises operations per database, so the app's subsequent openDB()
+    // call will wait for our delete + open + seed to finish before proceeding.
+    const req = indexedDB.open('kanvana-db', 1);
+    req.onupgradeneeded = () => {
+      const store = req.result.createObjectStore('kv');
+      const boards = [{ id: data.boardId, name: 'Swimlane Test Board', createdAt: new Date().toISOString() }];
+      store.put(boards, 'kanbanBoards');
+      store.put(data.boardId, 'kanbanActiveBoardId');
+      store.put(data.columns, `kanbanBoard:${data.boardId}:columns`);
+      store.put(data.tasks, `kanbanBoard:${data.boardId}:tasks`);
+      store.put(data.labels, `kanbanBoard:${data.boardId}:labels`);
+      store.put(data.settings, `kanbanBoard:${data.boardId}:settings`);
+    };
   }, fixture);
+}
+
+/**
+ * Read a value from the kanvana IDB key-value store.
+ */
+export async function readIDBValue(page, key) {
+  return page.evaluate(async (k) => {
+    const db = await new Promise((resolve, reject) => {
+      const req = indexedDB.open('kanvana-db', 1);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    const result = await new Promise((resolve, reject) => {
+      const tx = db.transaction('kv', 'readonly');
+      const req = tx.objectStore('kv').get(k);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    db.close();
+    return result;
+  }, key);
+}
+
+/**
+ * Read the settings for the active board from IDB.
+ */
+export async function readIDBSettings(page, boardId = 'swimlane-test-board') {
+  return (await readIDBValue(page, `kanbanBoard:${boardId}:settings`)) || {};
 }
 
 export async function openSwimlaneSettings(page) {

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openSwimlaneSettings, seedSwimlaneBoard } from './swimlanes.helpers.js';
+import { openSwimlaneSettings, seedSwimlaneBoard, readIDBSettings } from './swimlanes.helpers.js';
 
 test.describe('Swim lane persistence', () => {
   test.beforeEach(async ({ page }) => {
@@ -20,10 +20,7 @@ test.describe('Swim lane persistence', () => {
     await expect(page.locator('.swimlane-row-header', { hasText: 'Project B' })).toBeVisible();
     await expect(page.locator('.swimlane-row-header', { hasText: 'No Group' })).toBeVisible();
 
-    const storedSettings = await page.evaluate(() => {
-      const boardId = localStorage.getItem('kanbanActiveBoardId');
-      return JSON.parse(localStorage.getItem(`kanbanBoard:${boardId}:settings`) || '{}');
-    });
+    const storedSettings = await readIDBSettings(page);
 
     expect(storedSettings.swimLanesEnabled).toBe(true);
     expect(storedSettings.swimLaneGroupBy).toBe('label-group');
@@ -53,10 +50,7 @@ test.describe('Swim lane persistence', () => {
     await expect(page.locator('.swimlane-row-header', { hasText: 'Medium' })).toBeVisible();
     await expect(page.locator('.swimlane-row-header', { hasText: 'Low' })).toBeVisible();
 
-    const storedSettings = await page.evaluate(() => {
-      const boardId = localStorage.getItem('kanbanActiveBoardId');
-      return JSON.parse(localStorage.getItem(`kanbanBoard:${boardId}:settings`) || '{}');
-    });
+    const storedSettings = await readIDBSettings(page);
 
     expect(storedSettings.swimLaneGroupBy).toBe('priority');
 
@@ -79,10 +73,7 @@ test.describe('Swim lane persistence', () => {
     const projectARow = page.locator('.swimlane-row[data-lane-label="Project A"]');
     await projectARow.getByRole('button', { name: /Collapse Project A swim lane/i }).click();
 
-    const storedSettings = await page.evaluate(() => {
-      const boardId = localStorage.getItem('kanbanActiveBoardId');
-      return JSON.parse(localStorage.getItem(`kanbanBoard:${boardId}:settings`) || '{}');
-    });
+    const storedSettings = await readIDBSettings(page);
 
     expect(storedSettings.swimLaneCollapsedKeys).toContain('label-a');
 

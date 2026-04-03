@@ -137,9 +137,19 @@ test.describe('Sub-tasks', () => {
 
     await taskModal(page).getByRole('button', { name: 'Add Task', exact: true }).click();
 
-    const storedSubTasks = await page.evaluate(() => {
-      const boardId = localStorage.getItem('kanbanActiveBoardId');
-      const tasks = JSON.parse(localStorage.getItem(`kanbanBoard:${boardId}:tasks`) ?? '[]') as Array<{ title?: string; subTasks?: Array<{ title: string; completed: boolean }> }>;
+    const storedSubTasks = await page.evaluate(async () => {
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const req = indexedDB.open('kanvana-db', 1);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      const tasks = await new Promise<Array<{ title?: string; subTasks?: Array<{ title: string; completed: boolean }> }>>((resolve, reject) => {
+        const tx = db.transaction('kv', 'readonly');
+        const req = tx.objectStore('kv').get('kanbanBoard:default:tasks');
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+      db.close();
       return tasks.find((t) => t.title === 'Persisted sub-task task')?.subTasks ?? [];
     });
 
