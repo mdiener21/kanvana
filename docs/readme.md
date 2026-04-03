@@ -17,15 +17,15 @@
 
 ## What is Kanvana?
 
-Kanvana == "Kanban" + "Nirvana" is a Kanban Board, browser-based task manager built for speed, privacy, and simplicity. All your data stays in your browser's `localStorage` — nothing leaves your machine unless you choose to export it.
+Kanvana == "Kanban" + "Nirvana" is a Kanban Board, browser-based task manager built for speed, privacy, and simplicity. All your data stays in your browser's IndexedDB — nothing leaves your machine unless you choose to export it.
 
 **Key highlights:**
 
 - **No server required** — runs 100% in your browser
 - **Offline ready** — works without internet after first load
 - **Private by design** — no tracking, no cloud, no accounts
-- **Export/Import** — back up and restore your boards as JSON files
-- **Customizable** — themes, colors, labels, and configurable settings per board
+- **Export/Import** — back up and restore your boards as JSON files with preflight validation
+- **Customizable** — themes, colors, labels, auto-contrast label text, and configurable settings per board
 
 ---
 
@@ -42,7 +42,7 @@ Kanvana == "Kanban" + "Nirvana" is a Kanban Board, browser-based task manager bu
 	- **Labels** = categories (type/area/context/activity)
 	- **Due dates** = deadlines (and notifications)
 
-Tip: Everything is stored locally in your browser (`localStorage`). Export regularly if you care about keeping the data.
+Tip: Everything is stored locally in your browser (IndexedDB). Export regularly if you care about keeping the data.
 
 ## Quick Start with Example Boards
 

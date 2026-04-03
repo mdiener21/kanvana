@@ -186,11 +186,16 @@
               </legend>
               <div id="task-active-relationships" class="active-relationships" role="list" aria-label="Active relationships"></div>
               <div class="task-relationship-add-row">
-                <select id="task-relationship-type" aria-label="Relationship type">
-                  <option value="prerequisite">Prerequisite</option>
-                  <option value="dependent">Dependent</option>
-                  <option value="related">Related</option>
-                </select>
+                <div class="rel-type-wrapper">
+                  <select id="task-relationship-type" aria-label="Relationship type">
+                    <option value="prerequisite">Prerequisite</option>
+                    <option value="dependent">Dependent</option>
+                    <option value="related">Related</option>
+                  </select>
+                  <div class="rel-type-tooltip" id="rel-type-tooltip" role="tooltip">
+                    Another task must be completed before this one can begin.
+                  </div>
+                </div>
                 <input type="text" id="task-relationship-search" placeholder="Search by #id or title…" autocomplete="off" aria-label="Search tasks to link">
               </div>
               <div id="task-relationship-results" class="relationship-results" role="listbox" aria-label="Task search results" hidden></div>

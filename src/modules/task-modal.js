@@ -23,6 +23,11 @@ let filteredLabelIds = []; // may contain '__create__' sentinel for the create-l
 const CREATE_LABEL_SENTINEL = '__create__';
 
 const RELATIONSHIP_LABELS = { prerequisite: 'Prerequisite', dependent: 'Dependent', related: 'Related' };
+const RELATIONSHIP_DESCRIPTIONS = {
+  prerequisite: 'Another task must be completed before this one can begin.',
+  dependent: 'This task is needed by another task before that task can start.',
+  related: 'A general connection between two tasks without implying order.',
+};
 
 function shortId(id) {
   return '#' + (typeof id === 'string' ? id.slice(-5) : '');
@@ -663,6 +668,14 @@ export function initializeTaskModalHandlers(setupModalCloseHandlers) {
       }
     }
   });
+
+  const relTypeSelect = document.getElementById('task-relationship-type');
+  const relTypeTooltip = document.getElementById('rel-type-tooltip');
+  if (relTypeSelect && relTypeTooltip) {
+    relTypeSelect.addEventListener('change', () => {
+      relTypeTooltip.textContent = RELATIONSHIP_DESCRIPTIONS[relTypeSelect.value] || '';
+    });
+  }
 
   const relSearch = document.getElementById('task-relationship-search');
   relSearch?.addEventListener('input', (e) => updateRelationshipSearchResults(e.target.value));

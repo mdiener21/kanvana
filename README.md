@@ -11,7 +11,7 @@ kanvana == "Kanban" + "Nirvana" # smooth flow
 
 > **Transform your productivity with a sleek, local-first Kanban board.** No servers, no tracking—just pure efficiency in your browser.
 
-A beautiful, modern-designed personal + AI-Agent Kanban board that runs entirely in your browser. No backend, no cloud, no data tracking. Everything stays local with browser `localStorage` persistence. Perfect for personal task management, work tracking, and staying organized.
+A beautiful, modern-designed personal + AI-Agent Kanban board that runs entirely in your browser. No backend, no cloud, no data tracking. Everything stays local with browser IndexedDB persistence. Perfect for personal task management, work tracking, and staying organized.
 
 **Building with AI agents?** Try the new **AI Agent Ops Starter** board template to track 2–5 agents in parallel, review handoffs, and improve prompts in one local-first workspace. If that sounds useful, give the repo a ⭐ and help more agent builders discover it.
 
@@ -69,18 +69,18 @@ Organize your board into horizontal swim lanes for a powerful two-dimensional vi
 - **Mobile Optimized**: Responsive flex layout with sticky lane headers and snap-scrolling columns on mobile
 - **Persistent State**: All swim lane settings, collapsed states, and lane assignments are saved per board
 
-Configure swim lanes in **Settings** — choose your grouping mode and start organizing!
+Configure swim lanes in **Settings** or use the quick-access toggle in the board controls menu. Lane order is customizable via drag-and-drop in Settings.
 
 ### Core Features
 
 - **🚀 Blazing Fast & Simple**: Lightning-quick performance with a clean, intuitive interface
 - **🔍 Powerful Search**: Find tasks instantly by label, title, description, or label groups
-- **📊 Productivity Reports**: Visualize your progress with Cumulative Flow Diagrams, weekly lead time, completion stats, and same-day completions tracking
+- **📊 Productivity Reports**: Visualize your progress with Cumulative Flow Diagrams, weekly lead time, completion stats, same-day completions tracking, and an activity heatmap covering the last 365 days
 - **📅 Calendar View**: See tasks by due date on a monthly calendar with overdue highlighting
 - **🔔 Smart Notifications**: Get reminded of due dates with customizable advance notices and color-coded countdown timers (urgent/warning thresholds)
 - **💻 100% Local-First**: No servers, no backend, no cloud. Your data never leaves your device
 - **🎨 Drag & Drop**: Effortlessly move tasks and columns with optimized performance (handles 300+ tasks)
-- **🏷️ Custom Labels & Colors**: Organize with personalized labels, groups, and column colors
+- **🏷️ Custom Labels & Colors**: Organize with personalized labels, groups, and column colors — label text automatically switches between black and white for readability
 - **📋 Multiple Boards**: Create and manage multiple boards with board templates
 - **💾 Easy Backup**: Export/import boards as JSON via **Manage Boards** — save backups to your favorite cloud storage (OneDrive, Google Drive, Dropbox)
 - **📱 Fully Responsive**: Optimized for mobile and desktop — work from anywhere
@@ -105,7 +105,7 @@ Configure swim lanes in **Settings** — choose your grouping mode and start org
 
 ## 🛡️ Data Security & Persistence
 
-Your data is stored securely in your browser's `localStorage`. It persists across sessions and survives cache clears. For extra safety, use the built-in export feature to save backups to your preferred cloud storage.
+Your data is stored securely in your browser's IndexedDB. It persists across sessions and page reloads. For extra safety, use the built-in export feature to save backups to your preferred cloud storage.
 
 ## 🚀 Quick Start
 

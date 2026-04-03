@@ -55,5 +55,5 @@
 
 ## Warnings
 
-- `beforeunload` warns that data lives in localStorage and should be exported if needed
+- `beforeunload` warns that data lives in the browser and should be exported if needed
 - Deleting tasks, columns, and labels requires confirmation

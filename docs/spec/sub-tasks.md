@@ -52,7 +52,7 @@ Sub-tasks do not support labels, relationships, priorities, due dates, or column
 
 ## Persistence
 
-- Sub-tasks are stored in the `subTasks` array on the parent task object in localStorage
+- Sub-tasks are stored in the `subTasks` array on the parent task object in IndexedDB
 - `subTasks` defaults to `[]` for tasks that have no sub-tasks, including tasks created before this feature
 - The storage migration in `loadTasks()` normalizes the field on every load, so existing boards are unaffected
 
