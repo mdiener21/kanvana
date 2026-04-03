@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-04-03
+
+### Added
+
+- RAID template board for project management and customer labels with label groups
+- Legal/Impressum page (`impressum.html`) with publisher info, privacy policy, and obfuscated email reveal
+- "Legal/Impressum" link at the bottom of the control menu with visual separator
+
 ### Changed
 
 - Label text color is now automatically set to black or white based on perceived luminance of the label background color for better readability
@@ -26,13 +34,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed the project from "personal-kanban" to "kanvana"  kanvana == "Kanban" + "nirvana" # smooth flow
 - Renamed link in page footer to Github Docs instead of "Documentation"
 - Documentation .md docs to refer to kanvana better reflect new name within the documentation.
-
-### Added
-
-- RAID template board for project management and customer labels with label groups
-- Legal/Impressum page (`impressum.html`) with publisher info, privacy policy, and obfuscated email reveal
-- "Legal/Impressum" link at the bottom of the control menu with visual separator
-
 
 ## [1.4.0] - 2026-03-30
 
