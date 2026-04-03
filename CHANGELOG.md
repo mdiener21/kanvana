@@ -26,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed the project from "personal-kanban" to "kanvana"  kanvana == "Kanban" + "nirvana" # smooth flow
 - Renamed link in page footer to Github Docs instead of "Documentation"
 - Documentation .md docs to refer to kanvana better reflect new name within the documentation.
+- Migrated all E2E tests from localStorage to IndexedDB seeding and assertions (`swimlanes-persistence`, `swimlanes-dnd`, `swimlanes-toggle`, `subtasks`, `create-task`, `dragdrop`); added `readIDBValue` / `readIDBSettings` helpers to `swimlanes.helpers.js`
+
+### Fixed
+
+- Sub-task inline edit: pressing Escape no longer saves the edited value (blur handler was committing after cancel)
 
 ### Added
 
