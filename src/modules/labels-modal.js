@@ -357,8 +357,10 @@ export function initializeLabelsModalHandlers(setupModalCloseHandlers) {
         selectedLabels.push(result.label.id);
         taskModalState.setSelectedTaskLabels(selectedLabels);
       }
+      const labelSearch = document.getElementById('task-label-search');
+      if (labelSearch) labelSearch.value = '';
       taskModalState.updateTaskLabelsSelection();
-      document.getElementById('task-label-search')?.focus();
+      labelSearch?.focus();
     }
 
     hideLabelModal();

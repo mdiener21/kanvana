@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Label search in the task modal now highlights the first matching label and supports keyboard navigation (Arrow Up/Down to move highlight, Enter to toggle selection and clear search)
+- When no labels match the search query, the "Create label" button is auto-highlighted and navigable with keyboard (Enter opens Create Label modal with search text pre-filled; arrow keys can move between it and any partial matches); after creation the new label is auto-added and the search box is cleared
+
 - Updated `docs/spec/overview.md` to reflect IndexedDB storage (was still referencing localStorage in three places) and added all missing modules to the module map (normalize, security, dom, events, constants, task-card, task-modal, column-element, column-modal, boards-modal, labels-modal, swimlane-renderer, impressum)
 - Updated `docs/specification-kanban.md` ownership map to include all current modules with their corresponding spec files
 - Replaced the header's Lucide kanban icon with the Kanvana SVG logo while keeping the brand text bound to the active board name

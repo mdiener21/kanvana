@@ -25,7 +25,9 @@
 
 - Tasks can have multiple labels
 - Task modal organizes available labels by group
-- Labels can be created inline from task editing without dismissing the task modal
+- Label search supports keyboard navigation: Arrow Up/Down to move highlight, Enter to toggle the highlighted label and clear search
+- When no labels match the search, the "Create label" button is auto-highlighted and selectable via Enter
+- Labels can be created inline from task editing without dismissing the task modal; the new label is auto-selected and the search field is cleared on return
 
 ## Delete Behavior
 

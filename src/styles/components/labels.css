@@ -72,6 +72,12 @@
   background-color: var(--btn-small-hover-bg);
 }
 
+.label-checkbox.label-highlight {
+  background-color: var(--btn-small-hover-bg);
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
 .label-checkbox input[type="checkbox"] {
   cursor: pointer;
   width: 16px;
@@ -185,6 +191,14 @@
 .labels-empty-button:hover {
   color: var(--color-primary);
   background-color: var(--input-focus-ring);
+  border-radius: 6px;
+}
+
+.labels-empty-button.label-highlight {
+  color: var(--color-primary);
+  background-color: var(--input-focus-ring);
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
   border-radius: 6px;
 }
 
