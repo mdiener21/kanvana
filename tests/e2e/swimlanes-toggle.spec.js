@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
-import { openSwimlaneSettings, seedSwimlaneBoard } from './swimlanes.helpers.js';
+import { openSwimlaneSettings, seedSwimlaneBoard, readIDBValue } from './swimlanes.helpers.js';
+
+const BOARD_ID = 'swimlane-test-board';
 
 test.describe('Swim lane toggle', () => {
   test.beforeEach(async ({ page }) => {
@@ -33,11 +35,8 @@ test.describe('Swim lane toggle', () => {
 
     await page.locator('#settings-close-btn').click();
 
-    const taskSnapshot = await page.evaluate(() => {
-      const boardId = localStorage.getItem('kanbanActiveBoardId');
-      const tasks = JSON.parse(localStorage.getItem(`kanbanBoard:${boardId}:tasks`) || '[]');
-      return tasks.map((task) => ({ id: task.id, title: task.title, column: task.column, labels: task.labels }));
-    });
+    const tasks = await readIDBValue(page, `kanbanBoard:${BOARD_ID}:tasks`) || [];
+    const taskSnapshot = tasks.map((task) => ({ id: task.id, title: task.title, column: task.column, labels: task.labels }));
 
     expect(taskSnapshot).toEqual([
       { id: 'task-a', title: 'Task A', column: 'todo', labels: ['label-a'] },
@@ -84,12 +83,20 @@ test.describe('Swim lane toggle', () => {
   });
 
   test('keeps swim lane column headers visible while vertically scrolling', async ({ page }) => {
-    await page.evaluate(() => {
-      const boardId = localStorage.getItem('kanbanActiveBoardId');
-      const labelsKey = `kanbanBoard:${boardId}:labels`;
-      const tasksKey = `kanbanBoard:${boardId}:tasks`;
-      const labels = JSON.parse(localStorage.getItem(labelsKey) || '[]');
-      const tasks = JSON.parse(localStorage.getItem(tasksKey) || '[]');
+    await page.evaluate(async (boardId) => {
+      const db = await new Promise((resolve, reject) => {
+        const req = indexedDB.open('kanvana-db', 1);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      const read = (key) => new Promise((resolve, reject) => {
+        const tx = db.transaction('kv', 'readonly');
+        const req = tx.objectStore('kv').get(key);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      const labels = (await read(`kanbanBoard:${boardId}:labels`)) || [];
+      const tasks = (await read(`kanbanBoard:${boardId}:tasks`)) || [];
       for (let index = 0; index < 18; index += 1) {
         const labelId = `label-extra-${index}`;
         labels.push({
@@ -112,9 +119,20 @@ test.describe('Swim lane toggle', () => {
           columnHistory: [{ column: 'todo', at: '2026-03-01T09:30:00.000Z' }]
         });
       }
-      localStorage.setItem(labelsKey, JSON.stringify(labels));
-      localStorage.setItem(tasksKey, JSON.stringify(tasks));
-    });
+      const tx = db.transaction('kv', 'readwrite');
+      const store = tx.objectStore('kv');
+      store.put(labels, `kanbanBoard:${boardId}:labels`);
+      store.put(tasks, `kanbanBoard:${boardId}:tasks`);
+      await new Promise((resolve, reject) => {
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+      db.close();
+    }, BOARD_ID);
+
+    // Reload so initStorage() picks up the IDB changes
+    await page.reload();
+    await expect(page.locator('#board-container')).toBeVisible();
 
     await openSwimlaneSettings(page);
     await page.locator('#settings-swimlane-enabled').check();

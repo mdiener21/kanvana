@@ -395,13 +395,17 @@ function activateSubTaskInlineEdit(li, subtaskId) {
   input.focus();
   input.select();
 
+  let cancelled = false;
+
   function commit() {
+    if (cancelled) return;
     const val = input.value.trim();
     if (val) st.title = val;
     renderSubTaskList();
   }
 
   function cancel() {
+    cancelled = true;
     renderSubTaskList();
   }
 

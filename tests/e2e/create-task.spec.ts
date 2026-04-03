@@ -95,10 +95,20 @@ test.describe('Task Creation', () => {
     await expect(task.locator('.task-label', { hasText: 'Task' })).toBeVisible();
     await expect(task.locator('.task-label', { hasText: 'Email' })).toBeVisible();
 
-    const storedDueDate = await page.evaluate(() => {
-      const boardId = localStorage.getItem('kanbanActiveBoardId');
-      const tasks = JSON.parse(localStorage.getItem(`kanbanBoard:${boardId}:tasks`) || '[]');
-      return tasks.find((entry: { title?: string }) => entry.title === 'Finalize quarterly report')?.dueDate ?? '';
+    const storedDueDate = await page.evaluate(async () => {
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const req = indexedDB.open('kanvana-db', 1);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      const tasks = await new Promise<Array<{ title?: string; dueDate?: string }>>((resolve, reject) => {
+        const tx = db.transaction('kv', 'readonly');
+        const req = tx.objectStore('kv').get('kanbanBoard:default:tasks');
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+      db.close();
+      return tasks.find((entry) => entry.title === 'Finalize quarterly report')?.dueDate ?? '';
     });
 
     expect(storedDueDate).toBe('2026-02-15');

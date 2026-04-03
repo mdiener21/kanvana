@@ -14,17 +14,24 @@ test.describe('Drag and Drop Performance', () => {
 
   test.beforeEach(async ({ page }) => {
     await page.addInitScript((data) => {
+      if (sessionStorage.getItem('__kanvanaTestSeeded')) return;
+      sessionStorage.setItem('__kanvanaTestSeeded', '1');
+
       localStorage.clear();
+      indexedDB.deleteDatabase('kanvana-db');
 
       const boardId = 'perf-test-board';
-      const boards = [{ id: boardId, name: 'Performance Test Board', createdAt: new Date().toISOString() }];
-      localStorage.setItem('kanbanBoards', JSON.stringify(boards));
-      localStorage.setItem('kanbanActiveBoardId', boardId);
-
-      localStorage.setItem(`kanbanBoard:${boardId}:columns`, JSON.stringify(data.columns));
-      localStorage.setItem(`kanbanBoard:${boardId}:tasks`, JSON.stringify(data.tasks));
-      localStorage.setItem(`kanbanBoard:${boardId}:labels`, JSON.stringify(data.labels));
-      localStorage.setItem(`kanbanBoard:${boardId}:settings`, JSON.stringify(data.settings));
+      const req = indexedDB.open('kanvana-db', 1);
+      req.onupgradeneeded = () => {
+        const store = req.result.createObjectStore('kv');
+        const boards = [{ id: boardId, name: 'Performance Test Board', createdAt: new Date().toISOString() }];
+        store.put(boards, 'kanbanBoards');
+        store.put(boardId, 'kanbanActiveBoardId');
+        store.put(data.columns, `kanbanBoard:${boardId}:columns`);
+        store.put(data.tasks, `kanbanBoard:${boardId}:tasks`);
+        store.put(data.labels, `kanbanBoard:${boardId}:labels`);
+        store.put(data.settings, `kanbanBoard:${boardId}:settings`);
+      };
     }, fixture);
 
     await page.goto('/');
