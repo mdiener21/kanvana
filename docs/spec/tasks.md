@@ -37,8 +37,12 @@
 
 - Selected labels are shown as colored pills with remove buttons
 - Available labels can be filtered through a search field
+- The first matching label is automatically highlighted; Arrow Up/Down moves the highlight through filtered results
+- Pressing Enter toggles the highlighted label (adds or removes) and clears the search field
+- When no label matches the search, a "Create label" button appears auto-highlighted and keyboard-navigable
+- Pressing Enter on the create-label button opens the Add Label modal with the search text pre-filled
+- After creating a label from the task modal, the new label is auto-selected and the search field is cleared
 - The label search field can open the Add Label modal without losing in-progress task edits
-- When no label matches a search, the UI offers a create-label action prefilled with the search term
 
 ## Relationships in Task Modal
 

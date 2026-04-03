@@ -6,7 +6,7 @@ import { renderIcons } from './icons.js';
 import { validateAndShowTaskTitleError, clearFieldError } from './validation.js';
 import { emit, DATA_CHANGED } from './events.js';
 import { createAccordionSection } from './accordion.js';
-import { generateUUID } from './utils.js';
+import { generateUUID, labelTextColor } from './utils.js';
 import Sortable from 'sortablejs';
 
 // Task modal state
@@ -18,8 +18,16 @@ let selectedTaskSubTasks = []; // [{ id, title, completed, order }]
 let subtaskSortable = null;
 let returnToTaskModalAfterLabelsManager = false;
 let selectCreatedLabelInTaskEditor = false;
+let labelSearchHighlightIndex = 0;
+let filteredLabelIds = []; // may contain '__create__' sentinel for the create-label button
+const CREATE_LABEL_SENTINEL = '__create__';
 
 const RELATIONSHIP_LABELS = { prerequisite: 'Prerequisite', dependent: 'Dependent', related: 'Related' };
+const RELATIONSHIP_DESCRIPTIONS = {
+  prerequisite: 'Another task must be completed before this one can begin.',
+  dependent: 'This task is needed by another task before that task can start.',
+  related: 'A general connection between two tasks without implying order.',
+};
 
 function shortId(id) {
   return '#' + (typeof id === 'string' ? id.slice(-5) : '');
@@ -79,6 +87,7 @@ function renderActiveTaskLabels() {
     const pill = document.createElement('span');
     pill.classList.add('task-label');
     pill.style.backgroundColor = label.color;
+    pill.style.color = labelTextColor(label.color);
     pill.textContent = label.name;
 
     const removeBtn = document.createElement('button');
@@ -232,8 +241,11 @@ export function restoreTaskModalAfterLabelsManager() {
   if (!taskModal) return;
 
   taskModal.classList.remove('hidden');
+  const labelSearch = document.getElementById('task-label-search');
+  if (labelSearch) labelSearch.value = '';
+  labelSearchHighlightIndex = 0;
   updateTaskLabelsSelection();
-  document.getElementById('task-label-search')?.focus();
+  labelSearch?.focus();
   returnToTaskModalAfterLabelsManager = false;
 }
 
@@ -250,9 +262,11 @@ function groupLabels(labels) {
   return { ungrouped, groupMap, sortedGroups };
 }
 
-function createLabelCheckboxItem(label) {
+function createLabelCheckboxItem(label, index) {
   const labelEl = document.createElement('label');
   labelEl.classList.add('label-checkbox');
+  labelEl.dataset.labelIndex = index;
+  if (index === labelSearchHighlightIndex) labelEl.classList.add('label-highlight');
 
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
@@ -270,6 +284,7 @@ function createLabelCheckboxItem(label) {
   const labelPill = document.createElement('span');
   labelPill.classList.add('task-label', 'label-color-swatch');
   labelPill.style.backgroundColor = label.color;
+  labelPill.style.color = labelTextColor(label.color);
   labelPill.textContent = label.name;
 
   labelEl.appendChild(checkbox);
@@ -293,11 +308,18 @@ export function updateTaskLabelsSelection() {
       })
     : labels;
 
+  // Build flat ordered list of filtered label ids for keyboard navigation
+  filteredLabelIds = [];
+
   if (filteredLabels.length === 0) {
     if (query) {
+      // Add create-label sentinel so it participates in keyboard navigation
+      filteredLabelIds.push(CREATE_LABEL_SENTINEL);
       const createBtn = document.createElement('button');
       createBtn.type = 'button';
       createBtn.classList.add('labels-empty-button');
+      createBtn.dataset.labelIndex = '0';
+      if (labelSearchHighlightIndex === 0) createBtn.classList.add('label-highlight');
       createBtn.textContent = `No label found "${query}" - Create label`;
       createBtn.addEventListener('click', (e) => {
         e.preventDefault();
@@ -318,9 +340,17 @@ export function updateTaskLabelsSelection() {
   }
 
   const { ungrouped, groupMap, sortedGroups } = groupLabels(filteredLabels);
+  ungrouped.forEach(l => filteredLabelIds.push(l.id));
+  sortedGroups.forEach(gn => groupMap.get(gn).forEach(l => filteredLabelIds.push(l.id)));
 
+  // Clamp highlight index
+  if (labelSearchHighlightIndex >= filteredLabelIds.length) {
+    labelSearchHighlightIndex = Math.max(0, filteredLabelIds.length - 1);
+  }
+
+  let idx = 0;
   ungrouped.forEach(label => {
-    container.appendChild(createLabelCheckboxItem(label));
+    container.appendChild(createLabelCheckboxItem(label, idx++));
   });
 
   sortedGroups.forEach(groupName => {
@@ -330,7 +360,7 @@ export function updateTaskLabelsSelection() {
     container.appendChild(header);
 
     groupMap.get(groupName).forEach(label => {
-      container.appendChild(createLabelCheckboxItem(label));
+      container.appendChild(createLabelCheckboxItem(label, idx++));
     });
   });
 }
@@ -587,9 +617,65 @@ function hideModal() {
   document.getElementById('task-fullpage-btn')?.classList.add('hidden');
 }
 
+function scrollHighlightedLabelIntoView() {
+  const container = document.getElementById('task-labels-selection');
+  if (!container) return;
+  const highlighted = container.querySelector('.label-highlight');
+  if (highlighted) highlighted.scrollIntoView({ block: 'nearest' });
+}
+
 export function initializeTaskModalHandlers(setupModalCloseHandlers) {
   const taskLabelSearch = document.getElementById('task-label-search');
-  taskLabelSearch?.addEventListener('input', updateTaskLabelsSelection);
+  taskLabelSearch?.addEventListener('input', () => {
+    labelSearchHighlightIndex = 0;
+    updateTaskLabelsSelection();
+  });
+  taskLabelSearch?.addEventListener('keydown', (e) => {
+    if (filteredLabelIds.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      labelSearchHighlightIndex = Math.min(labelSearchHighlightIndex + 1, filteredLabelIds.length - 1);
+      updateTaskLabelsSelection();
+      scrollHighlightedLabelIntoView();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      labelSearchHighlightIndex = Math.max(labelSearchHighlightIndex - 1, 0);
+      updateTaskLabelsSelection();
+      scrollHighlightedLabelIntoView();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const highlightedId = filteredLabelIds[labelSearchHighlightIndex];
+      if (!highlightedId) return;
+      if (highlightedId === CREATE_LABEL_SENTINEL) {
+        // Trigger create label flow
+        const query = taskLabelSearch.value.trim();
+        if (query) {
+          document.dispatchEvent(new CustomEvent('kanban:open-label-modal', {
+            detail: { openedFromTaskEditor: true, initialName: query }
+          }));
+        }
+      } else {
+        // Toggle existing label selection
+        if (selectedTaskLabels.includes(highlightedId)) {
+          selectedTaskLabels = selectedTaskLabels.filter(id => id !== highlightedId);
+        } else {
+          selectedTaskLabels.push(highlightedId);
+        }
+        // Clear search and reset
+        taskLabelSearch.value = '';
+        labelSearchHighlightIndex = 0;
+        updateTaskLabelsSelection();
+      }
+    }
+  });
+
+  const relTypeSelect = document.getElementById('task-relationship-type');
+  const relTypeTooltip = document.getElementById('rel-type-tooltip');
+  if (relTypeSelect && relTypeTooltip) {
+    relTypeSelect.addEventListener('change', () => {
+      relTypeTooltip.textContent = RELATIONSHIP_DESCRIPTIONS[relTypeSelect.value] || '';
+    });
+  }
 
   const relSearch = document.getElementById('task-relationship-search');
   relSearch?.addEventListener('input', (e) => updateRelationshipSearchResults(e.target.value));

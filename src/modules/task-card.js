@@ -7,6 +7,7 @@ import { confirmDialog } from './dialog.js';
 import { calculateDaysUntilDue, formatCountdown, getCountdownClassName } from './dateutils.js';
 import { DONE_COLUMN_ID } from './constants.js';
 import { emit, DATA_CHANGED } from './events.js';
+import { labelTextColor } from './utils.js';
 
 function formatDisplayDate(value, locale) {
   const raw = (value || '').toString().trim();
@@ -100,6 +101,7 @@ export function createTaskElement(task, settings, labelsMap = null, today = null
         labelEl.classList.add('task-label');
         labelEl.setAttribute('role', 'listitem');
         labelEl.style.backgroundColor = label.color;
+        labelEl.style.color = labelTextColor(label.color);
         labelEl.textContent = label.name;
         labelsContainer.appendChild(labelEl);
       }
