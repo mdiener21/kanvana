@@ -6,7 +6,7 @@ import { renderIcons } from './icons.js';
 import { validateAndShowTaskTitleError, clearFieldError } from './validation.js';
 import { emit, DATA_CHANGED } from './events.js';
 import { createAccordionSection } from './accordion.js';
-import { generateUUID } from './utils.js';
+import { generateUUID, labelTextColor } from './utils.js';
 import Sortable from 'sortablejs';
 
 // Task modal state
@@ -82,6 +82,7 @@ function renderActiveTaskLabels() {
     const pill = document.createElement('span');
     pill.classList.add('task-label');
     pill.style.backgroundColor = label.color;
+    pill.style.color = labelTextColor(label.color);
     pill.textContent = label.name;
 
     const removeBtn = document.createElement('button');
@@ -278,6 +279,7 @@ function createLabelCheckboxItem(label, index) {
   const labelPill = document.createElement('span');
   labelPill.classList.add('task-label', 'label-color-swatch');
   labelPill.style.backgroundColor = label.color;
+  labelPill.style.color = labelTextColor(label.color);
   labelPill.textContent = label.name;
 
   labelEl.appendChild(checkbox);

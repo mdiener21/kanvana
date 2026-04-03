@@ -5,6 +5,7 @@
 - Labels have `id`, `name`, `color`, and optional `group`
 - Groups are simple strings and are not stored as a separate entity
 - Task cards display only label name and color, not the group name
+- Label text color is automatically set to black or white based on perceived luminance of the background color (`(R×299 + G×587 + B×114) / 1000`; threshold 150 of 255 favors white text on mid-tones)
 - Built-in board templates may ship grouped starter labels tailored to a workflow, such as Agent, Workstream, or Artifact groupings
 
 ## Manage Labels Modal

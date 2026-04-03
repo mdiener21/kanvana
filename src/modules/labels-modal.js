@@ -7,6 +7,7 @@ import { renderIcons } from './icons.js';
 import { createAccordionSection } from './accordion.js';
 import { emit, DATA_CHANGED } from './events.js';
 import { MAX_LABEL_NAME_LENGTH } from './constants.js';
+import { labelTextColor } from './utils.js';
 
 let editingLabelId = null;
 let hasShownLabelMaxLengthAlert = false;
@@ -71,6 +72,7 @@ function createLabelListItem(label) {
   const labelSpan = document.createElement('span');
   labelSpan.classList.add('task-label');
   labelSpan.style.backgroundColor = label.color;
+  labelSpan.style.color = labelTextColor(label.color);
   labelSpan.textContent = label.name;
 
   const actionsDiv = document.createElement('div');

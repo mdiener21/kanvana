@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Label text color is now automatically set to black or white based on perceived luminance of the label background color for better readability
 - Label search in the task modal now highlights the first matching label and supports keyboard navigation (Arrow Up/Down to move highlight, Enter to toggle selection and clear search)
 - When no labels match the search query, the "Create label" button is auto-highlighted and navigable with keyboard (Enter opens Create Label modal with search text pre-filled; arrow keys can move between it and any partial matches); after creation the new label is auto-added and the search box is cleared
 
