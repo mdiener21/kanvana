@@ -11,11 +11,11 @@ services:
     restart: unless-stopped
 
   pocketbase:
-    image: ghcr.io/muchobig/pocketbase:${PB_VERSION:-0.22.0}
+    image: spectado/pocketbase:${PB_VERSION:-0.22.0}
     expose:
-      - "8090"
+      - "80"
     volumes:
-      - pb_data:/pb/pb_data
+      - pb_data:/pb_data
     restart: unless-stopped
 
 volumes:
