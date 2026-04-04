@@ -1,7 +1,7 @@
 # PocketBase Backend Integration Design
 
 **Date:** 2026-04-04
-**Status:** Approved
+**Status:** Approved — Security-Hardened Revision
 **Scope:** Phase 1 (local-first default + optional PocketBase backend, single-user, read-only offline)
 
 ---
@@ -20,6 +20,8 @@ instance. The default local-only experience is unchanged.
 - Writes sync immediately to PocketBase on every save
 - Phase 1 offline: read-only from cache when PocketBase is unreachable
 - Phase 2 (future): full offline with write queue and real-time multi-user collaboration
+- Zero-trust security: deny by default, least-privilege access, every request verified
+- AI agents are first-class users, authenticated via API tokens (not interactive credentials)
 
 ### Non-Goals (Phase 1)
 
@@ -94,6 +96,9 @@ relation field and API rules that enforce per-user data isolation.
 
 ### API Rules (applied to every collection)
 
+Zero-trust deny-by-default: every collection must explicitly grant access. No collection may have
+empty rules. New collections added in future must follow the same pattern before going live.
+
 ```
 list/search:  @request.auth.id != "" && user = @request.auth.id
 view:         @request.auth.id != "" && user = @request.auth.id
@@ -101,6 +106,10 @@ create:       @request.auth.id != "" && @request.body.user = @request.auth.id
 update:       @request.auth.id != "" && user = @request.auth.id
 delete:       @request.auth.id != "" && user = @request.auth.id
 ```
+
+**PocketBase admin API:** The admin API (`/_/`) must never be exposed publicly. Self-hosters must
+place it behind a firewall rule or reverse-proxy block. Kanvana never calls admin routes — any
+adapter code that would require admin credentials is forbidden.
 
 ### Collection: `boards`
 
@@ -201,6 +210,16 @@ Stored in IDB under key `kanvana-pb-config`:
 - If refresh succeeds: activate PocketBase adapter
 - If refresh fails: fall back to IDB adapter, surface "Reconnect to PocketBase" prompt in header
 - Logout: delete `kanvana-pb-config` from IDB, switch to IDB adapter, reload
+
+**Token expiry — mid-session:** `pb-auth.js` sets a JavaScript timer at startup to refresh the
+token 60 seconds before `tokenExpiry`. If the refresh fails mid-session, the app transitions to
+read-only offline mode and surfaces a "Session expired — reconnect" prompt. It does not wait for
+the next page load.
+
+**Token storage risk acknowledgement:** IDB is accessible to any JavaScript on the same origin.
+A CSP (see Security section) materially reduces this risk but does not eliminate it. This is an
+inherent trade-off of storing auth state in a browser-only app. The token is short-lived (PocketBase
+default: 30 minutes) to limit the blast radius of any exfiltration.
 
 ### Disconnect
 
@@ -356,9 +375,9 @@ The backend is transparent to all existing screens.
 |----------------------------------------|------------------------------------------------------|
 | `src/modules/storage-adapter.js`       | Adapter selector and re-export layer                 |
 | `src/modules/pb-storage.js`            | PocketBase adapter (implements adapter interface)    |
-| `src/modules/pb-auth.js`               | PocketBase auth: login, logout, token refresh, config persistence |
+| `src/modules/pb-auth.js`               | Auth: `initWithCredentials`, `initWithApiKey`, logout, token refresh, mid-session expiry, URL validation, config persistence, audit logging |
 | `src/modules/pb-migration.js`          | One-time migration: IDB → PocketBase                 |
-| `src/modules/pb-sync.js`               | Write helpers: diff, create/update/delete PB records |
+| `src/modules/pb-sync.js`               | Write helpers: diff, sanitize, normalize, create/update/delete PB records |
 | `src/modules/app-settings.js`          | App Settings modal UI (backend section)              |
 | `src/modules/pb-status.js`             | Mode badge, offline detection, reconnect ping, toast |
 
@@ -391,6 +410,182 @@ The following are explicitly out of scope for Phase 1 but the design accommodate
 
 ---
 
+## Security
+
+This section captures zero-trust security requirements. These are non-negotiable constraints that
+apply to every implementation task in this feature.
+
+### Zero-Trust Principles Applied
+
+1. **Never trust, always verify** — every request to PocketBase must carry a valid auth token.
+   No unauthenticated routes exist in Kanvana's PocketBase usage.
+2. **Least privilege** — collection rules grant the minimum access needed. No wildcard or
+   open-read rules. AI agent tokens are scoped to their owning user's data only.
+3. **Deny by default** — all PocketBase collections default to deny-all. Access is granted
+   explicitly. New collections must have rules before any code touches them.
+4. **Assume breach** — tokens are short-lived. No secrets in source code. Logs capture security
+   events. Errors never leak internal state.
+
+### Content Security Policy
+
+`src/index.html`, `src/reports.html`, and `src/calendar.html` must include a `<meta>` CSP header
+(or the self-hoster's reverse proxy must set it as an HTTP header). Minimum required directives:
+
+```
+Content-Security-Policy:
+  default-src 'self';
+  script-src 'self';
+  connect-src 'self' <pocketbase-origin>;
+  style-src 'self' 'unsafe-inline';
+  img-src 'self' data:;
+  frame-ancestors 'none';
+```
+
+`connect-src` must be dynamically set to the configured PocketBase URL at the point the user
+connects. Until then it is `'self'` only. Inline scripts are forbidden (`script-src 'self'` — no
+`unsafe-inline`). This is the primary mitigation against auth token exfiltration via XSS.
+
+### PocketBase URL Validation
+
+The user-entered PocketBase URL must pass strict validation before it is stored or used:
+
+- Must be a valid URL (`new URL(input)` succeeds)
+- Protocol must be `https:` only (no `http:`, no other schemes)
+- Hostname must not be `localhost`, `127.0.0.1`, `::1`, or any other loopback address (prevents
+  SSRF-class abuse where an attacker socially engineers a malicious URL into the config)
+- URL must not contain credentials (`url.username` and `url.password` must be empty)
+- Maximum length: 512 characters
+
+Validation runs in `pb-auth.js` before any network call is made. Validation errors are shown inline
+in the connection form with a clear, specific message.
+
+### Authentication Security
+
+**Human users:**
+- Credentials (email + password) are sent directly to PocketBase's auth endpoint over HTTPS — they
+  never touch any Kanvana-controlled server
+- Passwords are never stored in IDB, in memory beyond the auth call, or in any log
+- Error messages on failed auth must be generic: "Authentication failed. Check your credentials and
+  PocketBase URL." — never reveal whether the email exists on the instance
+- Failed connection attempts must be displayed to the user but are not rate-limited client-side
+  (PocketBase's own rate limiting on its auth endpoint is the enforcement layer; self-hosters should
+  configure PocketBase rate limits)
+
+**Token lifecycle:**
+- Auth tokens stored in IDB are short-lived (PocketBase default 30 min; self-hosters should not
+  increase this beyond 1 hour)
+- `pb-auth.js` refreshes the token 60 seconds before expiry via PocketBase's auth refresh endpoint
+- On refresh failure mid-session: immediately switch to read-only offline mode, clear the in-memory
+  token, surface a "Session expired — please reconnect" prompt
+- On logout: delete `kanvana-pb-config` from IDB synchronously before any UI update
+
+### AI Agent Authentication
+
+AI agents (LLM agents, automation scripts, CI workflows) are first-class users of the system.
+They cannot authenticate interactively. The following model applies:
+
+**Agent identity:**
+- Each AI agent is a regular PocketBase user account (email + password created by a human admin)
+- Agents authenticate using PocketBase's **API key** (long-lived token) mechanism rather than the
+  interactive login flow, generated from their user account via PocketBase admin UI
+- Agent API keys are stored in the agent's own secure secret management system (e.g. environment
+  variable, vault) — never in Kanvana's IDB or source code
+
+**Agent access to Kanvana:**
+- `pb-auth.js` exposes an `initWithApiKey(url, apiKey)` function alongside the interactive
+  `initWithCredentials(url, email, password)` function
+- When called with an API key, `pb-auth.js` skips the interactive auth call and directly sets the
+  PocketBase SDK token to the provided key, then persists `kanvana-pb-config` with
+  `{ url, token: apiKey, userId, tokenExpiry: null }`
+- `tokenExpiry: null` signals to the refresh timer that no mid-session refresh is needed (API keys
+  do not expire by default in PocketBase)
+- All collection-level API rules apply identically to agents — they see only their own boards
+
+**Agent scope (Phase 1):**
+- Each agent user account owns its own boards, tasks, columns, and labels
+- No board sharing between human and agent accounts (Phase 2 collaboration feature)
+- Recommended deployment: one agent account per distinct AI workflow (e.g. one account for a
+  triage agent, one for a planning agent), not one shared account for all agents
+
+**Security invariant:** An agent token that is compromised can only access that agent's own data.
+It cannot escalate to other users' boards due to the collection-level user isolation rules.
+
+### Input Sanitization
+
+All user-supplied strings written to PocketBase must pass through the existing `escapeHtml()`
+utility in `src/modules/security.js` before storage. This includes: task title, task description,
+board name, column name, label name. This is the existing behavior for local IDB writes; it must
+be preserved and enforced equally in the PocketBase adapter write path.
+
+JSON fields (`labels`, `columnHistory`, `relationships`, `subTasks`) are structured data
+normalized by the existing `normalize.js` functions before any write. The PocketBase adapter must
+call the same normalization functions before constructing its API payloads.
+
+### Audit Logging
+
+`pb-auth.js` must log the following security events to the browser console (prefixed `[Kanvana
+Security]`) and emit them as custom DOM events for potential future server-side capture:
+
+| Event                        | Log level | Detail                          |
+|------------------------------|-----------|---------------------------------|
+| Successful login             | info      | userId, timestamp               |
+| Failed login attempt         | warn      | timestamp only (no email/URL)   |
+| Token refresh success        | info      | userId, new expiry              |
+| Token refresh failure        | warn      | userId, timestamp               |
+| Session expired mid-session  | warn      | userId, timestamp               |
+| Logout                       | info      | userId, timestamp               |
+| Migration started            | info      | userId, board count             |
+| Migration completed          | info      | userId, board count             |
+| Migration failed             | error     | userId, board id, error message |
+| Sync write failure           | warn      | collection, record id, error    |
+
+Logs must never include: passwords, tokens, full URLs with credentials, or raw user data.
+
+### Dependency Security
+
+- The `pocketbase` npm package must be pinned to an exact version in `package.json`
+- `npm audit` must pass with zero high/critical findings before any PocketBase feature is shipped
+- The PocketBase JS SDK communicates over HTTPS only — the adapter must verify this at init time by
+  checking the configured URL's protocol
+
+---
+
+## AI Agent Integration
+
+AI agents interact with Kanvana's PocketBase backend as regular authenticated users. This section
+describes how agents connect and the constraints that apply.
+
+### Authentication
+
+Agents use `initWithApiKey(url, apiKey)` in `pb-auth.js`. This function:
+1. Validates the URL (same strict rules as human login)
+2. Sets the PocketBase SDK token directly (no interactive auth call)
+3. Fetches the current user record to confirm the token is valid and retrieves `userId`
+4. Persists `kanvana-pb-config` to IDB with `tokenExpiry: null`
+
+Agents are responsible for supplying a valid API key at startup. If the key is invalid or expired,
+`initWithApiKey` throws and the adapter falls back to IDB mode.
+
+### Programmatic Access Pattern
+
+An AI agent running in a non-browser environment (Node.js, server-side script) does not use the
+Kanvana UI at all — it uses the PocketBase REST API directly. The PocketBase collection schema
+described in this spec is the API contract the agent programs against.
+
+For agents running inside the Kanvana browser UI (e.g. a future in-app AI assistant), the standard
+`storage-adapter.js` interface is used — the agent calls the same `saveTasks()`, `loadTasks()` etc.
+functions as the human-facing UI code.
+
+### Agent Account Setup (operational guidance for self-hosters)
+
+1. In PocketBase admin UI, create a new user account for the agent (e.g. `triage-agent@myorg.com`)
+2. Generate an API key for that account
+3. Store the API key in the agent's secret management system
+4. The agent initializes Kanvana with `initWithApiKey(pbUrl, apiKey)`
+5. No human credentials are involved; no interactive UI is required
+
+---
+
 ## Dependencies
 
 - `pocketbase` — official PocketBase JS SDK (npm). Handles auth, REST calls, realtime, token
@@ -405,7 +600,24 @@ The following are explicitly out of scope for Phase 1 but the design accommodate
   offline flag transitions
 - Unit tests for `pb-migration.js`: mock IDB state + PocketBase SDK, assert correct record
   creation order and `idMap` population
-- Unit tests for `pb-auth.js`: token persistence, refresh, fallback to IDB mode
-- DOM integration tests for App Settings modal: connection form, connected state, disconnect
+- Unit tests for `pb-auth.js`:
+  - Token persistence, refresh, mid-session expiry timer, fallback to IDB mode
+  - `initWithApiKey`: valid key, invalid key (throws), `tokenExpiry: null` path
+  - URL validation: rejects `http://`, rejects `localhost`, rejects URLs with credentials,
+    rejects malformed URLs, accepts valid `https://` URL
+  - Error messages: assert auth failure message is generic (does not leak email existence)
+- Security unit tests:
+  - Assert `escapeHtml()` is called on all string fields before PocketBase write
+  - Assert normalization functions are called on all JSON fields before PocketBase write
+  - Assert collection API rules block cross-user access (mock PocketBase, send requests with
+    mismatched `userId`, expect 403)
+- DOM integration tests for App Settings modal: connection form, connected state, disconnect,
+  validation error display for invalid URLs
 - E2E tests (Playwright): connect flow with a local PocketBase test instance (optional, may be
   deferred)
+- Security validation checklist (manual, pre-ship):
+  - `npm audit` passes with zero high/critical findings
+  - CSP header is present and blocks inline scripts (verify with browser devtools)
+  - Auth failure message does not reveal email existence
+  - Attempting to access another user's records via direct API call returns 403
+  - Agent API key path: confirm `tokenExpiry: null` prevents refresh timer from firing
