@@ -586,6 +586,104 @@ functions as the human-facing UI code.
 
 ---
 
+## Architecture & Reliability
+
+This section documents reliability constraints and resilience patterns required by the implementation. These requirements were identified during an architectural review against distributed systems patterns (circuit breaker, retry, timeout, idempotency).
+
+### Network Timeouts
+
+Every outbound call to PocketBase must have an explicit timeout. No call may block indefinitely.
+
+| Call site | Timeout |
+|---|---|
+| `initStorage()` — initial bulk fetch | 10 seconds total |
+| `saveTasks / saveColumns / saveLabels / saveSettings` — write calls | 8 seconds per record batch |
+| Token refresh | 5 seconds |
+| Connectivity ping | 3 seconds |
+| Migration per-board batch | 15 seconds |
+
+If a call exceeds its timeout, it is treated identically to a network error (set `isOffline = true`, emit `pb:offline`, enter read-only mode). Timeouts must be implemented via `AbortSignal.timeout()` or equivalent — not left to the PocketBase SDK default (which is unlimited).
+
+### Retry Policy
+
+The Phase 1 write path does **not** retry failed writes (data is only in memory; retries without a durable queue could produce duplicates or out-of-order state). The correct Phase 2 solution is the IDB write queue described in Phase 2 Notes.
+
+The only operation in Phase 1 that retries is **token refresh**: one retry with a 1-second delay before declaring the session expired. All other failures go directly to offline mode.
+
+### Migration Idempotency
+
+The migration sequence must be idempotent so that a partial migration followed by a retry produces no duplicate records.
+
+**Before creating any record**, `pb-migration.js` must query PocketBase for an existing record with matching `kanvana_id` for that user:
+
+```
+GET /api/collections/{collection}/records?filter=(kanvana_id="{id}"&&user="{userId}")
+```
+
+- If found: skip creation, store the returned `pb_id` in `idMap` (treat as already migrated)
+- If not found: create and store `pb_id`
+
+This makes each per-board migration step re-entrant. A full retry of a partially completed board safely resumes without duplicates.
+
+**Implication:** `kanvana_id` must be indexed in PocketBase for each collection (set `Indexes` on the `kanvana_id` field in the PocketBase schema) to avoid full-collection scans during idempotency checks.
+
+### `pb:sync-error` Event Payload
+
+The `pb:sync-error` custom DOM event must carry a structured `detail` payload so all listeners can handle it consistently:
+
+```js
+// Emitted by pb-sync.js on any write failure
+new CustomEvent('pb:sync-error', {
+  detail: {
+    collection: 'tasks' | 'columns' | 'labels' | 'board_settings' | 'boards',
+    operation:  'create' | 'update' | 'delete',
+    kanvana_id: string,   // the kanvana_id of the affected record
+    error:      string,   // human-readable error message (no internal details)
+    timestamp:  string    // ISO date string
+  }
+})
+```
+
+The `pb:offline` and `pb:online` events carry no payload (presence is the signal). The `pb:write-blocked` event carries `{ reason: 'offline' }`.
+
+### Startup Behaviour When PocketBase Is Slow
+
+`initStorage()` in PocketBase adapter mode must not block the app from rendering. The sequence:
+
+1. Start the PocketBase fetch with a 10-second timeout
+2. If the fetch completes within the timeout: populate cache, activate PB adapter, render board
+3. If the timeout fires before the fetch completes:
+   - Cancel the fetch
+   - Activate IDB adapter as temporary fallback (local data is still present)
+   - Set a "reconnecting…" state in the mode badge (distinct from the steady-state `Offline — read only`)
+   - Retry the PocketBase fetch once in the background after 5 seconds
+   - If retry succeeds: switch to PB adapter, reload board from PB cache
+   - If retry fails: remain on IDB adapter, surface "PocketBase unavailable — using local data" prompt
+
+This ensures the app is always usable within ~10 seconds of page load regardless of PocketBase availability.
+
+### Concurrency: Parallel Save Calls
+
+The app can fire multiple `save*()` calls in rapid succession (e.g. drag-drop triggers `saveTasks()` and then immediately `saveColumns()`). The PocketBase adapter must serialize writes per collection to avoid race conditions on the PocketBase side. A simple per-collection promise chain (queue) is sufficient:
+
+```js
+// Inside pb-storage.js — one queue per collection
+const writeQueues = {
+  tasks: Promise.resolve(),
+  columns: Promise.resolve(),
+  labels: Promise.resolve(),
+  board_settings: Promise.resolve()
+}
+
+function enqueueWrite(collection, fn) {
+  writeQueues[collection] = writeQueues[collection].then(fn).catch(handleWriteError)
+}
+```
+
+In-memory cache updates remain synchronous and immediate (before enqueue); only the network calls are serialized.
+
+---
+
 ## Dependencies
 
 - `pocketbase` — official PocketBase JS SDK (npm). Handles auth, REST calls, realtime, token
