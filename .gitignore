@@ -12,5 +12,6 @@ test-results
 .claude/
 skills/
 .agent/
+.worktrees/
 
 
