@@ -131,11 +131,11 @@ volumes:
   pb_data:
 ```
 
-> **PocketBase image:** Use `ghcr.io/muchobig/pocketbase` (widely used community image) or
-> `docker.io/pocketbase/pocketbase` if an official image is published by the time of
-> implementation. Pin via `PB_VERSION` tag (e.g. `0.22.0`). The Kanvana repo does not build a
-> custom PocketBase image. Verify image availability at implementation time and use whichever
-> official or most-maintained image is current.
+> **PocketBase image:** Use `spectado/pocketbase` (Docker Hub, publicly accessible, port 80). The
+> previously noted `ghcr.io/muchobig/pocketbase` image requires authentication and is not publicly
+> accessible. Pin via `PB_VERSION` tag (e.g. `0.22.0`). The Kanvana repo does not build a custom
+> PocketBase image. Note: `spectado/pocketbase` exposes port **80** (not 8090) — all nginx proxy
+> targets must use `http://pocketbase:80`.
 
 ---
 
