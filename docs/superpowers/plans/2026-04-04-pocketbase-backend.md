@@ -215,6 +215,13 @@ describe('validatePbUrl', () => {
     expect(() => validatePbUrl('https://localhost:8080')).toThrow(/localhost/i);
   });
 
+  test('allows localhost in dev mode (import.meta.env.DEV === true)', () => {
+    // Simulated by setting the module-level DEV flag; see implementation note below.
+    // In the actual module, wrap the loopback check: if (!import.meta.env.DEV) { ... }
+    // This test verifies the exemption path exists.
+    expect(() => validatePbUrl('http://localhost:8090', { devMode: true })).not.toThrow();
+  });
+
   test('rejects 127.0.0.1', () => {
     expect(() => validatePbUrl('https://127.0.0.1')).toThrow(/loopback/i);
   });
@@ -282,7 +289,7 @@ const CONFIG_KEY = 'kanvana-pb-config';
 
 const LOOPBACK = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
-export function validatePbUrl(rawUrl) {
+export function validatePbUrl(rawUrl, { devMode = import.meta.env.DEV } = {}) {
   if (typeof rawUrl !== 'string' || rawUrl.length > 512) {
     throw new Error('URL length must be 512 characters or fewer.');
   }
@@ -292,11 +299,15 @@ export function validatePbUrl(rawUrl) {
   } catch {
     throw new Error('Invalid URL format.');
   }
-  if (url.protocol !== 'https:') {
-    throw new Error('PocketBase URL must use https protocol.');
-  }
-  if (LOOPBACK.has(url.hostname)) {
-    throw new Error('PocketBase URL must not point to a loopback address.');
+  // Dev-mode exemption: allow http and loopback when running via Vite dev server.
+  // import.meta.env.DEV is always false in production builds.
+  if (!devMode) {
+    if (url.protocol !== 'https:') {
+      throw new Error('PocketBase URL must use https protocol.');
+    }
+    if (LOOPBACK.has(url.hostname)) {
+      throw new Error('PocketBase URL must not point to a loopback address.');
+    }
   }
   if (url.username || url.password) {
     throw new Error('PocketBase URL must not contain embedded credentials.');
@@ -1960,12 +1971,20 @@ if (pbConfig) {
 initAppSettings(null); // PB instance not needed for initial setup
 ```
 
-- [ ] **Step 3: Run the dev server and confirm the app loads with "Local" badge**
+- [ ] **Step 3: Verify with `npm run dev`**
 
 ```bash
 npm run dev
 # Open http://localhost:3000 — confirm board loads, mode badge shows "Local"
 ```
+
+> **Docker stack note:** When running the full Docker stack locally (`docker compose up`), the
+> app is served as a production build (nginx + PocketBase). In this setup, `import.meta.env.DEV`
+> is `false` (production build). The PocketBase connect form URL should be
+> `http://localhost:8080` (same nginx origin) or the HTTPS URL of your reverse-proxied domain.
+> The dev-mode exemption in `validatePbUrl()` does NOT apply to the Docker stack — it applies
+> only when running `npm run dev` (Vite dev server) pointing at a standalone local PocketBase
+> instance.
 
 - [ ] **Step 4: Run the full test suite**
 

@@ -445,6 +445,12 @@ Content-Security-Policy:
 connects. Until then it is `'self'` only. Inline scripts are forbidden (`script-src 'self'` — no
 `unsafe-inline`). This is the primary mitigation against auth token exfiltration via XSS.
 
+**Docker deployment exception:** When Kanvana is served via the Docker nginx stack (see
+`docs/superpowers/specs/2026-04-04-docker-devops-design.md`), PocketBase is proxied at the same
+origin via nginx. In this case `connect-src 'self'` is sufficient — no dynamic
+`<pocketbase-origin>` needs to be appended. The dynamic update described above applies only to
+non-Docker self-hosted deployments where PocketBase is on a different origin.
+
 ### PocketBase URL Validation
 
 The user-entered PocketBase URL must pass strict validation before it is stored or used:
@@ -458,6 +464,14 @@ The user-entered PocketBase URL must pass strict validation before it is stored 
 
 Validation runs in `pb-auth.js` before any network call is made. Validation errors are shown inline
 in the connection form with a clear, specific message.
+
+**Dev-mode exemption:** When `import.meta.env.DEV === true` (Vite dev server, i.e. `npm run dev`),
+the `https:` protocol requirement and loopback hostname restriction are relaxed. This allows
+connecting to `http://localhost:8090` during local development without setting up HTTPS. This flag
+is `false` in all production builds — the exemption never applies in production. When using the
+Docker stack locally (production build served by nginx), `import.meta.env.DEV` is `false`; the
+PocketBase URL is the same origin (`http://localhost:8080/api`) and the connect form is not needed
+— the app talks to `/api/` directly.
 
 ### Authentication Security
 
