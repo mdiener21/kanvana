@@ -18,6 +18,9 @@ npm run test:dom   # Run Vitest DOM integration tests (tests/dom)
 npm run test:e2e   # Run Playwright end-to-end tests (tests/e2e)
 npm run test:ui    # Run Playwright tests with interactive UI
 npm run test:debug # Run Playwright tests in debug mode
+docker compose up          # Start local Docker stack (nginx + PocketBase) at http://localhost:8080
+docker compose up --build  # Rebuild image and start stack
+docker compose down        # Stop and remove containers
 ```
 
 ## Specification
