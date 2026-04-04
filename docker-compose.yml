@@ -1,0 +1,22 @@
+services:
+  nginx:
+    build:
+      context: .
+      target: prod
+    image: ghcr.io/mdiener21/kanvana:${IMAGE_TAG:-latest}
+    ports:
+      - "${NGINX_PORT:-80}:80"
+    depends_on:
+      - pocketbase
+    restart: unless-stopped
+
+  pocketbase:
+    image: ghcr.io/muchobig/pocketbase:${PB_VERSION:-0.22.0}
+    expose:
+      - "8090"
+    volumes:
+      - pb_data:/pb/pb_data
+    restart: unless-stopped
+
+volumes:
+  pb_data:
