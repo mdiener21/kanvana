@@ -515,6 +515,7 @@ export function showModal(columnName, swimlaneContext) {
   columnSelect.value = currentColumn;
   taskTitle.value = '';
   taskDescription.value = '';
+  updateDescriptionLinks('');
   if (taskPriority) {
     const settings = loadSettings();
     taskPriority.value = settings.defaultPriority || 'none';
@@ -584,6 +585,7 @@ export function showEditModal(taskId) {
   const legacyTitle = typeof task.text === 'string' ? task.text : '';
   taskTitle.value = (typeof task.title === 'string' && task.title.trim() !== '') ? task.title : legacyTitle;
   taskDescription.value = typeof task.description === 'string' ? task.description : '';
+  updateDescriptionLinks(taskDescription.value);
   if (taskPriority) taskPriority.value = typeof task.priority === 'string' ? task.priority : 'none';
 
   const rawDue = typeof task.dueDate === 'string' ? task.dueDate : '';
@@ -628,7 +630,33 @@ function scrollHighlightedLabelIntoView() {
   if (highlighted) highlighted.scrollIntoView({ block: 'nearest' });
 }
 
+const URL_RE = /https?:\/\/[^\s<>"']+/g;
+
+export function updateDescriptionLinks(text) {
+  const container = document.getElementById('task-description-links');
+  if (!container) return;
+  container.innerHTML = '';
+  const matches = [...(text || '').matchAll(URL_RE)].map(m => m[0]);
+  if (matches.length === 0) { container.hidden = true; return; }
+  const unique = [...new Set(matches)];
+  unique.forEach(url => {
+    const a = document.createElement('a');
+    a.href = url;
+    if (a.protocol !== 'https:' && a.protocol !== 'http:') return;
+    a.textContent = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.classList.add('description-link-chip');
+    container.appendChild(a);
+  });
+  container.hidden = container.childElementCount === 0;
+}
+
 export function initializeTaskModalHandlers(setupModalCloseHandlers) {
+  document.getElementById('task-description')?.addEventListener('input', (e) => {
+    updateDescriptionLinks(e.target.value);
+  });
+
   const taskLabelSearch = document.getElementById('task-label-search');
   taskLabelSearch?.addEventListener('input', () => {
     labelSearchHighlightIndex = 0;
