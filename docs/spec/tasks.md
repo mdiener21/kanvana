@@ -22,6 +22,8 @@
 - Drag-and-drop is distinguished from clicks by pointer movement threshold
 - Titles are clamped to one line and descriptions to a short preview
 - Footer content is controlled by settings and can include change date, due date, countdown, and task age
+- URLs (`http://` or `https://`) in the description are rendered as clickable `<a>` links that open in a new tab (`target="_blank" rel="noopener noreferrer"`); clicking a link does not open the edit modal. Plain-text editing in the modal is unchanged — linkification is display-only on the card.
+- In the task modal (add and edit), a live link preview strip appears below the description textarea whenever one or more `http://`/`https://` URLs are detected. Each unique URL renders as a clickable chip that opens in a new tab. The strip updates on every keystroke/paste and hides itself when no URLs are present. Existing URLs are shown immediately when the edit modal opens.
 
 ## Due Dates and Age
 

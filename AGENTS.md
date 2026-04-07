@@ -6,6 +6,73 @@ This file provides guidance to AI LLM Agents like Claude Code (claude.ai/code), 
 
 Kanvana a local-first personal + AI Agent kanban board with no backend. `docs/specification-kanban.md` is the specification index and governance entrypoint, and `docs/spec/` contains the canonical feature and data specifications. All state lives in browser localStorage. Built with vanilla JavaScript, HTML, and CSS using Vite for bundling.
 
+## Purpose
+
+Kanvana is a process workflow optimized kanban board system for one person plus their AI-agent run company or companies. The current implementation target is V2 and is defined in docs/spec/specification-kanban.md.
+
+## Read This First
+
+Before making changes, read in this order:
+
+The specification files include core data structures and feature behavior that must be maintained at all times.
+
+- `docs/specification-kanban.md` - Specification index, update policy, and code-to-spec ownership map.
+- `docs/spec/*.md` - Canonical feature, data, storage, workflow, and testing specifications.
+- docs/spec/specification-kanban.md
+
+## Repo Map
+
+TODO
+
+
+## Core Engineering Rules
+
+1. Keep changes company-scoped. Every domain entity should be scoped to a company and company boundaries must be enforced in routes/services.
+
+2. Keep contracts synchronized. If you change schema/API behavior, update all impacted layers:
+
+  - packages/db schema and exports
+  - packages/shared types/constants/validators
+  - server routes/services
+  - ui API clients and pages
+3.  Preserve control-plane invariants.
+- Single-assignee task model
+- Atomic issue checkout semantics
+- Approval gates for governed actions
+- Budget hard-stop auto-pause behavior
+- Activity logging for mutating actions
+4. Do not replace strategic docs wholesale unless asked. Prefer additive updates. Keep doc/SPEC.md and doc/SPEC-implementation.md aligned.
+5.  Keep plan docs dated and centralized. New plan documents belong in doc/plans/ and should use YYYY-MM-DD-slug.md filenames.
+
+## Database Change Workflow
+
+TODO
+
+##  Verification Before Hand-off
+
+TODO
+
+## API and Auth Expectations
+
+TODO
+
+## UI Expectations
+
+- Keep routes and nav aligned with available API surface
+- Use company selection context for company-scoped pages
+- Surface failures clearly; do not silently ignore API errors
+
+
+## Definition of Done
+
+A change is done when all are true:
+
+- Behavior matches docs/SPEC-implementation.md
+- Typecheck, tests, and build pass
+- Contracts are synced across
+- Docs, Specs and Changelog updated when behavior or commands change
+
+
 ## Commands
 
 ```bash
@@ -19,13 +86,6 @@ npm run test:e2e   # Run Playwright end-to-end tests (tests/e2e)
 npm run test:ui    # Run Playwright tests with interactive UI
 npm run test:debug # Run Playwright tests in debug mode
 ```
-
-## Specification
-
-The specification files include core data structures and feature behavior that must be maintained at all times.
-
-- `docs/specification-kanban.md` - Specification index, update policy, and code-to-spec ownership map.
-- `docs/spec/*.md` - Canonical feature, data, storage, workflow, and testing specifications.
 
 ## Architecture
 

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- URLs in task descriptions are automatically rendered as clickable links on task cards — links open in a new tab and do not trigger the edit modal. Only `http://` and `https://` URLs are linkified; rendering uses DOM APIs (no innerHTML) for XSS safety.
+- Live link preview strip in the task modal: when a `http://` or `https://` URL is present in the description field, clickable chips appear below the textarea in real time — no need to save first. Duplicate URLs are deduplicated. The strip hides itself when no URLs are present.
 
 ## [1.5.0] - 2026-04-03
 

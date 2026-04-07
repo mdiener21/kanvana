@@ -52,6 +52,34 @@ fieldset.form-group legend {
   min-height: 60px;
 }
 
+/* Live link preview strip below description textarea */
+.description-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.description-link-chip {
+  display: inline-block;
+  max-width: 100%;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--input-focus-ring, rgba(79, 142, 247, 0.12));
+  color: var(--color-primary, #4f8ef7);
+  font-size: 12px;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.description-link-chip:hover {
+  text-decoration: underline;
+  opacity: 0.85;
+}
+
 .form-group input:focus,
 .form-group textarea:focus,
 .form-group select:focus {

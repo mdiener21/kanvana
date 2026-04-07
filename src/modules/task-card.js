@@ -59,6 +59,35 @@ function formatTaskAge(task) {
 
 export { formatDisplayDate, formatDisplayDateTime };
 
+// Safely convert URLs in text to <a> elements. Returns a DocumentFragment.
+// Only http/https URLs are matched; DOM APIs prevent XSS.
+export function linkifyText(text) {
+  const URL_RE = /https?:\/\/[^\s<>"']+/g;
+  const frag = document.createDocumentFragment();
+  let last = 0;
+  let match;
+  while ((match = URL_RE.exec(text)) !== null) {
+    if (match.index > last) {
+      frag.appendChild(document.createTextNode(text.slice(last, match.index)));
+    }
+    const a = document.createElement('a');
+    a.href = match[0];
+    // Guard: only allow http/https even after DOM parsing
+    if (a.protocol !== 'https:' && a.protocol !== 'http:') {
+      frag.appendChild(document.createTextNode(match[0]));
+    } else {
+      a.textContent = match[0];
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.addEventListener('click', (e) => e.stopPropagation());
+      frag.appendChild(a);
+    }
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+  return frag;
+}
+
 // Create a task element
 export function createTaskElement(task, settings, labelsMap = null, today = null) {
   const li = document.createElement('li');
@@ -77,6 +106,8 @@ export function createTaskElement(task, settings, labelsMap = null, today = null
   li.addEventListener('click', (e) => {
     // Skip if click is on or inside the delete button
     if (e.target.closest('.delete-task-btn')) return;
+    // Skip if click is on a description link
+    if (e.target.closest('.task-description a')) return;
     // Skip if pointer moved significantly (user was dragging)
     if (pointerDownPos) {
       const dx = Math.abs(e.clientX - pointerDownPos.x);
@@ -160,8 +191,12 @@ export function createTaskElement(task, settings, labelsMap = null, today = null
   const descriptionValue = typeof task.description === 'string' ? task.description.trim() : '';
   const descriptionEl = document.createElement('div');
   descriptionEl.classList.add('task-description');
-  descriptionEl.textContent = descriptionValue;
-  descriptionEl.style.display = descriptionValue ? 'block' : 'none';
+  if (descriptionValue) {
+    descriptionEl.appendChild(linkifyText(descriptionValue));
+    descriptionEl.style.display = 'block';
+  } else {
+    descriptionEl.style.display = 'none';
+  }
 
   li.appendChild(header);
   li.appendChild(descriptionEl);
