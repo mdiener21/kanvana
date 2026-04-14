@@ -7,6 +7,7 @@ fieldset.form-group {
   border: none;
   padding: 0;
   margin: 0 0 16px 0;
+  min-width: 0;
 }
 
 fieldset.form-group legend {

@@ -24,7 +24,8 @@ Sub-tasks do not support labels, relationships, priorities, due dates, or column
 - Each sub-task title can be edited inline by clicking it; an input field appears in place of the title
   - Press **Enter** or blur to commit; press **Escape** to cancel and restore the original title
   - Committing an empty string is a no-op (original title is preserved)
-- Each sub-task has a delete button that removes it from the list immediately
+- Each sub-task has a delete button (× icon) on the far right that removes it from the list immediately — no confirmation dialog is shown
+- Long sub-task titles are truncated with an ellipsis so the delete button always remains visible
 
 ## Ordering
 
