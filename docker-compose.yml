@@ -11,7 +11,7 @@ services:
     restart: unless-stopped
 
   pocketbase:
-    image: spectado/pocketbase:${PB_VERSION:-0.22.0}
+    image: spectado/pocketbase:${PB_VERSION:-0.37.3}
     expose:
       - "80"
     volumes:
