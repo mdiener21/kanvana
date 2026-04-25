@@ -73,6 +73,7 @@ Configure swim lanes in **Settings** or use the quick-access toggle in the board
 
 ### Core Features
 
+- **🔗 Clickable URLs in Descriptions**: Paste any `http://` or `https://` link into a task description and it becomes a clickable link on the card — opens in a new tab, no page refresh. A live link preview strip also appears below the description field in the task modal as you type, so you can click URLs without saving first
 - **🚀 Blazing Fast & Simple**: Lightning-quick performance with a clean, intuitive interface
 - **🔍 Powerful Search**: Find tasks instantly by label, title, description, or label groups
 - **📊 Productivity Reports**: Visualize your progress with Cumulative Flow Diagrams, weekly lead time, completion stats, same-day completions tracking, and an activity heatmap covering the last 365 days

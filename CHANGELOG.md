@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `.dockerignore`: lean build context
 - CI `ci.yml`: replaces `deploy.yml`; adds Docker multi-arch build + GHCR push (npm audit gate) before FTP deploy
 - CI `deploy-docker.yml`: SSH-based VPS deployment triggered after successful CI build
+- URLs in task descriptions are automatically rendered as clickable links on task cards — links open in a new tab and do not trigger the edit modal. Only `http://` and `https://` URLs are linkified; rendering uses DOM APIs (no innerHTML) for XSS safety.
+- Live link preview strip in the task modal: when a `http://` or `https://` URL is present in the description field, clickable chips appear below the textarea in real time — no need to save first. Duplicate URLs are deduplicated. The strip hides itself when no URLs are present.
 
 ### Changed
 

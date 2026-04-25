@@ -112,6 +112,16 @@
   color: var(--text-subtle);
 }
 
+.task-description a {
+  color: var(--accent, #4f8ef7);
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.task-description a:hover {
+  opacity: 0.8;
+}
+
 /* Relationship indicator row on task card */
 .task-relationships-row {
   display: flex;

@@ -496,6 +496,8 @@
   padding: 4px 6px;
   border-radius: 4px;
   background: var(--color-bg-secondary, #f8fafc);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .subtask-drag-handle {
@@ -517,6 +519,7 @@
 
 .subtask-title {
   flex: 1;
+  min-width: 0;
   font-size: 0.875rem;
   cursor: pointer;
   overflow: hidden;
