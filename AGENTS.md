@@ -45,6 +45,7 @@ The specification files include core data structures and feature behavior that m
 - `client/`: Frontend Application + Vite board UI
 - `backend/`: Pocketbase.io backend as a service and API
 - `client/`: Frontend Application + Vite board UI
+- `scripts/`: Helper bash or js scripts
 
 
 ## Core Engineering Rules

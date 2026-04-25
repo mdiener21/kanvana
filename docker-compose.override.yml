@@ -1,9 +1,0 @@
-# docker-compose.override.yml — dev convenience overrides (auto-loaded locally)
-# DO NOT copy to VPS — the VPS uses docker-compose.yml only.
-services:
-  nginx:
-    volumes:
-      # Live bind-mount: rebuild with `npm run build`, no image rebuild needed
-      - ./dist:/usr/share/nginx/html:ro
-    ports:
-      - "${NGINX_PORT:-8080}:80"

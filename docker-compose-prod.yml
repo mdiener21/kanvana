@@ -2,15 +2,10 @@ services:
   nginx:
     build:
       context: .
-      target: dev
-    command: npm run dev -- --host 0.0.0.0 --port 80 --open false
-    working_dir: /app
+      target: prod
     image: ghcr.io/mdiener21/kanvana:${IMAGE_TAG:-latest}
     ports:
       - "${NGINX_PORT:-8080}:80"
-    volumes:
-      - ./client:/app
-      - frontend_node_modules:/app/node_modules
     depends_on:
       - pocketbase
     restart: unless-stopped
@@ -25,4 +20,3 @@ services:
 
 volumes:
   pb_data:
-  frontend_node_modules:
