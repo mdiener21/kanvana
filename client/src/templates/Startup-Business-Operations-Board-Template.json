@@ -1,0 +1,98 @@
+{
+  "boardName": "Startup / Business Operations",
+  "columns": [
+    { "id": "idea-backlog", "name": "Idea Backlog", "color": "#a78bfa", "order": 1, "collapsed": false },
+    { "id": "backlog", "name": "Backlog", "color": "#00ff33", "order": 2, "collapsed": false },
+    { "id": "inprogress", "name": "In Progress", "color": "#f59e0b", "order": 3, "collapsed": false },
+    { "id": "waiting-external", "name": "Waiting / External", "color": "#fb7185", "order": 4, "collapsed": false },
+    { "id": "done", "name": "Completed", "color": "#505050", "order": 5, "collapsed": false }
+  ],
+  "tasks": [
+    {
+      "id": "c8e7c3f1-8df0-4c8e-ae27-2b9dfc70d02a",
+      "title": "Create quarterly budget forecast",
+      "description": "Draft forecast, include assumptions, and share with founders.",
+      "priority": "high",
+      "dueDate": "2026-02-20",
+      "column": "backlog",
+      "order": 1,
+      "labels": ["area-finance", "activity-writing"],
+      "creationDate": "2026-02-14T15:00:00.000Z",
+      "changeDate": "2026-02-14T15:00:00.000Z",
+      "columnHistory": [{ "column": "backlog", "at": "2026-02-14T15:00:00.000Z" }]
+    },
+    {
+      "id": "bff08ae2-02b7-4b06-9fb3-74c31bc0bb2e",
+      "title": "Review new vendor contract",
+      "description": "Check terms, renewal, and data-processing clauses.",
+      "priority": "medium",
+      "dueDate": "2026-02-19",
+      "column": "inprogress",
+      "order": 1,
+      "labels": ["area-legal", "activity-review"],
+      "creationDate": "2026-02-14T15:05:00.000Z",
+      "changeDate": "2026-02-14T15:05:00.000Z",
+      "columnHistory": [{ "column": "inprogress", "at": "2026-02-14T15:05:00.000Z" }]
+    },
+    {
+      "id": "c4d2f6c5-99d6-4e12-9773-26e3c8f2e1cc",
+      "title": "Set up recurring invoice reminders",
+      "description": "Automate reminders and add a simple checklist for month-end close.",
+      "priority": "medium",
+      "dueDate": "",
+      "column": "waiting-external",
+      "order": 1,
+      "labels": ["area-invoices", "activity-follow-up"],
+      "creationDate": "2026-02-14T15:10:00.000Z",
+      "changeDate": "2026-02-14T15:10:00.000Z",
+      "columnHistory": [{ "column": "waiting-external", "at": "2026-02-14T15:10:00.000Z" }]
+    },
+    {
+      "id": "1a8a6b4f-7a18-4c01-8f19-6d5b5fa7a4e2",
+      "title": "Improve onboarding checklist",
+      "description": "Draft a lightweight onboarding doc for the next hire.",
+      "priority": "low",
+      "dueDate": "",
+      "column": "idea-backlog",
+      "order": 1,
+      "labels": ["area-hr", "activity-writing"],
+      "creationDate": "2026-02-14T15:12:00.000Z",
+      "changeDate": "2026-02-14T15:12:00.000Z",
+      "columnHistory": [{ "column": "idea-backlog", "at": "2026-02-14T15:12:00.000Z" }]
+    },
+    {
+      "id": "c2c7f7e9-2c27-47c2-9b33-76f65fd5ff04",
+      "title": "Close January books",
+      "description": "Reconcile accounts and file receipts.",
+      "priority": "none",
+      "dueDate": "",
+      "column": "done",
+      "order": 1,
+      "labels": ["area-finance", "area-invoices"],
+      "creationDate": "2026-02-05T17:00:00.000Z",
+      "changeDate": "2026-02-05T17:00:00.000Z",
+      "doneDate": "2026-02-05T17:00:00.000Z",
+      "columnHistory": [{ "column": "done", "at": "2026-02-05T17:00:00.000Z" }]
+    }
+  ],
+  "labels": [
+    { "id": "area-finance", "name": "Finance", "color": "#14b8a6", "group": "Area" },
+    { "id": "area-legal", "name": "Legal", "color": "#8b5cf6", "group": "Area" },
+    { "id": "area-hr", "name": "HR", "color": "#f59e0b", "group": "Area" },
+    { "id": "area-invoices", "name": "Invoices", "color": "#3b82f6", "group": "Area" },
+    { "id": "area-strategy", "name": "Strategy", "color": "#64748b", "group": "Area" },
+
+    { "id": "activity-writing", "name": "Writing", "color": "#22c55e", "group": "Activity" },
+    { "id": "activity-review", "name": "Review", "color": "#06b6d4", "group": "Activity" },
+    { "id": "activity-follow-up", "name": "Follow Up", "color": "#fb7185", "group": "Activity" }
+  ],
+  "settings": {
+    "showPriority": true,
+    "showDueDate": true,
+    "showAge": true,
+    "showChangeDate": true,
+    "locale": "en",
+    "defaultPriority": "none",
+    "notificationDays": 3
+  }
+}

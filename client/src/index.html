@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Kanvana a Personal + AI-Agent Kanban Board - A fully local task management tool with no server required">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <title>Kanvana Personal + AI-Agent Kanban</title>
+  <link rel="stylesheet" href="styles/index.css">
+  <!-- Kanban favicon (inline SVG data URI) -->
+  <link rel="icon" href="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='2' y='3' width='6' height='18' rx='1.5' fill='%233b82f6'/%3E%3Crect x='9' y='3' width='6' height='12' rx='1.5' fill='%2360a5fa'/%3E%3Crect x='16' y='3' width='6' height='8' rx='1.5' fill='%2393c5fd'/%3E%3C/svg%3E">
+</head>
+<body>
+  <!-- Skip link for accessibility -->
+  <a href="#board-container" class="sr-only">Skip to board</a>
+
+  <header>
+    <nav class="controls" role="toolbar" aria-label="Board controls">
+      <div class="brand">
+        <img src="./images/kanvana-logo-color-32x23.svg" alt="Kanvana" class="brand-icon brand-logo">
+        <span id="brand-text" class="brand-text">Kanvana Personal + AI-Agent Kanban</span>
+      </div>
+
+      <div class="board-search" role="search" aria-label="Filter tasks">
+        <label class="sr-only" for="board-search-input">Search tasks</label>
+        <span data-lucide="search" aria-hidden="true"></span>
+        <input
+          id="board-search-input"
+          type="search"
+          inputmode="search"
+          placeholder="Search tasks…"
+          autocomplete="off"
+          aria-label="Search tasks by label, title, or description"
+        >
+      </div>
+
+      <div id="board-controls-menu" class="controls-actions">
+        <label class="sr-only" for="board-select">Select board</label>
+        <select id="board-select" class="control-select" aria-label="Select board"></select>
+        <label class="control-btn swimlane-toggle-label" for="swimlane-quick-toggle">
+          <span data-lucide="rows-3" aria-hidden="true"></span>
+          <span>Swim Lanes</span>
+          <input id="swimlane-quick-toggle" type="checkbox" class="toggle-switch" aria-label="Toggle swim lanes">
+        </label>
+        <button id="add-column-btn" class="control-btn" type="button" aria-haspopup="dialog">
+          <span data-lucide="columns-3" aria-hidden="true"></span>
+          <span style="color:green;">Add Column</span>
+        </button>
+        <button id="manage-boards-btn" class="control-btn" type="button" aria-haspopup="dialog">
+          <span data-lucide="settings" aria-hidden="true"></span>
+          <span>Manage Boards</span>
+        </button>
+        <button id="manage-labels-btn" class="control-btn" type="button" aria-haspopup="dialog">
+          <span data-lucide="tag" aria-hidden="true"></span>
+          <span>Manage Labels</span>
+        </button>
+        <button id="settings-btn" class="control-btn" type="button" aria-haspopup="dialog">
+          <span data-lucide="sliders-horizontal" aria-hidden="true"></span>
+          <span>Settings</span>
+        </button>
+        <button id="notifications-btn" class="control-btn" type="button" aria-haspopup="dialog">
+          <span data-lucide="bell" aria-hidden="true"></span>
+          <span>Notifications</span>
+          <span id="notification-badge" class="notification-badge hidden" aria-label="notifications count"></span>
+        </button>
+        <button id="theme-toggle-btn" class="control-btn" type="button" aria-pressed="false" aria-label="Toggle dark mode">
+          <span data-lucide="moon" aria-hidden="true"></span>
+        </button>
+         <button id="show-reports-btn" class="control-btn" type="button" aria-pressed="false" aria-label="Show Reports">
+          <span data-lucide="chart-column" aria-hidden="true"></span>
+          <span><a class="control-btn" href="./reports.html" style="text-decoration:none;">
+          View Reports
+        </a></span> 
+        </button>
+
+        <button id="show-calendar-btn" class="control-btn" type="button" aria-pressed="false" aria-label="Show Calendar">
+          <span data-lucide="calendar-days" aria-hidden="true"></span>
+          <span><a class="control-btn" href="./calendar.html" style="text-decoration:none;">
+          View Calendar
+        </a></span>
+        </button>
+        <button id="help-btn" class="control-btn" type="button" aria-haspopup="dialog">
+          <span data-lucide="help-circle" aria-hidden="true"></span>
+          <span>Help</span>
+        </button>
+        <a class="control-btn legal-menu-link" href="./impressum.html">
+          <span data-lucide="scale" aria-hidden="true"></span>
+          <span>Legal/Impressum</span>
+        </a>
+      </div>
+      
+      <button id="notifications-quick-btn" class="control-btn icon-only" type="button" aria-haspopup="dialog" aria-label="Notifications">
+        <span data-lucide="bell" aria-hidden="true"></span>
+        <span id="notification-quick-badge" class="notification-badge hidden" aria-label="notifications count"></span>
+      </button>
+
+      <button id="desktop-menu-btn" class="control-btn icon-only" type="button" aria-label="Menu" aria-expanded="false" aria-controls="board-controls-menu">
+        <span data-lucide="ellipsis-vertical" aria-hidden="true"></span>
+      </button>
+      
+      <input type="file" id="import-file" accept="application/json" class="sr-only" aria-label="Import board file">
+    </nav>
+  </header>
+
+  <!-- Notification Banner -->
+  <div id="notification-banner" class="notification-banner hidden" role="alert" aria-live="polite">
+    <div class="notification-banner-content">
+      <span data-lucide="bell-ring" aria-hidden="true" class="notification-banner-icon"></span>
+      <div id="notification-banner-list" class="notification-banner-list"></div>
+      <button id="notification-banner-close-btn" type="button" class="icon-btn notification-banner-close-btn" aria-label="Hide notification banner" title="Hide notification banner">
+        <span data-lucide="x" aria-hidden="true"></span>
+      </button>
+    </div>
+  </div>
+
+  <main id="board-container" class="board-container" aria-label="Kanban board">
+    <!-- Columns rendered dynamically by JavaScript -->
+  </main>
+
+  <!-- Task Modal -->
+  <div id="task-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="task-modal-title">
+    <div class="modal-backdrop" data-close-modal></div>
+    <article class="modal-content">
+      <header class="modal-header-row">
+        <h3 id="task-modal-title">Add New Task</h3>
+        <div class="modal-header-actions">
+          <button id="task-fullpage-btn" type="button" class="btn-small hidden" aria-pressed="false" title="Open in full page">
+            <span data-lucide="maximize-2" aria-hidden="true"></span>
+          </button>
+          <button id="task-close-btn" type="button" class="btn-small" aria-label="Close task editor" title="Close">
+            <span data-lucide="x" aria-hidden="true"></span>
+          </button>
+        </div>
+      </header>
+      <form id="task-form" novalidate>
+        <div class="task-form-columns">
+          <div class="task-form-column-left">
+            <div class="form-group">
+              <label for="task-title">Title <span aria-hidden="true">*</span></label>
+              <input id="task-title" type="text" required placeholder="Enter task title..." aria-required="true">
+            </div>
+            <div class="form-group">
+              <label for="task-description">Description</label>
+              <textarea id="task-description" rows="3" placeholder="Enter task description..."></textarea>
+              <div id="task-description-links" class="description-links" hidden aria-label="Links in description"></div>
+            </div>
+            <div class="form-group">
+              <label for="task-priority">Priority</label>
+              <select id="task-priority">
+                <option value="urgent">Urgent</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+                <option value="none" selected>None</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="task-due-date">Due Date</label>
+              <input id="task-due-date" type="date">
+            </div>
+            <div class="form-group">
+              <label for="task-column">Column</label>
+              <select id="task-column" aria-describedby="task-column-help">
+                <!-- Options populated dynamically -->
+              </select>
+              <span id="task-column-help" class="sr-only">Select which column to place this task in</span>
+            </div>
+          </div>
+          <div class="task-form-column-right">
+            <fieldset class="form-group">
+              <legend>Labels</legend>
+              <div id="task-active-labels" class="active-labels" role="list" aria-label="Selected labels"></div>
+              <div class="task-label-search-row">
+                <input type="text" id="task-label-search" placeholder="Search labels…" autocomplete="off" aria-label="Filter available labels">
+                <button id="task-add-label-btn" type="button" class="icon-btn" aria-label="Add a new label" title="Add label">
+                  <span data-lucide="plus" aria-hidden="true"></span>
+                </button>
+              </div>
+              <div id="task-labels-selection" class="labels-selection" role="listbox" aria-label="Available labels">
+                <!-- Labels populated dynamically -->
+              </div>
+            </fieldset>
+            <fieldset class="form-group" id="task-relationships-fieldset">
+              <legend>
+                <span data-lucide="git-branch" aria-hidden="true"></span>
+                Relationships
+              </legend>
+              <div id="task-active-relationships" class="active-relationships" role="list" aria-label="Active relationships"></div>
+              <div class="task-relationship-add-row">
+                <div class="rel-type-wrapper">
+                  <select id="task-relationship-type" aria-label="Relationship type">
+                    <option value="prerequisite">Prerequisite</option>
+                    <option value="dependent">Dependent</option>
+                    <option value="related">Related</option>
+                  </select>
+                  <div class="rel-type-tooltip" id="rel-type-tooltip" role="tooltip">
+                    Another task must be completed before this one can begin.
+                  </div>
+                </div>
+                <input type="text" id="task-relationship-search" placeholder="Search by #id or title…" autocomplete="off" aria-label="Search tasks to link">
+              </div>
+              <div id="task-relationship-results" class="relationship-results" role="listbox" aria-label="Task search results" hidden></div>
+            </fieldset>
+            <fieldset class="form-group" id="task-subtasks-fieldset">
+              <legend>
+                <span data-lucide="list-checks" aria-hidden="true"></span>
+                Sub-tasks
+                <span id="task-subtasks-progress-legend" class="subtasks-progress-legend" hidden></span>
+              </legend>
+              <ul id="task-subtasks-list" class="subtasks-list" role="list" aria-label="Sub-tasks"></ul>
+              <div class="task-subtask-add-row">
+                <input
+                  type="text"
+                  id="task-subtask-input"
+                  placeholder="Add a sub-task and press Enter…"
+                  autocomplete="off"
+                  maxlength="200"
+                  aria-label="New sub-task title"
+                >
+              </div>
+            </fieldset>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" id="cancel-task-btn" class="btn btn-secondary">Cancel</button>
+          <button type="submit" id="task-submit-btn" class="btn btn-primary">Add Task</button>
+        </div>
+      </form>
+    </article>
+  </div>
+
+  <!-- Column Modal -->
+  <div id="column-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="column-modal-title">
+    <div class="modal-backdrop" data-close-modal></div>
+    <article class="modal-content">
+      <header class="modal-header-row">
+        <h3 id="column-modal-title">Add New Column</h3>
+        <button id="column-close-btn" type="button" class="icon-btn" aria-label="Close" title="Close">
+          <span data-lucide="x" aria-hidden="true"></span>
+        </button>
+      </header>
+      <form id="column-form" novalidate>
+        <div class="form-group">
+          <label for="column-name">Column Name <span aria-hidden="true">*</span></label>
+          <input type="text" id="column-name" required placeholder="Enter column name..." aria-required="true">
+        </div>
+        <div class="form-group">
+          <label for="column-color">Color</label>
+          <div class="color-picker-row">
+            <input type="color" id="column-color" value="#3b82f6">
+            <input type="text" id="column-color-hex" class="color-hex-display" value="#3b82f6" maxlength="7" spellcheck="false" aria-label="Hex color code">
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" id="cancel-column-btn" class="btn btn-secondary">Cancel</button>
+          <button type="submit" id="column-submit-btn" class="btn btn-primary">Add Column</button>
+        </div>
+      </form>
+    </article>
+  </div>
+
+  <!-- Labels Management Modal -->
+  <div id="labels-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="labels-modal-title">
+    <div class="modal-backdrop" data-close-modal></div>
+    <article class="modal-content">
+      <header class="modal-header-row">
+        <h3 id="labels-modal-title">Manage Labels</h3>
+        <button id="labels-close-modal-btn" type="button" class="icon-btn" aria-label="Close" title="Close">
+          <span data-lucide="x" aria-hidden="true"></span>
+        </button>
+      </header>
+      <div class="form-group task-label-search-row">
+        <input type="text" id="labels-search" placeholder="Search labels…" autocomplete="off" aria-label="Filter labels">
+      </div>
+      <div id="labels-list" class="labels-list" role="list" aria-label="Available labels">
+        <!-- Labels populated dynamically -->
+      </div>
+      <div class="form-actions">
+        <button id="add-label-btn" type="button" class="btn btn-primary">Add Label</button>
+        <button type="button" id="labels-close-btn" class="btn btn-secondary">Close</button>
+      </div>
+    </article>
+  </div>
+
+  <!-- Boards Modal -->
+  <div id="boards-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="boards-modal-title">
+    <div class="modal-backdrop" data-close-modal></div>
+    <article class="modal-content">
+      <header class="modal-header-row">
+        <h3 id="boards-modal-title">Manage Boards</h3>
+        <button id="boards-close-modal-btn" type="button" class="icon-btn" aria-label="Close" title="Close">
+          <span data-lucide="x" aria-hidden="true"></span>
+        </button>
+      </header>
+      <div id="boards-list" class="labels-list" aria-label="Boards list"></div>
+      <div class="form-actions">
+        <button id="add-board-btn" type="button" class="btn btn-primary">
+          <span data-lucide="kanban" aria-hidden="true"></span>
+          <span> Create Board</span>
+        </button>
+        <button id="boards-import-btn" type="button" class="btn btn-secondary">
+          <span data-lucide="upload" aria-hidden="true"></span>
+          <span> Import Board</span>
+        </button>
+        <button type="button" id="boards-close-btn" class="btn btn-secondary">Close</button>
+      </div>
+    </article>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+    <div class="modal-backdrop" data-close-modal></div>
+    <article class="modal-content">
+      <header class="modal-header-row">
+        <h3 id="settings-modal-title">Settings</h3>
+        <button id="settings-close-modal-btn" type="button" class="icon-btn" aria-label="Close" title="Close">
+          <span data-lucide="x" aria-hidden="true"></span>
+        </button>
+      </header>
+      <form id="settings-form" novalidate>
+        <div class="form-group checkbox-group">
+          <label>
+            <input id="settings-show-priority" type="checkbox">
+            Show task priority
+          </label>
+        </div>
+        <div class="form-group checkbox-group">
+          <label>
+            <input id="settings-show-due-date" type="checkbox">
+            Show task due date
+          </label>
+        </div>
+        <div class="form-group">
+          <label for="settings-notification-days">Notifications: upcoming window (days)</label>
+          <input
+            id="settings-notification-days"
+            type="number"
+            min="0"
+            max="365"
+            step="1"
+            inputmode="numeric"
+            aria-label="Number of days ahead to include for notifications"
+          >
+        </div>
+        <div class="form-group">
+          <label for="settings-countdown-urgent-threshold">Countdown: urgent threshold (days)</label>
+          <input
+            id="settings-countdown-urgent-threshold"
+            type="number"
+            min="1"
+            max="365"
+            step="1"
+            inputmode="numeric"
+            aria-label="Days until due date to show countdown in red (urgent)"
+            title="Tasks due within this many days show in red"
+          >
+          <small class="form-help">Tasks due within this many days show in <span style="font-weight:800; color:red">red</span></small>
+        </div>
+        <div class="form-group">
+          <label for="settings-countdown-warning-threshold">Countdown: warning threshold (days)</label>
+          <input
+            id="settings-countdown-warning-threshold"
+            type="number"
+            min="1"
+            max="365"
+            step="1"
+            inputmode="numeric"
+            aria-label="Days until due date to show countdown in amber (warning)"
+            title="Tasks due within this many days show in amber (must be > urgent threshold)"
+          >
+          <small class="form-help">Tasks due within this many days show in <span style="font-weight:800; color:#ffd000">amber</span> (must be ≥ urgent threshold)</small>
+        </div>
+        <div class="form-group checkbox-group">
+          <label>
+            <input id="settings-show-age" type="checkbox">
+            Show task age
+          </label>
+        </div>
+        <div class="form-group checkbox-group">
+          <label>
+            <input id="settings-show-change-date" type="checkbox">
+            Show updated date/time
+          </label>
+        </div>
+        <div class="form-group">
+          <label for="settings-locale">Locale</label>
+          <select id="settings-locale" aria-label="Select locale"></select>
+        </div>
+        <div class="form-group">
+          <label for="settings-default-priority">Default task priority</label>
+          <select id="settings-default-priority" aria-label="Select default task priority">
+            <option value="urgent">Urgent</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+            <option value="none" selected>None</option>
+          </select>
+        </div>
+        <section class="settings-section" aria-labelledby="settings-swimlanes-title">
+          <div class="settings-section-header">
+            <h4 id="settings-swimlanes-title">Swim Lanes</h4>
+            <p class="form-help">Done-column cards stay hidden in swim lane rows to keep the board compact, but you can still drag tasks into Done.</p>
+          </div>
+          <div class="form-group checkbox-group">
+            <label>
+              <input id="settings-swimlane-enabled" type="checkbox" aria-label="Swim Lanes">
+              Enable swim lanes
+            </label>
+          </div>
+          <div class="form-group">
+            <label for="settings-swimlane-group-by">Group swim lanes by</label>
+            <select id="settings-swimlane-group-by" aria-label="Group swim lanes by">
+              <option value="label">Label</option>
+              <option value="label-group">Label Group</option>
+              <option value="priority">Priority</option>
+            </select>
+          </div>
+          <div id="settings-swimlane-label-group-field" class="form-group" hidden>
+            <label for="settings-swimlane-label-group">Label group source</label>
+            <select id="settings-swimlane-label-group" aria-label="Select label group for swim lanes"></select>
+            <p class="form-help">Each label inside the selected group becomes its own swim lane row.</p>
+          </div>
+          <div id="settings-swimlane-order-field" class="form-group" hidden>
+            <label>Lane order <span class="form-help">(drag to reorder)</span></label>
+            <ul id="settings-swimlane-order-list" class="swimlane-order-list" role="list" aria-label="Swim lane order"></ul>
+          </div>
+        </section>
+        <div class="form-actions">
+          <button type="button" id="settings-close-btn" class="btn btn-primary">Close</button>
+        </div>
+      </form>
+    </article>
+  </div>
+
+  <!-- Board Rename Modal -->
+  <div id="board-rename-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="board-rename-modal-title">
+    <div class="modal-backdrop" data-close-modal></div>
+    <article class="modal-content">
+      <header class="modal-header-row">
+        <h3 id="board-rename-modal-title">Rename Board</h3>
+        <button id="board-rename-close-btn" type="button" class="icon-btn" aria-label="Close" title="Close">
+          <span data-lucide="x" aria-hidden="true"></span>
+        </button>
+      </header>
+      <form id="board-rename-form" novalidate>
+        <div class="form-group">
+          <label for="board-rename-name">Board Name <span aria-hidden="true">*</span></label>
+          <input type="text" id="board-rename-name" required placeholder="Enter board name..." aria-required="true">
+        </div>
+        <div class="form-actions">
+          <button type="button" id="cancel-board-rename-btn" class="btn btn-secondary">Cancel</button>
+          <button type="submit" id="board-rename-submit-btn" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </article>
+  </div>
+
+  <!-- Board Create Modal -->
+  <div id="board-create-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="board-create-modal-title">
+    <div class="modal-backdrop" data-close-modal></div>
+    <article class="modal-content">
+      <header class="modal-header-row">
+        <h3 id="board-create-modal-title">Create New Board</h3>
+        <button id="board-create-close-btn" type="button" class="icon-btn" aria-label="Close" title="Close">
+          <span data-lucide="x" aria-hidden="true"></span>
+        </button>
+      </header>
+      <form id="board-create-form" novalidate>
+        <div class="form-group">
+          <label for="board-create-name">Board Name <span aria-hidden="true">*</span></label>
+          <input type="text" id="board-create-name" required placeholder="Enter board name..." aria-required="true">
+        </div>
+        <div class="form-group">
+          <label for="board-create-template">Template</label>
+          <select id="board-create-template" aria-label="Select a board template">
+            <option value="" selected>Blank board</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button type="button" id="cancel-board-create-btn" class="btn btn-secondary">Cancel</button>
+          <button type="submit" id="board-create-submit-btn" class="btn btn-primary">Create Board</button>
+        </div>
+      </form>
+    </article>
+  </div>
+
+  <!-- Confirm / Alert Modal -->
+  <div id="dialog-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="dialog-modal-title">
+    <div class="modal-backdrop" data-close-modal></div>
+    <article class="modal-content">
+      <header class="modal-header-row">
+        <h3 id="dialog-modal-title">Confirm</h3>
+        <button id="dialog-close-btn" type="button" class="icon-btn" aria-label="Close" title="Close">
+          <span data-lucide="x" aria-hidden="true"></span>
+        </button>
+      </header>
+      <p id="dialog-modal-message"></p>
+      <div class="form-actions">
+        <button type="button" id="dialog-cancel-btn" class="btn btn-secondary">Cancel</button>
+        <button type="button" id="dialog-confirm-btn" class="btn btn-primary">OK</button>
+      </div>
+    </article>
+  </div>
+
+  <!-- Label Edit Modal -->
+  <div id="label-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="label-modal-title">
+    <div class="modal-backdrop" data-close-modal></div>
+    <article class="modal-content">
+      <header class="modal-header-row">
+        <h3 id="label-modal-title">Add Label</h3>
+        <button id="label-close-btn" type="button" class="icon-btn" aria-label="Close" title="Close">
+          <span data-lucide="x" aria-hidden="true"></span>
+        </button>
+      </header>
+      <form id="label-form" novalidate>
+        <div class="form-group">
+          <label for="label-name">Label Name <span aria-hidden="true">*</span></label>
+          <input type="text" id="label-name" required maxlength="40" placeholder="Enter label name..." aria-required="true">
+        </div>
+        <div class="form-group">
+          <label for="label-group">Group</label>
+          <input type="text" id="label-group" placeholder="e.g. People, Status, Activity…" list="label-group-suggestions" autocomplete="off">
+          <datalist id="label-group-suggestions"></datalist>
+        </div>
+        <div class="form-group">
+          <label for="label-color">Color</label>
+          <div class="color-picker-row">
+            <input type="color" id="label-color" value="#3b82f6">
+            <input type="text" id="label-color-hex" class="color-hex-display" value="#3b82f6" maxlength="7" spellcheck="false" aria-label="Hex color code">
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" id="cancel-label-btn" class="btn btn-secondary">Cancel</button>
+          <button type="submit" id="label-submit-btn" class="btn btn-primary">Save Label</button>
+        </div>
+      </form>
+    </article>
+  </div>
+
+  <!-- Help Modal -->
+  <div id="help-modal" class="modal modal-large hidden" role="dialog" aria-modal="true" aria-labelledby="help-modal-title">
+    <div class="modal-backdrop" data-close-modal></div>
+    <article class="modal-content">
+      <header class="modal-header-row">
+        <h3 id="help-modal-title">Kanvana a Personal + AI-Agent Kanban Board Help</h3>
+        <button id="help-close-modal-btn" type="button" class="icon-btn" aria-label="Close" title="Close">
+          <span data-lucide="x" aria-hidden="true"></span>
+        </button>
+      </header>
+      <div class="help-content">
+        <section>
+          <h4>Quick Start</h4>
+          <ul>
+            <li><strong>Open controls:</strong> Click the ellipsis (⋮) button in the header.</li>
+            <li><strong>Local-first:</strong> Everything runs in your browser; data is stored in <code>localStorage</code>.</li>
+          </ul>
+        </section>
+        <section>
+          <h4>Links</h4>
+          <ul>
+            <li>
+              <a href="https://github.com/mdiener21/kanvana" target="_blank" rel="noopener noreferrer">GitHub Repository</a>
+            </li>
+            <li>
+              <a href="https://github.com/mdiener21/kanvana/stargazers" target="_blank" rel="noopener noreferrer">⭐ Star this project on GitHub</a>
+            </li>
+            <li>
+              <a href="https://github.com/mdiener21/kanvana/tree/main/docs" target="_blank" rel="noopener noreferrer">Documentation (GitHub)</a>
+            </li>
+          </ul>
+        </section>
+
+        <section>
+          <h4>Tasks</h4>
+          <ul>
+            <li><strong>Add:</strong> Click the plus icon in a column header.</li>
+            <li><strong>Edit:</strong> Click a task card to edit details (title, description, priority, due date, labels).</li>
+            <li><strong>Move:</strong> Drag and drop between columns.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h4>Columns</h4>
+          <ul>
+            <li><strong>Add:</strong> Use <strong>Add Column</strong> to create a new workflow stage.</li>
+            <li><strong>Reorder:</strong> Drag the column grip handle.</li>
+            <li><strong>Edit/Delete:</strong> Use the column ellipsis menu.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h4>Labels &amp; Label Groups</h4>
+          <ul>
+            <li><strong>Manage:</strong> Use <strong>Manage Labels</strong> to create, edit, delete.</li>
+            <li><strong>Groups:</strong> Optionally assign labels to a group (e.g., People, Status, Activity) to keep things organized.</li>
+            <li><strong>Search:</strong> Label search matches both label names and group names.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h4>Settings</h4>
+          <ul>
+            <li>Open <strong>Settings</strong> from the controls menu to customize what shows on cards (e.g., priority, due dates) and your preferences.</li>
+          </ul>
+        </section>
+
+      </div>
+      <div class="form-actions">
+        <button type="button" id="help-close-btn" class="btn btn-primary">Close</button>
+      </div>
+    </article>
+  </div>
+
+  <!-- Notifications Modal -->
+  <div id="notifications-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="notifications-modal-title">
+    <div class="modal-backdrop" data-close-modal></div>
+    <article class="modal-content">
+      <header class="modal-header-row">
+        <h3 id="notifications-modal-title">Upcoming & Overdue Tasks</h3>
+        <button id="notifications-close-modal-btn" type="button" class="icon-btn" aria-label="Close" title="Close">
+          <span data-lucide="x" aria-hidden="true"></span>
+        </button>
+      </header>
+      <div class="notifications-controls checkbox-group" aria-label="Notification settings">
+        <label for="notification-banner-visibility-toggle">
+          <input id="notification-banner-visibility-toggle" type="checkbox">
+          Show notification banner
+        </label>
+      </div>
+      <div id="notifications-list" class="notifications-list" role="list" aria-label="Tasks with approaching due dates"></div>
+      <div class="form-actions">
+        <button type="button" id="notifications-close-btn" class="btn btn-primary">Close</button>
+      </div>
+    </article>
+  </div>
+
+<footer class="footer">
+  <p>📌 Data stored in browser localStorage only!
+    <strong>Export your board to save to disk</strong>
+    <a href="https://github.com/mdiener21/kanvana/tree/main/docs" target="_blank" rel="noopener noreferrer"> Github Docs</a>
+    <span id="app-version" class="footer-version" aria-label="App version"></span>
+  </p>
+</footer>
+
+<script type="module" src="kanban.js"></script>
+</body>
+</html>

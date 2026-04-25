@@ -1,0 +1,28 @@
+/* ==========================================================================
+   Personal Kanban – CSS Entry Point
+   Import order matters: tokens → base → utilities → layout → components → responsive
+   ========================================================================== */
+
+/* Tokens & Base */
+@import './tokens.css';
+@import './base.css';
+@import './utilities.css';
+
+/* Layout */
+@import './layout.css';
+
+/* Components */
+@import './components/buttons.css';
+@import './components/icons.css';
+@import './components/column.css';
+@import './components/card.css';
+@import './components/forms.css';
+@import './components/modals.css';
+@import './components/accordion.css';
+@import './components/labels.css';
+@import './components/notifications.css';
+@import './components/dragdrop.css';
+@import './components/reports.css';
+
+/* Responsive overrides (must come last) */
+@import './responsive.css';

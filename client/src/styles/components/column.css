@@ -1,0 +1,586 @@
+/* ==========================================================================
+   Column Components
+   ========================================================================== */
+
+/* --- Column Card --- */
+
+.task-column {
+  /* Column accent (can be overridden via inline style) */
+  --column-accent: #3b82f6;
+  --column-accent-hover: color-mix(in srgb, var(--column-accent) 80%, #000000);
+  --column-bg-tint: color-mix(in srgb, var(--column-accent) 8%, transparent);
+  --task-bg-tint: color-mix(in srgb, var(--column-accent) 7%, transparent);
+  --task-border-tint: color-mix(in srgb, var(--column-accent) 22%, transparent);
+  --task-hover-border-tint: color-mix(in srgb, var(--column-accent) 45%, transparent);
+  --task-hover-shadow: color-mix(in srgb, var(--column-accent) 18%, transparent);
+
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: 10px;
+  padding: 12px;
+  flex: 1;
+  min-width: 280px;
+  background-color: var(--surface);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  transition:
+    border-color var(--transition-normal),
+    background-color var(--transition-normal),
+    box-shadow var(--transition-normal),
+    transform var(--transition-normal);
+}
+
+/* Accent stripe */
+.task-column::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--column-accent);
+  opacity: 0.9;
+}
+
+.task-column:hover {
+  border-color: color-mix(in srgb, var(--column-accent), var(--border) 35%);
+  background-color: color-mix(in srgb, var(--surface), var(--column-bg-tint) 100%);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-1px);
+}
+
+/* Fallback accent colors (nth-child) */
+#board-container > .task-column:nth-child(3n + 1) { --column-accent: #3b82f6; }
+#board-container > .task-column:nth-child(3n + 2) { --column-accent: #f59e0b; }
+#board-container > .task-column:nth-child(3n + 3) { --column-accent: #16a34a; }
+
+/* Column header */
+.column-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: grab;
+  user-select: none;
+}
+
+/* Ensure all header contents show the drag cursor (unless explicitly interactive). */
+.column-header * {
+  cursor: inherit;
+}
+
+/* Keep interactive controls feeling clickable. */
+.column-header button,
+.column-header a {
+  cursor: pointer;
+}
+
+.column-header:active {
+  cursor: grabbing;
+}
+
+/* While dragging columns, force grabbing cursor over headers. */
+body.dragging-column .column-header,
+body.dragging-column .column-header * {
+  cursor: grabbing;
+}
+
+.column-header h2 {
+  margin: 0;
+  flex: 1;
+  font-size: 20px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.task-counter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--surface-muted);
+  color: var(--text-muted);
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Column actions */
+.column-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+/* Column overflow menu */
+.column-menu-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.column-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+  z-index: 20;
+}
+
+.column-menu.hidden { display: none; }
+
+.column-menu-item {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text);
+  transition: background-color var(--transition-normal);
+}
+
+.column-menu-item:hover {
+  background-color: var(--surface-muted);
+}
+
+.column-menu-item svg {
+  width: 16px;
+  height: 16px;
+  stroke: var(--text);
+  stroke-width: 2;
+}
+
+.column-menu-item.danger { color: var(--color-danger); }
+.column-menu-item.danger svg { stroke: var(--color-danger); }
+
+/* Column menu submenu */
+.column-menu-submenu-wrapper {
+  position: relative;
+}
+
+.column-menu-item.has-submenu {
+  justify-content: flex-start;
+  flex-direction: row-reverse;
+}
+
+.submenu-chevron {
+  margin-right: 2px;
+  opacity: 0.6;
+}
+
+.submenu-chevron svg {
+  width: 14px;
+  height: 14px;
+}
+
+.column-submenu {
+  position: absolute;
+  top: 0;
+  right: 100%;
+  margin-right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+  z-index: 100;
+  min-width: 120px;
+}
+
+.column-submenu.hidden {
+  display: none;
+}
+
+/* Mobile: submenu appears below instead of to the right */
+@media (max-width: 600px) {
+  .column-submenu {
+    position: static;
+    margin-left: 0;
+    margin-top: 4px;
+    box-shadow: none;
+    border: none;
+    background: var(--surface-muted);
+    border-radius: 6px;
+    padding: 4px;
+  }
+
+  .column-submenu .column-menu-item {
+    padding-left: 16px;
+    font-size: 12px;
+  }
+}
+
+/* Tasks list */
+.tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.tasks.expanded { max-height: none; }
+
+/* Custom scrollbar */
+.tasks::-webkit-scrollbar { width: 6px; }
+.tasks::-webkit-scrollbar-track { background: var(--scrollbar-track); border-radius: 3px; }
+.tasks::-webkit-scrollbar-thumb { background: var(--column-accent); border-radius: 3px; }
+.tasks::-webkit-scrollbar-thumb:hover { background: var(--column-accent-hover); }
+
+.board-container-swimlanes {
+  display: block;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding-bottom: 12px;
+}
+
+.swimlane-board {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 100%;
+  width: 100%;
+  padding: 12px 16px 16px;
+  box-sizing: border-box;
+}
+
+.swimlane-grid-header,
+.swimlane-row-cells {
+  display: grid;
+  grid-template-columns: var(--swimlane-grid-template, repeat(var(--swimlane-column-count, 3), minmax(280px, 1fr)));
+  gap: 16px;
+  align-items: start;
+}
+
+.swimlane-grid-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding-block: 4px;
+  margin-block: -4px 0;
+  background: var(--app-bg);
+}
+
+.swimlane-column-header,
+.swimlane-cell {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+}
+
+.swimlane-column-header {
+  --column-accent: #3b82f6;
+  position: relative;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  box-shadow: var(--shadow-sm);
+}
+
+.swimlane-column-collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  flex: 0 0 auto;
+}
+
+.swimlane-column-collapse-btn:hover {
+  background: var(--surface-muted);
+}
+
+.swimlane-column-header h2 {
+  margin: 0;
+  flex: 1;
+  font-size: 18px;
+}
+
+.swimlane-column-header.is-collapsed {
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 10px 8px;
+}
+
+.swimlane-column-header.is-collapsed h2 {
+  flex: 0 1 auto;
+  font-size: 12px;
+  line-height: 1.1;
+  text-align: center;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.swimlane-column-header.is-collapsed .add-task-btn-icon {
+  display: none;
+}
+
+.swimlane-column-header.is-collapsed .task-counter {
+  min-width: 28px;
+}
+
+.swimlane-column-header::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  border-radius: 5px 0 0 5px;
+  background: var(--column-accent);
+}
+
+.swimlane-row-header {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  width: fit-content;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 16px 5px 0px;
+  box-sizing: border-box;
+}
+
+.swimlane-row-header-main {
+  display: contents;
+}
+
+
+.swimlane-row-title {
+  font-size: 15px;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.swimlane-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 0;
+}
+
+.swimlane-row-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid var(--border);
+}
+
+.swimlane-row-badge.is-muted {
+  color: var(--text-muted);
+}
+
+.swimlane-row-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
+.swimlane-row-toggle:hover {
+  border-color: var(--border);
+  background: var(--surface-muted);
+}
+
+.swimlane-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Collapsed swimlane row: cells hidden, header stays visible via sticky */
+.swimlane-row.is-collapsed .swimlane-row-cells {
+  display: none;
+}
+
+.swimlane-cell {
+  --column-accent: #3b82f6;
+  --column-accent-hover: color-mix(in srgb, var(--column-accent) 80%, #000000);
+  --column-bg-tint: color-mix(in srgb, var(--column-accent) 8%, transparent);
+  --task-bg-tint: color-mix(in srgb, var(--column-accent) 7%, transparent);
+  --task-border-tint: color-mix(in srgb, var(--column-accent) 22%, transparent);
+  --task-hover-border-tint: color-mix(in srgb, var(--column-accent) 45%, transparent);
+  --task-hover-shadow: color-mix(in srgb, var(--column-accent) 18%, transparent);
+
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 12px;
+  background: color-mix(in srgb, var(--surface) 96%, var(--surface-muted));
+  overflow: visible;
+}
+
+.swimlane-cell.is-column-collapsed {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 6px;
+}
+
+.swimlane-cell.is-column-collapsed .swimlane-cell-summary {
+  margin: 0;
+  font-size: 11px;
+  text-align: center;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.swimlane-cell-summary {
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.swimlane-tasks {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-rows: max-content;
+  align-content: start;
+  gap: 16px;
+  min-height: 116px;
+  width: 100%;
+  padding: 4px 2px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+.swimlane-tasks-hidden-done {
+  min-height: 68px;
+  padding: 2px 0;
+}
+
+.swimlane-cell .task {
+  width: 100%;
+  margin: 0;
+  outline: none;
+}
+
+.swimlane-cell.is-column-collapsed .swimlane-tasks {
+  display: none;
+}
+
+/* Cell collapse toggle */
+.swimlane-cell-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.swimlane-cell.is-cell-collapsed .swimlane-cell-header {
+  margin-bottom: 0;
+}
+
+.swimlane-cell-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.swimlane-cell-toggle:hover {
+  background: var(--surface-muted);
+  color: var(--text);
+}
+
+.swimlane-cell-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
+.swimlane-cell.is-cell-collapsed {
+  min-height: auto;
+}
+
+.swimlane-cell.is-cell-collapsed .swimlane-tasks {
+  display: none;
+}
+
+.swimlane-cell-header .swimlane-cell-summary {
+  margin-bottom: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.swimlane-cell-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.swimlane-cell-add-btn:hover {
+  background: var(--surface-muted);
+  color: var(--column-accent);
+}
+
+.swimlane-cell-add-btn svg {
+  width: 14px;
+  height: 14px;
+}

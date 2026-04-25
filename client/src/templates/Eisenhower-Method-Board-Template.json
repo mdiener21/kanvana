@@ -1,0 +1,60 @@
+{
+  "boardName": "EisenhowerBoard",
+  "columns": [
+    {
+      "id": "inprogress",
+      "name": "In Progress",
+      "color": "#f59e0b",
+      "order": 3
+    },
+    {
+      "id": "done",
+      "name": "Done",
+      "color": "#505050",
+      "order": 4
+    },
+    {
+      "id": "backlog-cf0403d6",
+      "name": "ToDo Backlog",
+      "color": "#254d8e",
+      "order": 2
+    },
+    {
+      "id": "waiting-for-3bca5c87",
+      "name": "Waiting-For On/Hold Blocked",
+      "color": "#f59e0b",
+      "order": 1
+    }
+  ],
+  "tasks": [],
+  "labels": [
+    {
+      "id": "task",
+      "name": "Important+Urgent",
+      "color": "#ad0000"
+    },
+    {
+      "id": "important-55b27e09",
+      "name": "Important",
+      "color": "#ff5252"
+    },
+    {
+      "id": "urgent-0bba893b",
+      "name": "Urgent",
+      "color": "#af2c93"
+    },
+    {
+      "id": "delegate-b97e59d6",
+      "name": "Delegate",
+      "color": "#3b82f6"
+    }
+  ],
+  "settings": {
+    "showPriority": true,
+    "showDueDate": true,
+    "showAge": true,
+    "showChangeDate": true,
+    "locale": "en-US",
+    "defaultPriority": "low"
+  }
+}

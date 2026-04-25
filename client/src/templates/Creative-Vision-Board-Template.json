@@ -1,0 +1,81 @@
+{
+  "boardName": "Creative / Vision",
+  "columns": [
+    { "id": "ideas", "name": "Ideas", "color": "#a78bfa", "order": 1, "collapsed": false },
+    { "id": "in-focus", "name": "In Focus", "color": "#60a5fa", "order": 2, "collapsed": false },
+    { "id": "inprogress", "name": "In Progress", "color": "#f59e0b", "order": 3, "collapsed": false },
+    { "id": "done", "name": "Achieved", "color": "#374151", "order": 4, "collapsed": false }
+  ],
+  "tasks": [
+    {
+      "id": "b8a1d8e9-5f52-4b8b-90ad-9d4e7c3a9b9f",
+      "title": "Create a 30-day learning plan",
+      "description": "Pick one skill and define weekly milestones.",
+      "priority": "medium",
+      "dueDate": "",
+      "column": "in-focus",
+      "order": 1,
+      "labels": ["theme-learning"],
+      "creationDate": "2026-02-14T16:00:00.000Z",
+      "changeDate": "2026-02-14T16:00:00.000Z",
+      "columnHistory": [{ "column": "in-focus", "at": "2026-02-14T16:00:00.000Z" }]
+    },
+    {
+      "id": "f5c9e9d2-8b2d-44f1-8c2e-7e8a4d7a3e2a",
+      "title": "Sketch travel photo book concept",
+      "description": "Collect 10 favorite photos and draft a simple layout.",
+      "priority": "low",
+      "dueDate": "",
+      "column": "ideas",
+      "order": 1,
+      "labels": ["theme-travel", "theme-creativity"],
+      "creationDate": "2026-02-14T16:05:00.000Z",
+      "changeDate": "2026-02-14T16:05:00.000Z",
+      "columnHistory": [{ "column": "ideas", "at": "2026-02-14T16:05:00.000Z" }]
+    },
+    {
+      "id": "3b0d8e7c-2a2b-4b7b-8f19-4d5e6c7a8b9c",
+      "title": "Daily wellness routine",
+      "description": "Build a simple morning routine: stretch, water, 10-minute walk.",
+      "priority": "medium",
+      "dueDate": "",
+      "column": "inprogress",
+      "order": 1,
+      "labels": ["theme-wellness"],
+      "creationDate": "2026-02-14T16:10:00.000Z",
+      "changeDate": "2026-02-14T16:10:00.000Z",
+      "columnHistory": [{ "column": "inprogress", "at": "2026-02-14T16:10:00.000Z" }]
+    },
+    {
+      "id": "0a1b2c3d-4e5f-6789-aaaa-bbbbccccdddd",
+      "title": "Finish 12-week fitness goal",
+      "description": "Completed the plan and tracked progress weekly.",
+      "priority": "none",
+      "dueDate": "",
+      "column": "done",
+      "order": 1,
+      "labels": ["theme-wellness"],
+      "creationDate": "2026-01-10T08:00:00.000Z",
+      "changeDate": "2026-01-10T08:00:00.000Z",
+      "doneDate": "2026-01-10T08:00:00.000Z",
+      "columnHistory": [{ "column": "done", "at": "2026-01-10T08:00:00.000Z" }]
+    }
+  ],
+  "labels": [
+    { "id": "theme-goals", "name": "Goals", "color": "#3b82f6", "group": "Theme" },
+    { "id": "theme-future", "name": "Future", "color": "#a78bfa", "group": "Theme" },
+    { "id": "theme-wellness", "name": "Wellness", "color": "#22c55e", "group": "Theme" },
+    { "id": "theme-travel", "name": "Travel", "color": "#06b6d4", "group": "Theme" },
+    { "id": "theme-creativity", "name": "Creativity", "color": "#f59e0b", "group": "Theme" },
+    { "id": "theme-learning", "name": "Learning", "color": "#64748b", "group": "Theme" }
+  ],
+  "settings": {
+    "showPriority": true,
+    "showDueDate": true,
+    "showAge": true,
+    "showChangeDate": true,
+    "locale": "en",
+    "defaultPriority": "none",
+    "notificationDays": 3
+  }
+}

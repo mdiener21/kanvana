@@ -1,0 +1,94 @@
+/* ==========================================================================
+   CSS Variables (Light/Dark themes)
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* Core palette */
+  --color-primary: #3b82f6;
+  --color-primary-hover: #2563eb;
+  --color-danger: #dc2626;
+  --color-danger-bg: #fee2e2;
+  --color-success: #16a34a;
+  --color-warning: #f59e0b;
+
+  /* Surface colors */
+  --app-bg: #f3f4f6;
+  --surface: #ffffff;
+  --surface-muted: #f9fafb;
+
+  /* Border colors */
+  --border: #d1d5db;
+  --border-subtle: #e5e7eb;
+
+  /* Text colors */
+  --text: #111827;
+  --text-muted: #6b7280;
+  --text-subtle: #374151;
+
+  /* Form colors */
+  --input-bg: #ffffff;
+  --input-focus-ring: rgba(59, 130, 246, 0.2);
+
+  /* Component colors */
+  --scrollbar-track: #f1f5f9;
+  --footer-bg: #f3f4f6;
+
+  /* Button variants */
+  --btn-secondary-bg: #e5e7eb;
+  --btn-secondary-fg: #374151;
+  --btn-secondary-hover-bg: #d1d5db;
+  --btn-small-bg: #f3f4f6;
+  --btn-small-hover-bg: #e5e7eb;
+
+  /* Priority badge colors */
+  --priority-high-bg: rgba(239, 68, 68, 0.15);
+  --priority-high-fg: #ef4444;
+  --priority-urgent-bg: rgba(239, 68, 68, 0.25);
+  --priority-urgent-fg: #dc2626;
+  --priority-medium-bg: rgba(234, 179, 8, 0.15);
+  --priority-medium-fg: #ca8a04;
+  --priority-low-bg: rgba(107, 114, 128, 0.15);
+  --priority-low-fg: #92a1b8;
+  --priority-none-bg: rgba(107, 114, 128, 0.08);
+  --priority-none-fg: #6b7280;
+
+  /* Shadows */
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 10px 18px rgba(0, 0, 0, 0.1);
+
+  /* Transitions */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.2s ease;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --app-bg: #111827;
+  --surface: #1f2937;
+  --surface-muted: #0f172a;
+  --border: #374151;
+  --border-subtle: #334155;
+  --text: #e5e7eb;
+  --text-muted: #9ca3af;
+  --text-subtle: #cbd5e1;
+  --input-bg: #111827;
+  --scrollbar-track: #0b1220;
+  --footer-bg: #0f172a;
+  --btn-secondary-bg: #334155;
+  --btn-secondary-fg: #e5e7eb;
+  --btn-secondary-hover-bg: #475569;
+  --btn-small-bg: #111827;
+  --btn-small-hover-bg: #1f2937;
+  --color-danger-bg: rgba(220, 38, 38, 0.15);
+
+  /* Priority badge colors – brighter for dark surfaces */
+  --priority-high-fg: #f87171;
+  --priority-urgent-fg: #ef4444;
+  --priority-medium-fg: #fbbf24;
+  --priority-low-fg: #9ca3af;
+  --priority-none-fg: #9ca3af;
+}

@@ -1,0 +1,114 @@
+{
+  "boardName": "Marketing Campaign",
+  "columns": [
+    { "id": "campaign-ideas", "name": "Campaign Ideas", "color": "#a78bfa", "order": 1, "collapsed": false },
+    { "id": "planning", "name": "Planning", "color": "#60a5fa", "order": 2, "collapsed": false },
+    { "id": "production", "name": "In Production", "color": "#f59e0b", "order": 3, "collapsed": false },
+    { "id": "scheduled", "name": "Scheduled", "color": "#34d399", "order": 4, "collapsed": false },
+    { "id": "live", "name": "Live", "color": "#22c55e", "order": 5, "collapsed": false },
+    { "id": "review", "name": "Performance Review", "color": "#fb7185", "order": 6, "collapsed": false },
+    { "id": "done", "name": "Completed", "color": "#505050", "order": 7, "collapsed": false }
+  ],
+  "tasks": [
+    {
+      "id": "b9a6a5cc-3af0-4e13-bc33-58f2bcb7bfdf",
+      "title": "Spring promo campaign concept",
+      "description": "Define offer, audience, and success metrics.",
+      "priority": "medium",
+      "dueDate": "",
+      "column": "campaign-ideas",
+      "order": 1,
+      "labels": ["channel-email", "audience-smb"],
+      "creationDate": "2026-02-14T14:00:00.000Z",
+      "changeDate": "2026-02-14T14:00:00.000Z",
+      "columnHistory": [{ "column": "campaign-ideas", "at": "2026-02-14T14:00:00.000Z" }]
+    },
+    {
+      "id": "d7a0f08f-9f4f-4a3b-9b38-6b0d6c9d0d68",
+      "title": "Landing page copy + wireframe",
+      "description": "Draft headline/CTA, map sections, and confirm tracking events.",
+      "priority": "high",
+      "dueDate": "2026-02-19",
+      "column": "planning",
+      "order": 1,
+      "labels": ["asset-landing-page", "asset-ad-copy"],
+      "creationDate": "2026-02-14T14:05:00.000Z",
+      "changeDate": "2026-02-14T14:05:00.000Z",
+      "columnHistory": [{ "column": "planning", "at": "2026-02-14T14:05:00.000Z" }]
+    },
+    {
+      "id": "2de2e9d9-12d9-4a9f-9ab4-1f5a2a1ef0ef",
+      "title": "Creative set: paid social",
+      "description": "Design 3 variations and export platform sizes.",
+      "priority": "medium",
+      "dueDate": "2026-02-21",
+      "column": "production",
+      "order": 1,
+      "labels": ["channel-paid-social", "asset-design"],
+      "creationDate": "2026-02-14T14:10:00.000Z",
+      "changeDate": "2026-02-14T14:10:00.000Z",
+      "columnHistory": [{ "column": "production", "at": "2026-02-14T14:10:00.000Z" }]
+    },
+    {
+      "id": "8b0f4c6f-0d3a-4cb2-9f07-4b5d9f13a5da",
+      "title": "Schedule email blast",
+      "description": "Finalize segment and set send time; verify UTM parameters.",
+      "priority": "medium",
+      "dueDate": "2026-02-23",
+      "column": "scheduled",
+      "order": 1,
+      "labels": ["channel-email", "audience-smb"],
+      "creationDate": "2026-02-14T14:15:00.000Z",
+      "changeDate": "2026-02-14T14:15:00.000Z",
+      "columnHistory": [{ "column": "scheduled", "at": "2026-02-14T14:15:00.000Z" }]
+    },
+    {
+      "id": "9f4c9c46-fb6a-4a9f-b3a3-0d38a6c7a6c8",
+      "title": "Monitor spend + CTR daily",
+      "description": "Pause underperforming ads; reallocate budget to winners.",
+      "priority": "high",
+      "dueDate": "",
+      "column": "live",
+      "order": 1,
+      "labels": ["channel-paid-search", "channel-paid-social"],
+      "creationDate": "2026-02-14T14:20:00.000Z",
+      "changeDate": "2026-02-14T14:20:00.000Z",
+      "columnHistory": [{ "column": "live", "at": "2026-02-14T14:20:00.000Z" }]
+    },
+    {
+      "id": "4a7d5b0c-3b71-4f50-8f37-5ee7a277c9a2",
+      "title": "Post-campaign performance review",
+      "description": "Summarize results and list 3 improvements for next cycle.",
+      "priority": "low",
+      "dueDate": "",
+      "column": "review",
+      "order": 1,
+      "labels": ["asset-reporting", "audience-smb"],
+      "creationDate": "2026-02-10T09:00:00.000Z",
+      "changeDate": "2026-02-10T09:00:00.000Z",
+      "columnHistory": [{ "column": "review", "at": "2026-02-10T09:00:00.000Z" }]
+    }
+  ],
+  "labels": [
+    { "id": "channel-email", "name": "Email", "color": "#22c55e", "group": "Channel" },
+    { "id": "channel-paid-search", "name": "Paid Search", "color": "#3b82f6", "group": "Channel" },
+    { "id": "channel-paid-social", "name": "Paid Social", "color": "#a78bfa", "group": "Channel" },
+
+    { "id": "asset-ad-copy", "name": "Ad Copy", "color": "#f59e0b", "group": "Asset" },
+    { "id": "asset-design", "name": "Design", "color": "#06b6d4", "group": "Asset" },
+    { "id": "asset-landing-page", "name": "Landing Page", "color": "#14b8a6", "group": "Asset" },
+    { "id": "asset-reporting", "name": "Reporting", "color": "#64748b", "group": "Asset" },
+
+    { "id": "audience-smb", "name": "SMB", "color": "#fb7185", "group": "Audience" },
+    { "id": "audience-enterprise", "name": "Enterprise", "color": "#ef4444", "group": "Audience" }
+  ],
+  "settings": {
+    "showPriority": true,
+    "showDueDate": true,
+    "showAge": true,
+    "showChangeDate": true,
+    "locale": "en",
+    "defaultPriority": "none",
+    "notificationDays": 3
+  }
+}

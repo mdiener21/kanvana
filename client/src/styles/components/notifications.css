@@ -1,0 +1,336 @@
+/* ==========================================================================
+   Notification System
+   ========================================================================== */
+
+/* Notification Banner */
+.notification-banner {
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  margin: 0 10px 10px 10px;
+  padding: 12px 16px;
+  animation: banner-appear 0.3s ease-out;
+  display: flex;
+  flex-direction: column;
+  max-height: 150px;
+  min-height: 40px;
+  overflow: hidden;
+}
+
+.notification-banner.hidden {
+  display: none;
+}
+
+@keyframes banner-appear {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.notification-banner-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.notification-banner-icon {
+  flex-shrink: 0;
+  color: var(--color-danger);
+  padding-top: 4px;
+}
+
+.notification-banner-icon svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2;
+}
+
+.notification-banner-list {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  padding: 2px 2px 3px 2px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+.notification-banner-close-btn {
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-left: 8px;
+  opacity: 0.65;
+}
+
+.notification-banner-close-btn:hover {
+  opacity: 1;
+  background-color: var(--surface-muted);
+}
+
+@media (max-width: 600px) {
+  .notification-banner-close-btn {
+    padding: 6px;
+  }
+}
+
+/* Desktop/tablet: show banner items left-to-right (horizontal scroll). */
+@media (min-width: 601px) {
+  .notification-banner {
+    max-height: 180px;
+  }
+
+  .notification-banner-list {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    touch-action: pan-x;
+    padding-bottom: 10px;
+  }
+}
+
+/* Custom scrollbar for notification banner list */
+.notification-banner-list::-webkit-scrollbar { width: 6px; }
+.notification-banner-list::-webkit-scrollbar-track { background: var(--scrollbar-track); border-radius: 3px; }
+.notification-banner-list::-webkit-scrollbar-thumb { background: rgba(239, 68, 68, 0.4); border-radius: 3px; }
+.notification-banner-list::-webkit-scrollbar-thumb:hover { background: rgba(239, 68, 68, 0.6); }
+
+.notification-banner-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background-color: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  align-self: flex-start;
+  flex: 0 0 auto; /* Prevent squeezing so overflow triggers the +more indicator on desktop */
+}
+
+.notification-banner-item:hover {
+  background-color: var(--surface-muted);
+  border-color: var(--color-danger);
+}
+
+.notification-banner-item .task-title {
+  font-weight: 600;
+  color: var(--text);
+  min-width: 15ch; /* guarantee ~15 chars visible before ellipsis */
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.notification-banner-item .due-date {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 16ch; /* keep "Due tomorrow (MM/DD)" visible */
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notification-banner-item .due-date.overdue {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.notification-banner-item .due-date.due-soon {
+  color: var(--color-warning);
+}
+
+.notification-banner-item .priority-badge {
+  flex-shrink: 0;
+}
+
+/* Priority colors inherited from global .priority-* classes (card.css) */
+
+.notification-banner-item.notification-more {
+  font-style: italic;
+  color: var(--text-muted);
+  max-width: 500px;
+}
+
+/* Notification Badge (on bell button) */
+.notification-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background-color: var(--color-danger);
+  color: white;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+.notification-badge.hidden {
+  display: none;
+}
+
+#notifications-quick-btn {
+  position: relative;
+}
+
+#notification-quick-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  margin-left: 0;
+}
+
+/* Notifications Modal List */
+.notifications-list {
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.notifications-controls {
+  margin: 0 0 12px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--surface-muted);
+}
+
+.notification-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  background-color: var(--surface-muted);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: background-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.notification-item:hover {
+  background-color: var(--color-danger-bg);
+  transform: translateX(4px);
+}
+
+.notification-item:last-child {
+  margin-bottom: 0;
+}
+
+.notification-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.notification-item-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text);
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notification-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.notification-item-meta .overdue {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.notification-item-meta .due-soon {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
+/* Base badge styles inherited from card.css shared selector */
+
+/* Priority colors inherited from global .priority-* classes (card.css) */
+
+.notification-item-arrow {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.notification-item-arrow svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+
+.notifications-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* Mobile adjustments for notifications */
+@media (max-width: 600px) {
+  .notification-banner {
+    margin: 0 8px 8px 8px;
+    padding: 10px 12px;
+    max-height: 120px;
+  }
+
+  .notification-banner-list {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    max-height: 100%;
+    min-height: 0;
+  }
+
+  .notification-banner-item {
+    width: 100%;
+    box-sizing: border-box;
+    flex-shrink: 0;
+  }
+
+  .notification-banner-item .task-title {
+    max-width: none;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .notification-banner-item .due-date {
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: none;
+  }
+}

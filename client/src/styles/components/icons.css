@@ -1,0 +1,120 @@
+/* ==========================================================================
+   Icon Button Components
+   ========================================================================== */
+
+/* Base icon button pattern */
+.icon-btn,
+.add-task-btn-icon,
+.column-menu-btn,
+.column-collapse-btn,
+.column-drag-handle,
+.delete-task-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  opacity: 0.6;
+  transition: opacity var(--transition-normal), background-color var(--transition-normal);
+}
+
+.icon-btn:hover,
+.add-task-btn-icon:hover,
+.column-menu-btn:hover,
+.column-drag-handle:hover,
+.delete-task-btn:hover {
+  opacity: 1;
+}
+
+.icon-btn svg,
+.add-task-btn-icon svg,
+.column-menu-btn svg,
+.column-collapse-btn svg,
+.column-drag-handle svg,
+.delete-task-btn svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+
+/* Collapsed column (20px bar) */
+.task-column.is-collapsed {
+  flex: 0 0 40px;
+  width: 40px;
+  min-width: 40px;
+  padding: 8px 2px;
+  margin: 10px 4px;
+}
+
+.task-column.is-collapsed .column-header {
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.task-column.is-collapsed .column-collapse-btn,
+.task-column.is-collapsed .column-drag-handle {
+  opacity: 0.85;
+  padding: 2px;
+}
+
+.task-column.is-collapsed .column-collapse-btn svg,
+.task-column.is-collapsed .column-drag-handle svg {
+  width: 16px;
+  height: 16px;
+}
+
+.task-column.is-collapsed .column-header h2 {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  flex: 0 0 auto;
+}
+
+/* Add task button */
+.add-task-btn-icon:hover {
+  background-color: rgba(59, 130, 246, 0.12);
+}
+
+.add-task-btn-icon svg {
+  stroke: var(--color-primary);
+}
+
+/* Delete task button */
+.delete-task-btn:hover {
+  background-color: var(--color-danger-bg);
+}
+
+.delete-task-btn svg {
+  stroke: var(--color-danger);
+}
+
+/* Column drag handle */
+.column-drag-handle {
+  opacity: 0.5;
+  cursor: grab;
+}
+
+.column-drag-handle:active {
+  cursor: grabbing;
+}
+
+.column-drag-handle svg {
+  stroke: var(--text-muted);
+}
+
+/* Column menu button */
+.column-menu-btn:hover {
+  background-color: color-mix(in srgb, var(--column-accent) 12%, transparent);
+}
+
+.column-menu-btn svg {
+  stroke: var(--text-muted);
+}

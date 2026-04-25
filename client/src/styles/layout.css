@@ -1,0 +1,282 @@
+/* ==========================================================================
+   Layout Components
+   ========================================================================== */
+
+/* Controls toolbar */
+.controls {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between; /* Validated: brand left, controls right */
+  align-items: center;
+  flex-wrap: wrap; /* Keeps wrapping on small screens if needed */
+  padding: 10px;
+  margin-bottom: 10px;
+  position: relative; /* Anchor for mobile menu dropdown */
+}
+
+/* Brand area */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 600;
+  font-size: 18px;
+  color: var(--text);
+  margin-right: auto;
+}
+
+/* Board-level task search (toolbar) */
+.board-search {
+  flex: 1 1 320px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.board-search svg {
+  width: 16px;
+  height: 16px;
+  stroke: var(--text-muted);
+  stroke-width: 2;
+}
+
+.board-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.board-search input::placeholder {
+  color: var(--text-muted);
+}
+
+.board-search input:focus {
+  outline: none;
+}
+
+.board-search:focus-within {
+  box-shadow: 0 0 0 3px var(--input-focus-ring);
+}
+
+.brand-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--color-primary);
+  stroke-width: 2.5;
+}
+
+.brand-logo {
+  display: block;
+  width: 32px;
+  height: auto;
+  flex: 0 0 auto;
+}
+
+.settings-section {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.settings-section-header h4 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.settings-section-header .form-help {
+  display: block;
+  margin-bottom: 14px;
+}
+
+/* Controls actions container (Buttons) */
+.controls-actions {
+  display: none; /* Hidden by default; toggled by the menu button */
+  position: absolute;
+  top: 100%;
+  right: 10px;
+  flex-direction: column;
+  background: var(--surface);
+  padding: 8px;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-radius: 8px;
+  z-index: 200;
+  min-width: 220px;
+  gap: 4px;
+  animation: menu-appear 0.15s ease-out;
+}
+
+.controls-actions.show {
+  display: flex;
+}
+
+/* Menu items style in dropdown */
+.controls-actions .control-btn {
+  width: 100%;
+  justify-content: flex-start;
+  background: none;
+  color: var(--text);
+  padding: 10px 12px;
+}
+
+.controls-actions .control-btn:hover {
+  background-color: var(--surface-muted);
+}
+
+/* Swimlane quick toggle in menu */
+.swimlane-toggle-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px !important;
+  margin-bottom: 2px;
+}
+
+.swimlane-toggle-label .toggle-switch {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 36px;
+  height: 20px;
+  background: #adb5bd;
+  border-radius: 10px;
+  position: relative;
+  margin-left: auto;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.swimlane-toggle-label .toggle-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: var(--surface);
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+
+.swimlane-toggle-label .toggle-switch:checked {
+  background: #2ecc71;
+}
+
+.swimlane-toggle-label .toggle-switch:checked::after {
+  transform: translateX(16px);
+}
+
+/* Swimlane order list in settings modal */
+.swimlane-order-list {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0;
+}
+
+.swimlane-order-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 4px;
+  font-size: 14px;
+  user-select: none;
+}
+
+.swimlane-order-handle {
+  color: var(--text-muted);
+  cursor: grab;
+  flex-shrink: 0;
+}
+
+.swimlane-order-item .lane-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.swimlane-order-ghost {
+  opacity: 0.4;
+  background: var(--surface-muted);
+}
+
+.swimlane-order-chosen {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+@keyframes menu-appear {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Toolbar select (board picker) */
+.control-select {
+  padding: 8px 12px;
+  background-color: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  max-width: 220px;
+}
+
+.control-select:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--input-focus-ring);
+}
+
+/* Menu Button */
+#desktop-menu-btn {
+  display: flex;
+}
+
+/* Board container */
+.board-container,
+.container {
+  display: flex;
+  gap: 0.5rem;
+  flex: 1 1 auto;
+  align-items: stretch;
+  overflow-x: auto;
+  overflow-y: hidden;
+  min-height: 0;
+}
+
+/* Footer */
+.footer {
+  margin-top: auto;
+  padding: 16px;
+  background-color: var(--footer-bg);
+  border-top: 1px solid var(--border-subtle);
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 0.9;
+}
+
+.footer p {
+  margin: 0;
+}
+
+.footer-version {
+  margin-left: 10px;
+  opacity: 0.85;
+  font-size: 12px;
+  white-space: nowrap;
+}

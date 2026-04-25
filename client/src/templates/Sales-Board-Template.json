@@ -1,0 +1,136 @@
+{
+  "boardName": "Sales Pipeline",
+  "columns": [
+    { "id": "leads", "name": "New Leads", "color": "#38bdf8", "order": 1, "collapsed": false },
+    { "id": "contacted", "name": "Contacted", "color": "#60a5fa", "order": 2, "collapsed": false },
+    { "id": "qualified", "name": "Qualified", "color": "#34d399", "order": 3, "collapsed": false },
+    { "id": "proposal-sent", "name": "Proposal Sent", "color": "#818cf8", "order": 4, "collapsed": false },
+    { "id": "negotiation", "name": "Negotiation", "color": "#f59e0b", "order": 5, "collapsed": false },
+    { "id": "closed-lost", "name": "Closed Lost", "color": "#fb7185", "order": 6, "collapsed": false },
+    { "id": "done", "name": "Closed Won", "color": "#505050", "order": 7, "collapsed": false }
+  ],
+  "tasks": [
+    {
+      "id": "e1a76b2b-4f6c-4b95-bd6c-9f1ddc4a31a1",
+      "title": "Acme Co — Intro email",
+      "description": "Inbound request from website. Send intro and schedule discovery call.",
+      "priority": "high",
+      "dueDate": "2026-02-17",
+      "column": "leads",
+      "order": 1,
+      "labels": ["source-inbound", "industry-saas", "region-na", "activity-email"],
+      "creationDate": "2026-02-14T12:00:00.000Z",
+      "changeDate": "2026-02-14T12:00:00.000Z",
+      "columnHistory": [{ "column": "leads", "at": "2026-02-14T12:00:00.000Z" }]
+    },
+    {
+      "id": "c0a4c4e9-5b92-4e36-97a6-6d0ec6a1b03d",
+      "title": "Northwind — Discovery call",
+      "description": "Confirm pain points and timeline; capture stakeholders and decision process.",
+      "priority": "medium",
+      "dueDate": "2026-02-18",
+      "column": "contacted",
+      "order": 1,
+      "labels": ["source-outbound", "industry-finance", "region-eu", "activity-call"],
+      "creationDate": "2026-02-14T12:05:00.000Z",
+      "changeDate": "2026-02-14T12:05:00.000Z",
+      "columnHistory": [{ "column": "contacted", "at": "2026-02-14T12:05:00.000Z" }]
+    },
+    {
+      "id": "4c7f2d5c-3d29-4d73-8b8c-bd2db7f8c8d7",
+      "title": "Globex — Qualification checklist",
+      "description": "Budget confirmed; verify security requirements and procurement steps.",
+      "priority": "medium",
+      "dueDate": "",
+      "column": "qualified",
+      "order": 1,
+      "labels": ["source-partner", "industry-saas", "region-na", "deal-size-mid"],
+      "creationDate": "2026-02-14T12:10:00.000Z",
+      "changeDate": "2026-02-14T12:10:00.000Z",
+      "columnHistory": [{ "column": "qualified", "at": "2026-02-14T12:10:00.000Z" }]
+    },
+    {
+      "id": "f3d9fdd7-6b1f-4f79-88e8-5d0f6d5bdb2d",
+      "title": "Initech — Proposal v2",
+      "description": "Revise pricing and deliverables based on feedback; resend PDF.",
+      "priority": "high",
+      "dueDate": "2026-02-16",
+      "column": "proposal-sent",
+      "order": 1,
+      "labels": ["industry-manufacturing", "region-na", "activity-follow-up"],
+      "creationDate": "2026-02-14T12:15:00.000Z",
+      "changeDate": "2026-02-14T12:15:00.000Z",
+      "columnHistory": [{ "column": "proposal-sent", "at": "2026-02-14T12:15:00.000Z" }]
+    },
+    {
+      "id": "c3b43ea3-07bb-4bdf-84b4-278e2dcb84b7",
+      "title": "Umbrella Corp — Final negotiation",
+      "description": "Work through legal redlines and confirm go-live date.",
+      "priority": "high",
+      "dueDate": "",
+      "column": "negotiation",
+      "order": 1,
+      "labels": ["industry-healthcare", "region-na", "deal-size-enterprise", "activity-meeting"],
+      "creationDate": "2026-02-14T12:20:00.000Z",
+      "changeDate": "2026-02-14T12:20:00.000Z",
+      "columnHistory": [{ "column": "negotiation", "at": "2026-02-14T12:20:00.000Z" }]
+    },
+    {
+      "id": "86cde0b0-fb83-4e24-ae0a-6a46b9cfb7ce",
+      "title": "Contoso — Not a fit",
+      "description": "Requirements misaligned. Send polite close-out note and log reason.",
+      "priority": "none",
+      "dueDate": "",
+      "column": "closed-lost",
+      "order": 1,
+      "labels": ["source-inbound", "region-eu"],
+      "creationDate": "2026-02-11T09:30:00.000Z",
+      "changeDate": "2026-02-11T09:30:00.000Z",
+      "columnHistory": [{ "column": "closed-lost", "at": "2026-02-11T09:30:00.000Z" }]
+    },
+    {
+      "id": "3b13e2f5-df2e-4867-99ed-2a3918e1e289",
+      "title": "Fabrikam — Signed agreement",
+      "description": "Contract signed. Handoff to onboarding and schedule kickoff.",
+      "priority": "none",
+      "dueDate": "",
+      "column": "done",
+      "order": 1,
+      "labels": ["source-partner", "region-na", "deal-size-mid"],
+      "creationDate": "2026-02-08T15:00:00.000Z",
+      "changeDate": "2026-02-08T15:00:00.000Z",
+      "doneDate": "2026-02-08T15:00:00.000Z",
+      "columnHistory": [{ "column": "done", "at": "2026-02-08T15:00:00.000Z" }]
+    }
+  ],
+  "labels": [
+    { "id": "source-inbound", "name": "Inbound", "color": "#22c55e", "group": "Source" },
+    { "id": "source-outbound", "name": "Outbound", "color": "#3b82f6", "group": "Source" },
+    { "id": "source-partner", "name": "Partner", "color": "#8b5cf6", "group": "Source" },
+
+    { "id": "industry-saas", "name": "SaaS", "color": "#06b6d4", "group": "Industry" },
+    { "id": "industry-finance", "name": "Finance", "color": "#14b8a6", "group": "Industry" },
+    { "id": "industry-healthcare", "name": "Healthcare", "color": "#f97316", "group": "Industry" },
+    { "id": "industry-manufacturing", "name": "Manufacturing", "color": "#64748b", "group": "Industry" },
+
+    { "id": "region-na", "name": "North America", "color": "#60a5fa", "group": "Region" },
+    { "id": "region-eu", "name": "Europe", "color": "#a78bfa", "group": "Region" },
+
+    { "id": "deal-size-mid", "name": "Mid-Market", "color": "#f59e0b", "group": "Deal Size" },
+    { "id": "deal-size-enterprise", "name": "Enterprise", "color": "#ef4444", "group": "Deal Size" },
+
+    { "id": "activity-email", "name": "Email", "color": "#84cc16", "group": "Activity" },
+    { "id": "activity-call", "name": "Call", "color": "#10b981", "group": "Activity" },
+    { "id": "activity-meeting", "name": "Meeting", "color": "#f59e0b", "group": "Activity" },
+    { "id": "activity-follow-up", "name": "Follow Up", "color": "#fb7185", "group": "Activity" }
+  ],
+  "settings": {
+    "showPriority": true,
+    "showDueDate": true,
+    "showAge": true,
+    "showChangeDate": true,
+    "locale": "en",
+    "defaultPriority": "none",
+    "notificationDays": 3
+  }
+}

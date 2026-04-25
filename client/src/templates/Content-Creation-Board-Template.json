@@ -1,0 +1,99 @@
+{
+  "boardName": "Content Creation",
+  "columns": [
+    { "id": "ideas", "name": "Ideas", "color": "#a78bfa", "order": 1, "collapsed": false },
+    { "id": "draft", "name": "Draft", "color": "#60a5fa", "order": 2, "collapsed": false },
+    { "id": "editing", "name": "Editing", "color": "#f59e0b", "order": 3, "collapsed": false },
+    { "id": "ready", "name": "Ready to Publish", "color": "#34d399", "order": 4, "collapsed": false },
+    { "id": "done", "name": "Published", "color": "#374151", "order": 5, "collapsed": false }
+  ],
+  "tasks": [
+    {
+      "id": "b0a8bd7a-e9de-4b7b-9b6b-4c5899d05af0",
+      "title": "Blog: Getting started guide",
+      "description": "Outline the first-time user journey and include screenshots.",
+      "priority": "medium",
+      "dueDate": "2026-02-22",
+      "column": "draft",
+      "order": 1,
+      "labels": ["type-blog", "topic-product"],
+      "creationDate": "2026-02-14T13:00:00.000Z",
+      "changeDate": "2026-02-14T13:00:00.000Z",
+      "columnHistory": [{ "column": "draft", "at": "2026-02-14T13:00:00.000Z" }]
+    },
+    {
+      "id": "c9c2e45f-7b9c-44b2-8e23-4df18e0a6d3a",
+      "title": "Video: 2-minute feature tour",
+      "description": "Record a short walkthrough and add captions.",
+      "priority": "high",
+      "dueDate": "2026-02-20",
+      "column": "editing",
+      "order": 1,
+      "labels": ["type-video", "channel-youtube"],
+      "creationDate": "2026-02-14T13:05:00.000Z",
+      "changeDate": "2026-02-14T13:05:00.000Z",
+      "columnHistory": [{ "column": "editing", "at": "2026-02-14T13:05:00.000Z" }]
+    },
+    {
+      "id": "e9d4cbba-7f25-4f6d-b7b1-9a8ab0c971b1",
+      "title": "Social: Weekly tips thread",
+      "description": "Draft 5 short tips and create a simple graphic.",
+      "priority": "low",
+      "dueDate": "",
+      "column": "ideas",
+      "order": 1,
+      "labels": ["type-social", "topic-product"],
+      "creationDate": "2026-02-14T13:10:00.000Z",
+      "changeDate": "2026-02-14T13:10:00.000Z",
+      "columnHistory": [{ "column": "ideas", "at": "2026-02-14T13:10:00.000Z" }]
+    },
+    {
+      "id": "1b2e9f72-ccab-4e0d-8c6a-4b4d4a8d3a8c",
+      "title": "Newsletter: Monthly roundup",
+      "description": "Collect highlights, link to top posts, and add a short announcement.",
+      "priority": "medium",
+      "dueDate": "2026-02-28",
+      "column": "ready",
+      "order": 1,
+      "labels": ["type-newsletter", "topic-community"],
+      "creationDate": "2026-02-14T13:15:00.000Z",
+      "changeDate": "2026-02-14T13:15:00.000Z",
+      "columnHistory": [{ "column": "ready", "at": "2026-02-14T13:15:00.000Z" }]
+    },
+    {
+      "id": "7d0b7c21-9b61-4e0f-b34d-3a62e9a7c3d5",
+      "title": "Blog: Release notes post",
+      "description": "Summarize changes and include upgrade notes.",
+      "priority": "none",
+      "dueDate": "",
+      "column": "done",
+      "order": 1,
+      "labels": ["type-blog", "topic-release"],
+      "creationDate": "2026-02-07T09:00:00.000Z",
+      "changeDate": "2026-02-07T09:00:00.000Z",
+      "doneDate": "2026-02-07T09:00:00.000Z",
+      "columnHistory": [{ "column": "done", "at": "2026-02-07T09:00:00.000Z" }]
+    }
+  ],
+  "labels": [
+    { "id": "type-blog", "name": "Blog", "color": "#3b82f6", "group": "Type" },
+    { "id": "type-video", "name": "Video", "color": "#ef4444", "group": "Type" },
+    { "id": "type-social", "name": "Social", "color": "#a78bfa", "group": "Type" },
+    { "id": "type-newsletter", "name": "Newsletter", "color": "#22c55e", "group": "Type" },
+
+    { "id": "channel-youtube", "name": "YouTube", "color": "#f59e0b", "group": "Channel" },
+
+    { "id": "topic-product", "name": "Product", "color": "#06b6d4", "group": "Topic" },
+    { "id": "topic-community", "name": "Community", "color": "#14b8a6", "group": "Topic" },
+    { "id": "topic-release", "name": "Release", "color": "#64748b", "group": "Topic" }
+  ],
+  "settings": {
+    "showPriority": true,
+    "showDueDate": true,
+    "showAge": true,
+    "showChangeDate": true,
+    "locale": "en",
+    "defaultPriority": "none",
+    "notificationDays": 3
+  }
+}

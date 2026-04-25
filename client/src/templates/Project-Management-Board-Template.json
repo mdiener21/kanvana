@@ -1,0 +1,99 @@
+{
+  "boardName": "Project Management",
+  "columns": [
+    { "id": "backlog", "name": "Backlog", "color": "#64748b", "order": 1, "collapsed": false },
+    { "id": "todo", "name": "To Do", "color": "#3b82f6", "order": 2, "collapsed": false },
+    { "id": "inprogress", "name": "In Progress", "color": "#f59e0b", "order": 3, "collapsed": false },
+    { "id": "review", "name": "Review", "color": "#8b5cf6", "order": 4, "collapsed": false },
+    { "id": "done", "name": "Done", "color": "#505050", "order": 5, "collapsed": false }
+  ],
+  "tasks": [
+    {
+      "id": "b5c0c4a3-877f-4e0b-9f61-4c2b5fb01f10",
+      "title": "Triage incoming bug reports",
+      "description": "Review new issues, reproduce key bugs, and add labels for type/area.",
+      "priority": "medium",
+      "dueDate": "2026-02-18",
+      "column": "backlog",
+      "order": 1,
+      "labels": ["type-bug", "area-backend"],
+      "creationDate": "2026-02-14T09:00:00.000Z",
+      "changeDate": "2026-02-14T09:00:00.000Z",
+      "columnHistory": [{ "column": "backlog", "at": "2026-02-14T09:00:00.000Z" }]
+    },
+    {
+      "id": "c0f1f8e8-1c0b-4bc1-9b14-0d4ac3e9a0c1",
+      "title": "Implement CSV export for reports",
+      "description": "Add an export button and generate a CSV from the current report data.",
+      "priority": "high",
+      "dueDate": "2026-02-21",
+      "column": "todo",
+      "order": 1,
+      "labels": ["type-feature", "area-frontend"],
+      "creationDate": "2026-02-14T09:05:00.000Z",
+      "changeDate": "2026-02-14T09:05:00.000Z",
+      "columnHistory": [{ "column": "todo", "at": "2026-02-14T09:05:00.000Z" }]
+    },
+    {
+      "id": "d8d3b2fb-2f3d-4901-8e40-9a2f36d8232f",
+      "title": "Refactor drag/drop reordering performance",
+      "description": "Profile reorder on mobile; reduce DOM queries in the drop handler.",
+      "priority": "medium",
+      "dueDate": "",
+      "column": "inprogress",
+      "order": 1,
+      "labels": ["type-tech-debt", "area-frontend"],
+      "creationDate": "2026-02-14T09:10:00.000Z",
+      "changeDate": "2026-02-14T09:10:00.000Z",
+      "columnHistory": [{ "column": "inprogress", "at": "2026-02-14T09:10:00.000Z" }]
+    },
+    {
+      "id": "20fb57b7-7256-46c2-b4f2-7b8a8f8d5a39",
+      "title": "Write help page for importing boards",
+      "description": "Document import behavior and how legacy fields are handled.",
+      "priority": "low",
+      "dueDate": "2026-02-25",
+      "column": "review",
+      "order": 1,
+      "labels": ["type-docs", "area-docs"],
+      "creationDate": "2026-02-14T09:15:00.000Z",
+      "changeDate": "2026-02-14T09:15:00.000Z",
+      "columnHistory": [{ "column": "review", "at": "2026-02-14T09:15:00.000Z" }]
+    },
+    {
+      "id": "e9a3b6ab-2f0e-4d85-8d32-3cbd1ab0c9b0",
+      "title": "Release vNext patch",
+      "description": "Run build, update changelog, tag the release.",
+      "priority": "none",
+      "dueDate": "",
+      "column": "done",
+      "order": 1,
+      "labels": ["type-process"],
+      "creationDate": "2026-02-12T16:30:00.000Z",
+      "changeDate": "2026-02-12T16:30:00.000Z",
+      "doneDate": "2026-02-12T16:30:00.000Z",
+      "columnHistory": [{ "column": "done", "at": "2026-02-12T16:30:00.000Z" }]
+    }
+  ],
+  "labels": [
+    { "id": "type-bug", "name": "Bug", "color": "#ef4444", "group": "Type" },
+    { "id": "type-feature", "name": "Feature", "color": "#3b82f6", "group": "Type" },
+    { "id": "type-enhancement", "name": "Enhancement", "color": "#06b6d4", "group": "Type" },
+    { "id": "type-research", "name": "Research", "color": "#a855f7", "group": "Type" },
+    { "id": "type-tech-debt", "name": "Tech Debt", "color": "#f59e0b", "group": "Type" },
+    { "id": "type-docs", "name": "Docs", "color": "#22c55e", "group": "Type" },
+    { "id": "type-process", "name": "Process", "color": "#64748b", "group": "Type" },
+    { "id": "area-frontend", "name": "Frontend", "color": "#0ea5e9", "group": "Area" },
+    { "id": "area-backend", "name": "Backend", "color": "#14b8a6", "group": "Area" },
+    { "id": "area-docs", "name": "Docs", "color": "#84cc16", "group": "Area" }
+  ],
+  "settings": {
+    "showPriority": true,
+    "showDueDate": true,
+    "showAge": true,
+    "showChangeDate": true,
+    "locale": "en",
+    "defaultPriority": "none",
+    "notificationDays": 3
+  }
+}

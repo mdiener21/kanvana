@@ -1,0 +1,96 @@
+{
+  "boardName": "Student",
+  "columns": [
+    { "id": "upcoming", "name": "Upcoming", "color": "#06b6d4", "order": 1, "collapsed": false },
+    { "id": "in-study", "name": "In Study", "color": "#f59e0b", "order": 2, "collapsed": false },
+    { "id": "ready-submission", "name": "Ready for Submission", "color": "#8b5cf6", "order": 3, "collapsed": false },
+    { "id": "submitted", "name": "Submitted", "color": "#3b82f6", "order": 4, "collapsed": false },
+    { "id": "done", "name": "Done", "color": "#505050", "order": 5, "collapsed": false }
+  ],
+  "tasks": [
+    {
+      "id": "2d1ef15c-0d8c-4d2d-9c64-7d942790d9b6",
+      "title": "Read Chapter 6: Graphs",
+      "description": "Focus on BFS/DFS and practice problems.",
+      "priority": "medium",
+      "dueDate": "2026-02-17",
+      "column": "upcoming",
+      "order": 1,
+      "labels": ["course-cs201", "type-reading"],
+      "creationDate": "2026-02-14T11:00:00.000Z",
+      "changeDate": "2026-02-14T11:00:00.000Z",
+      "columnHistory": [{ "column": "upcoming", "at": "2026-02-14T11:00:00.000Z" }]
+    },
+    {
+      "id": "9f73f9fe-7f4a-4b21-a5bb-bb2c1c5a5c48",
+      "title": "Homework 3: Algorithm analysis",
+      "description": "Write up solutions; include time complexity justifications.",
+      "priority": "high",
+      "dueDate": "2026-02-19",
+      "column": "in-study",
+      "order": 1,
+      "labels": ["course-cs201", "type-homework"],
+      "creationDate": "2026-02-14T11:05:00.000Z",
+      "changeDate": "2026-02-14T11:05:00.000Z",
+      "columnHistory": [{ "column": "in-study", "at": "2026-02-14T11:05:00.000Z" }]
+    },
+    {
+      "id": "c08456b8-9e7c-4f65-83a9-6ef0a64b7d2d",
+      "title": "Lab report draft",
+      "description": "Finalize charts and verify citations.",
+      "priority": "medium",
+      "dueDate": "2026-02-18",
+      "column": "ready-submission",
+      "order": 1,
+      "labels": ["course-chem110", "type-writing"],
+      "creationDate": "2026-02-14T11:10:00.000Z",
+      "changeDate": "2026-02-14T11:10:00.000Z",
+      "columnHistory": [{ "column": "ready-submission", "at": "2026-02-14T11:10:00.000Z" }]
+    },
+    {
+      "id": "a1d7e6c8-fffd-4c78-9f30-40b24ed38f5b",
+      "title": "Submit Essay: Modern ethics",
+      "description": "Upload PDF and verify submission receipt.",
+      "priority": "none",
+      "dueDate": "",
+      "column": "submitted",
+      "order": 1,
+      "labels": ["course-phil105", "type-writing"],
+      "creationDate": "2026-02-13T20:00:00.000Z",
+      "changeDate": "2026-02-13T20:00:00.000Z",
+      "columnHistory": [{ "column": "submitted", "at": "2026-02-13T20:00:00.000Z" }]
+    },
+    {
+      "id": "0f9f1266-5c3d-4746-9b60-24891f4a9449",
+      "title": "Midterm study plan",
+      "description": "Create a 5-day review plan with practice sets.",
+      "priority": "low",
+      "dueDate": "",
+      "column": "done",
+      "order": 1,
+      "labels": ["course-cs201", "type-planning"],
+      "creationDate": "2026-02-09T14:30:00.000Z",
+      "changeDate": "2026-02-09T14:30:00.000Z",
+      "doneDate": "2026-02-09T14:30:00.000Z",
+      "columnHistory": [{ "column": "done", "at": "2026-02-09T14:30:00.000Z" }]
+    }
+  ],
+  "labels": [
+    { "id": "course-cs201", "name": "CS 201", "color": "#3b82f6", "group": "Course" },
+    { "id": "course-chem110", "name": "CHEM 110", "color": "#06b6d4", "group": "Course" },
+    { "id": "course-phil105", "name": "PHIL 105", "color": "#a78bfa", "group": "Course" },
+    { "id": "type-homework", "name": "Homework", "color": "#f59e0b", "group": "Type" },
+    { "id": "type-reading", "name": "Reading", "color": "#22c55e", "group": "Type" },
+    { "id": "type-writing", "name": "Writing", "color": "#ef4444", "group": "Type" },
+    { "id": "type-planning", "name": "Planning", "color": "#64748b", "group": "Type" }
+  ],
+  "settings": {
+    "showPriority": true,
+    "showDueDate": true,
+    "showAge": true,
+    "showChangeDate": true,
+    "locale": "en",
+    "defaultPriority": "none",
+    "notificationDays": 3
+  }
+}

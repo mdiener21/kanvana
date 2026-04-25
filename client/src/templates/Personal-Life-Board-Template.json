@@ -1,0 +1,95 @@
+{
+  "boardName": "Personal Life",
+  "columns": [
+    { "id": "ideas", "name": "Ideas", "color": "#a78bfa", "order": 1, "collapsed": false },
+    { "id": "todo", "name": "To Do", "color": "#3b82f6", "order": 2, "collapsed": false },
+    { "id": "this-week", "name": "This Week", "color": "#f59e0b", "order": 3, "collapsed": false },
+    { "id": "done", "name": "Done", "color": "#505050", "order": 4, "collapsed": false }
+  ],
+  "tasks": [
+    {
+      "id": "b8cfd8d6-73b1-4b3d-9a31-6310f0b0e6c6",
+      "title": "Plan weekend hike route",
+      "description": "Pick a trail, check weather, and share the plan.",
+      "priority": "low",
+      "dueDate": "",
+      "column": "ideas",
+      "order": 1,
+      "labels": ["context-leisure", "area-health"],
+      "creationDate": "2026-02-14T10:00:00.000Z",
+      "changeDate": "2026-02-14T10:00:00.000Z",
+      "columnHistory": [{ "column": "ideas", "at": "2026-02-14T10:00:00.000Z" }]
+    },
+    {
+      "id": "53a0c995-72b2-4c69-8c2f-7d1d5b5a2d70",
+      "title": "Book dentist appointment",
+      "description": "Call the office and schedule a checkup.",
+      "priority": "medium",
+      "dueDate": "2026-02-20",
+      "column": "todo",
+      "order": 1,
+      "labels": ["area-health", "activity-call"],
+      "creationDate": "2026-02-14T10:05:00.000Z",
+      "changeDate": "2026-02-14T10:05:00.000Z",
+      "columnHistory": [{ "column": "todo", "at": "2026-02-14T10:05:00.000Z" }]
+    },
+    {
+      "id": "5e2d6f8c-9e29-4c0c-9b7d-6d6b2d60b1fd",
+      "title": "Grocery run",
+      "description": "Milk, eggs, vegetables, coffee.",
+      "priority": "high",
+      "dueDate": "2026-02-15",
+      "column": "this-week",
+      "order": 1,
+      "labels": ["area-groceries", "context-home"],
+      "creationDate": "2026-02-14T10:10:00.000Z",
+      "changeDate": "2026-02-14T10:10:00.000Z",
+      "columnHistory": [{ "column": "this-week", "at": "2026-02-14T10:10:00.000Z" }]
+    },
+    {
+      "id": "8dfb4b2a-0dc8-44f6-a43b-ec56b4a46a93",
+      "title": "Pay electricity bill",
+      "description": "Pay online and file receipt.",
+      "priority": "medium",
+      "dueDate": "2026-02-16",
+      "column": "this-week",
+      "order": 2,
+      "labels": ["area-finance", "context-home"],
+      "creationDate": "2026-02-14T10:12:00.000Z",
+      "changeDate": "2026-02-14T10:12:00.000Z",
+      "columnHistory": [{ "column": "this-week", "at": "2026-02-14T10:12:00.000Z" }]
+    },
+    {
+      "id": "2df1c20f-3bb5-49d6-a5b7-01e38a6d3c63",
+      "title": "Organize pantry shelf",
+      "description": "Group items, toss expired goods, add missing staples to list.",
+      "priority": "none",
+      "dueDate": "",
+      "column": "done",
+      "order": 1,
+      "labels": ["area-home", "context-home"],
+      "creationDate": "2026-02-10T18:00:00.000Z",
+      "changeDate": "2026-02-10T18:00:00.000Z",
+      "doneDate": "2026-02-10T18:00:00.000Z",
+      "columnHistory": [{ "column": "done", "at": "2026-02-10T18:00:00.000Z" }]
+    }
+  ],
+  "labels": [
+    { "id": "context-home", "name": "Home", "color": "#3b82f6", "group": "Context" },
+    { "id": "context-leisure", "name": "Leisure", "color": "#a78bfa", "group": "Context" },
+    { "id": "area-groceries", "name": "Groceries", "color": "#22c55e", "group": "Area" },
+    { "id": "area-home", "name": "Home", "color": "#f59e0b", "group": "Area" },
+    { "id": "area-health", "name": "Health", "color": "#ef4444", "group": "Area" },
+    { "id": "area-finance", "name": "Finance", "color": "#14b8a6", "group": "Area" },
+    { "id": "activity-call", "name": "Call", "color": "#64748b", "group": "Activity" }
+  ],
+  "settings": {
+    "showPriority": true,
+    "showDueDate": true,
+    "showAge": true,
+    "showChangeDate": true,
+    "locale": "en",
+    "defaultPriority": "none",
+    "notificationDays": 3
+  }
+}

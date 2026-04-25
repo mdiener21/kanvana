@@ -1,0 +1,36 @@
+{
+  "name": "kanvana",
+  "version": "1.5.0",
+  "type": "module",
+  "description": "A local-first personal + AI Agent kanban board for task project people anything management.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "release:prepare": "node scripts/prepare-release.mjs",
+    "release:generate": "gh workflow run release.yml",
+    "release:publish": "gh workflow run publish-release.yml",
+    "test": "npm run test:unit && npm run test:dom && npm run test:e2e",
+    "test:unit": "vitest run --config vitest.config.js",
+    "test:dom": "vitest run --config vitest.dom.config.js",
+    "test:e2e": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "check:spec-sync": "node scripts/check-spec-sync.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@testing-library/dom": "^10.4.1",
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^29.0.1",
+    "msw": "^2.12.14",
+    "vite": "^7.3.1",
+    "vitest": "^4.1.0"
+  },
+  "dependencies": {
+    "echarts": "^6.0.0",
+    "idb": "^8.0.3",
+    "lucide": "^0.469.0",
+    "sortablejs": "^1.15.6"
+  }
+}

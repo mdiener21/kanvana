@@ -1,0 +1,59 @@
+/* ==========================================================================
+   Accordion – Reusable collapsible sections
+   ========================================================================== */
+
+.accordion {
+  margin-bottom: 4px;
+}
+
+.accordion-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  transition: color var(--transition-fast);
+}
+
+.accordion-header:hover {
+  color: var(--text);
+}
+
+.accordion-header svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.accordion-title {
+  flex: 1;
+  text-align: left;
+}
+
+.accordion-count {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  border-radius: 10px;
+  padding: 1px 7px;
+  min-width: 20px;
+  text-align: center;
+}
+
+.accordion-body {
+  padding: 4px 0;
+}
+
+.accordion-body.collapsed {
+  display: none;
+}

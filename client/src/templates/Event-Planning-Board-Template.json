@@ -1,0 +1,80 @@
+{
+  "boardName": "Event Planning",
+  "columns": [
+    { "id": "ideas", "name": "Ideas", "color": "#a78bfa", "order": 1, "collapsed": false },
+    { "id": "planning", "name": "Planning", "color": "#60a5fa", "order": 2, "collapsed": false },
+    { "id": "booked", "name": "Booked", "color": "#34d399", "order": 3, "collapsed": false },
+    { "id": "ready", "name": "Ready", "color": "#f59e0b", "order": 4, "collapsed": false },
+    { "id": "done", "name": "Event Done", "color": "#505050", "order": 5, "collapsed": false }
+  ],
+  "tasks": [
+    {
+      "id": "f1a2b3c4-d5e6-47f8-9a0b-1c2d3e4f5a6b",
+      "title": "Draft guest list",
+      "description": "Collect names, emails, and dietary preferences.",
+      "priority": "medium",
+      "dueDate": "2026-02-18",
+      "column": "planning",
+      "order": 1,
+      "labels": ["area-invitations"],
+      "creationDate": "2026-02-14T17:00:00.000Z",
+      "changeDate": "2026-02-14T17:00:00.000Z",
+      "columnHistory": [{ "column": "planning", "at": "2026-02-14T17:00:00.000Z" }]
+    },
+    {
+      "id": "a7b8c9d0-e1f2-43a4-b5c6-d7e8f9a0b1c2",
+      "title": "Confirm venue options",
+      "description": "Get 2 quotes and compare availability.",
+      "priority": "high",
+      "dueDate": "2026-02-16",
+      "column": "ideas",
+      "order": 1,
+      "labels": ["area-venue", "area-budget"],
+      "creationDate": "2026-02-14T17:05:00.000Z",
+      "changeDate": "2026-02-14T17:05:00.000Z",
+      "columnHistory": [{ "column": "ideas", "at": "2026-02-14T17:05:00.000Z" }]
+    },
+    {
+      "id": "c2b1a0f9-e8d7-46c5-b4a3-2f1e0d9c8b7a",
+      "title": "Book caterer",
+      "description": "Finalize menu and confirm staffing.",
+      "priority": "high",
+      "dueDate": "2026-02-22",
+      "column": "booked",
+      "order": 1,
+      "labels": ["area-catering"],
+      "creationDate": "2026-02-14T17:10:00.000Z",
+      "changeDate": "2026-02-14T17:10:00.000Z",
+      "columnHistory": [{ "column": "booked", "at": "2026-02-14T17:10:00.000Z" }]
+    },
+    {
+      "id": "0d9c8b7a-6f5e-4d3c-b2a1-0f9e8d7c6b5a",
+      "title": "Print signage and agenda",
+      "description": "Print 20 copies, check spelling, and pack supplies.",
+      "priority": "medium",
+      "dueDate": "",
+      "column": "ready",
+      "order": 1,
+      "labels": ["area-schedule"],
+      "creationDate": "2026-02-14T17:15:00.000Z",
+      "changeDate": "2026-02-14T17:15:00.000Z",
+      "columnHistory": [{ "column": "ready", "at": "2026-02-14T17:15:00.000Z" }]
+    }
+  ],
+  "labels": [
+    { "id": "area-venue", "name": "Venue", "color": "#3b82f6", "group": "Area" },
+    { "id": "area-catering", "name": "Catering", "color": "#22c55e", "group": "Area" },
+    { "id": "area-invitations", "name": "Invitations", "color": "#a78bfa", "group": "Area" },
+    { "id": "area-schedule", "name": "Schedule", "color": "#f59e0b", "group": "Area" },
+    { "id": "area-budget", "name": "Budget", "color": "#14b8a6", "group": "Area" }
+  ],
+  "settings": {
+    "showPriority": true,
+    "showDueDate": true,
+    "showAge": true,
+    "showChangeDate": true,
+    "locale": "en",
+    "defaultPriority": "none",
+    "notificationDays": 3
+  }
+}
