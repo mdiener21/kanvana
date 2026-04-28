@@ -1,10 +1,10 @@
 # AGENTS.md
 
-This file provides guidance to AI LLM Agents like Claude Code (claude.ai/code), Gemini, Codex, Github Copilot when working with code in this repository.
+This file provides guidance to AI LLM Agents like Claude Code (claude.ai/code), Gemini, Codex, Opencode, Github Copilot when working with code in this repository.
 
 ## Project Overview
 
-Kanvana a local-first personal + AI Agent kanban board with no backend. `docs/specification-kanban.md` is the specification index and governance entrypoint, and `docs/spec/` contains the canonical feature and data specifications. All state lives in browser localStorage. Built with vanilla JavaScript, HTML, and CSS using Vite for bundling.
+Kanvana a local-first personal + AI Agent kanban board with no backend. `docs/system/specification-kanban.md` is the specification index and governance entrypoint, and `docs/system/spec/` contains the canonical feature and data specifications. All state lives in browser localStorage. Built with vanilla JavaScript, HTML, and CSS using Vite for bundling.
 
 ## Purpose
 
@@ -20,9 +20,32 @@ The specification files include core data structures and feature behavior that m
 - `docs/spec/*.md` - Canonical feature, data, storage, workflow, and testing specifications.
 - docs/spec/specification-kanban.md
 
+## Conversational Style
+
+- Keep answers short and concise
+- No emojis in commits, issues, PR comments, or code
+- No fluff or cheerful filler text
+- Technical prose only, be kind but direct (e.g., "Thanks @user" not "Thanks so much @user!")
+
+## Code Quality
+
+- No `any` types unless absolutely necessary
+- Check node_modules for external API type definitions instead of guessing
+- **NEVER use inline imports** - no `await import("./foo.js")`, no `import("pkg").Type` in type positions, no dynamic imports for types. Always use standard top-level imports.
+- NEVER remove or downgrade code to fix type errors from outdated dependencies; upgrade the dependency instead
+- Always ask before removing functionality or code that appears to be intentional
+- Do not preserve backward compatibility unless the user explicitly asks for it
+- Never hardcode key checks with, eg. `matchesKey(keyData, "ctrl+x")`. All keybindings must be configurable. Add default to matching object (`DEFAULT_EDITOR_KEYBINDINGS` or `DEFAULT_APP_KEYBINDINGS`)
+
+
 ## Repo Map
 
-TODO
+- `devops/`: Docker, nginx, ci/cd configurations
+- `docs/`: End user facing human and AI Agent readable documentation
+- `client/`: Frontend Application + Vite board UI
+- `backend/`: Pocketbase.io backend as a service and API
+- `client/`: Frontend Application + Vite board UI
+- `scripts/`: Helper bash or js scripts
 
 
 ## Core Engineering Rules
@@ -85,6 +108,9 @@ npm run test:dom   # Run Vitest DOM integration tests (tests/dom)
 npm run test:e2e   # Run Playwright end-to-end tests (tests/e2e)
 npm run test:ui    # Run Playwright tests with interactive UI
 npm run test:debug # Run Playwright tests in debug mode
+docker compose up          # Start local Docker stack (nginx + PocketBase) at http://localhost:8080
+docker compose up --build  # Rebuild image and start stack
+docker compose down        # Stop and remove containers
 ```
 
 ## Architecture
@@ -174,6 +200,33 @@ Many modules use `await import('./render.js')` to call `renderBoard()` and avoid
   - Prefer short, focused comments explaining “why” rather than “what”.
   - When adding new behavior or changing data shapes, update `docs/spec/*.md`, `docs/specification-kanban.md`, and `CHANGELOG.md` in the same work session.
 
+## Changelog
+
+Location: `CHANGELOG.md`
+
+### Format
+
+Use these sections under `## [Unreleased]`:
+
+- `### Breaking Changes` - API changes requiring migration
+- `### Added` - New features
+- `### Changed` - Changes to existing functionality
+- `### Fixed` - Bug fixes
+- `### Removed` - Removed features
+
+### Rules
+
+- Before adding entries, read the full `[Unreleased]` section to see which subsections already exist
+- New entries ALWAYS go under `## [Unreleased]` section
+- Append to existing subsections (e.g., `### Fixed`), do not create duplicates
+- NEVER modify already-released version sections (e.g., `## [0.12.2]`)
+- Each version section is immutable once released
+
+
+## Documentation
+
+- `README.md`: Add to document options/auth, add env vars
+- `CHANGELOG.md`: Add entry under `## [Unreleased]`
 
 ## Release Process
 

@@ -9,12 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Docker Compose stack: nginx (static file server + PocketBase proxy) + PocketBase service (`spectado/pocketbase`)
+- `Dockerfile`: multi-stage build — `node:20-alpine` builder stage bakes Vite output into `nginx:alpine` prod image
+- `docker-compose.yml`: main compose file for local and VPS deployment
+- `.env.example`: documented environment variables (NGINX_PORT, PB_VERSION, IMAGE_TAG)
+- `nginx/nginx.conf` + `nginx/conf.d/default.conf`: nginx config with PocketBase proxy, security headers (X-Frame-Options, X-Content-Type-Options, Referrer-Policy), static asset caching
+- `.dockerignore`: lean build context
+- CI `ci.yml`: replaces `deploy.yml`; adds Docker multi-arch build + GHCR push (npm audit gate) before FTP deploy
+- CI `deploy-docker.yml`: SSH-based VPS deployment triggered after successful CI build
 - URLs in task descriptions are automatically rendered as clickable links on task cards — links open in a new tab and do not trigger the edit modal. Only `http://` and `https://` URLs are linkified; rendering uses DOM APIs (no innerHTML) for XSS safety.
 - Live link preview strip in the task modal: when a `http://` or `https://` URL is present in the description field, clickable chips appear below the textarea in real time — no need to save first. Duplicate URLs are deduplicated. The strip hides itself when no URLs are present.
 
+### Changed
+
+- CI: replaced `deploy.yml` with `ci.yml` (docker-build + ftp-deploy jobs); FTP deploy now gated on Docker build success
+- CI: all workflows standardized to Node 20
+- Docker development now runs the frontend from `client/` in Vite dev mode via `docker compose up`, and the Dockerfile build paths now match the frontend package and nginx config locations
+- Docker development now uses a single `docker-compose.yml`; the former `docker-compose.override.yml` dev settings were folded into the main compose file
+- Board, column, label, and task model IDs are now normalized to UUIDs. The permanent Done column is identified by `role: "done"` so its ID can also be a UUID, while legacy imports, templates, and migrated storage rewrite old string IDs and references automatically.
+
 ### Fixed
 
-- Sub-task delete button (×) is no longer pushed off-screen when the sub-task title is long; the title now truncates with an ellipsis so the delete button always remains visible.
+- Docker Compose dev startup no longer throws `Error: spawn xdg-open ENOENT`; the containerized Vite command now disables browser auto-open (`--open false`)
+- Docker Compose dev startup no longer fails with `npm ERR! enoent Could not read package.json`; the container now mounts the actual frontend package root at `/app`
+
 
 ## [1.5.0] - 2026-04-03
 

@@ -1,0 +1,39 @@
+services:
+  nginx:
+    container_name: nginx
+    image: nginx:alpine
+    build:
+      context: .
+      dockerfile: devops/local/nginx/Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - frontend
+      - pocketbase
+    restart: unless-stopped
+
+  frontend:
+    container_name: frontend
+    image: ghcr.io/mdiener21/kanvana:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: devops/local/frontend/Dockerfile
+    expose:
+      - "3000"
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    command: npm run dev -- --host 0.0.0.0 --port 3000 --no-open
+    restart: unless-stopped
+
+  pocketbase:
+    container_name: pb
+    image: spectado/pocketbase:${PB_VERSION:-latest}
+    expose:
+      - "80"
+    volumes:
+      - pb_data:/pb_data
+    restart: unless-stopped
+
+volumes:
+  pb_data:

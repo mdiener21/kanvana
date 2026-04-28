@@ -139,23 +139,27 @@ The repository includes a pre-built static site in `dist/`. Simply upload it to 
 
 2. Install dependencies:
    ```bash
+   cd client
    npm install
    ```
 
 3. Start the dev server:
    ```bash
+   cd client
    npm run dev
    ```
    The app will open at `http://localhost:3000`.
 
 ### Build for Production
 ```bash
+cd client
 npm run build
 ```
-Built files are in `dist/`.
+Built files are in `client/dist/`.
 
 ### Preview Production Build
 ```bash
+cd client
 npm run preview
 ```
 
