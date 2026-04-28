@@ -39,6 +39,7 @@ import {
 } from '../../src/modules/storage.js';
 
 const DB_NAME = 'kanvana-db';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 beforeEach(async () => {
   // Reset in-memory state (also closes DB connection so deleteDB is not blocked).
@@ -97,7 +98,8 @@ test('saveColumns persists to IDB and survives a session reset', async () => {
   await initStorage();
   setActiveBoardId(boardId);
   const columns = loadColumns();
-  expect(columns.some(c => c.id === 'review')).toBe(true);
+  const reviewColumn = columns.find(c => c.name === 'Review');
+  expect(reviewColumn?.id).toMatch(UUID_RE);
 });
 
 test('saveLabels persists to IDB and survives a session reset', async () => {
@@ -112,7 +114,8 @@ test('saveLabels persists to IDB and survives a session reset', async () => {
   await initStorage();
   setActiveBoardId(boardId);
   const labels = loadLabels();
-  expect(labels.some(l => l.id === 'lbl-1')).toBe(true);
+  const label = labels.find(l => l.name === 'Blocker');
+  expect(label?.id).toMatch(UUID_RE);
 });
 
 test('saveSettings persists to IDB and survives a session reset', async () => {
@@ -203,8 +206,50 @@ test('migrates multi-board localStorage data on first initStorage', async () => 
 
   expect(listBoards().length).toBe(1);
   expect(listBoards()[0].name).toBe('Alpha');
-  expect(getActiveBoardId()).toBe('board-a');
-  expect(loadTasks().some(t => t.title === 'Migrated')).toBe(true);
+  expect(getActiveBoardId()).toMatch(UUID_RE);
+  const columns = loadColumns();
+  const todoColumn = columns.find((column) => column.name === 'To Do');
+  const doneColumn = columns.find((column) => column.role === 'done');
+  expect(todoColumn?.id).toMatch(UUID_RE);
+  expect(doneColumn?.id).toMatch(UUID_RE);
+  expect(loadTasks().some(t => t.title === 'Migrated' && t.column === todoColumn.id)).toBe(true);
+});
+
+test('migrates legacy done id to a UUID done role and rewrites task references', async () => {
+  localStorage.setItem('kanbanBoards', JSON.stringify([
+    { id: 'board-a', name: 'Alpha', createdAt: '2024-01-01T00:00:00Z' },
+  ]));
+  localStorage.setItem('kanbanActiveBoardId', 'board-a');
+  localStorage.setItem('kanbanBoard:board-a:tasks', JSON.stringify([
+    {
+      id: 'task-a',
+      title: 'Done migrated',
+      column: 'done',
+      priority: 'none',
+      order: 1,
+      labels: ['label-a'],
+      columnHistory: [{ column: 'done', at: '2024-01-01T00:00:00Z' }]
+    },
+  ]));
+  localStorage.setItem('kanbanBoard:board-a:columns', JSON.stringify([
+    { id: 'todo', name: 'To Do', color: '#3b82f6', order: 1, collapsed: false },
+    { id: 'done', name: 'Done', color: '#505050', order: 2, collapsed: false },
+  ]));
+  localStorage.setItem('kanbanBoard:board-a:labels', JSON.stringify([
+    { id: 'label-a', name: 'Label A', color: '#ff0000', group: '' }
+  ]));
+
+  await initStorage();
+
+  const doneColumn = loadColumns().find((column) => column.role === 'done');
+  const label = loadLabels().find((entry) => entry.name === 'Label A');
+  const task = loadTasks().find((entry) => entry.title === 'Done migrated');
+  expect(doneColumn?.id).toMatch(UUID_RE);
+  expect(label?.id).toMatch(UUID_RE);
+  expect(task?.id).toMatch(UUID_RE);
+  expect(task?.column).toBe(doneColumn.id);
+  expect(task?.columnHistory?.[0]?.column).toBe(doneColumn.id);
+  expect(task?.labels).toEqual([label.id]);
 });
 
 test('migration cleans up localStorage after completing', async () => {
@@ -247,6 +292,28 @@ test('migrates legacy single-board localStorage keys (pre-multi-board format)', 
   expect(localStorage.getItem('kanbanTasks')).toBeNull();
   expect(localStorage.getItem('kanbanColumns')).toBeNull();
   expect(localStorage.getItem('kanbanLabels')).toBeNull();
+});
+
+test('migrates legacy single-board tasks without columns using UUID default column mappings', async () => {
+  localStorage.setItem('kanbanTasks', JSON.stringify([
+    { id: 'task-done', title: 'Legacy done task', column: 'done', priority: 'none', order: 1, changeDate: '2024-01-01T00:00:00Z', columnHistory: [{ column: 'done', at: '2024-01-01T00:00:00Z' }] },
+    { id: 'task-todo', title: 'Legacy todo task', column: 'todo', priority: 'none', order: 2 },
+  ]));
+
+  await initStorage();
+
+  const columns = loadColumns();
+  const doneColumn = columns.find((column) => column.role === 'done');
+  const todoColumn = columns.find((column) => column.name === 'To Do');
+  const tasks = loadTasks();
+  const doneTask = tasks.find((task) => task.title === 'Legacy done task');
+  const todoTask = tasks.find((task) => task.title === 'Legacy todo task');
+  expect(doneColumn?.id).toMatch(UUID_RE);
+  expect(todoColumn?.id).toMatch(UUID_RE);
+  expect(doneTask?.column).toBe(doneColumn.id);
+  expect(doneTask?.columnHistory?.[0]?.column).toBe(doneColumn.id);
+  expect(doneTask?.doneDate).toBeTruthy();
+  expect(todoTask?.column).toBe(todoColumn.id);
 });
 
 test('migration does not run again on a subsequent initStorage call (same IDB)', async () => {

@@ -5,6 +5,7 @@
 - Columns are created through a modal with required name and color fields
 - Missing names show inline validation with red styling and an error message
 - New columns are inserted before the permanent `done` column
+- New columns receive UUID IDs
 - Columns can be edited through the header menu
 - Columns can be deleted through the header menu, with confirmation when tasks exist
 
@@ -35,6 +36,6 @@
 
 ## Done Column Rules
 
-- The column with id `done` is permanent and cannot be deleted
+- The column with `role: "done"` is permanent and cannot be deleted
 - Done-column sorting via drag reordering is disabled for performance
 - Dropping into Done always inserts tasks at the top

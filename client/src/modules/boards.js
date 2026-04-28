@@ -12,7 +12,8 @@ import {
   saveTasks,
   saveLabels,
   loadSettings,
-  saveSettings
+  saveSettings,
+  normalizeBoardModelIds
 } from './storage.js';
 import { alertDialog } from './dialog.js';
 import { boardDisplayName } from './normalize.js';
@@ -71,12 +72,19 @@ function applyBoardTemplate(templateBoard) {
   const board = templateBoard && typeof templateBoard === 'object' ? templateBoard : null;
   if (!board) return;
 
-  if (Array.isArray(board.columns)) saveColumns(board.columns);
-  if (Array.isArray(board.tasks)) saveTasks(board.tasks);
-  if (Array.isArray(board.labels)) saveLabels(board.labels);
+  const normalized = normalizeBoardModelIds({
+    columns: board.columns,
+    tasks: board.tasks,
+    labels: board.labels,
+    settings: board.settings
+  });
+
+  if (Array.isArray(board.columns)) saveColumns(normalized.columns);
+  if (Array.isArray(board.tasks)) saveTasks(normalized.tasks);
+  if (Array.isArray(board.labels)) saveLabels(normalized.labels);
   if (board.settings && typeof board.settings === 'object') {
     const current = loadSettings();
-    saveSettings({ ...current, ...board.settings });
+    saveSettings({ ...current, ...normalized.settings });
   }
 }
 

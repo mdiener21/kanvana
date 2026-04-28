@@ -9,12 +9,12 @@ import {
   groupTasksBySwimLane,
   isSwimLaneCollapsed,
   isSwimLaneCellCollapsed,
-  SWIMLANE_HIDDEN_DONE_COLUMN_ID,
   toggleSwimLaneCollapsed,
   toggleSwimLaneCellCollapsed
 } from './swimlanes.js';
 import { createTaskElement } from './task-card.js';
 import { emit, DATA_CHANGED } from './events.js';
+import { isDoneColumn as isPermanentDoneColumn } from './constants.js';
 
 export function createSwimlaneHeaderCell(column, taskCount) {
   const header = document.createElement('section');
@@ -124,10 +124,10 @@ export function createSwimlaneCell(column, lane, tasksInCell, visibleTasks, sett
   const cell = document.createElement('section');
   cell.classList.add('swimlane-cell');
   const isColumnCollapsed = column?.collapsed === true;
-  const isDoneColumn = column.id === SWIMLANE_HIDDEN_DONE_COLUMN_ID;
+  const isDone = isPermanentDoneColumn(column);
   if (isColumnCollapsed) cell.classList.add('is-column-collapsed');
-  if (isDoneColumn) cell.classList.add('swimlane-cell-done');
-  if (cellCollapsed && !isColumnCollapsed && !isDoneColumn) cell.classList.add('is-cell-collapsed');
+  if (isDone) cell.classList.add('swimlane-cell-done');
+  if (cellCollapsed && !isColumnCollapsed && !isDone) cell.classList.add('is-cell-collapsed');
   if (column?.color) cell.style.setProperty('--column-accent', column.color);
   cell.dataset.column = column.id;
   cell.dataset.laneKey = lane.key;
@@ -136,7 +136,7 @@ export function createSwimlaneCell(column, lane, tasksInCell, visibleTasks, sett
 
   const hiddenTaskCount = getHiddenTaskCountForLane(tasksInCell, column.id);
 
-  if (!isDoneColumn && !isColumnCollapsed) {
+  if (!isDone && !isColumnCollapsed) {
     const cellHeader = document.createElement('div');
     cellHeader.classList.add('swimlane-cell-header');
 
@@ -185,7 +185,7 @@ export function createSwimlaneCell(column, lane, tasksInCell, visibleTasks, sett
     cell.appendChild(cellHeader);
   }
 
-  if (isDoneColumn || isColumnCollapsed) {
+  if (isDone || isColumnCollapsed) {
     const summary = document.createElement('div');
     summary.classList.add('swimlane-cell-summary');
     if (isColumnCollapsed) {
@@ -203,7 +203,7 @@ export function createSwimlaneCell(column, lane, tasksInCell, visibleTasks, sett
 
   const tasksList = document.createElement('ul');
   tasksList.classList.add('tasks', 'swimlane-tasks');
-  if (isDoneColumn || isColumnCollapsed) tasksList.classList.add('swimlane-tasks-hidden-done');
+  if (isDone || isColumnCollapsed) tasksList.classList.add('swimlane-tasks-hidden-done');
   tasksList.dataset.column = column.id;
   tasksList.dataset.laneKey = lane.key;
   tasksList.dataset.laneLabel = lane.value;
@@ -249,9 +249,10 @@ export function renderSwimlaneBoard(container, sortedColumns, visibleTasks, labe
     if (collapsed) row.classList.add('is-collapsed');
 
     const activeTaskCount = sortedColumns
-      .filter((column) => column.id !== SWIMLANE_HIDDEN_DONE_COLUMN_ID)
+      .filter((column) => !isPermanentDoneColumn(column))
       .reduce((count, column) => count + ((lane.cells[column.id] || []).length), 0);
-    const hiddenDoneCount = (lane.cells[SWIMLANE_HIDDEN_DONE_COLUMN_ID] || []).length;
+    const doneColumn = sortedColumns.find((column) => isPermanentDoneColumn(column));
+    const hiddenDoneCount = doneColumn ? (lane.cells[doneColumn.id] || []).length : 0;
 
     const laneLabel = labelsMap.get(lane.key);
     const laneColor = laneLabel?.color || null;

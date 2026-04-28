@@ -9,7 +9,7 @@ import {
   saveSettings
 } from './storage.js';
 
-import { createBoard, getActiveBoardName, listBoards, setActiveBoardId, loadTasksForBoard, loadColumnsForBoard, loadLabelsForBoard, loadSettingsForBoard } from './storage.js';
+import { createBoard, getActiveBoardName, listBoards, setActiveBoardId, loadTasksForBoard, loadColumnsForBoard, loadLabelsForBoard, loadSettingsForBoard, normalizeBoardModelIds } from './storage.js';
 import { emit, DATA_CHANGED } from './events.js';
 import { normalizePriority, isHexColor, boardDisplayName, normalizeDueDate, normalizeSubTasks } from './normalize.js';
 import { DONE_COLUMN_ID } from './constants.js';
@@ -27,6 +27,14 @@ export const IMPORT_LIMITS = {
 };
 
 const EXPORT_SCHEMA_VERSION = 1;
+
+function legacyDefaultColumnsForImport() {
+  return [
+    { id: 'todo', name: 'To Do', color: '#3583ff', order: 1, collapsed: false },
+    { id: 'inprogress', name: 'In Progress', color: '#f59e0b', order: 2, collapsed: false },
+    { id: DONE_COLUMN_ID, name: 'Done', color: '#505050', order: 3, collapsed: false, role: 'done' }
+  ];
+}
 
 function getCurrentAppVersion() {
   if (typeof __APP_VERSION__ === 'string' && __APP_VERSION__.trim()) {
@@ -129,8 +137,10 @@ export function inspectImportPayload(data, file = null) {
   }
 
   const { tasks, columns, labels, settings, boardName, exportMeta, format } = sections;
-  const normalizedTasks = normalizeImportedTasks(tasks);
-  const normalizedColumns = columns ? normalizeImportedColumns(columns) : null;
+  const normalizedColumns = columns ? normalizeImportedColumns(columns) : (format === 'legacy-tasks' ? normalizeImportedColumns(legacyDefaultColumnsForImport()) : null);
+  const doneColumnIds = new Set((normalizedColumns || []).filter((column) => column.role === 'done' || column.id === DONE_COLUMN_ID).map((column) => column.id));
+  doneColumnIds.add(DONE_COLUMN_ID);
+  const normalizedTasks = normalizeImportedTasks(tasks, doneColumnIds);
   const normalizedLabels = labels ? normalizeImportedLabels(labels) : null;
   const normalizedSettings = settings ? normalizeImportedSettings(settings) : null;
 
@@ -191,6 +201,17 @@ export function inspectImportPayload(data, file = null) {
     }
   }
 
+  const normalizedBoard = normalizeBoardModelIds({
+    columns: normalizedColumns || undefined,
+    tasks: tasksWithKnownLabels,
+    labels: normalizedLabels || undefined,
+    settings: normalizedSettings || undefined
+  });
+
+  const finalColumns = normalizedColumns ? normalizedBoard.columns : null;
+  const finalLabels = normalizedLabels ? normalizedBoard.labels : null;
+  const finalSettings = normalizedSettings ? normalizedBoard.settings : null;
+
   const importedName = boardName || boardNameFromFile(file) || 'Imported board';
 
   return {
@@ -200,10 +221,10 @@ export function inspectImportPayload(data, file = null) {
     format,
     exportMeta,
     importedName,
-    normalizedTasks: tasksWithKnownLabels,
-    normalizedColumns,
-    normalizedLabels,
-    normalizedSettings,
+    normalizedTasks: normalizedBoard.tasks,
+    normalizedColumns: finalColumns,
+    normalizedLabels: finalLabels,
+    normalizedSettings: finalSettings,
     summary: {
       tasks: tasksWithKnownLabels.length,
       columns: columnCount,
@@ -267,6 +288,16 @@ function normalizeSettingsForExport(settings) {
         .filter((entry) => typeof entry === 'string' && entry.trim())
         .map((entry) => entry.trim())
     : [];
+  const swimLaneOrder = Array.isArray(obj.swimLaneOrder)
+    ? obj.swimLaneOrder
+        .filter((entry) => typeof entry === 'string' && entry.trim())
+        .map((entry) => entry.trim())
+    : [];
+  const swimLaneCellCollapsedKeys = Array.isArray(obj.swimLaneCellCollapsedKeys)
+    ? obj.swimLaneCellCollapsedKeys
+        .filter((entry) => typeof entry === 'string' && entry.trim())
+        .map((entry) => entry.trim())
+    : [];
   return {
     showPriority,
     showDueDate,
@@ -278,13 +309,15 @@ function normalizeSettingsForExport(settings) {
     swimLanesEnabled,
     swimLaneGroupBy,
     swimLaneLabelGroup,
-    swimLaneCollapsedKeys
+    swimLaneCollapsedKeys,
+    swimLaneOrder,
+    swimLaneCellCollapsedKeys
   };
 }
 
 // normalizeDueDate imported from normalize.js as normalizeDueDateFn
 
-function normalizeTaskForExport(task) {
+function normalizeTaskForExport(task, doneColumnIds = new Set([DONE_COLUMN_ID])) {
   const legacyTitle = typeof task?.text === 'string' ? task.text : '';
   const title = typeof task?.title === 'string' ? task.title : legacyTitle;
   const description = typeof task?.description === 'string' ? task.description : '';
@@ -294,7 +327,7 @@ function normalizeTaskForExport(task) {
       ? task.changeDate
       : (typeof task?.changedDate === 'string' ? task.changedDate : undefined);
 
-  const isDone = task?.column === DONE_COLUMN_ID;
+  const isDone = doneColumnIds.has(task?.column) || task?.column === DONE_COLUMN_ID;
   const doneDate = typeof task?.doneDate === 'string' ? task.doneDate.toString().trim() : '';
 
   const columnHistory = Array.isArray(task?.columnHistory)
@@ -325,7 +358,7 @@ function normalizeTaskForExport(task) {
   };
 }
 
-function normalizeImportedTasks(tasks) {
+function normalizeImportedTasks(tasks, doneColumnIds = new Set([DONE_COLUMN_ID])) {
   if (!Array.isArray(tasks)) return null;
 
   const normalized = tasks.map((t) => {
@@ -350,7 +383,7 @@ function normalizeImportedTasks(tasks) {
         : (typeof t?.changedDate === 'string' ? t.changedDate : undefined);
 
     const doneDateRaw = typeof t?.doneDate === 'string' ? t.doneDate.trim() : '';
-    const isDone = column.trim() === DONE_COLUMN_ID;
+    const isDone = doneColumnIds.has(column.trim()) || column.trim() === DONE_COLUMN_ID;
     const doneDate = isDone
       ? (doneDateRaw || (typeof changeDate === 'string' ? changeDate.trim() : '') || (creationDate || ''))
       : '';
@@ -380,6 +413,7 @@ function normalizeImportedTasks(tasks) {
       ...(creationDate ? { creationDate } : {}),
       ...(typeof changeDate === 'string' && changeDate.trim() ? { changeDate: changeDate.trim() } : {}),
       ...(doneDate ? { doneDate } : {}),
+      relationships: Array.isArray(t?.relationships) ? t.relationships : [],
       ...(columnHistory && columnHistory.length ? { columnHistory } : {}),
       ...(swimlaneLabelId !== undefined ? { swimlaneLabelId } : {}),
       ...(swimlaneLabelGroup !== undefined ? { swimlaneLabelGroup } : {}),
@@ -405,14 +439,15 @@ function normalizeImportedColumns(columns) {
       name: name.trim(),
       color,
       collapsed,
+      ...(id.trim() === DONE_COLUMN_ID || c?.role === 'done' ? { role: 'done' } : {}),
       ...(order !== undefined ? { order } : {})
     };
   });
 
   // Ensure the permanent Done column always exists.
-  if (!normalized.some((c) => c.id === DONE_COLUMN_ID)) {
+  if (!normalized.some((c) => c.id === DONE_COLUMN_ID || c.role === 'done')) {
     const maxOrder = normalized.reduce((max, c) => Math.max(max, Number.isFinite(c?.order) ? c.order : 0), 0);
-    normalized.push({ id: DONE_COLUMN_ID, name: 'Done', color: '#6d6d6d', order: maxOrder + 1, collapsed: false });
+    normalized.push({ id: DONE_COLUMN_ID, name: 'Done', color: '#6d6d6d', order: maxOrder + 1, collapsed: false, role: 'done' });
   }
 
   const isValid = normalized.every((c) => c.id && c.name);
@@ -458,6 +493,16 @@ function normalizeImportedSettings(settings) {
         .filter((entry) => typeof entry === 'string' && entry.trim())
         .map((entry) => entry.trim())
     : [];
+  const swimLaneOrder = Array.isArray(settings.swimLaneOrder)
+    ? settings.swimLaneOrder
+        .filter((entry) => typeof entry === 'string' && entry.trim())
+        .map((entry) => entry.trim())
+    : [];
+  const swimLaneCellCollapsedKeys = Array.isArray(settings.swimLaneCellCollapsedKeys)
+    ? settings.swimLaneCellCollapsedKeys
+        .filter((entry) => typeof entry === 'string' && entry.trim())
+        .map((entry) => entry.trim())
+    : [];
   return {
     showPriority,
     showDueDate,
@@ -470,16 +515,20 @@ function normalizeImportedSettings(settings) {
     ,swimLaneGroupBy
     ,swimLaneLabelGroup
     ,swimLaneCollapsedKeys
+    ,swimLaneOrder
+    ,swimLaneCellCollapsedKeys
   };
 }
 
 // Export tasks and columns to JSON file
 export function exportTasks() {
-  const tasks = loadTasks().map(normalizeTaskForExport);
   const columns = loadColumns().map((c) => ({
     ...c,
     color: isHexColor(c?.color) ? c.color.trim() : '#3b82f6'
   }));
+  const doneColumnIds = new Set(columns.filter((column) => column.role === 'done' || column.id === DONE_COLUMN_ID).map((column) => column.id));
+  doneColumnIds.add(DONE_COLUMN_ID);
+  const tasks = loadTasks().map((task) => normalizeTaskForExport(task, doneColumnIds));
   const labels = loadLabels();
   const settings = loadSettings();
   const boardName = getActiveBoardName();
@@ -521,12 +570,14 @@ export function exportBoard(boardId) {
   const rawLabels = loadLabelsForBoard(id);
   const rawSettings = loadSettingsForBoard(id);
 
-  const tasks = rawTasks.map(normalizeTaskForExport);
   const columns = rawColumns.map((c) => ({
     ...c,
     color: isHexColor(c?.color) ? c.color.trim() : '#3b82f6',
     collapsed: c?.collapsed === true
   }));
+  const doneColumnIds = new Set(columns.filter((column) => column.role === 'done' || column.id === DONE_COLUMN_ID).map((column) => column.id));
+  doneColumnIds.add(DONE_COLUMN_ID);
+  const tasks = rawTasks.map((task) => normalizeTaskForExport(task, doneColumnIds));
   const labels = Array.isArray(rawLabels) ? rawLabels : [];
   const settings = normalizeSettingsForExport(rawSettings);
   const exportMeta = buildExportMeta();

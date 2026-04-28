@@ -1,10 +1,9 @@
 import { generateUUID } from './utils.js';
-import { loadLabels, loadSettings, loadTasks, saveTasks } from './storage.js';
+import { isDoneColumnId, loadLabels, loadSettings, loadTasks, saveTasks } from './storage.js';
 import { applySwimLaneAssignment } from './swimlanes.js';
 import { normalizePriority, normalizeRelationships, normalizeSubTasks } from './normalize.js';
 
 const RELATIONSHIP_INVERSE = { prerequisite: 'dependent', dependent: 'prerequisite', related: 'related' };
-import { DONE_COLUMN_ID } from './constants.js';
 
 function reorderColumnTasks(tasks, columnId, pinnedTaskId = null) {
   const columnTasks = tasks
@@ -101,7 +100,7 @@ export function addTask(title, description, priority, dueDate, columnName, label
     creationDate: nowIso,
     changeDate: nowIso,
     columnHistory: [{ column: columnName, at: nowIso }],
-    ...(columnName === DONE_COLUMN_ID ? { doneDate: nowIso } : {})
+    ...(isDoneColumnId(columnName) ? { doneDate: nowIso } : {})
   };
 
   updatedTasks.push(newTask);
@@ -145,9 +144,9 @@ export function updateTask(taskId, title, description, priority, dueDate, column
       tasks[taskIndex].columnHistory.push({ column: nextColumn, at: nowIso });
     }
 
-    if (prevColumn !== DONE_COLUMN_ID && nextColumn === DONE_COLUMN_ID) {
+    if (!isDoneColumnId(prevColumn) && isDoneColumnId(nextColumn)) {
       tasks[taskIndex].doneDate = nowIso;
-    } else if (prevColumn === DONE_COLUMN_ID && nextColumn !== DONE_COLUMN_ID) {
+    } else if (isDoneColumnId(prevColumn) && !isDoneColumnId(nextColumn)) {
       delete tasks[taskIndex].doneDate;
     }
 
@@ -301,9 +300,9 @@ export function updateTaskPositionsFromDrop(evt) {
         history.push({ column: toColumn, at: nowIso });
         nextTask.columnHistory = history;
 
-        if (task.column !== DONE_COLUMN_ID && toColumn === DONE_COLUMN_ID) {
+        if (!isDoneColumnId(task.column) && isDoneColumnId(toColumn)) {
           nextTask.doneDate = nowIso;
-        } else if (task.column === DONE_COLUMN_ID && toColumn !== DONE_COLUMN_ID) {
+        } else if (isDoneColumnId(task.column) && !isDoneColumnId(toColumn)) {
           delete nextTask.doneDate;
         }
       }
@@ -323,7 +322,7 @@ export function updateTaskPositionsFromDrop(evt) {
     return task;
   });
 
-  const finalTasks = toColumn === DONE_COLUMN_ID
+  const finalTasks = isDoneColumnId(toColumn)
     ? reorderColumnTasks(updatedTasks, toColumn, movedTaskId)
     : updatedTasks;
 
@@ -354,4 +353,3 @@ export function moveTaskToTopInColumn(taskId, columnId, tasksCache) {
   }
   return tasks;
 }
-

@@ -1,4 +1,4 @@
-import { loadTasks, loadSettings } from './storage.js';
+import { isDoneColumnId, loadTasks, loadSettings } from './storage.js';
 import { showEditModal, setupModalCloseHandlers } from './modals.js';
 import { renderIcons } from './icons.js';
 import { calculateDaysUntilDue } from './dateutils.js';
@@ -34,8 +34,8 @@ export function getNotificationTasks() {
 
   return tasks
     .filter((task) => {
-      // Exclude tasks in 'done' column
-      if (task.column === 'done') return false;
+      // Exclude tasks in the permanent Done column.
+      if (isDoneColumnId(task.column)) return false;
 
       // Must have a due date
       const dueDate = (task.dueDate || '').toString().trim();

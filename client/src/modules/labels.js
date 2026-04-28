@@ -49,10 +49,7 @@ export function addLabel(name, color, group = '') {
     };
   }
 
-  const id =
-    normalizedName.replace(/\s+/g, '-') +
-    '-' +
-    generateUUID().substring(0, 8);
+  const id = generateUUID();
 
   const trimmedGroup = typeof group === 'string' ? group.trim() : '';
   const newLabel = { id, name: trimmedName, color, group: trimmedGroup };

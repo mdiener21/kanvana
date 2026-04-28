@@ -18,6 +18,8 @@ import {
   saveSettings
 } from '../../src/modules/storage.js';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 beforeEach(() => {
   resetLocalStorage();
 });
@@ -29,6 +31,7 @@ test('ensureBoardsInitialized creates default board on empty storage', () => {
   const boards = listBoards();
   expect(boards.length).toBe(1);
   expect(boards[0].name).toBe('Default Board');
+  expect(boards[0].id).toMatch(UUID_RE);
   expect(getActiveBoardId()).toBe(boards[0].id);
 });
 
@@ -51,7 +54,7 @@ test('createBoard creates board with correct keys', () => {
   ensureBoardsInitialized();
   const board = createBoard('Test Board');
   expect(board.name).toBe('Test Board');
-  expect(board.id.startsWith('board-')).toBe(true);
+  expect(board.id).toMatch(UUID_RE);
 
   const boards = listBoards();
   expect(boards.length).toBe(2);
@@ -126,16 +129,16 @@ test('loadColumns returns default columns on fresh board', () => {
   const columns = loadColumns();
   expect(columns.length >= 3).toBe(true);
   const ids = columns.map(c => c.id);
-  expect(ids).toContain('todo');
-  expect(ids).toContain('inprogress');
-  expect(ids).toContain('done');
+  expect(ids.every((id) => UUID_RE.test(id))).toBe(true);
+  expect(columns.filter((column) => column.role === 'done')).toHaveLength(1);
 });
 
 test('loadColumns ensures Done column exists', () => {
   createBoard('No Done');
   saveColumns([{ id: 'todo', name: 'To Do', color: '#3b82f6', order: 1 }]);
   const columns = loadColumns();
-  expect(columns.some(c => c.id === 'done')).toBe(true);
+  const doneColumn = columns.find(c => c.role === 'done');
+  expect(doneColumn?.id).toMatch(UUID_RE);
 });
 
 test('saveColumns + loadColumns roundtrip', () => {

@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI: all workflows standardized to Node 20
 - Docker development now runs the frontend from `client/` in Vite dev mode via `docker compose up`, and the Dockerfile build paths now match the frontend package and nginx config locations
 - Docker development now uses a single `docker-compose.yml`; the former `docker-compose.override.yml` dev settings were folded into the main compose file
+- Board, column, label, and task model IDs are now normalized to UUIDs. The permanent Done column is identified by `role: "done"` so its ID can also be a UUID, while legacy imports, templates, and migrated storage rewrite old string IDs and references automatically.
 
 ### Fixed
 

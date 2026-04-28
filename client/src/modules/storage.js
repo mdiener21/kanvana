@@ -1,7 +1,7 @@
 import { openDB } from 'idb';
 import { generateUUID } from './utils.js';
 import { normalizePriority as sharedNormalizePriority, isHexColor as sharedIsHexColor, normalizeStringKeys, normalizeRelationships, normalizeSubTasks } from './normalize.js';
-import { DONE_COLUMN_ID } from './constants.js';
+import { DONE_COLUMN_ID, DONE_COLUMN_ROLE, isDoneColumn } from './constants.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -18,6 +18,7 @@ const LEGACY_LABELS_KEY = 'kanbanLabels';
 
 const DEFAULT_BOARD_ID = 'default';
 const ALLOWED_SWIMLANE_GROUP_BY = new Set(['label', 'label-group', 'priority']);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // ── In-memory state ────────────────────────────────────────────────────────────
 //
@@ -81,6 +82,186 @@ function keyFor(boardId, kind) {
   return `kanbanBoard:${boardId}:${kind}`;
 }
 
+function isUuid(value) {
+  return typeof value === 'string' && UUID_RE.test(value.trim());
+}
+
+function remapId(value, map) {
+  const raw = typeof value === 'string' ? value.trim() : String(value ?? '').trim();
+  if (isUuid(raw)) return raw;
+  if (!raw) return generateUUID();
+  if (!map.has(raw)) map.set(raw, generateUUID());
+  return map.get(raw);
+}
+
+function remapReference(value, map, fallback = '') {
+  const raw = typeof value === 'string' ? value.trim() : String(value ?? '').trim();
+  if (!raw) return fallback;
+  return map.get(raw) || (isUuid(raw) ? raw : fallback);
+}
+
+function remapCellCollapseKeys(keys, labelIdMap, columnIdMap) {
+  if (!Array.isArray(keys)) return [];
+  return normalizeStringKeys(keys).map((key) => {
+    const [laneKey, columnId] = key.split('::');
+    if (columnId === undefined) return remapReference(key, labelIdMap, key);
+    const nextLaneKey = remapReference(laneKey, labelIdMap, laneKey);
+    const nextColumnId = remapReference(columnId, columnIdMap, columnId);
+    return `${nextLaneKey}::${nextColumnId}`;
+  });
+}
+
+export function normalizeBoardModelIds({ board = null, columns = [], tasks = [], labels = [], settings = null } = {}) {
+  const boardIdMap = new Map();
+  const columnIdMap = new Map();
+  const labelIdMap = new Map();
+  const taskIdMap = new Map();
+
+  const nextBoard = board && typeof board === 'object'
+    ? {
+        ...board,
+        id: remapId(board.id, boardIdMap),
+        name: typeof board.name === 'string' && board.name.trim() ? board.name.trim() : 'Untitled board',
+        createdAt: typeof board.createdAt === 'string' ? board.createdAt : nowIso()
+      }
+    : null;
+
+  const normalizedColumns = (Array.isArray(columns) ? columns : []).map((column, index) => {
+    const source = column && typeof column === 'object' ? column : {};
+    const id = remapId(source.id || `__column_${index}`, columnIdMap);
+    const done = isDoneColumn(source);
+    return {
+      ...source,
+      id,
+      name: typeof source.name === 'string' && source.name.trim() ? source.name.trim() : (done ? 'Done' : 'Untitled column'),
+      color: isHexColor(source.color) ? source.color.trim() : defaultColumnColor(done ? DONE_COLUMN_ID : source.id),
+      collapsed: source.collapsed === true,
+      ...(Number.isFinite(source.order) ? { order: source.order } : {}),
+      ...(done ? { role: DONE_COLUMN_ROLE } : {})
+    };
+  });
+
+  if (!normalizedColumns.some((column) => column.role === DONE_COLUMN_ROLE)) {
+    const maxOrder = normalizedColumns.reduce((max, column) => Math.max(max, Number.isFinite(column?.order) ? column.order : 0), 0);
+    normalizedColumns.push({ id: generateUUID(), name: 'Done', color: '#16a34a', order: maxOrder + 1, collapsed: false, role: DONE_COLUMN_ROLE });
+  }
+
+  const fallbackColumnId = normalizedColumns.find((column) => column.role !== DONE_COLUMN_ROLE)?.id || normalizedColumns[0]?.id || '';
+
+  const normalizedLabels = (Array.isArray(labels) ? labels : []).map((label, index) => {
+    const source = label && typeof label === 'object' ? label : {};
+    return {
+      ...source,
+      id: remapId(source.id || `__label_${index}`, labelIdMap),
+      name: typeof source.name === 'string' && source.name.trim() ? source.name.trim() : 'Untitled label',
+      color: isHexColor(source.color) ? source.color.trim() : '#3b82f6',
+      group: typeof source.group === 'string' ? source.group : ''
+    };
+  });
+
+  const rawTasks = Array.isArray(tasks) ? tasks : [];
+  rawTasks.forEach((task, index) => {
+    const source = task && typeof task === 'object' ? task : {};
+    remapId(source.id || `__task_${index}`, taskIdMap);
+  });
+
+  const normalizedTasks = rawTasks.map((task, index) => {
+    const source = task && typeof task === 'object' ? task : {};
+    const id = remapId(source.id || `__task_${index}`, taskIdMap);
+    const column = remapReference(source.column, columnIdMap, fallbackColumnId);
+    const labels = Array.isArray(source.labels)
+      ? source.labels.map((labelId) => remapReference(labelId, labelIdMap, '')).filter(Boolean)
+      : [];
+    const columnHistory = Array.isArray(source.columnHistory)
+      ? source.columnHistory
+          .map((entry) => {
+            const historyColumn = remapReference(entry?.column, columnIdMap, '');
+            const at = typeof entry?.at === 'string' ? entry.at.trim() : '';
+            return historyColumn && at ? { column: historyColumn, at } : null;
+          })
+          .filter(Boolean)
+      : undefined;
+    const relationships = normalizeRelationships(source.relationships)
+      .map((relationship) => ({
+        ...relationship,
+        targetTaskId: remapReference(relationship.targetTaskId, taskIdMap, '')
+      }))
+      .filter((relationship) => relationship.targetTaskId);
+    const swimlaneLabelId = remapReference(source.swimlaneLabelId, labelIdMap, '');
+
+    return {
+      ...source,
+      id,
+      column,
+      labels,
+      relationships,
+      ...(columnHistory && columnHistory.length ? { columnHistory } : {}),
+      ...(swimlaneLabelId ? { swimlaneLabelId } : (Object.prototype.hasOwnProperty.call(source, 'swimlaneLabelId') ? { swimlaneLabelId: '' } : {}))
+    };
+  });
+
+  const nextSettings = settings && typeof settings === 'object' && !Array.isArray(settings)
+    ? {
+        ...settings,
+        swimLaneOrder: normalizeStringKeys(settings.swimLaneOrder).map((key) => remapReference(key, labelIdMap, key)),
+        swimLaneCollapsedKeys: normalizeStringKeys(settings.swimLaneCollapsedKeys).map((key) => remapReference(key, labelIdMap, key)),
+        swimLaneCellCollapsedKeys: remapCellCollapseKeys(settings.swimLaneCellCollapsedKeys, labelIdMap, columnIdMap)
+      }
+    : settings;
+
+  return {
+    board: nextBoard,
+    columns: normalizedColumns,
+    tasks: normalizedTasks,
+    labels: normalizedLabels,
+    settings: nextSettings,
+    idMaps: { boardIdMap, columnIdMap, labelIdMap, taskIdMap }
+  };
+}
+
+async function normalizeIdbState(db) {
+  const rawBoards = safeParseArray(await db.get(KV_STORE, BOARDS_KEY));
+  if (!rawBoards) return;
+
+  const rawActiveId = await db.get(KV_STORE, ACTIVE_BOARD_KEY);
+  const nextBoards = [];
+  const activeIdMap = new Map();
+  const tx = db.transaction(KV_STORE, 'readwrite');
+  const store = tx.objectStore(KV_STORE);
+
+  for (const rawBoard of rawBoards) {
+    if (!rawBoard || typeof rawBoard !== 'object') continue;
+    const oldBoardId = typeof rawBoard.id === 'string' ? rawBoard.id.trim() : '';
+    const normalized = normalizeBoardModelIds({
+      board: rawBoard,
+      tasks: safeParseArray(await store.get(keyFor(oldBoardId, 'tasks'))) || [],
+      columns: safeParseArray(await store.get(keyFor(oldBoardId, 'columns'))) || legacyDefaultColumns(),
+      labels: safeParseArray(await store.get(keyFor(oldBoardId, 'labels'))) || [],
+      settings: safeParseObject(await store.get(keyFor(oldBoardId, 'settings'))) || defaultSettings()
+    });
+
+    const newBoardId = normalized.board.id;
+    activeIdMap.set(oldBoardId, newBoardId);
+    nextBoards.push(normalized.board);
+    await store.put(normalized.tasks, keyFor(newBoardId, 'tasks'));
+    await store.put(normalized.columns, keyFor(newBoardId, 'columns'));
+    await store.put(normalized.labels, keyFor(newBoardId, 'labels'));
+    await store.put(normalized.settings, keyFor(newBoardId, 'settings'));
+
+    if (oldBoardId && oldBoardId !== newBoardId) {
+      await store.delete(keyFor(oldBoardId, 'tasks'));
+      await store.delete(keyFor(oldBoardId, 'columns'));
+      await store.delete(keyFor(oldBoardId, 'labels'));
+      await store.delete(keyFor(oldBoardId, 'settings'));
+    }
+  }
+
+  await store.put(nextBoards, BOARDS_KEY);
+  const nextActiveId = activeIdMap.get(rawActiveId) || nextBoards[0]?.id || null;
+  if (nextActiveId) await store.put(nextActiveId, ACTIVE_BOARD_KEY);
+  await tx.done;
+}
+
 // Handles both pre-parsed objects (from IDB) and JSON strings (from legacy localStorage).
 function safeParseArray(value) {
   if (!value) return null;
@@ -110,24 +291,45 @@ function safeParseObject(value) {
 
 function defaultColumns() {
   return [
+    { id: generateUUID(), name: 'To Do', color: '#3583ff' },
+    { id: generateUUID(), name: 'In Progress', color: '#f59e0b' },
+    { id: generateUUID(), name: 'Done', color: '#505050', role: DONE_COLUMN_ROLE }
+  ];
+}
+
+function legacyDefaultColumns() {
+  return [
     { id: 'todo', name: 'To Do', color: '#3583ff' },
     { id: 'inprogress', name: 'In Progress', color: '#f59e0b' },
-    { id: DONE_COLUMN_ID, name: 'Done', color: '#505050' }
+    { id: DONE_COLUMN_ID, name: 'Done', color: '#505050', role: DONE_COLUMN_ROLE }
   ];
 }
 
 function defaultLabels() {
   return [
-    { id: 'task-ez2522q8', name: 'Task', color: '#f59e0b', group: 'Activity' },
-    { id: 'meeting-gy2462e7', name: 'Meeting', color: '#ffd001', group: 'Activity' },
-    { id: 'email-gy2462e7', name: 'Email', color: '#d4a300', group: 'Activity' },
-    { id: 'idea-ju2554t6', name: 'Idea', color: '#25b631', group: '' },
-    { id: 'goal-hr2475r4', name: 'Goal', color: '#1b7cbd', group: '' },
+    { id: generateUUID(), name: 'Task', color: '#f59e0b', group: 'Activity' },
+    { id: generateUUID(), name: 'Meeting', color: '#ffd001', group: 'Activity' },
+    { id: generateUUID(), name: 'Email', color: '#d4a300', group: 'Activity' },
+    { id: generateUUID(), name: 'Idea', color: '#25b631', group: '' },
+    { id: generateUUID(), name: 'Goal', color: '#1b7cbd', group: '' },
   ];
 }
 
-function defaultTasks() {
+function columnIdByName(columns, name) {
+  return columns.find((column) => column.name === name)?.id || columns[0]?.id || '';
+}
+
+function labelIdByName(labels, name) {
+  return labels.find((label) => label.name === name)?.id || '';
+}
+
+function defaultTasks(columns = defaultColumns(), labels = defaultLabels()) {
   const created = nowIso();
+  const todoColumnId = columnIdByName(columns, 'To Do');
+  const inProgressColumnId = columnIdByName(columns, 'In Progress');
+  const doneColumnId = columns.find((column) => column.role === DONE_COLUMN_ROLE)?.id || columnIdByName(columns, 'Done');
+  const taskLabelId = labelIdByName(labels, 'Task');
+  const ideaLabelId = labelIdByName(labels, 'Idea');
   return [
     {
       id: generateUUID(),
@@ -135,11 +337,11 @@ function defaultTasks() {
       description: 'Identify current location and access requirements.',
       priority: 'high',
       dueDate: '',
-      column: 'todo',
-      labels: ['urgent'],
+      column: todoColumnId,
+      labels: [],
       creationDate: created,
       changeDate: created,
-      columnHistory: [{ column: 'todo', at: created }]
+      columnHistory: [{ column: todoColumnId, at: created }]
     },
     {
       id: generateUUID(),
@@ -147,11 +349,11 @@ function defaultTasks() {
       description: 'Coordinate with Dr. Strange and plan retrieval.',
       priority: 'urgent',
       dueDate: '',
-      column: 'inprogress',
-      labels: ['feature'],
+      column: inProgressColumnId,
+      labels: [],
       creationDate: created,
       changeDate: created,
-      columnHistory: [{ column: 'inprogress', at: created }]
+      columnHistory: [{ column: inProgressColumnId, at: created }]
     },
     {
       id: generateUUID(),
@@ -159,11 +361,11 @@ function defaultTasks() {
       description: 'Determine safe extraction approach.',
       priority: 'medium',
       dueDate: '',
-      column: 'inprogress',
+      column: inProgressColumnId,
       labels: [],
       creationDate: created,
       changeDate: created,
-      columnHistory: [{ column: 'inprogress', at: created }]
+      columnHistory: [{ column: inProgressColumnId, at: created }]
     },
     {
       id: generateUUID(),
@@ -171,11 +373,11 @@ function defaultTasks() {
       description: 'Dig a deep hole to hide the stone from the Collector, avoid escalation.',
       priority: 'low',
       dueDate: '',
-      column: 'inprogress',
-      labels: ['task'],
+      column: inProgressColumnId,
+      labels: taskLabelId ? [taskLabelId] : [],
       creationDate: created,
       changeDate: created,
-      columnHistory: [{ column: 'inprogress', at: created }]
+      columnHistory: [{ column: inProgressColumnId, at: created }]
     },
     {
       id: generateUUID(),
@@ -183,11 +385,11 @@ function defaultTasks() {
       description: 'A bag with good durability and space is needed to hold all the stones securely.',
       priority: 'none',
       dueDate: '',
-      column: 'inprogress',
-      labels: ['task'],
+      column: inProgressColumnId,
+      labels: taskLabelId ? [taskLabelId] : [],
       creationDate: created,
       changeDate: created,
-      columnHistory: [{ column: 'inprogress', at: created }]
+      columnHistory: [{ column: inProgressColumnId, at: created }]
     },
     {
       id: generateUUID(),
@@ -195,12 +397,12 @@ function defaultTasks() {
       description: 'Verify secure containment after retrieval.',
       priority: 'high',
       dueDate: '',
-      column: DONE_COLUMN_ID,
-      labels: ['urgent', 'feature'],
+      column: doneColumnId,
+      labels: ideaLabelId ? [ideaLabelId] : [],
       creationDate: created,
       changeDate: created,
       doneDate: created,
-      columnHistory: [{ column: DONE_COLUMN_ID, at: created }]
+      columnHistory: [{ column: doneColumnId, at: created }]
     },
     {
       id: generateUUID(),
@@ -208,14 +410,25 @@ function defaultTasks() {
       description: '',
       priority: 'low',
       dueDate: '',
-      column: DONE_COLUMN_ID,
+      column: doneColumnId,
       labels: [],
       creationDate: created,
       changeDate: created,
       doneDate: created,
-      columnHistory: [{ column: DONE_COLUMN_ID, at: created }]
+      columnHistory: [{ column: doneColumnId, at: created }]
     }
   ];
+}
+
+function defaultBoardData(includeTasks = true) {
+  const columns = defaultColumns();
+  const labels = defaultLabels();
+  return {
+    columns,
+    labels,
+    tasks: includeTasks ? defaultTasks(columns, labels) : [],
+    settings: defaultSettings()
+  };
 }
 
 function defaultSettings() {
@@ -262,7 +475,7 @@ async function migrateFromLocalStorage(db) {
     const store = tx.objectStore(KV_STORE);
     await store.put(boards, BOARDS_KEY);
     await store.put(DEFAULT_BOARD_ID, ACTIVE_BOARD_KEY);
-    await store.put(legacyColumns || defaultColumns(), keyFor(DEFAULT_BOARD_ID, 'columns'));
+    await store.put(legacyColumns || legacyDefaultColumns(), keyFor(DEFAULT_BOARD_ID, 'columns'));
     await store.put(legacyTasks || defaultTasks(), keyFor(DEFAULT_BOARD_ID, 'tasks'));
     await store.put(legacyLabels || defaultLabels(), keyFor(DEFAULT_BOARD_ID, 'labels'));
     await store.put(defaultSettings(), keyFor(DEFAULT_BOARD_ID, 'settings'));
@@ -321,15 +534,19 @@ export async function initStorage() {
   const idbBoards = await db.get(KV_STORE, BOARDS_KEY);
   const hasLocalStorageData = Boolean(
     localStorage.getItem(BOARDS_KEY) ||
-    localStorage.getItem(LEGACY_COLUMNS_KEY)
+    localStorage.getItem(LEGACY_COLUMNS_KEY) ||
+    localStorage.getItem(LEGACY_TASKS_KEY) ||
+    localStorage.getItem(LEGACY_LABELS_KEY)
   );
 
   if (!idbBoards && hasLocalStorageData) {
     await migrateFromLocalStorage(db);
   }
 
+  await normalizeIdbState(db);
+
   // Load everything into in-memory state.
-  state.boards = (await db.get(KV_STORE, BOARDS_KEY)) || [];
+  state.boards = safeParseArray(await db.get(KV_STORE, BOARDS_KEY)) || [];
   state.activeBoardId = (await db.get(KV_STORE, ACTIVE_BOARD_KEY)) || null;
 
   for (const board of state.boards) {
@@ -426,20 +643,22 @@ export function ensureBoardsInitialized() {
   // First run: seed default board directly into state (IDB is either empty or
   // not yet initialised — migration from localStorage is handled in initStorage()).
   const created = nowIso();
-  const board = { id: DEFAULT_BOARD_ID, name: 'Default Board', createdAt: created };
+  const boardId = generateUUID();
+  const defaults = defaultBoardData(true);
+  const board = { id: boardId, name: 'Default Board', createdAt: created };
   state.boards = [board];
-  state.activeBoardId = DEFAULT_BOARD_ID;
-  state.columns[DEFAULT_BOARD_ID] = defaultColumns();
-  state.tasks[DEFAULT_BOARD_ID] = defaultTasks();
-  state.labels[DEFAULT_BOARD_ID] = defaultLabels();
-  state.settings[DEFAULT_BOARD_ID] = defaultSettings();
+  state.activeBoardId = boardId;
+  state.columns[boardId] = defaults.columns;
+  state.tasks[boardId] = defaults.tasks;
+  state.labels[boardId] = defaults.labels;
+  state.settings[boardId] = defaults.settings;
 
   schedulePersist(BOARDS_KEY, state.boards);
-  schedulePersist(ACTIVE_BOARD_KEY, DEFAULT_BOARD_ID);
-  schedulePersist(keyFor(DEFAULT_BOARD_ID, 'columns'), state.columns[DEFAULT_BOARD_ID]);
-  schedulePersist(keyFor(DEFAULT_BOARD_ID, 'tasks'), state.tasks[DEFAULT_BOARD_ID]);
-  schedulePersist(keyFor(DEFAULT_BOARD_ID, 'labels'), state.labels[DEFAULT_BOARD_ID]);
-  schedulePersist(keyFor(DEFAULT_BOARD_ID, 'settings'), state.settings[DEFAULT_BOARD_ID]);
+  schedulePersist(ACTIVE_BOARD_KEY, boardId);
+  schedulePersist(keyFor(boardId, 'columns'), state.columns[boardId]);
+  schedulePersist(keyFor(boardId, 'tasks'), state.tasks[boardId]);
+  schedulePersist(keyFor(boardId, 'labels'), state.labels[boardId]);
+  schedulePersist(keyFor(boardId, 'settings'), state.settings[boardId]);
 }
 
 export function createBoard(name) {
@@ -448,14 +667,15 @@ export function createBoard(name) {
   const boardName = trimmed || 'Untitled board';
   const boards = listBoards();
 
-  const id = `board-${generateUUID()}`;
+  const id = generateUUID();
+  const defaults = defaultBoardData(false);
   const board = { id, name: boardName, createdAt: nowIso() };
   saveBoards([...boards, board]);
 
-  state.columns[id] = defaultColumns();
+  state.columns[id] = defaults.columns;
   state.tasks[id] = [];
-  state.labels[id] = defaultLabels();
-  state.settings[id] = defaultSettings();
+  state.labels[id] = defaults.labels;
+  state.settings[id] = defaults.settings;
 
   schedulePersist(keyFor(id, 'columns'), state.columns[id]);
   schedulePersist(keyFor(id, 'tasks'), state.tasks[id]);
@@ -535,15 +755,28 @@ function defaultColumnColor(id) {
 function normalizeColumn(c) {
   const color = isHexColor(c?.color) ? c.color.trim() : defaultColumnColor(c?.id);
   const collapsed = c?.collapsed === true;
-  return { ...c, color, collapsed };
+  return { ...c, color, collapsed, ...(isDoneColumn(c) ? { role: DONE_COLUMN_ROLE } : {}) };
 }
 
 function ensureDoneColumn(columns) {
   const list = Array.isArray(columns) ? columns.slice() : [];
-  if (list.some((c) => c && c.id === DONE_COLUMN_ID)) return list;
+  if (list.some((c) => isDoneColumn(c))) {
+    return list.map((column) => (isDoneColumn(column) ? { ...column, role: DONE_COLUMN_ROLE } : column));
+  }
   const maxOrder = list.reduce((max, c) => Math.max(max, Number.isFinite(c?.order) ? c.order : 0), 0);
-  list.push({ id: DONE_COLUMN_ID, name: 'Done', color: '#16a34a', order: maxOrder + 1, collapsed: false });
+  list.push({ id: generateUUID(), name: 'Done', color: '#16a34a', order: maxOrder + 1, collapsed: false, role: DONE_COLUMN_ROLE });
   return list;
+}
+
+export function getDoneColumnId() {
+  const columns = loadColumns();
+  return columns.find((column) => isDoneColumn(column))?.id || DONE_COLUMN_ID;
+}
+
+export function isDoneColumnId(columnId) {
+  const id = typeof columnId === 'string' ? columnId.trim() : '';
+  if (!id) return false;
+  return id === DONE_COLUMN_ID || id === getDoneColumnId();
 }
 
 export function loadColumns() {
@@ -594,7 +827,7 @@ export function loadTasks() {
         didChange = true;
       }
 
-      const isDone = task.column === DONE_COLUMN_ID;
+      const isDone = isDoneColumnId(task.column);
       const hasDoneDate = typeof task.doneDate === 'string' && task.doneDate.trim() !== '';
       const changeDate = typeof task.changeDate === 'string' && task.changeDate.trim() ? task.changeDate.trim() : '';
       const creationDate = typeof task.creationDate === 'string' && task.creationDate.trim() ? task.creationDate.trim() : '';
@@ -671,7 +904,7 @@ export function loadTasks() {
   const cached = taskCacheByBoard.get(boardId);
   if (Array.isArray(cached)) return cached;
 
-  const defaults = defaultTasks();
+  const defaults = defaultTasks(loadColumns(), loadLabels());
   taskCacheByBoard.set(boardId, defaults);
   return defaults;
 }

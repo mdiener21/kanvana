@@ -4,7 +4,7 @@
 
 ```javascript
 {
-  id: "board-uuid",
+  id: "uuid",
   name: "Board Name",
   createdAt: "YYYY-MM-DDTHH:MM:SSZ"
 }
@@ -19,16 +19,16 @@
   description: "optional longer description",
   priority: "urgent" | "high" | "medium" | "low" | "none",
   dueDate: "YYYY-MM-DD" | "",
-  column: "column-id",
+  column: "column-uuid",
   order: number,
-  labels: ["label-id-1", "label-id-2"],
-  swimlaneLabelId: "label-id" | "",
+  labels: ["label-uuid-1", "label-uuid-2"],
+  swimlaneLabelId: "label-uuid" | "",
   swimlaneLabelGroup: "Group Name" | "",
   creationDate: "YYYY-MM-DDTHH:MM:SSZ",
   changeDate: "YYYY-MM-DDTHH:MM:SSZ",
   doneDate: "YYYY-MM-DDTHH:MM:SSZ",
   columnHistory: [
-    { column: "column-id", at: "YYYY-MM-DDTHH:MM:SSZ" }
+    { column: "column-uuid", at: "YYYY-MM-DDTHH:MM:SSZ" }
   ],
   relationships: [
     { type: "prerequisite" | "dependent" | "related", targetTaskId: "uuid" }
@@ -44,15 +44,16 @@
 - `doneDate` exists only while the task is in the Done column
 - `columnHistory` is appended when a task changes columns and powers cumulative-flow reporting
 - `swimlaneLabelId` and `swimlaneLabelGroup` preserve explicit swim lane assignment metadata
-- `relationships` defaults to `[]`; each entry stores a `type` (`prerequisite`, `dependent`, or `related`) and the `targetTaskId` of the linked task; both sides of a relationship are always stored (bidirectional)
+- `relationships` defaults to `[]`; each entry stores a `type` (`prerequisite`, `dependent`, or `related`) and the UUID `targetTaskId` of the linked task; both sides of a relationship are always stored (bidirectional)
 
 ## Column Model
 
 ```javascript
 {
-  id: "column-id",
+  id: "uuid",
   name: "Column Name",
   color: "#hexcolor",
+  role: "done" | undefined,
   collapsed: boolean,
   order: number
 }
@@ -61,13 +62,15 @@
 ### Column Notes
 
 - `collapsed` defaults to `false`
-- The column with id `done` is permanent and cannot be deleted
+- All column IDs are UUIDs
+- The column with `role: "done"` is permanent and cannot be deleted
+- Legacy imported or migrated column id `done` is remapped to a UUID-backed column with `role: "done"`
 
 ## Label Model
 
 ```javascript
 {
-  id: "label-id",
+  id: "uuid",
   name: "Label Name",
   color: "#hexcolor",
   group: "Group Name"
@@ -77,6 +80,7 @@
 ### Label Notes
 
 - `name` has a maximum length of 40 characters
+- All label IDs are UUIDs
 - `group` is optional and defaults to an empty string
 - Label groups are strings, not separate persisted entities
 

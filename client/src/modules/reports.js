@@ -15,6 +15,7 @@ import { escapeHtml } from './security.js';
 import { initializeThemeToggle } from './theme.js';
 import { initStorage, ensureBoardsInitialized, getActiveBoardId, getActiveBoardName } from './storage.js';
 import { loadColumns, loadTasks } from './storage.js';
+import { isDoneColumn } from './constants.js';
 
 echarts.use([
   CalendarComponent,
@@ -522,8 +523,8 @@ function hexToRgba(hex, alpha) {
 
 function sortColumnsForCfd(columns) {
   const list = Array.isArray(columns) ? columns.slice() : [];
-  const done = list.find((c) => c?.id === 'done') || null;
-  const others = list.filter((c) => c?.id && c.id !== 'done');
+  const done = list.find((c) => isDoneColumn(c)) || null;
+  const others = list.filter((c) => c?.id && !isDoneColumn(c));
 
   const indexed = others.map((c, idx) => ({ c, idx }));
   indexed.sort((a, b) => {
@@ -567,6 +568,7 @@ function computeCumulativeFlow({ tasks, columns, rangeStart, rangeEnd, includeDo
   const labels = days.map((d) => formatIsoDate(d));
 
   const countsByColumnId = new Map();
+  const doneColumnIds = new Set((Array.isArray(columns) ? columns : []).filter((column) => isDoneColumn(column)).map((column) => column.id));
   const ensureSeries = (columnId) => {
     if (!countsByColumnId.has(columnId)) {
       countsByColumnId.set(columnId, new Array(labels.length).fill(0));
@@ -589,7 +591,7 @@ function computeCumulativeFlow({ tasks, columns, rangeStart, rangeEnd, includeDo
       }
 
       if (!currentColumn) continue;
-      if (!includeDone && currentColumn === 'done') continue;
+      if (!includeDone && (doneColumnIds.has(currentColumn) || currentColumn === 'done')) continue;
 
       const series = ensureSeries(currentColumn);
       series[dayIndex] += 1;
@@ -605,10 +607,10 @@ function computeCumulativeFlow({ tasks, columns, rangeStart, rangeEnd, includeDo
   }
 
   const seriesDefs = orderedIds
-    .filter((id) => includeDone || id !== 'done')
+    .filter((id) => includeDone || (!doneColumnIds.has(id) && id !== 'done'))
     .map((id) => {
       const c = columnById.get(id);
-      const name = typeof c?.name === 'string' && c.name.trim() ? c.name.trim() : (id === 'done' ? 'Done' : id);
+      const name = typeof c?.name === 'string' && c.name.trim() ? c.name.trim() : ((doneColumnIds.has(id) || id === 'done') ? 'Done' : id);
       const color = isHexColor(c?.color) ? c.color.trim() : '#3b82f6';
       const data = countsByColumnId.get(id) || new Array(labels.length).fill(0);
       return { id, name, color, data };

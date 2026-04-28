@@ -49,6 +49,8 @@ Values are stored as native JavaScript objects (structured clone), not JSON stri
 - Call `initStorage()` once per page load before reading any board data
 - All CRUD operations act on the active board (determined by `getActiveBoardId()`)
 - Board data is namespaced by board id
+- Board, task, column, and label model `id` values are UUIDs
+- The permanent Done column is identified by `role: "done"`, not by a fixed column id
 - Export operates on the active board unless the board-management UI exports a selected board
   (uses `loadTasksForBoard(id)`, `loadColumnsForBoard(id)`, etc.)
 - Import creates a new board from JSON and switches to it
@@ -67,6 +69,7 @@ After migration, localStorage is cleared of all Kanvana keys.
 ### Schema changes
 
 - Persisted-shape changes must keep import/export round-trippable and preserve legacy normalization
+- Legacy model ids from localStorage, IDB, templates, or imports are normalized to UUIDs, and references are rewritten during load/import
 - All code must go through storage helpers (`loadTasks`, `saveTasks`, etc.) — never read IDB directly
 
 ## Settings Persistence

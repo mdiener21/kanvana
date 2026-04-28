@@ -1,5 +1,5 @@
 import Sortable from 'sortablejs';
-import { loadLabels, loadTasks, loadSettings, saveSettings } from './storage.js';
+import { isDoneColumnId, loadLabels, loadTasks, loadSettings, saveSettings } from './storage.js';
 
 export const SWIMLANE_GROUP_BY_LABEL = 'label';
 export const SWIMLANE_GROUP_BY_LABEL_GROUP = 'label-group';
@@ -330,11 +330,11 @@ export function buildBoardGrid(columns, swimLanes, tasks, groupBy, labelsInput, 
 
 export function getVisibleTasksForLane(tasksInCell, columnId) {
   const normalizedTasks = Array.isArray(tasksInCell) ? tasksInCell : [];
-  return columnId === SWIMLANE_HIDDEN_DONE_COLUMN_ID ? [] : normalizedTasks;
+  return isDoneColumnId(columnId) ? [] : normalizedTasks;
 }
 
 export function getHiddenTaskCountForLane(tasksInCell, columnId) {
-  if (columnId !== SWIMLANE_HIDDEN_DONE_COLUMN_ID) return 0;
+  if (!isDoneColumnId(columnId)) return 0;
   return Array.isArray(tasksInCell) ? tasksInCell.length : 0;
 }
 

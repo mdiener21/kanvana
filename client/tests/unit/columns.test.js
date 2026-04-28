@@ -3,6 +3,8 @@ import { resetLocalStorage } from './setup.js';
 import { createBoard, loadColumns, saveColumns, loadTasks, saveTasks } from '../../src/modules/storage.js';
 import { addColumn, toggleColumnCollapsed, updateColumn, deleteColumn } from '../../src/modules/columns.js';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 beforeEach(() => {
   resetLocalStorage();
   createBoard('Test');
@@ -17,7 +19,7 @@ test('addColumn creates a new column', () => {
   expect(after.length).toBe(before + 1);
   const review = after.find(c => c.name === 'Review');
   expect(review).toBeTruthy();
-  expect(review.id.startsWith('review-')).toBe(true);
+  expect(review.id).toMatch(UUID_RE);
 });
 
 test('addColumn does nothing for empty name', () => {

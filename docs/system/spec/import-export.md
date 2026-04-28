@@ -8,6 +8,8 @@
 - Export writes metadata in `exportMeta` including `appVersion`, `schemaVersion`, and `exportedAt`
 - Export filenames use `{boardName}-YYYY-MM-DD.json`
 - Export runs the same strict structural validation used by import preview; when invalid references are found, export is blocked and the user gets actionable guidance
+- Exported current data uses UUID model IDs for boards, tasks, columns, and labels
+- The Done column is exported with `role: "done"`
 
 ## Import Behavior
 
@@ -20,6 +22,8 @@
 - Imports reject schema mismatches such as malformed sections or task references to unknown imported columns
 - Unknown task column references are rejected with explicit manual-fix instructions (add the missing column ids in `columns[]` or remap `task.column` to an existing id)
 - When imported tasks reference labels not present in the imported label list, those missing label references are dropped and surfaced as a warning during the preflight review
+- Legacy imported IDs, including `done`, `todo`, slug label IDs, and prefixed board IDs, are remapped to UUIDs before persistence
+- Import rewrites task column references, column history entries, task labels, swim lane label IDs, and task relationship target IDs when IDs are remapped
 
 ## Compatibility Rules
 

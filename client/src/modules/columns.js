@@ -1,7 +1,6 @@
 import { generateUUID } from './utils.js';
-import { loadColumns, saveColumns, loadTasks, saveTasks } from './storage.js';
+import { isDoneColumnId, loadColumns, saveColumns, loadTasks, saveTasks } from './storage.js';
 import { normalizeHexColor } from './normalize.js';
-import { DONE_COLUMN_ID } from './constants.js';
 
 // Add a new column
 export function addColumn(name, color) {
@@ -9,7 +8,7 @@ export function addColumn(name, color) {
   
   const columns = loadColumns();
   const maxOrder = columns.reduce((max, c) => Math.max(max, c.order ?? 0), 0);
-  const id = name.toLowerCase().replace(/\s+/g, '-') + '-' + generateUUID().substring(0, 8);
+  const id = generateUUID();
   const newColumn = { id, name: name.trim(), color: normalizeHexColor(color), order: maxOrder - 1, collapsed: false };
   columns.push(newColumn);
   saveColumns(columns);
@@ -43,7 +42,7 @@ export function updateColumn(columnId, name, color) {
 
 // Delete a column
 export function deleteColumn(columnId) {
-  if (columnId === DONE_COLUMN_ID) {
+  if (isDoneColumnId(columnId)) {
     return false;
   }
 

@@ -1,6 +1,12 @@
 // Domain constants — single source of truth for values used across modules.
 
-export const DONE_COLUMN_ID = 'done';
+export const LEGACY_DONE_COLUMN_ID = 'done';
+export const DONE_COLUMN_ROLE = 'done';
+export const DONE_COLUMN_ID = LEGACY_DONE_COLUMN_ID;
+
+export function isDoneColumn(column) {
+  return column?.role === DONE_COLUMN_ROLE || column?.id === LEGACY_DONE_COLUMN_ID;
+}
 
 export const PRIORITIES = ['urgent', 'high', 'medium', 'low', 'none'];
 export const PRIORITY_SET = new Set(PRIORITIES);

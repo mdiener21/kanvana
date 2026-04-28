@@ -2,6 +2,7 @@ import Sortable from 'sortablejs';
 import { moveTaskToTopInColumn, updateTaskPositionsFromDrop } from './tasks.js';
 import { updateColumnPositions } from './columns.js';
 import { emit, DATA_CHANGED } from './events.js';
+import { isDoneColumnId } from './storage.js';
 
 // Store Sortable instances for cleanup
 let taskSortables = [];
@@ -189,7 +190,7 @@ function initTaskSortables() {
     // Tasks dropped into Done are placed at the top automatically;
     // internal reordering among completed tasks is unnecessary.
     const columnEl = taskList.closest('.task-column');
-    const isDoneColumn = columnEl?.dataset?.column === 'done';
+    const isDoneColumn = isDoneColumnId(columnEl?.dataset?.column);
 
     const sortable = new Sortable(taskList, {
       group: {
@@ -265,7 +266,7 @@ function initTaskSortables() {
 
         const isSwimlaneView = isSwimlaneViewEnabled();
         const toColumnEl = getTaskContainerElement(evt.to);
-        const isDropIntoDone = !isSwimlaneView && dropResult?.toColumn === 'done';
+        const isDropIntoDone = !isSwimlaneView && isDoneColumnId(dropResult?.toColumn);
 
         if (dropResult && !isSwimlaneView && (toColumnEl?.classList.contains('is-collapsed') || isDropIntoDone)) {
           cachedTasks = moveTaskToTopInColumn(dropResult.movedTaskId, dropResult.toColumn, cachedTasks);
@@ -345,4 +346,3 @@ function initColumnSortable() {
     }
   });
 }
-

@@ -1,10 +1,10 @@
 // Column element DOM construction — extracted from render.js
 
-import { loadColumns, loadTasks, saveTasks } from './storage.js';
+import { isDoneColumnId, loadColumns, loadTasks, saveTasks } from './storage.js';
 import { deleteColumn, toggleColumnCollapsed } from './columns.js';
 import { showModal, showEditColumnModal } from './modals.js';
 import { confirmDialog, alertDialog } from './dialog.js';
-import { DONE_COLUMN_ID, PRIORITY_ORDER } from './constants.js';
+import { PRIORITY_ORDER } from './constants.js';
 import { emit, DATA_CHANGED } from './events.js';
 
 function getTaskCountInColumn(columnId) {
@@ -191,7 +191,7 @@ export function createColumnElement(column) {
     e.stopPropagation();
     closeAllColumnMenus();
     (async () => {
-      if (column.id === DONE_COLUMN_ID) {
+      if (isDoneColumnId(column.id)) {
         await alertDialog({ title: 'Cannot Delete Column', message: 'The Done column is permanent and cannot be deleted.' });
         return;
       }

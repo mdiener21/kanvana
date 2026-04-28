@@ -1,6 +1,6 @@
 // Task add/edit modal — extracted from modals.js
 
-import { loadLabels, loadColumns, loadSettings, loadTasks } from './storage.js';
+import { isDoneColumnId, loadLabels, loadColumns, loadSettings, loadTasks } from './storage.js';
 import { addTask, updateTask } from './tasks.js';
 import { renderIcons } from './icons.js';
 import { validateAndShowTaskTitleError, clearFieldError } from './validation.js';
@@ -168,7 +168,7 @@ function updateRelationshipSearchResults(query) {
   const allTasks = loadTasks();
   const matches = allTasks.filter((t) => {
     if (t.id === editingTaskId) return false;
-    if (t.column === 'done') return false;
+    if (isDoneColumnId(t.column)) return false;
     const sid = shortId(t.id).toLowerCase();
     const title = (t.title || '').toLowerCase();
     return sid.includes(trimmed) || title.includes(trimmed);

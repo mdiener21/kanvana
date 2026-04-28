@@ -1,11 +1,10 @@
 // Task card DOM construction — extracted from render.js
 
-import { loadLabels } from './storage.js';
+import { isDoneColumnId, loadLabels } from './storage.js';
 import { deleteTask } from './tasks.js';
 import { showEditModal } from './modals.js';
 import { confirmDialog } from './dialog.js';
 import { calculateDaysUntilDue, formatCountdown, getCountdownClassName } from './dateutils.js';
-import { DONE_COLUMN_ID } from './constants.js';
 import { emit, DATA_CHANGED } from './events.js';
 import { labelTextColor } from './utils.js';
 
@@ -250,7 +249,7 @@ export function createTaskElement(task, settings, labelsMap = null, today = null
 
       if (daysUntilDue !== null) {
         const countdown = formatCountdown(daysUntilDue);
-        const isDone = task.column === DONE_COLUMN_ID;
+        const isDone = isDoneColumnId(task.column);
         if (isDone) {
           dueDateEl.textContent = `Due ${formattedDate}`;
           dueDateEl.classList.add('countdown-none');

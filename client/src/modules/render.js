@@ -1,12 +1,11 @@
 // Thin orchestrator — delegates to task-card.js, column-element.js, swimlane-renderer.js
 
-import { loadColumns, loadTasks, loadLabels, loadSettings } from './storage.js';
+import { isDoneColumnId, loadColumns, loadTasks, loadLabels, loadSettings } from './storage.js';
 import { initDragDrop } from './dragdrop.js';
 import { renderIcons } from './icons.js';
 import { refreshNotifications } from './notifications.js';
 import { calculateDaysUntilDue, formatCountdown, getCountdownClassName } from './dateutils.js';
 import { syncSwimLaneControls } from './swimlanes.js';
-import { DONE_COLUMN_ID } from './constants.js';
 import { on, DATA_CHANGED } from './events.js';
 import { createTaskElement, formatDisplayDate } from './task-card.js';
 import { createColumnElement, closeAllColumnMenus, initColumnMenuCloseHandler } from './column-element.js';
@@ -63,7 +62,7 @@ function renderStandardBoard(container, sortedColumns, visibleTasks, settings, l
     const columnTasks = visibleTasks.filter(t => t.column === column.id)
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
-    const isDoneColumn = column.id === DONE_COLUMN_ID;
+    const isDoneColumn = isDoneColumnId(column.id);
     const shouldVirtualize = isDoneColumn && columnTasks.length > DONE_INITIAL_BATCH_SIZE;
     const tasksToRender = shouldVirtualize ? columnTasks.slice(0, doneVisibleCount) : columnTasks;
 
@@ -166,7 +165,7 @@ export function syncMovedTaskDueDate(taskId, toColumn, tasksCache) {
 
   dueDateEl.classList.remove('countdown-urgent', 'countdown-warning', 'countdown-normal', 'countdown-none');
 
-  if (toColumn === DONE_COLUMN_ID) {
+  if (isDoneColumnId(toColumn)) {
     dueDateEl.textContent = `Due ${formattedDate}`;
     dueDateEl.classList.add('countdown-none');
   } else {

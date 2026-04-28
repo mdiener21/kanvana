@@ -1,7 +1,7 @@
 import { renderIcons } from './icons.js';
 import { initializeThemeToggle } from './theme.js';
 import { initStorage, ensureBoardsInitialized, getActiveBoardId, getActiveBoardName } from './storage.js';
-import { loadTasks } from './storage.js';
+import { isDoneColumnId, loadTasks } from './storage.js';
 
 function isoDateOnly(value) {
   const s = (value || '').toString().trim();
@@ -69,7 +69,7 @@ function extractTaskTitle(task) {
 
 function isTaskDone(task) {
   if (!task) return false;
-  if (task?.column === 'done') return true;
+  if (isDoneColumnId(task?.column)) return true;
   const doneDate = (task?.doneDate ?? '').toString().trim();
   return doneDate.length > 0;
 }
