@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planned
+
+- Audit trail: two-log design (Task Activity Log embedded on each task + Board Event Log in a separate IDB store) — domain model in `CONTEXT.md` §8, architectural decision in `docs/adr/0001-two-log-audit-trail.md`, PRD in `docs/superpowers/specs/2026-04-29-audit-trail-prd.md`
+
 ### Added
 
 - Docker Compose stack: nginx (static file server + PocketBase proxy) + PocketBase service (`spectado/pocketbase`)

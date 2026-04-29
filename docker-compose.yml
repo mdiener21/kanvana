@@ -28,11 +28,29 @@ services:
 
   pocketbase:
     container_name: pb
-    image: spectado/pocketbase:${PB_VERSION:-latest}
+    image: adrianmusante/pocketbase:${PB_VERSION:-latest}
     expose:
       - "80"
+    ports:
+      - "8000:80"
     volumes:
       - pb_data:/pb_data
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:3000/api/health" ]
+      interval: 2s
+      timeout: 10s
+      retries: 10
+    restart: unless-stopped
+
+  adminer:
+    container_name: adminer
+    image: adminer:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - pb_data:/pb_data:ro
+    environment:
+      ADMINER_DEFAULT_SERVER: /pb_data/data.db
     restart: unless-stopped
 
 volumes:

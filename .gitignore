@@ -14,4 +14,9 @@ skills/
 .agent/
 .worktrees/
 
+.graphify/
+graphify-out/cache/
+.graphify_*.json
+.graphify_python
+
 
