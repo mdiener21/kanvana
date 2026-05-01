@@ -1,5 +1,6 @@
 import { generateUUID } from './utils.js';
 import { loadLabels, saveLabels, loadTasks, saveTasks } from './storage.js';
+import { DEFAULT_HUMAN_ACTOR, appendTaskActivity, createActivityEvent } from './activity-log.js';
 
 const MAX_LABEL_NAME_LENGTH = 40;
 
@@ -97,14 +98,23 @@ export function updateLabel(labelId, name, color, group = '') {
 export function deleteLabel(labelId) {
   const labels = loadLabels();
   const tasks = loadTasks();
+  const label = labels.find(l => l.id === labelId);
   
   // Remove label from all tasks
-  tasks.forEach(task => {
-    if (task.labels) {
-      task.labels = task.labels.filter(id => id !== labelId);
+  const updatedTasks = tasks.map(task => {
+    if (task.labels?.includes(labelId)) {
+      const updatedTask = {
+        ...task,
+        labels: task.labels.filter(id => id !== labelId)
+      };
+      return appendTaskActivity(updatedTask, createActivityEvent('task.label_removed', {
+        labelId,
+        labelName: label?.name || ''
+      }, DEFAULT_HUMAN_ACTOR));
     }
+    return task;
   });
-  saveTasks(tasks);
+  saveTasks(updatedTasks);
   
   // Remove the label
   const filteredLabels = labels.filter(l => l.id !== labelId);

@@ -35,7 +35,8 @@ import {
   Maximize2,
   Minimize2,
   Rows3,
-  GitBranch
+  GitBranch,
+  History
 } from 'lucide';
 
 // Map of all icons used in the app (PascalCase keys for createIcons)
@@ -71,7 +72,8 @@ const icons = {
   Maximize2,
   Minimize2,
   Rows3,
-  GitBranch
+  GitBranch,
+  History
 };
 
 /**

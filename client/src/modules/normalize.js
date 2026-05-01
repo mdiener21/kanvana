@@ -43,6 +43,32 @@ export function normalizeDueDate(value) {
   return v;
 }
 
+export function normalizeActivityLog(input) {
+  if (!Array.isArray(input)) return [];
+  return input.filter((entry) => (
+    entry &&
+    typeof entry === 'object' &&
+    typeof entry.type === 'string' &&
+    entry.type.trim() !== '' &&
+    typeof entry.at === 'string' &&
+    entry.at.length > 0 &&
+    // Use Date.parse rather than a strict regex so that valid ISO 8601 variants
+    // (e.g. +00:00 offset, microsecond precision) are accepted without being
+    // rejected by an overly narrow pattern.
+    Number.isFinite(Date.parse(entry.at)) &&
+    entry.actor &&
+    typeof entry.actor === 'object' &&
+    !Array.isArray(entry.actor) &&
+    (
+      (entry.actor.type === 'human' && entry.actor.id === null) ||
+      ((entry.actor.type === 'agent' || entry.actor.type === 'user') && typeof entry.actor.id === 'string' && entry.actor.id.trim() !== '')
+    ) &&
+    entry.details &&
+    typeof entry.details === 'object' &&
+    !Array.isArray(entry.details)
+  ));
+}
+
 const RELATIONSHIP_TYPES = new Set(['prerequisite', 'dependent', 'related']);
 
 /**

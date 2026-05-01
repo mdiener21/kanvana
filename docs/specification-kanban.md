@@ -19,6 +19,7 @@ This file is the entrypoint to the canonical application specification. Detailed
 - `docs/spec/import-export.md` - board JSON import/export rules and compatibility expectations
 - `docs/spec/relationships.md` - task relationship types, bidirectional sync, card display, modal UI
 - `docs/spec/sub-tasks.md` - sub-task data model, modal UI, completion, progress indicator, import/export
+- `docs/spec/audit-trail.md` - two-log audit trail design, event types, actor model, storage keys, UI entry points
 - `docs/spec/testing.md` - testing stack, scripts, and coverage focus
 
 ## Update Policy
@@ -44,10 +45,11 @@ Use this mapping to decide which spec files to update alongside code changes.
 - `src/modules/notifications.js` -> `docs/spec/notifications.md`, `docs/spec/tasks.md`
 - `src/modules/reports.js` -> `docs/spec/reports.md`
 - `src/modules/calendar.js` -> `docs/spec/calendar.md`
-- `src/modules/render.js`, `src/modules/dragdrop.js`, `src/index.html`, `src/styles/**` -> `docs/spec/board-ui.md` and any affected feature spec files
+- `src/modules/render.js`, `src/modules/dragdrop.js`, `src/index.html`, `src/activity.html`, `src/styles/**` -> `docs/spec/board-ui.md` and any affected feature spec files
 - `src/modules/dom.js`, `src/modules/events.js`, `src/modules/constants.js`, `src/modules/security.js`, `src/modules/utils.js` -> `docs/spec/overview.md`
 - `src/modules/dialog.js`, `src/modules/modals.js` -> `docs/spec/board-ui.md`
 - `src/modules/theme.js`, `src/modules/icons.js` -> `docs/spec/overview.md`, `docs/spec/board-ui.md`
+- `src/modules/activity-log.js`, `src/modules/activity-log-ui.js`, `src/modules/activity.js` -> `docs/spec/audit-trail.md`
 - `tests/**`, `playwright.config.js`, `vitest*.config.js` -> `docs/spec/testing.md` and `docs/testing-strategy.md` when strategy or naming conventions change
 
 ## Contributor Workflow

@@ -32,6 +32,15 @@
   ],
   relationships: [
     { type: "prerequisite" | "dependent" | "related", targetTaskId: "uuid" }
+  ],
+  activityLog: [
+    {
+      id: "uuid",
+      type: "task.created" | "task.title_changed" | ...,
+      timestamp: "YYYY-MM-DDTHH:MM:SS.mmmZ",
+      details: object,
+      actor: { type: "human" | "agent", id: "string" }
+    }
   ]
 }
 ```
@@ -45,6 +54,7 @@
 - `columnHistory` is appended when a task changes columns and powers cumulative-flow reporting
 - `swimlaneLabelId` and `swimlaneLabelGroup` preserve explicit swim lane assignment metadata
 - `relationships` defaults to `[]`; each entry stores a `type` (`prerequisite`, `dependent`, or `related`) and the UUID `targetTaskId` of the linked task; both sides of a relationship are always stored (bidirectional)
+- `activityLog` defaults to `[]`; each entry is an `ActivityEvent` — see `docs/system/spec/audit-trail.md` for full shape and event type catalogue; `normalizeActivityLog()` strips structurally invalid entries on load
 
 ## Column Model
 

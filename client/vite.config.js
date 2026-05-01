@@ -12,7 +12,8 @@ export default defineConfig({
       input: {
         index: 'src/index.html',
         reports: 'src/reports.html',
-        calendar: 'src/calendar.html'
+        calendar: 'src/calendar.html',
+        activity: 'src/activity.html'
       },
       output: {
         manualChunks(id) {

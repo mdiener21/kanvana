@@ -1,7 +1,7 @@
 import { test, expect, beforeEach } from 'vitest';
 import { resetLocalStorage } from './setup.js';
-import { createBoard, loadTasks, saveTasks } from '../../src/modules/storage.js';
-import { addTask, updateTask, deleteTask, moveTaskToTopInColumn } from '../../src/modules/tasks.js';
+import { createBoard, getActiveBoardId, loadBoardEvents, loadTasks, saveColumns, saveLabels, saveSettings, saveTasks } from '../../src/modules/storage.js';
+import { addTask, updateTask, deleteTask, moveTaskToTopInColumn, updateTaskPositionsFromDrop } from '../../src/modules/tasks.js';
 
 beforeEach(() => {
   resetLocalStorage();
@@ -44,6 +44,21 @@ test('addTask sets creationDate, changeDate, and columnHistory', () => {
   expect(Array.isArray(task.columnHistory)).toBe(true);
   expect(task.columnHistory.length).toBe(1);
   expect(task.columnHistory[0].column).toBe('todo');
+});
+
+test('addTask appends task.created activity with column details', () => {
+  saveColumns([{ id: 'todo', name: 'To Do', color: '#3b82f6', order: 1 }]);
+
+  addTask('Task', '', 'none', '', 'todo', []);
+
+  const task = loadTasks()[0];
+  expect(task.activityLog).toHaveLength(1);
+  expect(task.activityLog[0]).toMatchObject({
+    type: 'task.created',
+    actor: { type: 'human', id: null },
+    details: { column: 'todo', columnName: 'To Do' }
+  });
+  expect(task.activityLog[0].at).toBeTruthy();
 });
 
 test('addTask sets doneDate when added to Done column', () => {
@@ -98,6 +113,186 @@ test('updateTask appends to columnHistory on column change', () => {
   expect(updated.columnHistory[1].column).toBe('inprogress');
 });
 
+test('updateTask appends activity for changed task fields', () => {
+  addTask('Original', 'old desc', 'low', '2024-01-01', 'todo', []);
+  const task = loadTasks()[0];
+
+  updateTask(task.id, 'Updated', 'new desc', 'high', '2024-12-31', 'inprogress', []);
+
+  const updated = loadTasks().find(t => t.id === task.id);
+  expect(updated.activityLog.slice(1).map(event => event.type)).toEqual([
+    'task.title_changed',
+    'task.description_changed',
+    'task.priority_changed',
+    'task.due_date_changed',
+    'task.column_moved'
+  ]);
+  expect(updated.activityLog.slice(1).map(event => event.details)).toEqual([
+    { from: 'Original', to: 'Updated' },
+    { changed: true },
+    { from: 'low', to: 'high' },
+    { from: '2024-01-01', to: '2024-12-31' },
+    { from: 'todo', to: 'inprogress' }
+  ]);
+  expect(JSON.stringify(updated.activityLog)).not.toContain('old desc');
+  expect(JSON.stringify(updated.activityLog)).not.toContain('new desc');
+});
+
+test('updateTask appends activity when labels are added and removed', () => {
+  saveLabels([
+    { id: 'label-1', name: 'Bug', color: '#ff0000' },
+    { id: 'label-2', name: 'Feature', color: '#00ff00' }
+  ]);
+  addTask('Task', '', 'none', '', 'todo', ['label-1']);
+  const task = loadTasks()[0];
+
+  updateTask(task.id, 'Task', '', 'none', '', 'todo', ['label-2']);
+
+  const updated = loadTasks().find(t => t.id === task.id);
+  expect(updated.activityLog.slice(1).map(event => event.type)).toEqual([
+    'task.label_added',
+    'task.label_removed'
+  ]);
+  expect(updated.activityLog.slice(1).map(event => event.details)).toEqual([
+    { labelId: 'label-2', labelName: 'Feature' },
+    { labelId: 'label-1', labelName: 'Bug' }
+  ]);
+});
+
+test('updateTask appends activity when relationships are added and removed', () => {
+  saveTasks([
+    {
+      id: 'source',
+      title: 'Source',
+      description: '',
+      priority: 'none',
+      dueDate: '',
+      column: 'todo',
+      labels: [],
+      relationships: [{ type: 'prerequisite', targetTaskId: 'target-1' }],
+      columnHistory: [{ column: 'todo', at: '2024-01-01T00:00:00.000Z' }],
+      activityLog: []
+    },
+    { id: 'target-1', title: 'Old Target', column: 'todo', labels: [], relationships: [] },
+    { id: 'target-2', title: 'New Target', column: 'todo', labels: [], relationships: [] }
+  ]);
+
+  updateTask('source', 'Source', '', 'none', '', 'todo', [], [{ type: 'related', targetTaskId: 'target-2' }]);
+
+  const updated = loadTasks().find(t => t.id === 'source');
+  expect(updated.activityLog.map(event => event.type)).toEqual([
+    'task.relationship_added',
+    'task.relationship_removed'
+  ]);
+  expect(updated.activityLog.map(event => event.details)).toEqual([
+    { targetTaskId: 'target-2', targetTaskTitle: 'New Target', type: 'related' },
+    { targetTaskId: 'target-1', targetTaskTitle: 'Old Target', type: 'prerequisite' }
+  ]);
+});
+
+test('updateTask appends inverse relationship added activity to target task', () => {
+  saveTasks([
+    {
+      id: 'source',
+      title: 'Source',
+      description: '',
+      priority: 'none',
+      dueDate: '',
+      column: 'todo',
+      labels: [],
+      relationships: [],
+      columnHistory: [{ column: 'todo', at: '2024-01-01T00:00:00.000Z' }],
+      activityLog: []
+    },
+    { id: 'target', title: 'Target', column: 'todo', labels: [], relationships: [], activityLog: [] }
+  ]);
+
+  updateTask('source', 'Source', '', 'none', '', 'todo', [], [{ type: 'prerequisite', targetTaskId: 'target' }]);
+
+  const target = loadTasks().find(t => t.id === 'target');
+  expect(target.relationships).toEqual([{ type: 'dependent', targetTaskId: 'source' }]);
+  expect(target.activityLog).toHaveLength(1);
+  expect(target.activityLog[0]).toMatchObject({
+    type: 'task.relationship_added',
+    actor: { type: 'human', id: null },
+    details: { targetTaskId: 'source', targetTaskTitle: 'Source', type: 'dependent' }
+  });
+});
+
+test('updateTask appends inverse relationship removed activity to target task', () => {
+  saveTasks([
+    {
+      id: 'source',
+      title: 'Source',
+      description: '',
+      priority: 'none',
+      dueDate: '',
+      column: 'todo',
+      labels: [],
+      relationships: [{ type: 'prerequisite', targetTaskId: 'target' }],
+      columnHistory: [{ column: 'todo', at: '2024-01-01T00:00:00.000Z' }],
+      activityLog: []
+    },
+    {
+      id: 'target',
+      title: 'Target',
+      column: 'todo',
+      labels: [],
+      relationships: [{ type: 'dependent', targetTaskId: 'source' }],
+      activityLog: []
+    }
+  ]);
+
+  updateTask('source', 'Source', '', 'none', '', 'todo', [], []);
+
+  const target = loadTasks().find(t => t.id === 'target');
+  expect(target.relationships).toEqual([]);
+  expect(target.activityLog).toHaveLength(1);
+  expect(target.activityLog[0]).toMatchObject({
+    type: 'task.relationship_removed',
+    actor: { type: 'human', id: null },
+    details: { targetTaskId: 'source', targetTaskTitle: 'Source', type: 'dependent' }
+  });
+});
+
+test('updateTask appends inverse relationship removed and added activity when target inverse type changes', () => {
+  saveTasks([
+    {
+      id: 'source',
+      title: 'Source',
+      description: '',
+      priority: 'none',
+      dueDate: '',
+      column: 'todo',
+      labels: [],
+      relationships: [{ type: 'prerequisite', targetTaskId: 'target' }],
+      columnHistory: [{ column: 'todo', at: '2024-01-01T00:00:00.000Z' }],
+      activityLog: []
+    },
+    {
+      id: 'target',
+      title: 'Target',
+      column: 'todo',
+      labels: [],
+      relationships: [{ type: 'dependent', targetTaskId: 'source' }],
+      activityLog: []
+    }
+  ]);
+
+  updateTask('source', 'Source', '', 'none', '', 'todo', [], [{ type: 'related', targetTaskId: 'target' }]);
+
+  const target = loadTasks().find(t => t.id === 'target');
+  expect(target.relationships).toEqual([{ type: 'related', targetTaskId: 'source' }]);
+  expect(target.activityLog.map(event => event.type)).toEqual([
+    'task.relationship_removed',
+    'task.relationship_added'
+  ]);
+  expect(target.activityLog.map(event => event.details)).toEqual([
+    { targetTaskId: 'source', targetTaskTitle: 'Source', type: 'dependent' },
+    { targetTaskId: 'source', targetTaskTitle: 'Source', type: 'related' }
+  ]);
+});
+
 test('updateTask sets doneDate when moving to Done column', () => {
   addTask('Task', '', 'none', '', 'todo', []);
   const task = loadTasks()[0];
@@ -138,6 +333,157 @@ test('deleteTask removes task by ID', () => {
 
   deleteTask(tasks[0].id);
   expect(loadTasks().length).toBe(1);
+});
+
+test('deleteTask appends task.deleted board event with task and column details', () => {
+  saveColumns([{ id: 'todo', name: 'To Do', color: '#3b82f6', order: 1 }]);
+  addTask('Task 1', '', 'none', '', 'todo', []);
+  const task = loadTasks()[0];
+
+  deleteTask(task.id);
+
+  const events = loadBoardEvents(getActiveBoardId());
+  expect(events).toHaveLength(1);
+  expect(events[0]).toMatchObject({
+    type: 'task.deleted',
+    actor: { type: 'human', id: null },
+    details: { taskId: task.id, taskTitle: 'Task 1', column: 'todo', columnName: 'To Do' }
+  });
+});
+
+// ── updateTaskPositionsFromDrop ─────────────────────────────────────
+
+test('updateTaskPositionsFromDrop appends activity when task moves columns', () => {
+  saveTasks([
+    {
+      id: 't1',
+      title: 'Task',
+      column: 'todo',
+      order: 1,
+      priority: 'none',
+      labels: [],
+      columnHistory: [{ column: 'todo', at: '2024-01-01T00:00:00.000Z' }],
+      activityLog: []
+    }
+  ]);
+  const item = { dataset: { taskId: 't1' } };
+  const from = { dataset: { column: 'todo' }, closest: () => from };
+  const to = { dataset: { column: 'inprogress' }, closest: () => to };
+  const fromColumn = { dataset: { column: 'todo' }, querySelectorAll: () => [] };
+  const toColumn = { dataset: { column: 'inprogress' }, querySelectorAll: () => [item] };
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: () => null,
+    querySelectorAll: () => [fromColumn, toColumn]
+  };
+
+  try {
+    updateTaskPositionsFromDrop({ from, to, item });
+  } finally {
+    if (originalDocument) {
+      globalThis.document = originalDocument;
+    } else {
+      delete globalThis.document;
+    }
+  }
+
+  const updated = loadTasks().find(t => t.id === 't1');
+  expect(updated.activityLog).toHaveLength(1);
+  expect(updated.activityLog[0]).toMatchObject({
+    type: 'task.column_moved',
+    actor: { type: 'human', id: null },
+    details: { from: 'todo', to: 'inprogress' }
+  });
+  expect(updated.columnHistory.length).toBe(2);
+});
+
+test('updateTaskPositionsFromDrop appends activity when swimlane drag changes priority', () => {
+  saveSettings({ swimLanesEnabled: true, swimLaneGroupBy: 'priority' });
+  saveTasks([
+    {
+      id: 't1',
+      title: 'Task',
+      column: 'todo',
+      order: 1,
+      priority: 'low',
+      labels: [],
+      columnHistory: [{ column: 'todo', at: '2024-01-01T00:00:00.000Z' }],
+      activityLog: []
+    }
+  ]);
+  const item = { dataset: { taskId: 't1' } };
+  const from = { dataset: { column: 'todo', laneKey: 'low' }, closest: () => from };
+  const to = { dataset: { column: 'todo', laneKey: 'high' }, closest: () => to };
+  const cell = { dataset: { column: 'todo' }, querySelectorAll: () => [item] };
+  const row = { querySelectorAll: () => [cell] };
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: () => ({ dataset: { viewMode: 'swimlanes' } }),
+    querySelectorAll: () => [row]
+  };
+
+  try {
+    updateTaskPositionsFromDrop({ from, to, item });
+  } finally {
+    if (originalDocument) {
+      globalThis.document = originalDocument;
+    } else {
+      delete globalThis.document;
+    }
+  }
+
+  const updated = loadTasks().find(t => t.id === 't1');
+  expect(updated.priority).toBe('high');
+  expect(updated.activityLog).toHaveLength(1);
+  expect(updated.activityLog[0]).toMatchObject({
+    type: 'task.priority_changed',
+    details: { from: 'low', to: 'high' }
+  });
+});
+
+test('updateTaskPositionsFromDrop appends activity when swimlane drag changes labels', () => {
+  saveLabels([{ id: 'label-1', name: 'Bug', color: '#ff0000' }]);
+  saveSettings({ swimLanesEnabled: true, swimLaneGroupBy: 'label' });
+  saveTasks([
+    {
+      id: 't1',
+      title: 'Task',
+      column: 'todo',
+      order: 1,
+      priority: 'none',
+      labels: [],
+      columnHistory: [{ column: 'todo', at: '2024-01-01T00:00:00.000Z' }],
+      activityLog: []
+    }
+  ]);
+  const item = { dataset: { taskId: 't1' } };
+  const from = { dataset: { column: 'todo', laneKey: '__no-group__' }, closest: () => from };
+  const to = { dataset: { column: 'todo', laneKey: 'label-1' }, closest: () => to };
+  const cell = { dataset: { column: 'todo' }, querySelectorAll: () => [item] };
+  const row = { querySelectorAll: () => [cell] };
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: () => ({ dataset: { viewMode: 'swimlanes' } }),
+    querySelectorAll: () => [row]
+  };
+
+  try {
+    updateTaskPositionsFromDrop({ from, to, item });
+  } finally {
+    if (originalDocument) {
+      globalThis.document = originalDocument;
+    } else {
+      delete globalThis.document;
+    }
+  }
+
+  const updated = loadTasks().find(t => t.id === 't1');
+  expect(updated.labels).toEqual(['label-1']);
+  expect(updated.activityLog).toHaveLength(1);
+  expect(updated.activityLog[0]).toMatchObject({
+    type: 'task.label_added',
+    details: { labelId: 'label-1', labelName: 'Bug' }
+  });
 });
 
 // ── moveTaskToTopInColumn ───────────────────────────────────────────
@@ -243,4 +589,3 @@ test('subTasks persist through storage round-trip', () => {
   expect(task.subTasks[0].title).toBe('Persist me');
   expect(task.subTasks[0].completed).toBe(true);
 });
-

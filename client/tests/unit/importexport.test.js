@@ -1,7 +1,61 @@
-import { test, expect } from 'vitest';
-import { inspectImportPayload, buildImportConfirmationMessage, IMPORT_LIMITS } from '../../src/modules/importexport.js';
+import { test, expect, beforeEach, vi } from 'vitest';
+import { resetLocalStorage } from './setup.js';
+import { inspectImportPayload, buildImportConfirmationMessage, IMPORT_LIMITS, exportBoard, importTasks } from '../../src/modules/importexport.js';
+import { createActivityEvent, DEFAULT_HUMAN_ACTOR } from '../../src/modules/activity-log.js';
+import { createBoard, getActiveBoardId, loadBoardEvents, saveBoardEvents, saveColumns, saveTasks } from '../../src/modules/storage.js';
+
+vi.mock('../../src/modules/dialog.js', () => ({
+  confirmDialog: vi.fn(() => Promise.resolve(true)),
+  alertDialog: vi.fn(() => Promise.resolve(true))
+}));
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+beforeEach(() => {
+  resetLocalStorage();
+});
+
+function captureExportJson(callback) {
+  const previousBlob = globalThis.Blob;
+  const previousUrl = globalThis.URL;
+  const previousDocument = globalThis.document;
+  let exportedJson = '';
+
+  globalThis.Blob = class {
+    constructor(parts) {
+      exportedJson = parts.join('');
+    }
+  };
+  globalThis.URL = { createObjectURL: () => 'blob:export', revokeObjectURL: () => {} };
+  globalThis.document = {
+    createElement: () => ({ click: () => {} }),
+    body: { appendChild: () => {}, removeChild: () => {} }
+  };
+
+  try {
+    callback();
+    return JSON.parse(exportedJson);
+  } finally {
+    globalThis.Blob = previousBlob;
+    globalThis.URL = previousUrl;
+    globalThis.document = previousDocument;
+  }
+}
+
+test('exportBoard includes task activity logs and board events', () => {
+  const board = createBoard('Audit Board');
+  const boardId = getActiveBoardId();
+  const taskEvent = createActivityEvent('task.created', { taskId: 't1' }, DEFAULT_HUMAN_ACTOR, '2026-05-01T00:00:00.000Z');
+  const boardEvent = createActivityEvent('column.created', { columnId: 'todo', columnName: 'To Do' }, DEFAULT_HUMAN_ACTOR, '2026-05-01T00:01:00.000Z');
+  saveColumns([{ id: 'todo', name: 'To Do', color: '#3b82f6', order: 1 }]);
+  saveTasks([{ id: 't1', title: 'Task 1', column: 'todo', priority: 'none', activityLog: [taskEvent] }]);
+  saveBoardEvents(boardId, [boardEvent]);
+
+  const exported = captureExportJson(() => exportBoard(board.id));
+
+  expect(exported.tasks[0].activityLog).toEqual([taskEvent]);
+  expect(exported.boardEvents).toEqual([boardEvent]);
+});
 
 test('inspectImportPayload accepts valid board export objects', () => {
   const preview = inspectImportPayload({
@@ -26,6 +80,74 @@ test('inspectImportPayload accepts valid board export objects', () => {
   expect(preview.summary.tasks).toBe(1);
   expect(preview.summary.columns).toBe(2);
   expect(preview.summary.labels).toBe(1);
+});
+
+test('inspectImportPayload normalizes task activity logs and board events', () => {
+  const taskEvent = createActivityEvent('task.created', { taskId: 'task-1' }, DEFAULT_HUMAN_ACTOR, '2026-05-01T00:00:00.000Z');
+  const boardEvent = createActivityEvent('column.created', { columnId: 'todo', columnName: 'Todo' }, DEFAULT_HUMAN_ACTOR, '2026-05-01T00:01:00.000Z');
+
+  const preview = inspectImportPayload({
+    columns: [
+      { id: 'todo', name: 'Todo', color: '#3b82f6', order: 1 },
+      { id: 'done', name: 'Done', color: '#16a34a', order: 2 }
+    ],
+    tasks: [
+      {
+        id: 'task-1',
+        title: 'Task 1',
+        column: 'todo',
+        labels: [],
+        priority: 'none',
+        activityLog: [
+          taskEvent,
+          { ...taskEvent, type: '' },
+          { ...taskEvent, at: 'not-a-date' },
+          { ...taskEvent, actor: { type: 'bot', id: 'bot-1' } }
+        ]
+      }
+    ],
+    boardEvents: [
+      boardEvent,
+      { ...boardEvent, type: '' },
+      { ...boardEvent, at: 'not-a-date' },
+      { ...boardEvent, actor: { type: 'bot', id: 'bot-1' } }
+    ]
+  }, { name: 'activity.json', size: 512 });
+
+  expect(preview.errors).toEqual([]);
+  expect(preview.normalizedTasks[0].activityLog).toEqual([taskEvent]);
+  expect(preview.normalizedBoardEvents).toEqual([boardEvent]);
+});
+
+test('importTasks restores normalized board events to the imported board', async () => {
+  const previousFileReader = globalThis.FileReader;
+  const boardEvent = createActivityEvent('column.created', { columnId: 'todo', columnName: 'Todo' }, DEFAULT_HUMAN_ACTOR, '2026-05-01T00:01:00.000Z');
+  const payload = {
+    boardName: 'Imported Audit',
+    columns: [
+      { id: 'todo', name: 'Todo', color: '#3b82f6', order: 1 },
+      { id: 'done', name: 'Done', color: '#16a34a', order: 2 }
+    ],
+    tasks: [
+      { id: 'task-1', title: 'Task 1', column: 'todo', labels: [], priority: 'none' }
+    ],
+    boardEvents: [boardEvent, { at: 'broken' }]
+  };
+
+  globalThis.FileReader = class {
+    readAsText() {
+      this.onload({ target: { result: JSON.stringify(payload) } });
+    }
+  };
+
+  try {
+    importTasks({ name: 'audit.json', size: 512 });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  } finally {
+    globalThis.FileReader = previousFileReader;
+  }
+
+  expect(loadBoardEvents(getActiveBoardId())).toEqual([boardEvent]);
 });
 
 test('inspectImportPayload remaps legacy model ids to UUIDs while preserving references', () => {
