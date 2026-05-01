@@ -434,7 +434,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install dependencies and run npm audit
@@ -476,7 +476,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - run: npm ci
@@ -600,7 +600,7 @@ For each file found in Step 1 that uses a non-20 version (e.g. `24`, `lts/*`, `1
 
 ```bash
 # Example: if static.yml uses node-version: 24
-# Edit the file and change to node-version: 20
+# Edit the file and change to node-version: 24
 ```
 
 Skip `copilot-setup-steps.yml` — it uses `lts/*` intentionally for Copilot compatibility.

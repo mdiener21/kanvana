@@ -18,7 +18,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Validate spec and changelog updates
         run: node scripts/check-spec-sync.mjs --base "${{ github.event.pull_request.base.sha || github.sha }}" --head "${{ github.event.pull_request.head.sha || github.sha }}"

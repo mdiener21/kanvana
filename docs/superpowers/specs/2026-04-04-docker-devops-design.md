@@ -310,7 +310,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: npm audit gate
@@ -414,7 +414,7 @@ completes successfully.
 
 `release.yml` already uses Node 20. `publish-release.yml` must be verified and updated to
 Node 20 if needed. The existing `deploy.yml` Node 24 is eliminated when that file is replaced
-by `ci.yml` (which uses Node 20). Standardize all CI Node usage to `node-version: 20`.
+by `ci.yml` (which uses Node 20). Standardize all CI Node usage to `node-version: 24`.
 `copilot-setup-steps.yml` uses `lts/*` — leave it (Copilot-specific, not part of main CI).
 
 ---
