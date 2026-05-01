@@ -143,14 +143,16 @@ test.describe('Sub-tasks', () => {
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
       });
-      const tasks = await new Promise<Array<{ title?: string; subTasks?: Array<{ title: string; completed: boolean }> }>>((resolve, reject) => {
+      const read = <T>(key: string): Promise<T> => new Promise((resolve, reject) => {
         const tx = db.transaction('kv', 'readonly');
-        const req = tx.objectStore('kv').get('kanbanBoard:default:tasks');
-        req.onsuccess = () => resolve(req.result || []);
+        const req = tx.objectStore('kv').get(key);
+        req.onsuccess = () => resolve(req.result as T);
         req.onerror = () => reject(req.error);
       });
+      const activeBoardId = await read<string>('kanbanActiveBoardId');
+      const tasks = await read<Array<{ title?: string; subTasks?: Array<{ title: string; completed: boolean }> }>>(`kanbanBoard:${activeBoardId}:tasks`);
       db.close();
-      return tasks.find((t) => t.title === 'Persisted sub-task task')?.subTasks ?? [];
+      return (tasks || []).find((t) => t.title === 'Persisted sub-task task')?.subTasks ?? [];
     });
 
     expect(storedSubTasks.length).toBe(2);

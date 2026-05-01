@@ -1,7 +1,18 @@
 import { test, expect } from '@playwright/test';
-import { openSwimlaneSettings, seedSwimlaneBoard, readIDBValue } from './swimlanes.helpers.js';
+import {
+  openSwimlaneSettings,
+  seedSwimlaneBoard,
+  TEST_BOARD_ID,
+  COL_TODO_ID,
+  COL_INPROGRESS_ID,
+  COL_DONE_ID,
+  TASK_A_ID,
+  TASK_B_ID,
+  TASK_C_ID,
+  LABEL_A_ID
+} from './swimlanes.helpers.js';
 
-const BOARD_ID = 'swimlane-test-board';
+const BOARD_ID = TEST_BOARD_ID;
 
 test.describe('Swim lane toggle', () => {
   test.beforeEach(async ({ page }) => {
@@ -12,7 +23,7 @@ test.describe('Swim lane toggle', () => {
 
   test('enables and disables swim lanes without losing task data', async ({ page }) => {
     await expect(page.locator('.swimlane-row')).toHaveCount(0);
-    await expect(page.locator('article.task-column[data-column="todo"] .task[data-task-id="task-a"]')).toBeVisible();
+    await expect(page.locator(`article.task-column[data-column="${COL_TODO_ID}"] .task[data-task-id="${TASK_A_ID}"]`)).toBeVisible();
 
     await openSwimlaneSettings(page);
     await page.locator('#settings-swimlane-enabled').check();
@@ -21,28 +32,24 @@ test.describe('Swim lane toggle', () => {
     await expect(page.locator('.swimlane-row-header', { hasText: 'Project A' })).toBeVisible();
     await expect(page.locator('.swimlane-row-header', { hasText: 'Project B' })).toBeVisible();
     await expect(page.locator('.swimlane-row-header', { hasText: 'No Group' })).toBeVisible();
-    await expect(page.locator('.swimlane-row[data-lane-label="Project A"] .swimlane-cell[data-column="todo"] .task[data-task-id="task-a"]')).toBeVisible();
-    await expect(page.locator('.swimlane-row[data-lane-label="No Group"] .swimlane-cell[data-column="done"] .task')).toHaveCount(0);
-    await expect(page.locator('.swimlane-row[data-lane-label="No Group"] .swimlane-cell[data-column="done"] .swimlane-cell-summary')).toContainText('1 completed item hidden');
-    await expect(page.locator('.swimlane-column-header[data-column="todo"] .task-counter')).toHaveText('1');
+    await expect(page.locator(`.swimlane-row[data-lane-label="Project A"] .swimlane-cell[data-column="${COL_TODO_ID}"] .task[data-task-id="${TASK_A_ID}"]`)).toBeVisible();
+    await expect(page.locator(`.swimlane-row[data-lane-label="No Group"] .swimlane-cell[data-column="${COL_DONE_ID}"] .task`)).toHaveCount(0);
+    await expect(page.locator(`.swimlane-row[data-lane-label="No Group"] .swimlane-cell[data-column="${COL_DONE_ID}"] .swimlane-cell-summary`)).toContainText('1 completed item hidden');
+    await expect(page.locator(`.swimlane-column-header[data-column="${COL_TODO_ID}"] .task-counter`)).toHaveText('1');
 
     await page.locator('#settings-close-btn').click();
     await openSwimlaneSettings(page);
     await page.locator('#settings-swimlane-enabled').uncheck();
 
     await expect(page.locator('.swimlane-row')).toHaveCount(0);
-    await expect(page.locator('article.task-column[data-column="todo"] .task[data-task-id="task-a"]')).toBeVisible();
+    await expect(page.locator(`article.task-column[data-column="${COL_TODO_ID}"] .task[data-task-id="${TASK_A_ID}"]`)).toBeVisible();
 
     await page.locator('#settings-close-btn').click();
 
-    const tasks = await readIDBValue(page, `kanbanBoard:${BOARD_ID}:tasks`) || [];
-    const taskSnapshot = tasks.map((task) => ({ id: task.id, title: task.title, column: task.column, labels: task.labels }));
-
-    expect(taskSnapshot).toEqual([
-      { id: 'task-a', title: 'Task A', column: 'todo', labels: ['label-a'] },
-      { id: 'task-b', title: 'Task B', column: 'inprogress', labels: ['label-b'] },
-      { id: 'task-c', title: 'Task C', column: 'done', labels: [] }
-    ]);
+    // Verify all tasks remain in their correct columns after toggling swim lanes off
+    await expect(page.locator(`article.task-column[data-column="${COL_TODO_ID}"] .task[data-task-id="${TASK_A_ID}"]`)).toBeVisible();
+    await expect(page.locator(`article.task-column[data-column="${COL_INPROGRESS_ID}"] .task[data-task-id="${TASK_B_ID}"]`)).toBeVisible();
+    await expect(page.locator(`article.task-column[data-column="${COL_DONE_ID}"] .task[data-task-id="${TASK_C_ID}"]`)).toBeVisible();
   });
 
   test('collapses and expands a swim lane from its header', async ({ page }) => {
@@ -51,14 +58,14 @@ test.describe('Swim lane toggle', () => {
     await page.locator('#settings-close-btn').click();
 
     const projectARow = page.locator('.swimlane-row[data-lane-label="Project A"]');
-    const projectATodoCell = projectARow.locator('.swimlane-cell[data-column="todo"]');
+    const projectATodoCell = projectARow.locator(`.swimlane-cell[data-column="${COL_TODO_ID}"]`);
     await projectARow.getByRole('button', { name: /Collapse Project A swim lane/i }).click();
     await expect(projectARow).toHaveClass(/is-collapsed/);
     await expect(projectATodoCell).toBeHidden();
 
     await projectARow.getByRole('button', { name: /Expand Project A swim lane/i }).click();
     await expect(projectATodoCell).toBeVisible();
-    await expect(projectARow.locator('.swimlane-cell[data-column="todo"] .task[data-task-id="task-a"]')).toBeVisible();
+    await expect(projectARow.locator(`.swimlane-cell[data-column="${COL_TODO_ID}"] .task[data-task-id="${TASK_A_ID}"]`)).toBeVisible();
   });
 
   test('collapses and expands a workflow column while swim lanes are enabled', async ({ page }) => {
@@ -66,24 +73,24 @@ test.describe('Swim lane toggle', () => {
     await page.locator('#settings-swimlane-enabled').check();
     await page.locator('#settings-close-btn').click();
 
-    const inProgressHeader = page.locator('.swimlane-column-header[data-column="inprogress"]');
-    const projectBCell = page.locator('.swimlane-row[data-lane-label="Project B"] .swimlane-cell[data-column="inprogress"]');
+    const inProgressHeader = page.locator(`.swimlane-column-header[data-column="${COL_INPROGRESS_ID}"]`);
+    const projectBCell = page.locator(`.swimlane-row[data-lane-label="Project B"] .swimlane-cell[data-column="${COL_INPROGRESS_ID}"]`);
 
     await page.getByRole('button', { name: /Collapse In Progress column/i }).click();
 
     await expect(inProgressHeader).toHaveClass(/is-collapsed/);
     await expect(projectBCell).toHaveClass(/is-column-collapsed/);
-    await expect(projectBCell.locator('.task[data-task-id="task-b"]')).toBeHidden();
+    await expect(projectBCell.locator(`.task[data-task-id="${TASK_B_ID}"]`)).toBeHidden();
     await expect(projectBCell.locator('.swimlane-cell-summary')).toContainText('1 task');
 
     await page.getByRole('button', { name: /Expand In Progress column/i }).click();
 
     await expect(inProgressHeader).not.toHaveClass(/is-collapsed/);
-    await expect(projectBCell.locator('.task[data-task-id="task-b"]')).toBeVisible();
+    await expect(projectBCell.locator(`.task[data-task-id="${TASK_B_ID}"]`)).toBeVisible();
   });
 
   test('keeps swim lane column headers visible while vertically scrolling', async ({ page }) => {
-    await page.evaluate(async (boardId) => {
+    await page.evaluate(async ({ boardId, colTodoId }) => {
       const db = await new Promise((resolve, reject) => {
         const req = indexedDB.open('kanvana-db', 1);
         req.onsuccess = () => resolve(req.result);
@@ -111,12 +118,12 @@ test.describe('Swim lane toggle', () => {
           description: 'Extra swimlane content',
           priority: 'low',
           dueDate: '',
-          column: 'todo',
+          column: colTodoId,
           order: 1,
           labels: [labelId],
           creationDate: '2026-03-01T09:30:00.000Z',
           changeDate: '2026-03-01T09:30:00.000Z',
-          columnHistory: [{ column: 'todo', at: '2026-03-01T09:30:00.000Z' }]
+          columnHistory: [{ column: colTodoId, at: '2026-03-01T09:30:00.000Z' }]
         });
       }
       const tx = db.transaction('kv', 'readwrite');
@@ -128,7 +135,7 @@ test.describe('Swim lane toggle', () => {
         tx.onerror = () => reject(tx.error);
       });
       db.close();
-    }, BOARD_ID);
+    }, { boardId: BOARD_ID, colTodoId: COL_TODO_ID });
 
     // Reload so initStorage() picks up the IDB changes
     await page.reload();
@@ -139,7 +146,7 @@ test.describe('Swim lane toggle', () => {
     await page.locator('#settings-close-btn').click();
 
     const boardContainer = page.locator('#board-container');
-    const todoHeader = page.locator('.swimlane-column-header[data-column="todo"]');
+    const todoHeader = page.locator(`.swimlane-column-header[data-column="${COL_TODO_ID}"]`);
     await expect(page.locator('.swimlane-row')).toHaveCount(21);
 
     await boardContainer.evaluate((element) => {

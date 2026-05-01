@@ -1,15 +1,15 @@
 // spec: task-creation-with-labels.plan.md
-// seed: tests/e2e/seed.spec.ts
 
 import { test, expect, type Page } from '@playwright/test';
 
-async function getTaskCount(page: Page, columnId: string): Promise<number> {
-  const counter = page.locator(`article.task-column[data-column="${columnId}"] .task-counter`);
+async function getTaskCount(page: Page, columnName: string): Promise<number> {
+  const column = page.locator('article.task-column').filter({ has: page.locator('h2', { hasText: columnName }) });
+  const counter = column.locator('.task-counter');
   await expect(counter).toHaveText(/\d+/);
   const text = (await counter.textContent()) ?? '';
   const count = Number.parseInt(text, 10);
   if (!Number.isFinite(count)) {
-    throw new Error(`Expected numeric task counter for column '${columnId}', got '${text}'`);
+    throw new Error(`Expected numeric task counter for column '${columnName}', got '${text}'`);
   }
   return count;
 }
@@ -24,7 +24,7 @@ test.describe('Task Creation', () => {
   test('Create task with 2 existing labels and medium priority in To Do column', async ({ page }) => {
     await page.goto('/');
 
-    const beforeTodoCount = await getTaskCount(page, 'todo');
+    const beforeTodoCount = await getTaskCount(page, 'To Do');
     const modal = taskModal(page);
 
     await page.getByRole('button', { name: 'Add task to To Do' }).click();
@@ -44,14 +44,14 @@ test.describe('Task Creation', () => {
     await expect(task.locator('.task-label', { hasText: 'Goal' })).toBeVisible();
     await expect(task.locator('.task-label', { hasText: 'Task' })).toBeVisible();
 
-    const todoCounter = page.locator('article.task-column[data-column="todo"] .task-counter');
+    const todoCounter = page.locator('article.task-column').filter({ has: page.locator('h2', { hasText: 'To Do' }) }).locator('.task-counter');
     await expect(todoCounter).toHaveText(String(beforeTodoCount + 1));
   });
 
   test('Create task with 2 existing labels and medium priority in In Progress column', async ({ page }) => {
     await page.goto('/');
 
-    const beforeInProgressCount = await getTaskCount(page, 'inprogress');
+    const beforeInProgressCount = await getTaskCount(page, 'In Progress');
     const modal = taskModal(page);
 
     await page.getByRole('button', { name: 'Add task to In Progress' }).click();
@@ -70,7 +70,7 @@ test.describe('Task Creation', () => {
     await expect(task.locator('.task-label', { hasText: 'Idea' })).toBeVisible();
     await expect(task.locator('.task-label', { hasText: 'Meeting' })).toBeVisible();
 
-    const inProgressCounter = page.locator('article.task-column[data-column="inprogress"] .task-counter');
+    const inProgressCounter = page.locator('article.task-column').filter({ has: page.locator('h2', { hasText: 'In Progress' }) }).locator('.task-counter');
     await expect(inProgressCounter).toHaveText(String(beforeInProgressCount + 1));
   });
 
@@ -101,14 +101,16 @@ test.describe('Task Creation', () => {
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
       });
-      const tasks = await new Promise<Array<{ title?: string; dueDate?: string }>>((resolve, reject) => {
+      const read = <T>(key: string): Promise<T> => new Promise((resolve, reject) => {
         const tx = db.transaction('kv', 'readonly');
-        const req = tx.objectStore('kv').get('kanbanBoard:default:tasks');
-        req.onsuccess = () => resolve(req.result || []);
+        const req = tx.objectStore('kv').get(key);
+        req.onsuccess = () => resolve(req.result as T);
         req.onerror = () => reject(req.error);
       });
+      const activeBoardId = await read<string>('kanbanActiveBoardId');
+      const tasks = await read<Array<{ title?: string; dueDate?: string }>>(`kanbanBoard:${activeBoardId}:tasks`);
       db.close();
-      return tasks.find((entry) => entry.title === 'Finalize quarterly report')?.dueDate ?? '';
+      return (tasks || []).find((entry) => entry.title === 'Finalize quarterly report')?.dueDate ?? '';
     });
 
     expect(storedDueDate).toBe('2026-02-15');
@@ -118,7 +120,7 @@ test.describe('Task Creation', () => {
   test('Create task with 2 new custom labels and medium priority', async ({ page }) => {
     await page.goto('/');
 
-    const beforeTodoCount = await getTaskCount(page, 'todo');
+    const beforeTodoCount = await getTaskCount(page, 'To Do');
     const modal = taskModal(page);
 
     await page.getByRole('button', { name: 'Add task to To Do' }).click();
@@ -148,7 +150,7 @@ test.describe('Task Creation', () => {
     await expect(task.locator('.task-label', { hasText: 'Design' })).toBeVisible();
     await expect(task.locator('.task-label', { hasText: 'UI/UX' })).toBeVisible();
 
-    const todoCounter = page.locator('article.task-column[data-column="todo"] .task-counter');
+    const todoCounter = page.locator('article.task-column').filter({ has: page.locator('h2', { hasText: 'To Do' }) }).locator('.task-counter');
     await expect(todoCounter).toHaveText(String(beforeTodoCount + 1));
   });
 });

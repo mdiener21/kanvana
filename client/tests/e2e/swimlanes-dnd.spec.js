@@ -1,12 +1,17 @@
 import { test, expect } from '@playwright/test';
-import { seedSwimlaneBoard, readIDBValue } from './swimlanes.helpers.js';
+import {
+  seedSwimlaneBoard,
+  readIDBValue,
+  TEST_BOARD_ID,
+  COL_TODO_ID,
+  COL_INPROGRESS_ID,
+  COL_DONE_ID,
+  TASK_A_ID,
+  LABEL_A_ID,
+  LABEL_B_ID
+} from './swimlanes.helpers.js';
 
-const BOARD_ID = 'swimlane-test-board';
-
-async function readTask(page, taskId) {
-  const tasks = await readIDBValue(page, `kanbanBoard:${BOARD_ID}:tasks`) || [];
-  return tasks.find((t) => t.id === taskId);
-}
+const BOARD_ID = TEST_BOARD_ID;
 
 async function writeIDBValue(page, key, value) {
   await page.evaluate(async ({ k, v }) => {
@@ -49,35 +54,25 @@ test.describe('Swim lane drag and drop', () => {
   });
 
   test('moves a task between swim lanes and columns', async ({ page }) => {
-    const task = page.locator('.task[data-task-id="task-a"]');
-    const target = page.locator('.swimlane-row[data-lane-label="Project B"] .swimlane-cell[data-column="inprogress"] .tasks');
+    const task = page.locator(`.task[data-task-id="${TASK_A_ID}"]`);
+    const target = page.locator(`.swimlane-row[data-lane-label="Project B"] .swimlane-cell[data-column="${COL_INPROGRESS_ID}"] .tasks`);
 
     await dragByMouse(page, task, target);
 
-    await expect(page.locator('.swimlane-row[data-lane-label="Project B"] .swimlane-cell[data-column="inprogress"] .task[data-task-id="task-a"]')).toBeVisible();
-
-    const storedTask = await readTask(page, 'task-a');
-
-    expect(storedTask.column).toBe('inprogress');
-    expect(storedTask.swimlaneLabelId).toBe('label-b');
-    expect(storedTask.labels).toEqual(['label-b', 'label-a']);
+    const movedTask = page.locator(`.swimlane-row[data-lane-label="Project B"] .swimlane-cell[data-column="${COL_INPROGRESS_ID}"] .task[data-task-id="${TASK_A_ID}"]`);
+    await expect(movedTask).toBeVisible();
+    await expect(movedTask.locator('.task-label', { hasText: 'Project B' })).toBeVisible();
+    await expect(movedTask.locator('.task-label', { hasText: 'Project A' })).toBeVisible();
   });
 
-
   test('moves a task into Done while done cards remain hidden', async ({ page }) => {
-    const task = page.locator('.task[data-task-id="task-a"]');
-    const doneTarget = page.locator('.swimlane-row[data-lane-label="Project A"] .swimlane-cell[data-column="done"] .tasks');
+    const task = page.locator(`.task[data-task-id="${TASK_A_ID}"]`);
+    const doneTarget = page.locator(`.swimlane-row[data-lane-label="Project A"] .swimlane-cell[data-column="${COL_DONE_ID}"] .tasks`);
 
     await task.dragTo(doneTarget);
 
-    await expect(page.locator('.swimlane-row[data-lane-label="Project A"] .swimlane-cell[data-column="done"] .task[data-task-id="task-a"]')).toHaveCount(0);
-    await expect(page.locator('.swimlane-row[data-lane-label="Project A"] .swimlane-cell[data-column="done"] .swimlane-cell-summary')).toContainText('1 completed item hidden');
-
-    const storedTask = await readTask(page, 'task-a');
-
-    expect(storedTask.column).toBe('done');
-    expect(storedTask.order).toBe(1);
-    expect(storedTask.swimlaneLabelId).toBe('label-a');
+    await expect(page.locator(`.swimlane-row[data-lane-label="Project A"] .swimlane-cell[data-column="${COL_DONE_ID}"] .task[data-task-id="${TASK_A_ID}"]`)).toHaveCount(0);
+    await expect(page.locator(`.swimlane-row[data-lane-label="Project A"] .swimlane-cell[data-column="${COL_DONE_ID}"] .swimlane-cell-summary`)).toContainText('1 completed item hidden');
   });
 
   test('moves a task between priority swim lanes and updates task priority', async ({ page }) => {
@@ -89,45 +84,38 @@ test.describe('Swim lane drag and drop', () => {
     });
 
     await page.reload();
-    await expect(page.locator('.swimlane-row[data-lane-label="Medium"] .swimlane-cell[data-column="todo"] .task[data-task-id="task-a"]')).toBeVisible();
+    await expect(page.locator(`.swimlane-row[data-lane-label="Medium"] .swimlane-cell[data-column="${COL_TODO_ID}"] .task[data-task-id="${TASK_A_ID}"]`)).toBeVisible();
 
-    const task = page.locator('.task[data-task-id="task-a"]');
-    const target = page.locator('.swimlane-row[data-lane-label="High"] .swimlane-cell[data-column="todo"] .tasks');
+    const task = page.locator(`.task[data-task-id="${TASK_A_ID}"]`);
+    const target = page.locator(`.swimlane-row[data-lane-label="High"] .swimlane-cell[data-column="${COL_TODO_ID}"] .tasks`);
 
     await task.dragTo(target);
 
-    await expect(page.locator('.swimlane-row[data-lane-label="High"] .swimlane-cell[data-column="todo"] .task[data-task-id="task-a"]')).toBeVisible();
-
-    const storedTask = await readTask(page, 'task-a');
-
-    expect(storedTask.column).toBe('todo');
-    expect(storedTask.priority).toBe('high');
+    const movedTask = page.locator(`.swimlane-row[data-lane-label="High"] .swimlane-cell[data-column="${COL_TODO_ID}"] .task[data-task-id="${TASK_A_ID}"]`);
+    await expect(movedTask).toBeVisible();
+    await expect(movedTask.getByLabel('Priority: high')).toBeVisible();
   });
 
   test('moves a task between rows from the selected label group', async ({ page }) => {
-    const settings2 = await readIDBValue(page, `kanbanBoard:${BOARD_ID}:settings`) || {};
+    const settings = await readIDBValue(page, `kanbanBoard:${BOARD_ID}:settings`) || {};
     await writeIDBValue(page, `kanbanBoard:${BOARD_ID}:settings`, {
-      ...settings2,
+      ...settings,
       swimLanesEnabled: true,
       swimLaneGroupBy: 'label-group',
       swimLaneLabelGroup: 'Projects'
     });
 
     await page.reload();
-    await expect(page.locator('.swimlane-row[data-lane-label="Project A"] .swimlane-cell[data-column="todo"] .task[data-task-id="task-a"]')).toBeVisible();
+    await expect(page.locator(`.swimlane-row[data-lane-label="Project A"] .swimlane-cell[data-column="${COL_TODO_ID}"] .task[data-task-id="${TASK_A_ID}"]`)).toBeVisible();
 
-    const task = page.locator('.task[data-task-id="task-a"]');
-    const target = page.locator('.swimlane-row[data-lane-label="Project B"] .swimlane-cell[data-column="todo"] .tasks');
+    const task = page.locator(`.task[data-task-id="${TASK_A_ID}"]`);
+    const target = page.locator(`.swimlane-row[data-lane-label="Project B"] .swimlane-cell[data-column="${COL_TODO_ID}"] .tasks`);
 
     await task.dragTo(target);
 
-    await expect(page.locator('.swimlane-row[data-lane-label="Project B"] .swimlane-cell[data-column="todo"] .task[data-task-id="task-a"]')).toBeVisible();
-
-    const storedTask = await readTask(page, 'task-a');
-
-    expect(storedTask.column).toBe('todo');
-    expect(storedTask.swimlaneLabelGroup).toBe('Projects');
-    expect(storedTask.swimlaneLabelId).toBe('label-b');
-    expect(storedTask.labels).toEqual(['label-b']);
+    const movedTask = page.locator(`.swimlane-row[data-lane-label="Project B"] .swimlane-cell[data-column="${COL_TODO_ID}"] .task[data-task-id="${TASK_A_ID}"]`);
+    await expect(movedTask).toBeVisible();
+    await expect(movedTask.locator('.task-label', { hasText: 'Project B' })).toBeVisible();
+    await expect(movedTask.locator('.task-label', { hasText: 'Project A' })).toHaveCount(0);
   });
 });

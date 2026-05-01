@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest';
-import { inspectImportPayload, buildImportConfirmationMessage, IMPORT_LIMITS } from '../../src/modules/importexport.js';
+import { inspectImportPayload, buildImportConfirmationMessage } from '../../src/modules/importexport.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -62,8 +62,9 @@ test('inspectImportPayload remaps legacy model ids to UUIDs while preserving ref
   expect(task.labels).toEqual([label.id]);
 });
 
-test('inspectImportPayload rejects files larger than the hard limit', () => {
-  const preview = inspectImportPayload([], { name: 'large.json', size: IMPORT_LIMITS.maxFileSizeBytes + 1 });
+test('inspectImportPayload rejects files above the size limit', () => {
+  const threeMb = 3 * 1024 * 1024;
+  const preview = inspectImportPayload([], { name: 'large.json', size: threeMb });
   expect(preview.errors[0]).toMatch(/too large/i);
 });
 

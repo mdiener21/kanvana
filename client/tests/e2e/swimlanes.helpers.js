@@ -1,58 +1,70 @@
 import { expect } from '@playwright/test';
 
+// UUID-format IDs so normalizeIdbState leaves them unchanged on app startup.
+export const TEST_BOARD_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000001';
+export const COL_TODO_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000002';
+export const COL_INPROGRESS_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000003';
+export const COL_DONE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000004';
+export const LABEL_A_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000005';
+export const LABEL_B_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000006';
+export const LABEL_C_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000007';
+export const TASK_A_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000008';
+export const TASK_B_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000009';
+export const TASK_C_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-00000000000a';
+
 export async function seedSwimlaneBoard(page, settingsOverrides = {}) {
   const fixture = {
-    boardId: 'swimlane-test-board',
+    boardId: TEST_BOARD_ID,
     columns: [
-      { id: 'todo', name: 'To Do', color: '#3583ff', order: 1, collapsed: false },
-      { id: 'inprogress', name: 'In Progress', color: '#f59e0b', order: 2, collapsed: false },
-      { id: 'done', name: 'Done', color: '#505050', order: 3, collapsed: false }
+      { id: COL_TODO_ID, name: 'To Do', color: '#3583ff', order: 1, collapsed: false },
+      { id: COL_INPROGRESS_ID, name: 'In Progress', color: '#f59e0b', order: 2, collapsed: false },
+      { id: COL_DONE_ID, name: 'Done', color: '#505050', order: 3, collapsed: false, role: 'done' }
     ],
     labels: [
-      { id: 'label-a', name: 'Project A', color: '#2563eb', group: 'Projects' },
-      { id: 'label-b', name: 'Project B', color: '#16a34a', group: 'Projects' },
-      { id: 'label-c', name: 'Ops', color: '#f59e0b', group: 'Workstreams' }
+      { id: LABEL_A_ID, name: 'Project A', color: '#2563eb', group: 'Projects' },
+      { id: LABEL_B_ID, name: 'Project B', color: '#16a34a', group: 'Projects' },
+      { id: LABEL_C_ID, name: 'Ops', color: '#f59e0b', group: 'Workstreams' }
     ],
     tasks: [
       {
-        id: 'task-a',
+        id: TASK_A_ID,
         title: 'Task A',
         description: 'Alpha work',
         priority: 'medium',
         dueDate: '',
-        column: 'todo',
+        column: COL_TODO_ID,
         order: 1,
-        labels: ['label-a'],
+        labels: [LABEL_A_ID],
         creationDate: '2026-03-01T09:00:00.000Z',
         changeDate: '2026-03-01T09:00:00.000Z',
-        columnHistory: [{ column: 'todo', at: '2026-03-01T09:00:00.000Z' }]
+        columnHistory: [{ column: COL_TODO_ID, at: '2026-03-01T09:00:00.000Z' }]
       },
       {
-        id: 'task-b',
+        id: TASK_B_ID,
         title: 'Task B',
         description: 'Beta work',
         priority: 'high',
         dueDate: '',
-        column: 'inprogress',
+        column: COL_INPROGRESS_ID,
         order: 1,
-        labels: ['label-b'],
+        labels: [LABEL_B_ID],
         creationDate: '2026-03-01T09:10:00.000Z',
         changeDate: '2026-03-01T09:10:00.000Z',
-        columnHistory: [{ column: 'inprogress', at: '2026-03-01T09:10:00.000Z' }]
+        columnHistory: [{ column: COL_INPROGRESS_ID, at: '2026-03-01T09:10:00.000Z' }]
       },
       {
-        id: 'task-c',
+        id: TASK_C_ID,
         title: 'Task C',
         description: 'Ungrouped work',
         priority: 'low',
         dueDate: '',
-        column: 'done',
+        column: COL_DONE_ID,
         order: 1,
         labels: [],
         creationDate: '2026-03-01T09:20:00.000Z',
         changeDate: '2026-03-01T09:20:00.000Z',
         doneDate: '2026-03-01T09:20:00.000Z',
-        columnHistory: [{ column: 'done', at: '2026-03-01T09:20:00.000Z' }]
+        columnHistory: [{ column: COL_DONE_ID, at: '2026-03-01T09:20:00.000Z' }]
       }
     ],
     settings: {
@@ -122,7 +134,7 @@ export async function readIDBValue(page, key) {
 /**
  * Read the settings for the active board from IDB.
  */
-export async function readIDBSettings(page, boardId = 'swimlane-test-board') {
+export async function readIDBSettings(page, boardId = TEST_BOARD_ID) {
   return (await readIDBValue(page, `kanbanBoard:${boardId}:settings`)) || {};
 }
 
