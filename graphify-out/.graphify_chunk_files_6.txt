@@ -1,0 +1,17 @@
+/home/mdiener/dev/kanvana/docs/system/spec/notifications.md
+/home/mdiener/dev/kanvana/docs/system/spec/calendar.md
+/home/mdiener/dev/kanvana/docs/system/spec/draft-specs/README.md
+/home/mdiener/dev/kanvana/docs/system/spec/draft-specs/feature-swimlanes-test-cases.md
+/home/mdiener/dev/kanvana/docs/system/spec/draft-specs/feature-swimlanes-user-story.md
+/home/mdiener/dev/kanvana/docs/system/spec/plan/plan-migrate-to-indexeddb.md
+/home/mdiener/dev/kanvana/docs/system/spec/plan/test.md
+/home/mdiener/dev/kanvana/docs/system/spec/plan/swimlane-column-collapse.md
+/home/mdiener/dev/kanvana/docs/user/labels.md
+/home/mdiener/dev/kanvana/docs/user/help-how-to.md
+/home/mdiener/dev/kanvana/docs/user/mermaid.md
+/home/mdiener/dev/kanvana/docs/user/kanban-ecosystem.md
+/home/mdiener/dev/kanvana/docs/user/boards.md
+/home/mdiener/dev/kanvana/playwright-report/index.html
+/home/mdiener/dev/kanvana/scripts/extract-release-notes.mjs
+/home/mdiener/dev/kanvana/scripts/check-spec-sync.mjs
+/home/mdiener/dev/kanvana/scripts/prepare-release.mjs
