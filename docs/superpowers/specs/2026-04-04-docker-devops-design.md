@@ -39,12 +39,11 @@ PocketBase is never exposed directly; all external traffic routes through nginx.
 Files added or modified by this design:
 
 ```
-docker-compose.yml                   ← main compose file (dev + prod)
-docker-compose.override.yml          ← dev-only overrides (auto-loaded locally, not on VPS)
+docker-compose.yml                   ← main compose file with the local dev frontend workflow
 .env.example                         ← documented environment variables
 .dockerignore                        ← keep image lean
 Dockerfile                           ← multi-stage: builder → prod
-nginx/
+devops/nginx/
   nginx.conf                         ← worker/event config
   conf.d/
     default.conf                     ← static files + /api/ and /_/ proxy rules
@@ -103,17 +102,23 @@ EXPOSE 80
 
 ## `docker-compose.yml`
 
-Main compose file. Committed to the repository. Used on the VPS as-is (no override file there).
+Main compose file. Committed to the repository. It now carries the frontend dev-mode settings
+directly instead of relying on a separate override file.
 
 ```yaml
 services:
   nginx:
     build:
       context: .
-      target: prod
+      target: dev
+    command: npm run dev -- --host 0.0.0.0 --port 80 --open false
+    working_dir: /app
     image: ghcr.io/<owner>/kanvana:${IMAGE_TAG:-latest}
     ports:
-      - "${NGINX_PORT:-80}:80"
+      - "${NGINX_PORT:-8080}:80"
+    volumes:
+      - ./client:/app
+      - frontend_node_modules:/app/node_modules
     depends_on:
       - pocketbase
     restart: unless-stopped
@@ -129,38 +134,20 @@ services:
 
 volumes:
   pb_data:
+  frontend_node_modules:
 ```
 
-> **PocketBase image:** Use `ghcr.io/muchobig/pocketbase` (widely used community image) or
-> `docker.io/pocketbase/pocketbase` if an official image is published by the time of
-> implementation. Pin via `PB_VERSION` tag (e.g. `0.22.0`). The Kanvana repo does not build a
-> custom PocketBase image. Verify image availability at implementation time and use whichever
-> official or most-maintained image is current.
+> **PocketBase image:** Use `spectado/pocketbase` (Docker Hub, publicly accessible, port 80). The
+> previously noted `ghcr.io/muchobig/pocketbase` image requires authentication and is not publicly
+> accessible. Pin via `PB_VERSION` tag (e.g. `0.22.0`). The Kanvana repo does not build a custom
+> PocketBase image. Note: `spectado/pocketbase` exposes port **80** (not 8090) — all nginx proxy
+> targets must use `http://pocketbase:80`.
 
 ---
 
-## `docker-compose.override.yml`
-
-Auto-loaded by Docker Compose when present. Checked into the repository so developers get it
-automatically on `git clone`. Gitignored on the VPS (never copied there).
-
-Provides a bind-mount of `dist/` so developers can rebuild the Vite output without rebuilding the
-Docker image:
-
-```yaml
-# docker-compose.override.yml — dev convenience overrides (auto-loaded locally)
-# DO NOT copy to VPS — the VPS uses docker-compose.yml only.
-services:
-  nginx:
-    volumes:
-      # Live bind-mount: rebuild with `npm run build`, no image rebuild needed
-      - ./dist:/usr/share/nginx/html:ro
-    ports:
-      - "${NGINX_PORT:-8080}:80"   # avoid port 80 conflict on dev machines
-```
-
-> **Note:** The override changes the default port to 8080 in dev to avoid requiring root or
-> conflicting with other local services. The VPS uses port 80 (no override).
+> **Note:** In local Docker development the main compose file runs the Dockerfile's `dev` target
+> and serves Vite against the bind-mounted `client/` package. The host uses port 8080 by
+> default via `NGINX_PORT`, while the container listens on port 80.
 
 ---
 
@@ -445,7 +432,8 @@ docker compose up      # starts nginx (port 8080) + pocketbase
 # Open http://localhost:8080
 ```
 
-The `docker-compose.override.yml` is auto-loaded, binding `./dist` into the nginx container.
+The single `docker-compose.yml` bind-mounts `client/` into the frontend container and starts
+Vite in dev mode.
 
 ### Day-to-day development
 
@@ -454,10 +442,10 @@ Docker is used when you need to test the full stack (nginx routing, PocketBase c
 CSP headers).
 
 ```bash
+cd client
 npm run dev            # Vite hot-reload at http://localhost:3000 (no Docker needed)
 # --- or, to test the full Docker stack: ---
-npm run build          # rebuild dist/
-docker compose up      # nginx + PocketBase; dist/ bind-mounted; no image rebuild
+docker compose up      # Vite dev server + PocketBase at http://localhost:8080
 ```
 
 ### Connecting to PocketBase in dev (Docker mode)
@@ -522,7 +510,7 @@ restarts and image updates (`docker compose pull && up -d` does not delete it).
 implement their own backup strategy (e.g. `docker run --rm -v pb_data:/data -v $(pwd):/backup
 alpine tar czf /backup/pb_data.tar.gz /data`).
 
-In development, the `docker-compose.override.yml` could optionally use a bind-mount to
+In development, the `docker-compose.yml` setup could optionally use a bind-mount to
 `./data/pb_data` instead of a named volume for easier inspection. This is left as an optional
 local customization, not the default, since `/data` is already in `.gitignore`.
 
@@ -534,7 +522,7 @@ One-time steps for a new VPS:
 
 1. Install Docker + Docker Compose plugin
 2. `mkdir -p /opt/kanvana && cd /opt/kanvana`
-3. Copy `docker-compose.yml` from the repository (do not copy `docker-compose.override.yml`)
+3. Copy `docker-compose.yml` from the repository
 4. Create `.env` with production values (at minimum: `NGINX_PORT=80`, `PB_VERSION=<tag>`)
 5. Set up an external reverse proxy (e.g. Caddy or nginx outside Docker) for TLS termination,
    pointing to `localhost:80`
@@ -612,7 +600,6 @@ manual level:
 |------|--------|-------|
 | `Dockerfile` | Create | Multi-stage builder + prod |
 | `docker-compose.yml` | Create | Main compose (nginx + pocketbase) |
-| `docker-compose.override.yml` | Create | Dev bind-mount + port 8080 |
 | `.env.example` | Create | Documented env vars |
 | `.dockerignore` | Create | Lean build context |
 | `nginx/nginx.conf` | Create | Worker/event config |

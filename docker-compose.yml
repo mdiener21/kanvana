@@ -1,0 +1,57 @@
+services:
+  nginx:
+    container_name: nginx
+    image: nginx:alpine
+    build:
+      context: .
+      dockerfile: devops/local/nginx/Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - frontend
+      - pocketbase
+    restart: unless-stopped
+
+  frontend:
+    container_name: frontend
+    image: ghcr.io/mdiener21/kanvana:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: devops/local/frontend/Dockerfile
+    expose:
+      - "3000"
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    command: npm run dev -- --host 0.0.0.0 --port 3000 --no-open
+    restart: unless-stopped
+
+  pocketbase:
+    container_name: pb
+    image: adrianmusante/pocketbase:${PB_VERSION:-latest}
+    expose:
+      - "80"
+    ports:
+      - "8000:80"
+    volumes:
+      - pb_data:/pb_data
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:3000/api/health" ]
+      interval: 2s
+      timeout: 10s
+      retries: 10
+    restart: unless-stopped
+
+  adminer:
+    container_name: adminer
+    image: adminer:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - pb_data:/pb_data:ro
+    environment:
+      ADMINER_DEFAULT_SERVER: /pb_data/data.db
+    restart: unless-stopped
+
+volumes:
+  pb_data:
