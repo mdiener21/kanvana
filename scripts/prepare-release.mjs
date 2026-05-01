@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 function parseArgs(argv) {
-  const args = { bump: 'patch', notesFile: '.release-notes.md' };
+  const args = { bump: 'patch', notesFile: '.release-notes.md', packageDir: null };
 
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
@@ -21,6 +21,12 @@ function parseArgs(argv) {
 
     if (token === '--date') {
       args.date = argv[index + 1];
+      index += 1;
+      continue;
+    }
+
+    if (token === '--package-dir') {
+      args.packageDir = argv[index + 1];
       index += 1;
       continue;
     }
@@ -179,11 +185,12 @@ function updateReadmeBadge(readmePath, nextVersion) {
 }
 
 function main() {
-  const { bump, notesFile, date } = parseArgs(process.argv.slice(2));
+  const { bump, notesFile, date, packageDir } = parseArgs(process.argv.slice(2));
   assertSupportedBumpType(bump);
 
   const cwd = process.cwd();
-  const packageJsonPath = path.join(cwd, 'package.json');
+  const pkgRoot = packageDir ? path.resolve(cwd, packageDir) : cwd;
+  const packageJsonPath = path.join(pkgRoot, 'package.json');
   const changelogPath = path.join(cwd, 'CHANGELOG.md');
   const readmePath = path.join(cwd, 'README.md');
   const notesFilePath = path.join(cwd, notesFile);

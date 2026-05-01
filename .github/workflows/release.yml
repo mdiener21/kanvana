@@ -37,18 +37,23 @@ jobs:
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: client/package-lock.json
 
       - name: Install dependencies
         run: npm ci
+        working-directory: client
 
       - name: Run unit and DOM tests
         run: npm run test:unit && npm run test:dom
+        working-directory: client
 
       - name: Install Playwright browser
         run: npx playwright install --with-deps firefox
+        working-directory: client
 
       - name: Run E2E tests
         run: npm run test:e2e
+        working-directory: client
 
   release-pr:
     name: Create release PR
@@ -74,21 +79,25 @@ jobs:
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: client/package-lock.json
 
       - name: Install dependencies
         run: npm ci
+        working-directory: client
 
       - name: Build project
         run: npm run build
+        working-directory: client
 
       - name: Prepare version and changelog
         id: prepare
         run: |
-          NEW_VERSION=$(node scripts/prepare-release.mjs --bump "${{ github.event.inputs.bump }}" --notes-file .release-notes.md)
+          NEW_VERSION=$(node scripts/prepare-release.mjs --bump "${{ github.event.inputs.bump }}" --notes-file .release-notes.md --package-dir client)
           echo "version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Update package-lock.json
         run: npm install --package-lock-only
+        working-directory: client
 
       - name: Clean generated release notes artifact
         run: rm -f .release-notes.md
@@ -121,8 +130,8 @@ jobs:
             release
           delete-branch: true
           add-paths: |
-            package.json
-            package-lock.json
+            client/package.json
+            client/package-lock.json
             CHANGELOG.md
             README.md
 

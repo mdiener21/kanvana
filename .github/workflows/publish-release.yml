@@ -26,7 +26,7 @@ jobs:
       - name: Resolve version
         id: version
         run: |
-          VERSION=$(node -e "console.log(JSON.parse(require('fs').readFileSync('package.json','utf8')).version)")
+          VERSION=$(node -e "console.log(JSON.parse(require('fs').readFileSync('client/package.json','utf8')).version)")
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Check if tag already exists
