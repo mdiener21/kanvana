@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Kanvana Board Activity Log">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <title>Kanvana Activity</title>
+  <link rel="stylesheet" href="styles/index.css">
+</head>
+<body class="activity-page">
+  <header class="rpt-header" role="banner">
+    <div class="rpt-header-left">
+      <span data-lucide="square-kanban" aria-hidden="true" class="rpt-logo"></span>
+      <div class="rpt-header-titles">
+        <h1 class="rpt-title" id="activity-title">Activity</h1>
+        <div class="rpt-subtitle">Board Event Log</div>
+      </div>
+    </div>
+    <div class="rpt-header-right" role="group" aria-label="Activity actions">
+      <div class="rpt-badge" id="activity-board-badge" title="Active board">?</div>
+      <a class="rpt-link" href="./index.html">Back to Board</a>
+    </div>
+  </header>
+
+  <main class="rpt-main" aria-label="Board activity log">
+    <section aria-label="Activity events">
+      <div id="activity-list" class="activity-page-list"></div>
+    </section>
+  </main>
+
+  <script type="module" src="./modules/activity.js"></script>
+</body>
+</html>

@@ -111,3 +111,24 @@ test('deleteLabel removes label ID from all tasks', () => {
   expect(tasks[0].labels.includes(label.id)).toBe(false);
   expect(tasks[0].labels.includes('other-label')).toBe(true);
 });
+
+test('deleteLabel appends label removal activity to affected tasks', () => {
+  const { label } = addLabel('Bug', '#ff0000');
+  saveTasks([
+    { id: 't1', title: 'Task 1', column: 'todo', labels: [label.id], activityLog: [] },
+    { id: 't2', title: 'Task 2', column: 'todo', labels: ['other-label'], activityLog: [] }
+  ]);
+
+  deleteLabel(label.id);
+
+  const tasks = loadTasks();
+  const affected = tasks.find(task => task.id === 't1');
+  const unaffected = tasks.find(task => task.id === 't2');
+  expect(affected.activityLog).toHaveLength(1);
+  expect(affected.activityLog[0]).toMatchObject({
+    type: 'task.label_removed',
+    actor: { type: 'human', id: null },
+    details: { labelId: label.id, labelName: 'Bug' }
+  });
+  expect(unaffected.activityLog).toEqual([]);
+});

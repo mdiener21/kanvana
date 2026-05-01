@@ -42,6 +42,13 @@ The same logical keys used previously for localStorage are now IDB keys in the `
 - `kanbanBoard:<boardId>:labels`
 - `kanbanBoard:<boardId>:settings`
 
+### Board Event Store
+
+- `events:<boardId>` — array of board-level `ActivityEvent` objects (column mutations, task deletions, cross-column task moves)
+
+`deleteBoard()` removes this key alongside all other per-board keys to prevent orphaned IDB entries.
+Storage helpers: `loadBoardEvents()`, `saveBoardEvents()`, `appendBoardEvent()`, `getBoardEventsKey()` in `storage.js`.
+
 Values are stored as native JavaScript objects (structured clone), not JSON strings.
 
 ## Operational Rules

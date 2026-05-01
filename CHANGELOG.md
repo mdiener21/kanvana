@@ -7,12 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned
-
-- Audit trail: two-log design (Task Activity Log embedded on each task + Board Event Log in a separate IDB store) — domain model in `CONTEXT.md` §8, architectural decision in `docs/adr/0001-two-log-audit-trail.md`, PRD in `docs/superpowers/specs/2026-04-29-audit-trail-prd.md`
-
 ### Added
 
+- Audit trail: two-log architecture — each task now carries an embedded `activityLog` array; a separate per-board event store (`events:{boardId}` in IDB) records board-level events (column mutations, task deletions, column moves)
+- `activity-log.js`: `createActivityEvent()` constructs validated event envelopes; `appendTaskActivity()` and `appendBoardEvent()` write to the appropriate store; `DEFAULT_HUMAN_ACTOR` constant for UI-driven mutations
+- All task mutations now emit typed events: `task.created`, `task.title_changed`, `task.description_changed`, `task.priority_changed`, `task.due_date_changed`, `task.label_added`, `task.label_removed`, `task.relationship_added`, `task.relationship_removed`; column mutations emit `column.created`, `column.renamed`, `column.deleted`, `column.reordered`; task and column deletions emit `task.deleted`
+- `activity-log-ui.js`: `formatActivityEvent()` converts any event to a human-readable string; `createTaskActivitySection()` returns a collapsible accordion for the task modal (collapsed by default, events newest-first)
+- Task edit modal now includes a collapsible Activity section at the bottom of the right column showing the task's full history
+- Board Activity page (`activity.html`) lists all board-level events newest-first with an empty state when no events exist; accessible via the Activity nav button in the header
+- `normalizeActivityLog()` in `normalize.js` strips structurally invalid activity log entries on load
+- Board export/import round-trips both `activityLog` per task and the board event store; malformed entries are dropped silently on import
+- `deleteBoard()` now removes the associated board event store key to prevent orphaned IDB entries
 - Docker Compose stack: nginx (static file server + PocketBase proxy) + PocketBase service (`spectado/pocketbase`)
 - `Dockerfile`: multi-stage build — `node:20-alpine` builder stage bakes Vite output into `nginx:alpine` prod image
 - `docker-compose.yml`: main compose file for local and VPS deployment

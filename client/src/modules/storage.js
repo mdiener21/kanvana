@@ -1,6 +1,6 @@
 import { openDB } from 'idb';
 import { generateUUID } from './utils.js';
-import { normalizePriority as sharedNormalizePriority, isHexColor as sharedIsHexColor, normalizeStringKeys, normalizeRelationships, normalizeSubTasks } from './normalize.js';
+import { normalizePriority as sharedNormalizePriority, isHexColor as sharedIsHexColor, normalizeStringKeys, normalizeRelationships, normalizeSubTasks, normalizeActivityLog } from './normalize.js';
 import { DONE_COLUMN_ID, DONE_COLUMN_ROLE, isDoneColumn } from './constants.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -32,7 +32,8 @@ const state = {
   tasks: {},    // { [boardId]: task[] | null }
   columns: {},  // { [boardId]: column[] | null }
   labels: {},   // { [boardId]: label[] | null }
-  settings: {}  // { [boardId]: object | null }
+  settings: {},  // { [boardId]: object | null }
+  boardEvents: {} // { [boardId]: event[] | null }
 };
 
 // Per-board default-task cache (keeps defaults stable within a session).
@@ -80,6 +81,10 @@ function nowIso() {
 
 function keyFor(boardId, kind) {
   return `kanbanBoard:${boardId}:${kind}`;
+}
+
+export function getBoardEventsKey(boardId) {
+  return `events:${boardId}`;
 }
 
 function isUuid(value) {
@@ -195,6 +200,7 @@ export function normalizeBoardModelIds({ board = null, columns = [], tasks = [],
       column,
       labels,
       relationships,
+      activityLog: normalizeActivityLog(source.activityLog),
       ...(columnHistory && columnHistory.length ? { columnHistory } : {}),
       ...(swimlaneLabelId ? { swimlaneLabelId } : (Object.prototype.hasOwnProperty.call(source, 'swimlaneLabelId') ? { swimlaneLabelId: '' } : {}))
     };
@@ -554,6 +560,7 @@ export async function initStorage() {
     state.columns[board.id] = (await db.get(KV_STORE, keyFor(board.id, 'columns'))) ?? null;
     state.labels[board.id] = (await db.get(KV_STORE, keyFor(board.id, 'labels'))) ?? null;
     state.settings[board.id] = (await db.get(KV_STORE, keyFor(board.id, 'settings'))) ?? null;
+    state.boardEvents[board.id] = (await db.get(KV_STORE, getBoardEventsKey(board.id))) ?? null;
   }
 
   // Non-blocking quota warning at 80%.
@@ -582,6 +589,7 @@ export function _resetStorageForTesting() {
   for (const k in state.columns) delete state.columns[k];
   for (const k in state.labels) delete state.labels[k];
   for (const k in state.settings) delete state.settings[k];
+  for (const k in state.boardEvents) delete state.boardEvents[k];
   taskCacheByBoard.clear();
 }
 
@@ -719,16 +727,20 @@ export function deleteBoard(boardId) {
   delete state.columns[id];
   delete state.labels[id];
   delete state.settings[id];
+  delete state.boardEvents[id];
   taskCacheByBoard.delete(id);
 
   // Remove from IDB
   if (_db) {
-    Promise.all([
+    const p = Promise.all([
       _db.delete(KV_STORE, keyFor(id, 'tasks')),
       _db.delete(KV_STORE, keyFor(id, 'columns')),
       _db.delete(KV_STORE, keyFor(id, 'labels')),
-      _db.delete(KV_STORE, keyFor(id, 'settings'))
+      _db.delete(KV_STORE, keyFor(id, 'settings')),
+      _db.delete(KV_STORE, getBoardEventsKey(id))
     ]).catch((err) => console.error('[Kanvana] IDB delete failed for board', id, err));
+    _pendingPersists.add(p);
+    p.finally(() => _pendingPersists.delete(p));
   }
 
   if (state.activeBoardId === id) {
@@ -888,6 +900,12 @@ export function loadTasks() {
         didChange = true;
       }
 
+      const nextActivityLog = normalizeActivityLog(task.activityLog);
+      if (JSON.stringify(task.activityLog) !== JSON.stringify(nextActivityLog)) {
+        task.activityLog = nextActivityLog;
+        didChange = true;
+      }
+
       return task;
     });
 
@@ -912,9 +930,13 @@ export function loadTasks() {
 export function saveTasks(tasks) {
   ensureBoardsInitialized();
   const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
-  state.tasks[boardId] = tasks;
-  taskCacheByBoard.set(boardId, tasks);
-  schedulePersist(keyFor(boardId, 'tasks'), tasks);
+  const normalized = (Array.isArray(tasks) ? tasks : []).map((task) => ({
+    ...task,
+    activityLog: normalizeActivityLog(task?.activityLog)
+  }));
+  state.tasks[boardId] = normalized;
+  taskCacheByBoard.set(boardId, normalized);
+  schedulePersist(keyFor(boardId, 'tasks'), normalized);
 }
 
 // ── Labels ─────────────────────────────────────────────────────────────────────
@@ -1020,6 +1042,27 @@ export function saveSettings(settings) {
   const normalized = normalizeSettings(settings);
   state.settings[boardId] = normalized;
   schedulePersist(keyFor(boardId, 'settings'), normalized);
+}
+
+// ── Board events ───────────────────────────────────────────────────────────────
+
+export function loadBoardEvents(boardId) {
+  const id = typeof boardId === 'string' ? boardId : '';
+  if (!id) return [];
+  return normalizeActivityLog(safeParseArray(state.boardEvents[id]) || []);
+}
+
+export function saveBoardEvents(boardId, events) {
+  const id = typeof boardId === 'string' ? boardId : '';
+  if (!id) return;
+  const normalized = normalizeActivityLog(events);
+  state.boardEvents[id] = normalized;
+  schedulePersist(getBoardEventsKey(id), normalized);
+}
+
+export function appendBoardEvent(boardId, event) {
+  const events = loadBoardEvents(boardId);
+  saveBoardEvents(boardId, [...events, event]);
 }
 
 // ── Cross-board read helpers (used by exportBoard in importexport.js) ──────────

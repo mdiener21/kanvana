@@ -6,12 +6,14 @@ import {
   saveColumns,
   saveTasks,
   saveLabels,
-  saveSettings
+  saveSettings,
+  loadBoardEvents,
+  saveBoardEvents
 } from './storage.js';
 
 import { createBoard, getActiveBoardName, listBoards, setActiveBoardId, loadTasksForBoard, loadColumnsForBoard, loadLabelsForBoard, loadSettingsForBoard, normalizeBoardModelIds } from './storage.js';
 import { emit, DATA_CHANGED } from './events.js';
-import { normalizePriority, isHexColor, boardDisplayName, normalizeDueDate, normalizeSubTasks } from './normalize.js';
+import { normalizePriority, isHexColor, boardDisplayName, normalizeDueDate, normalizeSubTasks, normalizeActivityLog } from './normalize.js';
 import { DONE_COLUMN_ID } from './constants.js';
 import { formatBytes } from './security.js';
 
@@ -85,6 +87,7 @@ function getImportSections(data) {
       columns: null,
       labels: null,
       settings: null,
+      boardEvents: null,
       boardName: null,
       exportMeta: null,
       format: 'legacy-tasks'
@@ -97,6 +100,7 @@ function getImportSections(data) {
       columns: data.columns,
       labels: Object.prototype.hasOwnProperty.call(data, 'labels') ? data.labels : null,
       settings: Object.prototype.hasOwnProperty.call(data, 'settings') ? data.settings : null,
+      boardEvents: Object.prototype.hasOwnProperty.call(data, 'boardEvents') ? data.boardEvents : null,
       boardName: typeof data.boardName === 'string' ? data.boardName.trim() : null,
       exportMeta: data.exportMeta && typeof data.exportMeta === 'object' ? data.exportMeta : null,
       format: 'board-export'
@@ -136,13 +140,14 @@ export function inspectImportPayload(data, file = null) {
     return { errors, warnings, fileSize };
   }
 
-  const { tasks, columns, labels, settings, boardName, exportMeta, format } = sections;
+  const { tasks, columns, labels, settings, boardEvents, boardName, exportMeta, format } = sections;
   const normalizedColumns = columns ? normalizeImportedColumns(columns) : (format === 'legacy-tasks' ? normalizeImportedColumns(legacyDefaultColumnsForImport()) : null);
   const doneColumnIds = new Set((normalizedColumns || []).filter((column) => column.role === 'done' || column.id === DONE_COLUMN_ID).map((column) => column.id));
   doneColumnIds.add(DONE_COLUMN_ID);
   const normalizedTasks = normalizeImportedTasks(tasks, doneColumnIds);
   const normalizedLabels = labels ? normalizeImportedLabels(labels) : null;
   const normalizedSettings = settings ? normalizeImportedSettings(settings) : null;
+  const normalizedBoardEvents = normalizeActivityLog(boardEvents);
 
   if (!normalizedTasks || (columns && !normalizedColumns) || (labels && !normalizedLabels) || (settings && !normalizedSettings)) {
     errors.push('Invalid data structure. One or more imported sections do not match the expected schema.');
@@ -225,6 +230,7 @@ export function inspectImportPayload(data, file = null) {
     normalizedColumns: finalColumns,
     normalizedLabels: finalLabels,
     normalizedSettings: finalSettings,
+    normalizedBoardEvents,
     summary: {
       tasks: tasksWithKnownLabels.length,
       columns: columnCount,
@@ -414,6 +420,7 @@ function normalizeImportedTasks(tasks, doneColumnIds = new Set([DONE_COLUMN_ID])
       ...(typeof changeDate === 'string' && changeDate.trim() ? { changeDate: changeDate.trim() } : {}),
       ...(doneDate ? { doneDate } : {}),
       relationships: Array.isArray(t?.relationships) ? t.relationships : [],
+      activityLog: normalizeActivityLog(t?.activityLog),
       ...(columnHistory && columnHistory.length ? { columnHistory } : {}),
       ...(swimlaneLabelId !== undefined ? { swimlaneLabelId } : {}),
       ...(swimlaneLabelGroup !== undefined ? { swimlaneLabelGroup } : {}),
@@ -531,9 +538,10 @@ export function exportTasks() {
   const tasks = loadTasks().map((task) => normalizeTaskForExport(task, doneColumnIds));
   const labels = loadLabels();
   const settings = loadSettings();
+  const boardEvents = loadBoardEvents(getActiveBoardId());
   const boardName = getActiveBoardName();
   const exportMeta = buildExportMeta();
-  const exportData = { boardName, columns, tasks, labels, settings, exportMeta };
+  const exportData = { boardName, columns, tasks, labels, settings, boardEvents, exportMeta };
 
   const integrity = inspectImportPayload(exportData, null);
   if (integrity.errors.length > 0) {
@@ -580,8 +588,9 @@ export function exportBoard(boardId) {
   const tasks = rawTasks.map((task) => normalizeTaskForExport(task, doneColumnIds));
   const labels = Array.isArray(rawLabels) ? rawLabels : [];
   const settings = normalizeSettingsForExport(rawSettings);
+  const boardEvents = loadBoardEvents(id);
   const exportMeta = buildExportMeta();
-  const exportData = { boardName, columns, tasks, labels, settings, exportMeta };
+  const exportData = { boardName, columns, tasks, labels, settings, boardEvents, exportMeta };
 
   const integrity = inspectImportPayload(exportData, null);
   if (integrity.errors.length > 0) {
@@ -650,6 +659,7 @@ export function importTasks(file) {
         const current = loadSettings();
         saveSettings({ ...current, ...preview.normalizedSettings });
       }
+      if (newBoard?.id) saveBoardEvents(newBoard.id, preview.normalizedBoardEvents);
 
       refreshBoardsUI(newBoard?.id);
 

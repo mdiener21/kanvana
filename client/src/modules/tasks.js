@@ -1,7 +1,8 @@
 import { generateUUID } from './utils.js';
-import { isDoneColumnId, loadLabels, loadSettings, loadTasks, saveTasks } from './storage.js';
+import { appendBoardEvent, getActiveBoardId, isDoneColumnId, loadColumns, loadLabels, loadSettings, loadTasks, saveTasks } from './storage.js';
 import { applySwimLaneAssignment } from './swimlanes.js';
 import { normalizePriority, normalizeRelationships, normalizeSubTasks } from './normalize.js';
+import { DEFAULT_HUMAN_ACTOR, appendTaskActivity, createActivityEvent } from './activity-log.js';
 
 const RELATIONSHIP_INVERSE = { prerequisite: 'dependent', dependent: 'prerequisite', related: 'related' };
 
@@ -35,29 +36,83 @@ function normalizeDueDate(value) {
   return date;
 }
 
+function getColumnName(columnId) {
+  return loadColumns().find((column) => column.id === columnId)?.name || '';
+}
+
+function getLabelName(labels, labelId) {
+  return labels.find((label) => label.id === labelId)?.name || '';
+}
+
+function getTaskTitle(tasks, taskId) {
+  return tasks.find((task) => task.id === taskId)?.title || '';
+}
+
+function relationshipKey(relationship) {
+  return `${relationship.targetTaskId}:${relationship.type}`;
+}
+
+function appendTaskEvent(task, type, details, at) {
+  return appendTaskActivity(task, createActivityEvent(type, details, DEFAULT_HUMAN_ACTOR, at));
+}
+
 /**
  * Apply bidirectional relationship sync on a tasks array.
  * Diffs oldRelationships vs newRelationships for a given taskId and mutates
  * the target tasks in-place to keep inverses consistent.
  */
-function syncRelationshipInverses(tasks, taskId, oldRelationships, newRelationships) {
+function syncRelationshipInverses(tasks, taskId, oldRelationships, newRelationships, at) {
   const oldMap = new Map(oldRelationships.map((r) => [r.targetTaskId, r.type]));
   const newMap = new Map(newRelationships.map((r) => [r.targetTaskId, r.type]));
+  const sourceTask = tasks.find((t) => t.id === taskId);
 
   for (const [targetId, newType] of newMap) {
     const target = tasks.find((t) => t.id === targetId);
     if (!target) continue;
     if (!Array.isArray(target.relationships)) target.relationships = [];
+    const oldType = oldMap.get(targetId);
     // Remove any existing entry pointing back at taskId, then add the correct inverse.
-    target.relationships = target.relationships.filter((r) => r.targetTaskId !== taskId);
-    target.relationships.push({ type: RELATIONSHIP_INVERSE[newType], targetTaskId: taskId });
+    const inverseType = RELATIONSHIP_INVERSE[newType];
+    const targetIndex = tasks.findIndex((t) => t.id === targetId);
+    let nextTarget = {
+      ...target,
+      relationships: [
+        ...target.relationships.filter((r) => r.targetTaskId !== taskId),
+        { type: inverseType, targetTaskId: taskId }
+      ]
+    };
+
+    if (oldType && oldType !== newType) {
+      nextTarget = appendTaskEvent(nextTarget, 'task.relationship_removed', {
+        targetTaskId: taskId,
+        targetTaskTitle: sourceTask?.title || '',
+        type: RELATIONSHIP_INVERSE[oldType]
+      }, at);
+    }
+    if (!oldType || oldType !== newType) {
+      nextTarget = appendTaskEvent(nextTarget, 'task.relationship_added', {
+        targetTaskId: taskId,
+        targetTaskTitle: sourceTask?.title || '',
+        type: inverseType
+      }, at);
+    }
+    tasks[targetIndex] = nextTarget;
   }
 
-  for (const [targetId] of oldMap) {
+  for (const [targetId, oldType] of oldMap) {
     if (newMap.has(targetId)) continue; // handled above
     const target = tasks.find((t) => t.id === targetId);
     if (!target || !Array.isArray(target.relationships)) continue;
-    target.relationships = target.relationships.filter((r) => r.targetTaskId !== taskId);
+    const inverseType = RELATIONSHIP_INVERSE[oldType];
+    const targetIndex = tasks.findIndex((t) => t.id === targetId);
+    tasks[targetIndex] = appendTaskEvent({
+      ...target,
+      relationships: target.relationships.filter((r) => r.targetTaskId !== taskId)
+    }, 'task.relationship_removed', {
+      targetTaskId: taskId,
+      targetTaskTitle: sourceTask?.title || '',
+      type: inverseType
+    }, at);
   }
 }
 
@@ -86,7 +141,7 @@ export function addTask(title, description, priority, dueDate, columnName, label
 
   const nowIso = new Date().toISOString();
   const normalizedRelationships = normalizeRelationships(relationships);
-  const newTask = {
+  let newTask = {
     id: generateUUID(),
     title: title.trim(),
     description: (description || '').toString().trim(),
@@ -103,8 +158,13 @@ export function addTask(title, description, priority, dueDate, columnName, label
     ...(isDoneColumnId(columnName) ? { doneDate: nowIso } : {})
   };
 
+  newTask = appendTaskActivity(newTask, createActivityEvent('task.created', {
+    column: columnName,
+    columnName: getColumnName(columnName)
+  }, DEFAULT_HUMAN_ACTOR, nowIso));
+
   updatedTasks.push(newTask);
-  syncRelationshipInverses(updatedTasks, newTask.id, [], normalizedRelationships);
+  syncRelationshipInverses(updatedTasks, newTask.id, [], normalizedRelationships, nowIso);
   saveTasks(updatedTasks);
 }
 
@@ -129,20 +189,81 @@ export function updateTask(taskId, title, description, priority, dueDate, column
     const oldRelationships = Array.isArray(tasks[taskIndex].relationships) ? tasks[taskIndex].relationships : [];
     const newRelationships = normalizeRelationships(relationships);
 
-    tasks[taskIndex].title = title.trim();
-    tasks[taskIndex].description = (description || '').toString().trim();
-    tasks[taskIndex].priority = normalizePriority(priority);
-    tasks[taskIndex].dueDate = normalizeDueDate(dueDate);
+    const previousTask = { ...tasks[taskIndex] };
+    const nextTitle = title.trim();
+    const nextDescription = (description || '').toString().trim();
+    const nextPriority = normalizePriority(priority);
+    const nextDueDate = normalizeDueDate(dueDate);
+
+    tasks[taskIndex].title = nextTitle;
+    tasks[taskIndex].description = nextDescription;
+    tasks[taskIndex].priority = nextPriority;
+    tasks[taskIndex].dueDate = nextDueDate;
     tasks[taskIndex].column = nextColumn;
     tasks[taskIndex].labels = [...labels];
     tasks[taskIndex].relationships = newRelationships;
     tasks[taskIndex].subTasks = normalizeSubTasks(subTasks);
 
-    syncRelationshipInverses(tasks, taskId, oldRelationships, newRelationships);
+    syncRelationshipInverses(tasks, taskId, oldRelationships, newRelationships, nowIso);
 
     if (prevColumn !== nextColumn) {
       tasks[taskIndex].columnHistory.push({ column: nextColumn, at: nowIso });
     }
+
+    if (previousTask.title !== nextTitle) {
+      tasks[taskIndex] = appendTaskEvent(tasks[taskIndex], 'task.title_changed', { from: previousTask.title, to: nextTitle }, nowIso);
+    }
+    if ((previousTask.description || '') !== nextDescription) {
+      tasks[taskIndex] = appendTaskEvent(tasks[taskIndex], 'task.description_changed', { changed: true }, nowIso);
+    }
+    if (normalizePriority(previousTask.priority) !== nextPriority) {
+      tasks[taskIndex] = appendTaskEvent(tasks[taskIndex], 'task.priority_changed', { from: normalizePriority(previousTask.priority), to: nextPriority }, nowIso);
+    }
+    if (normalizeDueDate(previousTask.dueDate) !== nextDueDate) {
+      tasks[taskIndex] = appendTaskEvent(tasks[taskIndex], 'task.due_date_changed', { from: normalizeDueDate(previousTask.dueDate), to: nextDueDate }, nowIso);
+    }
+    if (prevColumn !== nextColumn) {
+      tasks[taskIndex] = appendTaskEvent(tasks[taskIndex], 'task.column_moved', { from: prevColumn, to: nextColumn }, nowIso);
+    }
+    const previousLabels = Array.isArray(previousTask.labels) ? previousTask.labels : [];
+    const nextLabels = Array.isArray(labels) ? labels : [];
+    const labelRecords = loadLabels();
+    nextLabels
+      .filter((labelId) => !previousLabels.includes(labelId))
+      .forEach((labelId) => {
+        tasks[taskIndex] = appendTaskEvent(tasks[taskIndex], 'task.label_added', {
+          labelId,
+          labelName: getLabelName(labelRecords, labelId)
+        }, nowIso);
+      });
+    previousLabels
+      .filter((labelId) => !nextLabels.includes(labelId))
+      .forEach((labelId) => {
+        tasks[taskIndex] = appendTaskEvent(tasks[taskIndex], 'task.label_removed', {
+          labelId,
+          labelName: getLabelName(labelRecords, labelId)
+        }, nowIso);
+      });
+    const previousRelationshipKeys = new Set(oldRelationships.map(relationshipKey));
+    const nextRelationshipKeys = new Set(newRelationships.map(relationshipKey));
+    newRelationships
+      .filter((relationship) => !previousRelationshipKeys.has(relationshipKey(relationship)))
+      .forEach((relationship) => {
+        tasks[taskIndex] = appendTaskEvent(tasks[taskIndex], 'task.relationship_added', {
+          targetTaskId: relationship.targetTaskId,
+          targetTaskTitle: getTaskTitle(tasks, relationship.targetTaskId),
+          type: relationship.type
+        }, nowIso);
+      });
+    oldRelationships
+      .filter((relationship) => !nextRelationshipKeys.has(relationshipKey(relationship)))
+      .forEach((relationship) => {
+        tasks[taskIndex] = appendTaskEvent(tasks[taskIndex], 'task.relationship_removed', {
+          targetTaskId: relationship.targetTaskId,
+          targetTaskTitle: getTaskTitle(tasks, relationship.targetTaskId),
+          type: relationship.type
+        }, nowIso);
+      });
 
     if (!isDoneColumnId(prevColumn) && isDoneColumnId(nextColumn)) {
       tasks[taskIndex].doneDate = nowIso;
@@ -158,6 +279,15 @@ export function updateTask(taskId, title, description, priority, dueDate, column
 // Delete a task
 export function deleteTask(taskId) {
   const tasks = loadTasks();
+  const task = tasks.find(t => t.id === taskId);
+  if (task) {
+    appendBoardEvent(getActiveBoardId(), createActivityEvent('task.deleted', {
+      taskId: task.id,
+      taskTitle: task.title,
+      column: task.column,
+      columnName: getColumnName(task.column)
+    }, DEFAULT_HUMAN_ACTOR));
+  }
   const filtered = tasks.filter(t => t.id !== taskId);
   saveTasks(filtered);
   return true;
@@ -286,6 +416,31 @@ export function updateTaskPositionsFromDrop(evt) {
         nextTask.order = orderEntry.order;
       }
 
+      const previousPriority = normalizePriority(task.priority);
+      const nextPriority = normalizePriority(nextTask.priority);
+      if (previousPriority !== nextPriority) {
+        nextTask = appendTaskEvent(nextTask, 'task.priority_changed', { from: previousPriority, to: nextPriority }, nowIso);
+      }
+
+      const previousLabels = Array.isArray(task.labels) ? task.labels : [];
+      const nextLabels = Array.isArray(nextTask.labels) ? nextTask.labels : [];
+      nextLabels
+        .filter((labelId) => !previousLabels.includes(labelId))
+        .forEach((labelId) => {
+          nextTask = appendTaskEvent(nextTask, 'task.label_added', {
+            labelId,
+            labelName: getLabelName(labels, labelId)
+          }, nowIso);
+        });
+      previousLabels
+        .filter((labelId) => !nextLabels.includes(labelId))
+        .forEach((labelId) => {
+          nextTask = appendTaskEvent(nextTask, 'task.label_removed', {
+            labelId,
+            labelName: getLabelName(labels, labelId)
+          }, nowIso);
+        });
+
       // Only update history/dates if column changed
       if (didChangeColumn || (isSwimlaneView && didChangeLane)) {
         nextTask.changeDate = nowIso;
@@ -299,6 +454,7 @@ export function updateTaskPositionsFromDrop(evt) {
           : [{ column: task.column, at: task.creationDate || task.changeDate || nowIso }];
         history.push({ column: toColumn, at: nowIso });
         nextTask.columnHistory = history;
+        nextTask = appendTaskEvent(nextTask, 'task.column_moved', { from: task.column, to: toColumn }, nowIso);
 
         if (!isDoneColumnId(task.column) && isDoneColumnId(toColumn)) {
           nextTask.doneDate = nowIso;

@@ -6,6 +6,7 @@ import { renderIcons } from './icons.js';
 import { validateAndShowTaskTitleError, clearFieldError } from './validation.js';
 import { emit, DATA_CHANGED } from './events.js';
 import { createAccordionSection } from './accordion.js';
+import { createTaskActivitySection } from './activity-log-ui.js';
 import { generateUUID, labelTextColor } from './utils.js';
 import Sortable from 'sortablejs';
 
@@ -603,6 +604,15 @@ export function showEditModal(taskId) {
   updateTaskLabelsSelection();
   renderActiveTaskRelationships();
   renderSubTaskList();
+
+  // Render activity accordion in right column
+  const activityContainer = document.getElementById('task-activity-section');
+  if (activityContainer) {
+    activityContainer.innerHTML = '';
+    activityContainer.appendChild(createTaskActivitySection(task));
+    renderIcons();
+  }
+
   modal.classList.remove('hidden');
   taskTitle.focus();
 }
@@ -618,6 +628,9 @@ function hideModal() {
 
   const relResults = document.getElementById('task-relationship-results');
   if (relResults) { relResults.hidden = true; relResults.innerHTML = ''; }
+
+  const activityContainer = document.getElementById('task-activity-section');
+  if (activityContainer) activityContainer.innerHTML = '';
 
   setTaskModalFullscreen(false);
   document.getElementById('task-fullpage-btn')?.classList.add('hidden');
