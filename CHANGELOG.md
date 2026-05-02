@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- chore: update version in README and enhance audit trail documentation fixed drift in spec
+
 ## [1.6.0] - 2026-05-01
 
 ### Added
