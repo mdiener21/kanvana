@@ -11,6 +11,8 @@ import { initializeSettingsUI } from './modules/settings.js';
 import { initializeNotifications } from './modules/notifications.js';
 import { initStorage, ensureBoardsInitialized, setActiveBoardId } from './modules/storage.js';
 import { initializeSwimLaneControls } from './modules/swimlanes.js';
+import { initializeAuthSyncUI } from './modules/authsync.js';
+import { initializeAutoSync } from './modules/autosync.js';
 
 // Add task button listeners
 document.addEventListener('DOMContentLoaded', async () => {
@@ -50,6 +52,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Boards (create/select + restore last active)
   initializeBoardsUI();
+
+  // Auth/sync UI and auto-sync listener
+  initializeAuthSyncUI();
+  initializeAutoSync();
 
   // Initialize modal handlers
   initializeModalHandlers();
