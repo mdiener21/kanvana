@@ -28,16 +28,21 @@ services:
 
   pocketbase:
     container_name: pb
-    image: adrianmusante/pocketbase:${PB_VERSION:-latest}
+    build:
+      context: .
+      dockerfile: devops/local/backend/Dockerfile
     expose:
-      - "80"
+      - "8090"
     ports:
-      - "8000:80"
+      - "8090:8090"
     volumes:
-      - pb_data:/pb_data
+      - pb_data:/pocketbase/data
+    environment:
+      POCKETBASE_ADMIN_EMAIL: ${POCKETBASE_ADMIN_EMAIL:-admin@kanvana.local}
+      POCKETBASE_ADMIN_PASSWORD: ${POCKETBASE_ADMIN_PASSWORD:-changeme123}
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:3000/api/health" ]
-      interval: 2s
+      test: [ "CMD", "curl", "-f", "http://localhost:8090/api/health" ]
+      interval: 5s
       timeout: 10s
       retries: 10
     restart: unless-stopped
@@ -48,9 +53,9 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - pb_data:/pb_data:ro
+      - pb_data:/pocketbase/data:ro
     environment:
-      ADMINER_DEFAULT_SERVER: /pb_data/data.db
+      ADMINER_DEFAULT_SERVER: /pocketbase/data/data.db
     restart: unless-stopped
 
 volumes:
