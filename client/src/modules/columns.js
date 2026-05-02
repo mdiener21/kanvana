@@ -1,5 +1,5 @@
 import { generateUUID } from './utils.js';
-import { appendBoardEvent, getActiveBoardId, isDoneColumnId, loadColumns, saveColumns, loadTasks, saveTasks } from './storage.js';
+import { appendBoardEvent, getActiveBoardId, isDoneColumnId, loadColumns, loadDeletedColumnsForBoard, loadDeletedTasksForBoard, saveColumns, loadTasks, saveTasks } from './storage.js';
 import { normalizeHexColor } from './normalize.js';
 import { DEFAULT_HUMAN_ACTOR, createActivityEvent } from './activity-log.js';
 
@@ -59,6 +59,7 @@ export function deleteColumn(columnId) {
     return false;
   }
 
+  const boardId = getActiveBoardId();
   const columns = loadColumns();
   if (columns.length <= 1) {
     return false;
@@ -67,24 +68,32 @@ export function deleteColumn(columnId) {
   if (!column) {
     return false;
   }
-  
-  const tasks = loadTasks();
-  const tasksInColumn = tasks.filter(t => t.column === columnId);
+
   const columnName = column.name;
+  const liveTasks = loadTasks();
+  const tasksInColumn = liveTasks.filter(t => t.column === columnId);
 
-  // Mutate state first; emit events only after confirming removal.
-  if (tasksInColumn.length > 0) {
-    saveTasks(tasks.filter(t => t.column !== columnId));
-  }
-  saveColumns(columns.filter(c => c.id !== columnId));
+  // Soft-delete tasks in the column, preserving already-deleted tasks
+  const allTasks = [...liveTasks, ...loadDeletedTasksForBoard(boardId)];
+  const updatedTasks = allTasks.map(t =>
+    t.column === columnId ? { ...t, deleted: true } : t
+  );
+  saveTasks(updatedTasks);
 
-  appendBoardEvent(getActiveBoardId(), createActivityEvent('column.deleted', {
+  // Soft-delete the column, preserving already-deleted columns
+  const allColumns = [...columns, ...loadDeletedColumnsForBoard(boardId)];
+  const updatedColumns = allColumns.map(c =>
+    c.id === columnId ? { ...c, deleted: true } : c
+  );
+  saveColumns(updatedColumns);
+
+  appendBoardEvent(boardId, createActivityEvent('column.deleted', {
     columnName,
     tasksDestroyed: tasksInColumn.length
   }, DEFAULT_HUMAN_ACTOR));
 
   tasksInColumn.forEach((task) => {
-    appendBoardEvent(getActiveBoardId(), createActivityEvent('task.deleted', {
+    appendBoardEvent(boardId, createActivityEvent('task.deleted', {
       taskId: task.id,
       taskTitle: task.title,
       column: task.column,

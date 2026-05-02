@@ -1,5 +1,5 @@
 import { generateUUID } from './utils.js';
-import { appendBoardEvent, getActiveBoardId, isDoneColumnId, loadColumns, loadLabels, loadSettings, loadTasks, saveTasks } from './storage.js';
+import { appendBoardEvent, getActiveBoardId, isDoneColumnId, loadColumns, loadDeletedTasksForBoard, loadLabels, loadSettings, loadTasks, saveTasks } from './storage.js';
 import { applySwimLaneAssignment } from './swimlanes.js';
 import { normalizePriority, normalizeRelationships, normalizeSubTasks } from './normalize.js';
 import { DEFAULT_HUMAN_ACTOR, appendTaskActivity, createActivityEvent } from './activity-log.js';
@@ -278,18 +278,20 @@ export function updateTask(taskId, title, description, priority, dueDate, column
 
 // Delete a task
 export function deleteTask(taskId) {
-  const tasks = loadTasks();
-  const task = tasks.find(t => t.id === taskId);
+  const boardId = getActiveBoardId();
+  const liveTasks = loadTasks();
+  const task = liveTasks.find(t => t.id === taskId);
   if (task) {
-    appendBoardEvent(getActiveBoardId(), createActivityEvent('task.deleted', {
+    appendBoardEvent(boardId, createActivityEvent('task.deleted', {
       taskId: task.id,
       taskTitle: task.title,
       column: task.column,
       columnName: getColumnName(task.column)
     }, DEFAULT_HUMAN_ACTOR));
   }
-  const filtered = tasks.filter(t => t.id !== taskId);
-  saveTasks(filtered);
+  const allTasks = [...liveTasks, ...loadDeletedTasksForBoard(boardId)];
+  const updated = allTasks.map(t => t.id === taskId ? { ...t, deleted: true } : t);
+  saveTasks(updated);
   return true;
 }
 

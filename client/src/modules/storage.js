@@ -797,11 +797,15 @@ export function loadColumns() {
   const raw = state.columns[boardId];
   const parsed = safeParseArray(raw);
   if (parsed) {
-    const normalized = ensureDoneColumn(parsed.map(normalizeColumn));
-    // Persist back if done column was added or array length changed.
-    if (!raw || !Array.isArray(raw) || normalized.length !== raw.length) {
-      state.columns[boardId] = normalized;
-      schedulePersist(keyFor(boardId, 'columns'), normalized);
+    const live = parsed.filter(c => !c.deleted);
+    const normalized = ensureDoneColumn(live.map(normalizeColumn));
+    // Persist back if done column was added (length check uses live count vs normalized).
+    if (!raw || !Array.isArray(raw) || normalized.length !== live.length) {
+      // Merge normalized live columns back with deleted records for persistence
+      const deleted = parsed.filter(c => c.deleted);
+      const merged = [...normalized, ...deleted];
+      state.columns[boardId] = merged;
+      schedulePersist(keyFor(boardId, 'columns'), merged);
     }
     return normalized;
   }
@@ -813,6 +817,7 @@ export function saveColumns(columns) {
   const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
   state.columns[boardId] = columns;
   schedulePersist(keyFor(boardId, 'columns'), columns);
+  emitLocalChange(boardId, 'column');
 }
 
 // ── Tasks ──────────────────────────────────────────────────────────────────────
@@ -915,16 +920,21 @@ export function loadTasks() {
     }
 
     taskCacheByBoard.set(boardId, normalized);
-    return normalized;
+    return normalized.filter(t => !t.deleted);
   }
 
   // Empty state: return stable in-memory defaults for the session.
   const cached = taskCacheByBoard.get(boardId);
-  if (Array.isArray(cached)) return cached;
+  if (Array.isArray(cached)) return cached.filter(t => !t.deleted);
 
   const defaults = defaultTasks(loadColumns(), loadLabels());
   taskCacheByBoard.set(boardId, defaults);
   return defaults;
+}
+
+function emitLocalChange(boardId, entity) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('kanban-local-change', { detail: { boardId, entity } }));
 }
 
 export function saveTasks(tasks) {
@@ -937,6 +947,7 @@ export function saveTasks(tasks) {
   state.tasks[boardId] = normalized;
   taskCacheByBoard.set(boardId, normalized);
   schedulePersist(keyFor(boardId, 'tasks'), normalized);
+  emitLocalChange(boardId, 'task');
 }
 
 // ── Labels ─────────────────────────────────────────────────────────────────────
@@ -947,10 +958,12 @@ export function loadLabels() {
   const raw = state.labels[boardId];
   const parsed = safeParseArray(raw);
   if (parsed) {
-    return parsed.map((label) => ({
-      ...label,
-      group: typeof label.group === 'string' ? label.group : ''
-    }));
+    return parsed
+      .filter(l => !l.deleted)
+      .map((label) => ({
+        ...label,
+        group: typeof label.group === 'string' ? label.group : ''
+      }));
   }
   return defaultLabels();
 }
@@ -960,6 +973,7 @@ export function saveLabels(labels) {
   const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
   state.labels[boardId] = labels;
   schedulePersist(keyFor(boardId, 'labels'), labels);
+  emitLocalChange(boardId, 'label');
 }
 
 // ── Settings ───────────────────────────────────────────────────────────────────
@@ -1069,20 +1083,54 @@ export function appendBoardEvent(boardId, event) {
 
 export function loadTasksForBoard(boardId) {
   const raw = state.tasks[boardId];
-  return safeParseArray(raw) || [];
+  return (safeParseArray(raw) || []).filter(t => !t.deleted);
 }
 
 export function loadColumnsForBoard(boardId) {
   const raw = state.columns[boardId];
-  return safeParseArray(raw) || [];
+  return (safeParseArray(raw) || []).filter(c => !c.deleted);
 }
 
 export function loadLabelsForBoard(boardId) {
   const raw = state.labels[boardId];
-  return safeParseArray(raw) || [];
+  return (safeParseArray(raw) || []).filter(l => !l.deleted);
 }
 
 export function loadSettingsForBoard(boardId) {
   const raw = state.settings[boardId];
   return safeParseObject(raw) || null;
+}
+
+export function loadDeletedTasksForBoard(boardId) {
+  const raw = state.tasks[boardId];
+  return (safeParseArray(raw) || []).filter(t => t.deleted === true);
+}
+
+export function loadDeletedColumnsForBoard(boardId) {
+  const raw = state.columns[boardId];
+  return (safeParseArray(raw) || []).filter(c => c.deleted === true);
+}
+
+export function loadDeletedLabelsForBoard(boardId) {
+  const raw = state.labels[boardId];
+  return (safeParseArray(raw) || []).filter(l => l.deleted === true);
+}
+
+export function purgeDeleted(boardId) {
+  if (state.tasks[boardId]) {
+    const live = (safeParseArray(state.tasks[boardId]) || []).filter(t => !t.deleted);
+    state.tasks[boardId] = live;
+    taskCacheByBoard.set(boardId, live);
+    schedulePersist(keyFor(boardId, 'tasks'), live);
+  }
+  if (state.columns[boardId]) {
+    const live = (safeParseArray(state.columns[boardId]) || []).filter(c => !c.deleted);
+    state.columns[boardId] = live;
+    schedulePersist(keyFor(boardId, 'columns'), live);
+  }
+  if (state.labels[boardId]) {
+    const live = (safeParseArray(state.labels[boardId]) || []).filter(l => !l.deleted);
+    state.labels[boardId] = live;
+    schedulePersist(keyFor(boardId, 'labels'), live);
+  }
 }

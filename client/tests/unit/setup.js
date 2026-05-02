@@ -28,6 +28,23 @@ if (typeof globalThis.navigator === 'undefined') {
   globalThis.navigator = { language: 'en-US' };
 }
 
+if (typeof globalThis.window === 'undefined') {
+  const listeners = {};
+  globalThis.window = {
+    addEventListener(type, fn) {
+      if (!listeners[type]) listeners[type] = [];
+      listeners[type].push(fn);
+    },
+    removeEventListener(type, fn) {
+      if (listeners[type]) listeners[type] = listeners[type].filter(f => f !== fn);
+    },
+    dispatchEvent(event) {
+      (listeners[event.type] || []).forEach(fn => fn(event));
+      return true;
+    },
+  };
+}
+
 export function resetLocalStorage() {
   localStorage.clear();
   // Also reset the in-memory IDB state so each test gets a clean slate.

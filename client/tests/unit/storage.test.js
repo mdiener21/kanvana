@@ -1,4 +1,4 @@
-import { test, expect, beforeEach } from 'vitest';
+import { test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { resetLocalStorage } from './setup.js';
 import {
   ensureBoardsInitialized,
@@ -225,4 +225,48 @@ test('loadSettings clamps countdownWarningThreshold to be >= urgentThreshold', (
   saveSettings({ countdownUrgentThreshold: 10, countdownWarningThreshold: 5 });
   const settings = loadSettings();
   expect(settings.countdownWarningThreshold >= settings.countdownUrgentThreshold).toBe(true);
+});
+
+// ── kanban-local-change events ──────────────────────────────────────
+
+test('saveTasks emits kanban-local-change with boardId and entity=task', () => {
+  ensureBoardsInitialized();
+  const boardId = getActiveBoardId();
+  const events = [];
+  const handler = (e) => events.push(e.detail);
+  window.addEventListener('kanban-local-change', handler);
+
+  saveTasks([{ id: 't1', title: 'T', column: 'todo', order: 1, priority: 'none', labels: [] }]);
+
+  window.removeEventListener('kanban-local-change', handler);
+  expect(events).toHaveLength(1);
+  expect(events[0]).toMatchObject({ boardId, entity: 'task' });
+});
+
+test('saveColumns emits kanban-local-change with boardId and entity=column', () => {
+  ensureBoardsInitialized();
+  const boardId = getActiveBoardId();
+  const events = [];
+  const handler = (e) => events.push(e.detail);
+  window.addEventListener('kanban-local-change', handler);
+
+  saveColumns([{ id: 'c1', name: 'Col', color: '#fff', order: 1, collapsed: false }]);
+
+  window.removeEventListener('kanban-local-change', handler);
+  expect(events).toHaveLength(1);
+  expect(events[0]).toMatchObject({ boardId, entity: 'column' });
+});
+
+test('saveLabels emits kanban-local-change with boardId and entity=label', () => {
+  ensureBoardsInitialized();
+  const boardId = getActiveBoardId();
+  const events = [];
+  const handler = (e) => events.push(e.detail);
+  window.addEventListener('kanban-local-change', handler);
+
+  saveLabels([{ id: 'l1', name: 'Bug', color: '#f00', group: '' }]);
+
+  window.removeEventListener('kanban-local-change', handler);
+  expect(events).toHaveLength(1);
+  expect(events[0]).toMatchObject({ boardId, entity: 'label' });
 });

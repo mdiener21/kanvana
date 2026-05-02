@@ -1,6 +1,6 @@
 import { test, expect, beforeEach } from 'vitest';
 import { resetLocalStorage } from './setup.js';
-import { createBoard, getActiveBoardId, loadBoardEvents, loadTasks, saveColumns, saveLabels, saveSettings, saveTasks } from '../../src/modules/storage.js';
+import { createBoard, getActiveBoardId, loadBoardEvents, loadDeletedTasksForBoard, loadTasks, saveColumns, saveLabels, saveSettings, saveTasks } from '../../src/modules/storage.js';
 import { addTask, updateTask, deleteTask, moveTaskToTopInColumn, updateTaskPositionsFromDrop } from '../../src/modules/tasks.js';
 
 beforeEach(() => {
@@ -349,6 +349,34 @@ test('deleteTask appends task.deleted board event with task and column details',
     actor: { type: 'human', id: null },
     details: { taskId: task.id, taskTitle: 'Task 1', column: 'todo', columnName: 'To Do' }
   });
+});
+
+// ── soft-delete ────────────────────────────────────────────────────
+
+test('deleteTask soft-deletes: task hidden from loadTasks but present in loadDeletedTasksForBoard', () => {
+  addTask('Task 1', '', 'none', '', 'todo', []);
+  const [task] = loadTasks();
+
+  deleteTask(task.id);
+
+  expect(loadTasks().find(t => t.id === task.id)).toBeUndefined();
+  const deleted = loadDeletedTasksForBoard(getActiveBoardId());
+  expect(deleted).toHaveLength(1);
+  expect(deleted[0].id).toBe(task.id);
+  expect(deleted[0].deleted).toBe(true);
+});
+
+test('purgeDeleted hard-removes soft-deleted tasks from storage', async () => {
+  const { purgeDeleted } = await import('../../src/modules/storage.js');
+  addTask('Task 1', '', 'none', '', 'todo', []);
+  const [task] = loadTasks();
+  deleteTask(task.id);
+
+  expect(loadDeletedTasksForBoard(getActiveBoardId())).toHaveLength(1);
+
+  purgeDeleted(getActiveBoardId());
+
+  expect(loadDeletedTasksForBoard(getActiveBoardId())).toHaveLength(0);
 });
 
 // ── updateTaskPositionsFromDrop ─────────────────────────────────────

@@ -1,6 +1,6 @@
 import { test, expect, beforeEach } from 'vitest';
 import { resetLocalStorage } from './setup.js';
-import { createBoard, getActiveBoardId, loadBoardEvents, loadColumns, saveColumns, loadTasks, saveTasks } from '../../src/modules/storage.js';
+import { createBoard, getActiveBoardId, loadBoardEvents, loadColumns, loadDeletedColumnsForBoard, loadDeletedTasksForBoard, saveColumns, loadTasks, saveTasks } from '../../src/modules/storage.js';
 import { addColumn, toggleColumnCollapsed, updateColumn, deleteColumn, updateColumnPositions } from '../../src/modules/columns.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -221,4 +221,29 @@ test('updateColumnPositions emits no event when order is unchanged', () => {
   }
 
   expect(loadBoardEvents(getActiveBoardId())).toEqual([]);
+});
+
+// ── soft-delete columns ─────────────────────────────────────────────
+
+test('deleteColumn soft-deletes: column hidden from loadColumns but present in loadDeletedColumnsForBoard', () => {
+  addColumn('Sprint 1', '#fff');
+  const [col] = loadColumns().filter(c => c.id !== 'done');
+
+  deleteColumn(col.id);
+
+  expect(loadColumns().find(c => c.id === col.id)).toBeUndefined();
+  const deleted = loadDeletedColumnsForBoard(getActiveBoardId());
+  expect(deleted.some(c => c.id === col.id)).toBe(true);
+});
+
+test('deleteColumn soft-deletes tasks in the column', () => {
+  addColumn('Sprint 1', '#fff');
+  const [col] = loadColumns().filter(c => c.id !== 'done');
+  saveTasks([{ id: 't1', title: 'Task', column: col.id, order: 1, priority: 'none', labels: [] }]);
+
+  deleteColumn(col.id);
+
+  expect(loadTasks().find(t => t.id === 't1')).toBeUndefined();
+  const deletedTasks = loadDeletedTasksForBoard(getActiveBoardId());
+  expect(deletedTasks.some(t => t.id === 't1')).toBe(true);
 });

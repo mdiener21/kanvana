@@ -1,5 +1,5 @@
 import { generateUUID } from './utils.js';
-import { loadLabels, saveLabels, loadTasks, saveTasks } from './storage.js';
+import { getActiveBoardId, loadDeletedLabelsForBoard, loadLabels, saveLabels, loadTasks, saveTasks } from './storage.js';
 import { DEFAULT_HUMAN_ACTOR, appendTaskActivity, createActivityEvent } from './activity-log.js';
 
 const MAX_LABEL_NAME_LENGTH = 40;
@@ -96,12 +96,14 @@ export function updateLabel(labelId, name, color, group = '') {
 
 // Delete a label
 export function deleteLabel(labelId) {
-  const labels = loadLabels();
-  const tasks = loadTasks();
-  const label = labels.find(l => l.id === labelId);
-  
-  // Remove label from all tasks
-  const updatedTasks = tasks.map(task => {
+  const boardId = getActiveBoardId();
+  const liveLabels = loadLabels();
+  const liveTasks = loadTasks();
+  const label = liveLabels.find(l => l.id === labelId);
+
+  // Remove label ref from tasks
+  const allTasks = [...liveTasks, ...[]]; // live only — deleted tasks don't need label cleanup
+  const updatedTasks = allTasks.map(task => {
     if (task.labels?.includes(labelId)) {
       const updatedTask = {
         ...task,
@@ -115,8 +117,9 @@ export function deleteLabel(labelId) {
     return task;
   });
   saveTasks(updatedTasks);
-  
-  // Remove the label
-  const filteredLabels = labels.filter(l => l.id !== labelId);
-  saveLabels(filteredLabels);
+
+  // Soft-delete the label, preserving already-deleted labels
+  const allLabels = [...liveLabels, ...loadDeletedLabelsForBoard(boardId)];
+  const updatedLabels = allLabels.map(l => l.id === labelId ? { ...l, deleted: true } : l);
+  saveLabels(updatedLabels);
 }

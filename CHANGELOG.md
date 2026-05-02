@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Soft-delete for tasks, columns, and labels: `deleteTask`, `deleteColumn`, `deleteLabel` now mark entities with `deleted: true` instead of hard-removing them; all read paths (`loadTasks`, `loadColumns`, `loadLabels`, board-scoped variants) filter deleted records so callers never see them
+- `loadDeletedTasksForBoard(boardId)`, `loadDeletedColumnsForBoard(boardId)`, `loadDeletedLabelsForBoard(boardId)` — sync layer access to soft-deleted records before purge
+- `purgeDeleted(boardId)` — hard-removes all `deleted: true` records from IDB for a given board; called by sync layer after confirmed PocketBase deletes
+- `kanban-local-change` custom event emitted from `saveTasks`, `saveColumns`, `saveLabels` with `{ boardId, entity }` detail — foundation for scoped auto-sync trigger
+- Unit test window event mock in `tests/unit/setup.js` to support `CustomEvent` assertions in Node environment
+
 ## [1.6.0] - 2026-05-01
 
 ### Added
