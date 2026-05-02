@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-05-01
+
 ### Added
 
 - Audit trail: two-log architecture — each task now carries an embedded `activityLog` array; a separate per-board event store (`events:{boardId}` in IDB) records board-level events (column mutations, task deletions, column moves)
@@ -41,7 +43,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Docker Compose dev startup no longer throws `Error: spawn xdg-open ENOENT`; the containerized Vite command now disables browser auto-open (`--open false`)
 - Docker Compose dev startup no longer fails with `npm ERR! enoent Could not read package.json`; the container now mounts the actual frontend package root at `/app`
-
 
 ## [1.5.0] - 2026-04-03
 
