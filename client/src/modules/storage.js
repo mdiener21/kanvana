@@ -1134,3 +1134,28 @@ export function purgeDeleted(boardId) {
     schedulePersist(keyFor(boardId, 'labels'), live);
   }
 }
+
+export function saveColumnsForBoard(boardId, columns) {
+  state.columns[boardId] = Array.isArray(columns) ? columns : [];
+  schedulePersist(keyFor(boardId, 'columns'), state.columns[boardId]);
+}
+
+export function saveTasksForBoard(boardId, tasks) {
+  const normalized = (Array.isArray(tasks) ? tasks : []).map((task) => ({
+    ...task,
+    activityLog: normalizeActivityLog(task?.activityLog),
+  }));
+  state.tasks[boardId] = normalized;
+  taskCacheByBoard.set(boardId, normalized);
+  schedulePersist(keyFor(boardId, 'tasks'), normalized);
+}
+
+export function saveLabelsForBoard(boardId, labels) {
+  state.labels[boardId] = Array.isArray(labels) ? labels : [];
+  schedulePersist(keyFor(boardId, 'labels'), state.labels[boardId]);
+}
+
+export function saveSettingsForBoard(boardId, settings) {
+  state.settings[boardId] = settings && typeof settings === 'object' ? settings : {};
+  schedulePersist(keyFor(boardId, 'settings'), state.settings[boardId]);
+}
