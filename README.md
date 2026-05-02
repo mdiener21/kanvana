@@ -7,7 +7,7 @@ kanvana == "Kanban" + "Nirvana" # smooth flow
 [![GitHub stars](https://img.shields.io/github/stars/mdiener21/kanvana.svg?style=social)](https://github.com/mdiener21/kanvana/stargazers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Visit%20Now-blue)](https://kanvana.com)
-[![Version](https://img.shields.io/badge/version-1.4.0-brightgreen)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.6.0-brightgreen)](CHANGELOG.md)
 
 > **Transform your productivity with a sleek, local-first Kanban board.** No servers, no tracking—just pure efficiency in your browser.
 
@@ -70,6 +70,16 @@ Organize your board into horizontal swim lanes for a powerful two-dimensional vi
 - **Persistent State**: All swim lane settings, collapsed states, and lane assignments are saved per board
 
 Configure swim lanes in **Settings** or use the quick-access toggle in the board controls menu. Lane order is customizable via drag-and-drop in Settings.
+
+### Audit Trail
+
+Track every change on your board with a built-in two-log audit system:
+
+- **Per-task activity log** — each task carries a full history of mutations: title/description/priority/due date changes, column moves, label changes, and relationship changes
+- **Board event store** — a separate log records board-level events: column creation, renaming, deletion, reordering, and task deletion
+- **Activity accordion** — collapse/expand the full task history directly in the task edit modal (newest event first)
+- **Board Activity page** — a dedicated page listing all board-level events in reverse chronological order; accessible via the Activity button in the board header
+- **Export/import** — activity logs round-trip in board JSON exports; malformed entries are silently dropped on import
 
 ### Core Features
 
