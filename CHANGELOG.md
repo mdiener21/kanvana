@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `saveColumnsForBoard(boardId, columns)`, `saveTasksForBoard(boardId, tasks)`, `saveLabelsForBoard(boardId, labels)`, `saveSettingsForBoard(boardId, settings)` — board-scoped write fns in `storage.js`; used by pull to write data for any board without changing the active board
 - `sync.js` — PocketBase sync module: `isAuthenticated`, `ensureAuthenticated` (returns false on refresh failure), `loginUser`, `registerUser` (no auto-login), `logoutUser`, `loginWithProvider`, `pushBoardFull(boardId)` (loads data from storage, upserts live entities, hard-deletes soft-deleted entities from PocketBase, calls `purgeDeleted`), `pullAllBoards` (fetches all boards, maps PB IDs to local IDs, writes via board-scoped storage fns, preserves active board)
 - `auth-changed` custom event dispatched on `pb.authStore.onChange`
+- `auth.css` — auth and sync UI component styles using design tokens: `.user-info`, `.user-name`, `.login-tabs`, `.login-tab`, `.login-pane`, `.auth-message`, `.social-providers`, `.login-provider-btn`, `#sync-btn` spin animation, `.btn-text`; imported in `styles/index.css`
 - `autosync.js` — per-board debounced auto-sync: `scheduleAutoSync(boardId)` debounces 700ms per board, per-board in-flight guard with queue, `kanban-local-change` listener scoped to boardId, `initializeAutoSync()` registers listener + catch-up push on page load, `isAutoSyncEnabled/enableAutoSync/disableAutoSync` feature flag; replaces global single-timer approach with per-board Map state
 
 ### Fixed

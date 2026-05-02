@@ -23,6 +23,7 @@
 @import './components/notifications.css';
 @import './components/dragdrop.css';
 @import './components/reports.css';
+@import './components/auth.css';
 
 /* Responsive overrides (must come last) */
 @import './responsive.css';
