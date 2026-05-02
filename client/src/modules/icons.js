@@ -36,7 +36,13 @@ import {
   Minimize2,
   Rows3,
   GitBranch,
-  History
+  History,
+  Cloud,
+  RefreshCw,
+  LogOut,
+  Chrome,
+  Apple,
+  LayoutGrid
 } from 'lucide';
 
 // Map of all icons used in the app (PascalCase keys for createIcons)
@@ -73,7 +79,13 @@ const icons = {
   Minimize2,
   Rows3,
   GitBranch,
-  History
+  History,
+  Cloud,
+  RefreshCw,
+  LogOut,
+  Chrome,
+  Apple,
+  LayoutGrid
 };
 
 /**

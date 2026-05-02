@@ -41,6 +41,13 @@ function setupModalCloseHandlers(modalId, closeHandler) {
   });
 }
 
+// ── Login modal ─────────────────────────────────────────────────────
+
+export function hideLoginModal() {
+  const modal = document.getElementById('login-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
 // ── Help modal (tiny — not worth a separate file) ───────────────────
 
 function showHelpModal() {
@@ -83,6 +90,7 @@ export function initializeModalHandlers() {
   // Close top-most modal on Escape
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      if (isModalOpen('login-modal')) { hideLoginModal(); return; }
       if (isModalOpen('label-modal')) { hideLabelModal(); return; }
       if (isModalOpen('labels-modal')) { hideLabelsModal(); return; }
       if (isModalOpen('board-rename-modal')) { hideBoardRenameModal(); return; }

@@ -96,6 +96,21 @@
         </a>
       </div>
       
+      <button id="login-btn" class="control-btn" type="button" aria-haspopup="dialog" aria-label="Sign in to sync">
+        <span data-lucide="cloud" aria-hidden="true"></span>
+        <span>Go Online</span>
+      </button>
+
+      <div id="user-info" class="user-info hidden" aria-label="Signed-in user">
+        <span id="user-name" class="user-name" aria-live="polite"></span>
+        <button id="sync-btn" class="control-btn icon-only" type="button" aria-label="Sync data">
+          <span data-lucide="refresh-cw" aria-hidden="true"></span>
+        </button>
+        <button id="logout-btn" class="control-btn icon-only" type="button" aria-label="Sign out">
+          <span data-lucide="log-out" aria-hidden="true"></span>
+        </button>
+      </div>
+
       <button id="notifications-quick-btn" class="control-btn icon-only" type="button" aria-haspopup="dialog" aria-label="Notifications">
         <span data-lucide="bell" aria-hidden="true"></span>
         <span id="notification-quick-badge" class="notification-badge hidden" aria-label="notifications count"></span>
@@ -649,6 +664,62 @@
     <span id="app-version" class="footer-version" aria-label="App version"></span>
   </p>
 </footer>
+
+<!-- Login / Sign-in Modal -->
+<div id="login-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="login-modal-title">
+  <div class="modal-backdrop"></div>
+  <article class="modal-content">
+    <header class="modal-header-row">
+      <h3 id="login-modal-title">Sign In</h3>
+      <button id="login-close-btn" type="button" class="btn-small" aria-label="Close sign-in dialog" title="Close">
+        <span data-lucide="x" aria-hidden="true"></span>
+      </button>
+    </header>
+
+    <div class="login-tabs" role="tablist">
+      <button class="login-tab active" data-tab="email" role="tab" aria-selected="true" aria-controls="email-login-pane">Email</button>
+      <button class="login-tab" data-tab="social" role="tab" aria-selected="false" aria-controls="social-login-pane">Social</button>
+    </div>
+
+    <div id="email-login-pane" class="login-pane" role="tabpanel">
+      <form id="email-login-form" novalidate>
+        <div class="form-group">
+          <label for="login-email">Email</label>
+          <input id="login-email" type="email" autocomplete="email" required placeholder="you@example.com" aria-required="true">
+        </div>
+        <div class="form-group">
+          <label for="login-password">Password</label>
+          <input id="login-password" type="password" autocomplete="current-password" required placeholder="Password" aria-required="true">
+        </div>
+        <div id="signup-name-field" class="form-group hidden">
+          <label for="signup-name">Name</label>
+          <input id="signup-name" type="text" autocomplete="name" placeholder="Your name">
+        </div>
+        <button id="email-auth-submit" type="submit" class="btn btn-primary">Log In</button>
+        <button id="toggle-auth-mode" type="button" class="btn-text">Don't have an account? Sign Up</button>
+      </form>
+    </div>
+
+    <div id="social-login-pane" class="login-pane hidden" role="tabpanel">
+      <div class="social-providers">
+        <button class="login-provider-btn" data-provider="google" type="button">
+          <span data-lucide="chrome" aria-hidden="true"></span>
+          Sign in with Google
+        </button>
+        <button class="login-provider-btn" data-provider="apple" type="button">
+          <span data-lucide="apple" aria-hidden="true"></span>
+          Sign in with Apple
+        </button>
+        <button class="login-provider-btn" data-provider="microsoftonline" type="button">
+          <span data-lucide="layout-grid" aria-hidden="true"></span>
+          Sign in with Microsoft
+        </button>
+      </div>
+    </div>
+
+    <div id="auth-message" class="auth-message hidden" role="status" aria-live="polite"></div>
+  </article>
+</div>
 
 <script type="module" src="kanban.js"></script>
 </body>
