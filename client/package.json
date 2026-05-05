@@ -16,6 +16,7 @@
     "test:e2e": "playwright test",
     "test:ui": "playwright test --ui",
     "test:debug": "playwright test --debug",
+    "test:overview": "node scripts/generate-test-overview.mjs",
     "check:spec-sync": "node scripts/check-spec-sync.mjs"
   },
   "devDependencies": {

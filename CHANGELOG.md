@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `icons.js`: added `Cloud`, `RefreshCw`, `LogOut`, `Chrome`, `Apple`, `LayoutGrid` icons
 - `auth.css` — auth and sync UI component styles using design tokens: `.user-info`, `.user-name`, `.login-tabs`, `.login-tab`, `.login-pane`, `.auth-message`, `.social-providers`, `.login-provider-btn`, `#sync-btn` spin animation, `.btn-text`; imported in `styles/index.css`
 - `autosync.js` — per-board debounced auto-sync: `scheduleAutoSync(boardId)` debounces 700ms per board, per-board in-flight guard with queue, `kanban-local-change` listener scoped to boardId, `initializeAutoSync()` registers listener + catch-up push on page load, `isAutoSyncEnabled/enableAutoSync/disableAutoSync` feature flag; replaces global single-timer approach with per-board Map state
+- `npm run test:overview` generates `tests/TEST-OVERVIEW.md`, an AI-readable inventory of test files, test cases, source plan links, and heuristic coverage gaps
 
 ### Fixed
 

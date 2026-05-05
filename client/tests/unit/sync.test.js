@@ -60,13 +60,18 @@ import {
 import {
   loadColumnsForBoard,
   loadTasksForBoard,
+  loadLabelsForBoard,
   loadDeletedTasksForBoard,
+  loadDeletedColumnsForBoard,
+  loadDeletedLabelsForBoard,
   purgeDeleted,
   saveColumnsForBoard,
   saveTasksForBoard,
   saveLabelsForBoard,
   saveSettingsForBoard,
+  getBoardById,
   setActiveBoardId,
+  getActiveBoardId,
 } from '../../src/modules/storage.js';
 
 beforeEach(() => {
@@ -344,5 +349,152 @@ describe('pullAllBoards', () => {
     await pullAllBoards();
 
     expect(setActiveBoardId).toHaveBeenCalledWith('b1');
+  });
+
+  it('maps all PocketBase label IDs back to local IDs for a task with multiple labels', async () => {
+    mockAuthStore.token = 'tok';
+    mockAuthStore.record = { id: 'user1' };
+    mockAuthStore.isValid = true;
+    getActiveBoardId.mockReturnValueOnce('b1');
+
+    mockCollection.getFullList
+      .mockResolvedValueOnce([{ id: 'pb-b1', local_id: 'b1', name: 'Board 1', settings: {} }])
+      .mockResolvedValueOnce([
+        { id: 'pb-col1', local_id: 'col1', name: 'To Do', color: '', order: 0, collapsed: false },
+      ])
+      .mockResolvedValueOnce([
+        { id: 'pb-l1', local_id: 'local-l1', name: 'Bug', color: '#f00', group: '' },
+        { id: 'pb-l2', local_id: 'local-l2', name: 'Feature', color: '#0f0', group: '' },
+        { id: 'pb-l3', local_id: 'local-l3', name: 'Urgent', color: '#00f', group: '' },
+      ])
+      .mockResolvedValueOnce([{
+        id: 'pb-t1', local_id: 't1', title: 'Task 1', column: 'pb-col1',
+        description: '', priority: 'high', due_date: '', order: 0,
+        labels: ['pb-l1', 'pb-l2', 'pb-l3'],
+        creation_date: '', change_date: '', done_date: '', column_history: [],
+      }]);
+
+    await pullAllBoards();
+
+    expect(saveTasksForBoard).toHaveBeenCalledWith('b1',
+      expect.arrayContaining([
+        expect.objectContaining({ id: 't1', labels: ['local-l1', 'local-l2', 'local-l3'] }),
+      ])
+    );
+  });
+});
+
+// ── Slice 9: pushBoardFull — multi-label tasks ────────────────────────────────
+
+describe('pushBoardFull multi-label', () => {
+  it('sends all label PB IDs for a task with multiple labels', async () => {
+    mockAuthStore.token = 'tok';
+    mockAuthStore.record = { id: 'user1' };
+    mockAuthStore.isValid = true;
+
+    getBoardById.mockReturnValueOnce({ id: 'b1', name: 'Board 1' });
+    loadLabelsForBoard.mockReturnValueOnce([
+      { id: 'local-l1', name: 'Bug', color: '#f00', group: '' },
+      { id: 'local-l2', name: 'Feature', color: '#0f0', group: '' },
+    ]);
+    loadColumnsForBoard.mockReturnValueOnce([
+      { id: 'local-c1', name: 'To Do', color: '', order: 0, collapsed: false },
+    ]);
+    loadTasksForBoard.mockReturnValueOnce([{
+      id: 'local-t1', title: 'Task 1', column: 'local-c1',
+      labels: ['local-l1', 'local-l2'],
+      description: '', priority: 'none', dueDate: '', order: 0,
+      creationDate: '', changeDate: '', doneDate: '', columnHistory: [],
+    }]);
+
+    // board → pb-b1, label-1 → pb-l1, label-2 → pb-l2, column → pb-c1, task → pb-t1
+    mockCollection.create
+      .mockResolvedValueOnce({ id: 'pb-b1' })
+      .mockResolvedValueOnce({ id: 'pb-l1' })
+      .mockResolvedValueOnce({ id: 'pb-l2' })
+      .mockResolvedValueOnce({ id: 'pb-c1' })
+      .mockResolvedValueOnce({ id: 'pb-t1' });
+
+    await pushBoardFull('b1');
+
+    const taskCall = mockCollection.create.mock.calls.find(call => call[0]?.local_id === 'local-t1');
+    expect(taskCall).toBeDefined();
+    expect(taskCall[0].labels).toEqual(['pb-l1', 'pb-l2']);
+  });
+
+  it('sends correct label PB IDs when syncMap already has label mappings (update path)', async () => {
+    mockAuthStore.token = 'tok';
+    mockAuthStore.record = { id: 'user1' };
+    mockAuthStore.isValid = true;
+
+    // Pre-populate syncMap as if labels/board/column were previously synced
+    localStorage.setItem('kanbanSyncMap', JSON.stringify({
+      boards: { 'b1': 'pb-b1' },
+      labels: { 'local-l1': 'pb-l1', 'local-l2': 'pb-l2', 'local-l3': 'pb-l3' },
+      columns: { 'local-c1': 'pb-c1' },
+      tasks: {},
+    }));
+
+    getBoardById.mockReturnValueOnce({ id: 'b1', name: 'Board 1' });
+    loadLabelsForBoard.mockReturnValueOnce([
+      { id: 'local-l1', name: 'Bug', color: '#f00', group: '' },
+      { id: 'local-l2', name: 'Feature', color: '#0f0', group: '' },
+      { id: 'local-l3', name: 'Urgent', color: '#00f', group: '' },
+    ]);
+    loadColumnsForBoard.mockReturnValueOnce([
+      { id: 'local-c1', name: 'To Do', color: '', order: 0, collapsed: false },
+    ]);
+    loadTasksForBoard.mockReturnValueOnce([{
+      id: 'local-t1', title: 'Task 1', column: 'local-c1',
+      labels: ['local-l1', 'local-l2', 'local-l3'],
+      description: '', priority: 'none', dueDate: '', order: 0,
+      creationDate: '', changeDate: '', doneDate: '', columnHistory: [],
+    }]);
+
+    // All existing records → update path; task is new → create
+    mockCollection.update.mockResolvedValue({ id: 'pb-existing' });
+    mockCollection.create.mockResolvedValueOnce({ id: 'pb-t1' });
+
+    await pushBoardFull('b1');
+
+    const taskCall = mockCollection.create.mock.calls.find(call => call[0]?.local_id === 'local-t1');
+    expect(taskCall).toBeDefined();
+    expect(taskCall[0].labels).toEqual(['pb-l1', 'pb-l2', 'pb-l3']);
+  });
+
+  it('omits label IDs not present in syncMap rather than sending null', async () => {
+    mockAuthStore.token = 'tok';
+    mockAuthStore.record = { id: 'user1' };
+    mockAuthStore.isValid = true;
+
+    getBoardById.mockReturnValueOnce({ id: 'b1', name: 'Board 1' });
+    // Only label-1 is pushed; task also references a ghost label not in labels list
+    loadLabelsForBoard.mockReturnValueOnce([
+      { id: 'local-l1', name: 'Bug', color: '#f00', group: '' },
+    ]);
+    loadColumnsForBoard.mockReturnValueOnce([
+      { id: 'local-c1', name: 'To Do', color: '', order: 0, collapsed: false },
+    ]);
+    loadTasksForBoard.mockReturnValueOnce([{
+      id: 'local-t1', title: 'Task 1', column: 'local-c1',
+      labels: ['local-l1', 'ghost-label-id'],  // ghost not in syncMap
+      description: '', priority: 'none', dueDate: '', order: 0,
+      creationDate: '', changeDate: '', doneDate: '', columnHistory: [],
+    }]);
+
+    mockCollection.create
+      .mockResolvedValueOnce({ id: 'pb-b1' })
+      .mockResolvedValueOnce({ id: 'pb-l1' })
+      .mockResolvedValueOnce({ id: 'pb-c1' })
+      .mockResolvedValueOnce({ id: 'pb-t1' });
+
+    await pushBoardFull('b1');
+
+    const taskCall = mockCollection.create.mock.calls.find(call => call[0]?.local_id === 'local-t1');
+    expect(taskCall).toBeDefined();
+    // ghost-label-id has no PB ID — should be dropped, not sent as null/undefined
+    expect(taskCall[0].labels).toEqual(['pb-l1']);
+    expect(taskCall[0].labels).not.toContain(null);
+    expect(taskCall[0].labels).not.toContain(undefined);
   });
 });

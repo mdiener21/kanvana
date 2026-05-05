@@ -17,6 +17,7 @@ The canonical folder and naming conventions live in `docs/testing-strategy.md`.
 - `npm run test:e2e` - run Playwright only
 - `npm run test:ui` - open Playwright UI mode
 - `npm run test:debug` - run Playwright debug mode
+- `npm run test:overview` - regenerate `tests/TEST-OVERVIEW.md` from test source
 
 ## IDB Unit Test Setup
 
@@ -54,6 +55,8 @@ expect(loadTasks().some(t => t.title === 'Persisted task')).toBe(true);
 
 ## Current Coverage Focus
 
+- `tests/TEST-OVERVIEW.md` is the generated AI-readable test inventory. It lists every detected test case by file, test layer, suite path, and source line.
+- The overview also includes filename-based gap heuristics for source modules and spec files without obvious named coverage. These heuristics are a fast triage aid, not a coverage guarantee.
 - Board management flows
 - Task creation and validation
 - Drag-and-drop performance into Done with large fixture boards
