@@ -14,7 +14,7 @@ services:
 
   frontend:
     container_name: frontend
-    image: ghcr.io/mdiener21/kanvana:${IMAGE_TAG:-latest}
+    image: kanvana-frontend-dev
     build:
       context: .
       dockerfile: devops/local/frontend/Dockerfile

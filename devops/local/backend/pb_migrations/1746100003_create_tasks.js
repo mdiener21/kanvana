@@ -83,7 +83,7 @@ migrate((app) => {
                 collectionId: "kanvana_labels",
                 cascadeDelete: false,
                 minSelect: 0,
-                maxSelect: null,
+                maxSelect: 999,
             },
             {
                 id: "tsk_creation_date",
