@@ -34,13 +34,14 @@ jobs:
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: client/package-lock.json
 
       - name: Install deps
-        run: |
-          test -f package.json || (echo "package.json not found" && exit 1)
-          npm ci
+        working-directory: client
+        run: npm ci
 
       - name: Build site (must output ./dist)
+        working-directory: client
         run: npm run build
 
       - name: Assert dist exists
