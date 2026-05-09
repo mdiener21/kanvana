@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-05-09
+
 ### Added
 
 - Soft-delete for tasks, columns, and labels: `deleteTask`, `deleteColumn`, `deleteLabel` now mark entities with `deleted: true` instead of hard-removing them; all read paths (`loadTasks`, `loadColumns`, `loadLabels`, board-scoped variants) filter deleted records so callers never see them
