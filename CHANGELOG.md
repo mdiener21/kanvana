@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added Udami web analytics for kanvana gdpr compliant no tracking web analytics, so I know how many people visit.
 - Soft-delete for tasks, columns, and labels: `deleteTask`, `deleteColumn`, `deleteLabel` now mark entities with `deleted: true` instead of hard-removing them; all read paths (`loadTasks`, `loadColumns`, `loadLabels`, board-scoped variants) filter deleted records so callers never see them
 - `loadDeletedTasksForBoard(boardId)`, `loadDeletedColumnsForBoard(boardId)`, `loadDeletedLabelsForBoard(boardId)` — sync layer access to soft-deleted records before purge
 - `purgeDeleted(boardId)` — hard-removes all `deleted: true` records from IDB for a given board; called by sync layer after confirmed PocketBase deletes
