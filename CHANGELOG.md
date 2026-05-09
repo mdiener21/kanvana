@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- chore: update version in README and enhance audit trail documentation fixed drift in spec
 - `docker-compose.yml`: PocketBase service now builds from `devops/local/backend/Dockerfile`, port corrected to `8090`, healthcheck fixed to `http://localhost:8090/api/health`, data volume path corrected to `/pocketbase/data`
 - nginx `default-dev.conf`: PocketBase upstream corrected from `pocketbase:80` to `pocketbase:8090`
 - `kanban-local-change` custom event emitted from `saveTasks`, `saveColumns`, `saveLabels` with `{ boardId, entity }` detail — foundation for scoped auto-sync trigger

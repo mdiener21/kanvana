@@ -35,11 +35,10 @@
   ],
   activityLog: [
     {
-      id: "uuid",
       type: "task.created" | "task.title_changed" | ...,
-      timestamp: "YYYY-MM-DDTHH:MM:SS.mmmZ",
+      at: "YYYY-MM-DDTHH:MM:SS.mmmZ",
       details: object,
-      actor: { type: "human" | "agent", id: "string" }
+      actor: { type: "human", id: null } | { type: "agent" | "user", id: "string" }
     }
   ]
 }
