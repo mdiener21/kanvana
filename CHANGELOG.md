@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-05-09
+
 ### Added
 
 - Added Udami web analytics for kanvana gdpr compliant no tracking web analytics, so I know how many people visit.
