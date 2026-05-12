@@ -8,3 +8,7 @@ tests
 docs
 *.md
 .github
+
+.env.local
+.env.prod
+
