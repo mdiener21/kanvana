@@ -33,7 +33,7 @@ jobs:
         working-directory: client
 
       - name: Install Playwright browser
-        run: npx playwright install --with-deps firefox
+        run: npx playwright install --with-deps chromium
         working-directory: client
 
       - name: E2E tests
