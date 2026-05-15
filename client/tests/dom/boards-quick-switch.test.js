@@ -94,25 +94,33 @@ describe('click brand-text', () => {
   });
 });
 
-// ── Cycle 2: Shift+B opens boards modal ──────────────────────────────────────
+// ── Cycle 2: Ctrl+B opens boards modal ───────────────────────────────────────
 
-describe('Shift+B shortcut', () => {
+describe('Ctrl+B shortcut', () => {
   it('opens the boards modal', () => {
     const modal = document.getElementById('boards-modal');
 
     expect(modal.classList.contains('hidden')).toBe(true);
-    fireEvent.keyDown(document, { key: 'B', shiftKey: true });
+    fireEvent.keyDown(document, { key: 'B', ctrlKey: true });
     expect(modal.classList.contains('hidden')).toBe(false);
   });
 
-  // ── Cycle 3: Shift+B ignored when input focused ───────────────────────────
+  it('does not open the boards modal with the old Shift+B shortcut', () => {
+    const modal = document.getElementById('boards-modal');
+
+    expect(modal.classList.contains('hidden')).toBe(true);
+    fireEvent.keyDown(document, { key: 'B', shiftKey: true });
+    expect(modal.classList.contains('hidden')).toBe(true);
+  });
+
+  // ── Cycle 3: Ctrl+B ignored when input focused ────────────────────────────
 
   it('does not open the modal when an input is focused', () => {
     const modal = document.getElementById('boards-modal');
     const input = document.getElementById('board-rename-name');
 
     input.focus();
-    fireEvent.keyDown(document, { key: 'B', shiftKey: true });
+    fireEvent.keyDown(document, { key: 'B', ctrlKey: true });
     expect(modal.classList.contains('hidden')).toBe(true);
   });
 });

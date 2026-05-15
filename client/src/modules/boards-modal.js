@@ -13,6 +13,7 @@ import { confirmDialog, alertDialog } from './dialog.js';
 import { renderIcons } from './icons.js';
 import { exportBoard } from './importexport.js';
 import { emit, DATA_CHANGED } from './events.js';
+import { DEFAULT_APP_KEYBINDINGS, matchesKey } from './constants.js';
 
 let editingBoardId = null;
 let keyboardNavIndex = -1;
@@ -204,9 +205,9 @@ export function initializeBoardsModalHandlers(setupModalCloseHandlers) {
     }
   });
 
-  // Shift+B global shortcut — ignored when typing in form elements.
+  // Global boards shortcut — ignored when typing in form elements.
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'B' && e.shiftKey) {
+    if (matchesKey(e, DEFAULT_APP_KEYBINDINGS.openBoardsModal)) {
       const tag = document.activeElement?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       e.preventDefault();

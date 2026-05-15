@@ -17,3 +17,15 @@ export const DEFAULT_PRIORITY = 'none';
 export const DEFAULT_COLUMN_COLOR = '#3b82f6';
 
 export const MAX_LABEL_NAME_LENGTH = 40;
+
+export const DEFAULT_APP_KEYBINDINGS = {
+  openBoardsModal: { key: 'b', ctrlKey: true, shiftKey: false, altKey: false, metaKey: false }
+};
+
+export function matchesKey(event, binding) {
+  return event.key?.toLowerCase() === binding.key.toLowerCase()
+    && Boolean(event.ctrlKey) === binding.ctrlKey
+    && Boolean(event.shiftKey) === binding.shiftKey
+    && Boolean(event.altKey) === binding.altKey
+    && Boolean(event.metaKey) === binding.metaKey;
+}

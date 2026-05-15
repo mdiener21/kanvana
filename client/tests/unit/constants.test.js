@@ -6,7 +6,9 @@ import {
   PRIORITY_ORDER,
   DEFAULT_PRIORITY,
   DEFAULT_COLUMN_COLOR,
-  MAX_LABEL_NAME_LENGTH
+  MAX_LABEL_NAME_LENGTH,
+  DEFAULT_APP_KEYBINDINGS,
+  matchesKey
 } from '../../src/modules/constants.js';
 
 test('PRIORITIES contains 5 values in correct order', () => {
@@ -46,4 +48,11 @@ test('DEFAULT_COLUMN_COLOR is a valid hex color', () => {
 test('MAX_LABEL_NAME_LENGTH is a positive integer', () => {
   expect(Number.isInteger(MAX_LABEL_NAME_LENGTH)).toBe(true);
   expect(MAX_LABEL_NAME_LENGTH).toBeGreaterThan(0);
+});
+
+test('open boards modal shortcut defaults to Ctrl+B', () => {
+  const binding = DEFAULT_APP_KEYBINDINGS.openBoardsModal;
+
+  expect(matchesKey({ key: 'B', ctrlKey: true }, binding)).toBe(true);
+  expect(matchesKey({ key: 'B', shiftKey: true }, binding)).toBe(false);
 });
