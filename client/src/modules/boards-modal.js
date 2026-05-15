@@ -13,8 +13,10 @@ import { confirmDialog, alertDialog } from './dialog.js';
 import { renderIcons } from './icons.js';
 import { exportBoard } from './importexport.js';
 import { emit, DATA_CHANGED } from './events.js';
+import { DEFAULT_APP_KEYBINDINGS, matchesKey } from './constants.js';
 
 let editingBoardId = null;
+let keyboardNavIndex = -1;
 
 function renderBoardsSelect() {
   const selectEl = document.getElementById('board-select');
@@ -140,15 +142,24 @@ function renderBoardsList() {
   renderIcons();
 }
 
-function showBoardsModal() {
+export function showBoardsModal() {
+  keyboardNavIndex = -1;
   renderBoardsList();
   const modal = document.getElementById('boards-modal');
   modal?.classList.remove('hidden');
 }
 
 function hideBoardsModal() {
+  keyboardNavIndex = -1;
   const modal = document.getElementById('boards-modal');
   modal?.classList.add('hidden');
+}
+
+function updateBoardKeyboardFocus(items) {
+  items.forEach((item, i) => {
+    item.classList.toggle('keyboard-focused', i === keyboardNavIndex);
+  });
+  items[keyboardNavIndex]?.scrollIntoView?.({ block: 'nearest' });
 }
 
 export function refreshBoardsModalList() {
@@ -185,6 +196,56 @@ function hideBoardRenameModal() {
 export function initializeBoardsModalHandlers(setupModalCloseHandlers) {
   document.addEventListener('kanban:boards-changed', () => {
     refreshBoardsModalList();
+  });
+
+  // Event delegation: brand-text click survives DOM resets.
+  document.addEventListener('click', (e) => {
+    if (e.target?.id === 'brand-text' || e.target?.closest?.('#brand-text')) {
+      showBoardsModal();
+    }
+  });
+
+  // Global boards shortcut — ignored when typing in form elements.
+  document.addEventListener('keydown', (e) => {
+    if (matchesKey(e, DEFAULT_APP_KEYBINDINGS.openBoardsModal)) {
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      e.preventDefault();
+      showBoardsModal();
+    }
+  });
+
+  // Arrow key navigation + Enter to activate board when modal is open.
+  document.addEventListener('keydown', (e) => {
+    const modal = document.getElementById('boards-modal');
+    if (!modal || modal.classList.contains('hidden')) return;
+    const renameModal = document.getElementById('board-rename-modal');
+    if (renameModal && !renameModal.classList.contains('hidden')) return;
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Enter') return;
+
+    const items = Array.from(document.querySelectorAll('#boards-list .label-item'));
+    if (!items.length) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      keyboardNavIndex = Math.min(keyboardNavIndex + 1, items.length - 1);
+      updateBoardKeyboardFocus(items);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      keyboardNavIndex = Math.max(keyboardNavIndex - 1, 0);
+      updateBoardKeyboardFocus(items);
+    } else if (e.key === 'Enter' && keyboardNavIndex >= 0) {
+      e.preventDefault();
+      const boards = listBoards();
+      const board = boards[keyboardNavIndex];
+      if (board) {
+        setActiveBoardId(board.id);
+        renderBoardsSelect();
+        renderBoardsList();
+        emit(DATA_CHANGED);
+        hideBoardsModal();
+      }
+    }
   });
 
   document.getElementById('manage-boards-btn')?.addEventListener('click', showBoardsModal);

@@ -101,6 +101,8 @@ Important notes:
 
 ### Keyboard & Modal Shortcuts
 
+- See [Keyboard Shortcuts](keybindings.md) for the full current shortcut table.
+- **Ctrl+B** opens Manage Boards unless you are typing in a form field.
 - **Escape** closes most modals.
 - Clicking the **backdrop** closes most modals.
 
@@ -123,5 +125,4 @@ Short, action-oriented titles are easiest to execute. Examples:
 - Investigate
 
 ---
-
 

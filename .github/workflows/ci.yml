@@ -69,6 +69,8 @@ jobs:
         working-directory: client
       - run: npm run build
         working-directory: client
+        env:
+          VITE_PB_URL: ${{ secrets.VITE_PB_URL }}
 
       - name: Verify build output
         run: |

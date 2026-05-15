@@ -1,7 +1,7 @@
 services:
   nginx:
     container_name: nginx
-    image: nginx:alpine
+    image: kanvana_nginx:alpine
     build:
       context: .
       dockerfile: devops/local/nginx/Dockerfile
