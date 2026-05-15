@@ -1,3 +1,5 @@
+import { generateUUID } from './utils.js';
+
 export const DEFAULT_HUMAN_ACTOR = { type: 'human', id: null };
 
 function isValidActor(actor) {
@@ -9,7 +11,8 @@ function isValidActor(actor) {
 
 export function createActivityEvent(type, details, actor, at = new Date().toISOString()) {
   if (!isValidActor(actor)) throw new Error('Invalid activity actor');
-  return { type, at, actor, details };
+  // id is required for deduplication during PocketBase sync.
+  return { id: generateUUID(), type, at, actor, details };
 }
 
 export function appendTaskActivity(task, event) {

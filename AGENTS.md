@@ -4,11 +4,11 @@ This file provides guidance to AI LLM Agents like Claude Code (claude.ai/code), 
 
 ## Project Overview
 
-Kanvana a local-first personal + AI Agent kanban board with no backend. `docs/system/specification-kanban.md` is the specification index and governance entrypoint, and `docs/system/spec/` contains the canonical feature and data specifications. All state lives in browser localStorage. Built with vanilla JavaScript, HTML, and CSS using Vite for bundling.
+Kanvana a local-first personal + AI Agent kanban board with an optional use of a backend. `docs/system/specification-kanban.md` is the specification index and governance entrypoint, and `docs/system/spec/` contains the canonical feature and data specifications. All state lives in browser localStorage. Built with vanilla JavaScript, HTML, and CSS using Vite for bundling.
 
 ## Purpose
 
-Kanvana is a process workflow optimized kanban board system for one person plus their AI-agent run company or companies. The current implementation target is V2 and is defined in docs/spec/specification-kanban.md.
+Kanvana is a process task, workflow optimized kanban board system for one person plus their AI-agent run company or companies.
 
 ## Read This First
 
@@ -66,18 +66,6 @@ The specification files include core data structures and feature behavior that m
 - Activity logging for mutating actions
 4. Do not replace strategic docs wholesale unless asked. Prefer additive updates. Keep doc/SPEC.md and doc/SPEC-implementation.md aligned.
 5.  Keep plan docs dated and centralized. New plan documents belong in doc/plans/ and should use YYYY-MM-DD-slug.md filenames.
-
-## Database Change Workflow
-
-TODO
-
-##  Verification Before Hand-off
-
-TODO
-
-## API and Auth Expectations
-
-TODO
 
 ## UI Expectations
 
