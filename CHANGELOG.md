@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Restored the root production `Dockerfile` used by CI/GHCR builds and aligned the production Docker compose PocketBase service with the repository backend image.
+
+### Fixed
+
+- Fixed the CI Docker build path so `docker/build-push-action` can find the production Dockerfile and push the `prod` image target.
+- Fixed Docker build context exclusions so local frontend dependencies and build output are not copied into production image builds.
 
 ## [1.7.1] - 2026-05-14
 

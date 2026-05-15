@@ -17,6 +17,7 @@ Kanvana is a Kanban Board, a local-first kanban application with no backend. All
 - Build tooling: Vite with ES modules
 - Frontend package root: `client/` (`npm install`, `npm run dev`, and `npm run build` run from there)
 - Reports bundling keeps ECharts and ZRender in dedicated vendor chunks (`vendor-echarts`, `vendor-zrender`)
+- Production Docker builds use the repository root `Dockerfile`, build the frontend from `client/`, and publish the `prod` target as an nginx static image.
 - Docker Compose development mounts `client/` as the frontend package root and runs Vite with browser auto-open disabled (`--open false`) to avoid desktop-launch calls inside containers
 
 ## Entry Points

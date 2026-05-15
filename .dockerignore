@@ -1,5 +1,7 @@
 node_modules
+**/node_modules
 dist
+**/dist
 .git
 .env
 .env.*
@@ -11,4 +13,3 @@ docs
 
 .env.local
 .env.prod
-
