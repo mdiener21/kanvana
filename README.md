@@ -8,6 +8,8 @@ kanvana == "Kanban" + "Nirvana" # smooth flow
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Visit%20Now-blue)](https://kanvana.com)
 [![Version](https://img.shields.io/badge/version-1.6.0-brightgreen)](CHANGELOG.md)
+[![CI](https://github.com/mdiener21/kanvana/actions/workflows/ci.yml/badge.svg)](https://github.com/mdiener21/kanvana/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-372%20passing-brightgreen)](https://github.com/mdiener21/kanvana/actions/workflows/ci.yml)
 
 > **Transform your productivity with a sleek, local-first Kanban board.** No servers, no tracking—just pure efficiency in your browser.
 
