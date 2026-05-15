@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fixed the CI Docker build path so `docker/build-push-action` can find the production Dockerfile and push the `prod` image target.
 - Fixed Docker build context exclusions so local frontend dependencies and build output are not copied into production image builds.
+- Fixed `sync.test.js` mock missing `loadBoardEvents` and `saveBoardEvents` exports added to `storage.js`; updated `pullAllBoards` test cases to mock the two new parallel PocketBase fetches (`task_relationships`, `events`)
+- Fixed `activity-log.test.js` assertion to include the `id` field now returned by `createActivityEvent`
+- Fixed CI workflow installing `firefox` Playwright browser while `playwright.config.js` only configures a `chromium` project; changed install step to `chromium`
 
 ## [1.7.1] - 2026-05-14
 
