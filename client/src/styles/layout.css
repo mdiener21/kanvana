@@ -80,6 +80,15 @@
   flex: 0 0 auto;
 }
 
+.brand-text {
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.brand-text:hover {
+  color: var(--color-primary);
+}
+
 .settings-section {
   margin-top: 20px;
   padding-top: 18px;

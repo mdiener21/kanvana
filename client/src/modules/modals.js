@@ -13,7 +13,7 @@ import { showColumnModal, showEditColumnModal, hideColumnModal,
 import { showLabelsModal, hideLabelModal, hideLabelsModal,
   initializeLabelsModalHandlers, setTaskModalState } from './labels-modal.js';
 import { refreshBoardsModalList, hideBoardsModal, hideBoardRenameModal,
-  initializeBoardsModalHandlers } from './boards-modal.js';
+  initializeBoardsModalHandlers, showBoardsModal } from './boards-modal.js';
 
 // ── Shared utility ──────────────────────────────────────────────────
 
@@ -112,6 +112,7 @@ export {
   showEditColumnModal,
   showLabelsModal,
   showHelpModal,
+  showBoardsModal,
   updateTaskLabelsSelection,
   refreshBoardsModalList
 };
