@@ -7,6 +7,7 @@ test('createActivityEvent returns an event envelope with caller data', () => {
   const details = { taskId: 'task-1' };
 
   expect(createActivityEvent('task.created', details, actor, '2026-05-01T00:00:00.000Z')).toEqual({
+    id: expect.any(String),
     type: 'task.created',
     at: '2026-05-01T00:00:00.000Z',
     actor,
