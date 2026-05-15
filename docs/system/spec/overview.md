@@ -30,7 +30,9 @@ Kanvana is a Kanban Board, a local-first kanban application with no backend. All
 ## Module Map
 
 - `src/modules/render.js` - centralized board rendering and incremental sync helpers
-- `src/modules/storage.js` - multi-board IndexedDB persistence with in-memory state
+- `src/modules/idb-store.js` - IDB singleton, key helpers (`keyFor`, `getBoardEventsKey`), `schedulePersist`, `scheduleDelete`
+- `src/modules/board-serializer.js` - board import ID-remapping (`normalizeBoardModelIds`)
+- `src/modules/storage.js` - in-memory state, all CRUD helpers (`load*`/`save*`), `initStorage()`, migration, default data
 - `src/modules/tasks.js` - task CRUD and drop-position updates
 - `src/modules/columns.js` - column CRUD, collapse, ordering, sorting
 - `src/modules/boards.js` - board management and templates
@@ -51,7 +53,7 @@ Kanvana is a Kanban Board, a local-first kanban application with no backend. All
 - `src/modules/swimlane-renderer.js` - swim lane DOM rendering helpers
 - `src/modules/validation.js` - form validation helpers
 - `src/modules/utils.js` - UUID generation and shared utilities
-- `src/modules/normalize.js` - data normalization, priority/color/relationship validation
+- `src/modules/normalize.js` - data normalization: priority, color (`isHexColor`, `defaultColumnColor`), dates, relationships, sub-tasks, activity log, string keys
 - `src/modules/security.js` - HTML escaping (`escapeHtml`) and byte formatting utilities
 - `src/modules/dom.js` - minimal DOM construction helper (`el()` factory)
 - `src/modules/events.js` - lightweight event bus replacing circular dynamic imports

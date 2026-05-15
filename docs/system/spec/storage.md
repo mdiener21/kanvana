@@ -47,7 +47,7 @@ The same logical keys used previously for localStorage are now IDB keys in the `
 - `events:<boardId>` — array of board-level `ActivityEvent` objects (column mutations, task deletions, cross-column task moves)
 
 `deleteBoard()` removes this key alongside all other per-board keys to prevent orphaned IDB entries.
-Storage helpers: `loadBoardEvents()`, `saveBoardEvents()`, `appendBoardEvent()`, `getBoardEventsKey()` in `storage.js`.
+Storage helpers: `loadBoardEvents()`, `saveBoardEvents()`, `appendBoardEvent()` in `storage.js`; `getBoardEventsKey()` in `idb-store.js` (re-exported from `storage.js` for backward compatibility).
 
 Values are stored as native JavaScript objects (structured clone), not JSON strings.
 
@@ -90,11 +90,22 @@ After migration, localStorage is cleared of all Kanvana keys.
 browser's quota, a warning is logged to the console. No hard enforcement — boards can grow
 beyond the old localStorage limit.
 
+## Module Structure
+
+`storage.js` is split into three modules with distinct reasons to change:
+
+- **`idb-store.js`** — IDB plumbing: singleton connection (`openStore()`), key helpers (`keyFor()`, `getBoardEventsKey()`), fire-and-forget write (`schedulePersist()`), fire-and-forget delete (`scheduleDelete()`). Changes when: storage backend or key scheme changes.
+- **`board-serializer.js`** — board import ID-remapping: `normalizeBoardModelIds()` and its private helpers. Changes when: import format or cross-entity ID-remapping logic changes. Import from here directly when you need `normalizeBoardModelIds`.
+- **`storage.js`** — in-memory state, all CRUD helpers (`loadTasks`, `saveTasks`, etc.), `initStorage()`, migration, default data factories. Changes when: data shapes or board lifecycle changes.
+
+`storage.js` re-exports `getBoardEventsKey` and `_flushPersistsForTesting` from `idb-store.js` for backward compatibility with existing import sites.
+
 ## Testing
 
 Unit tests use the `fake-indexeddb` npm package (dev dependency) to polyfill IDB in Node.js.
-`_resetStorageForTesting()` resets the in-memory state and closes the IDB connection so each
-test gets a clean slate. It is called from `resetLocalStorage()` in `tests/unit/setup.js`.
+`_resetStorageForTesting()` resets the in-memory state and calls `_resetIdbForTesting()` from
+`idb-store.js` to close the IDB connection; each test gets a clean slate.
+It is called from `resetLocalStorage()` in `tests/unit/setup.js`.
 
 ## Update Requirements
 

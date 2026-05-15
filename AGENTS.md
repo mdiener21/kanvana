@@ -115,7 +115,9 @@ docker compose down        # Stop and remove containers
 ### Module Structure (src/modules/)
 
 - **render.js** - Centralized rendering via `renderBoard()`. After any data change, call this to refresh UI. Exports sync helpers (`syncTaskCounters`, `syncCollapsedTitles`, `syncMovedTaskDueDate`) for incremental updates.
-- **storage.js** - Multi-board persistence via IndexedDB (`idb` wrapper, `kanvana-db` database, `kv` key-value store). All board data lives in in-memory `state`, loaded once by `await initStorage()` at page startup. All CRUD functions remain synchronous; IDB writes are fire-and-forget. Exports `loadTasksForBoard(id)`, `loadColumnsForBoard(id)`, `loadLabelsForBoard(id)`, `loadSettingsForBoard(id)` for cross-board reads without changing the active board.
+- **idb-store.js** - IDB singleton (`openStore()`), key helpers (`keyFor`, `getBoardEventsKey`), fire-and-forget writes (`schedulePersist`) and deletes (`scheduleDelete`). Changes only when the storage backend or key scheme changes.
+- **board-serializer.js** - Board import ID-remapping via `normalizeBoardModelIds()`. Import from here directly when you need that function. Changes only when import format or cross-entity ID-remapping logic changes.
+- **storage.js** - In-memory `state` object, all CRUD helpers (`loadTasks`, `saveTasks`, `loadColumns`, etc.), `initStorage()`, migration, default data factories. All board data lives in in-memory `state`, loaded once by `await initStorage()` at page startup. All CRUD functions remain synchronous; IDB writes are fire-and-forget. Exports `loadTasksForBoard(id)`, `loadColumnsForBoard(id)`, `loadLabelsForBoard(id)`, `loadSettingsForBoard(id)` for cross-board reads without changing the active board.
 - **tasks.js** - Task CRUD, drag-drop position updates (`updateTaskPositionsFromDrop`, `moveTaskToTopInColumn`)
 - **columns.js** - Column CRUD, collapse toggle, position updates
 - **boards.js** - Multi-board management, board create/switch, template system
