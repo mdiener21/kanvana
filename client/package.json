@@ -1,6 +1,6 @@
 {
   "name": "kanvana",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "type": "module",
   "description": "A local-first personal + AI Agent kanban board for task project people anything management.",
   "scripts": {
