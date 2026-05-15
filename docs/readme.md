@@ -71,6 +71,7 @@ Want more templates? See [boards.md](boards.md).
 | Document | What you'll find |
 |----------|-----------------|
 | [User Guide (In-App Help)](help-how-to.md) | The canonical help text shown inside the app |
+| [Keyboard Shortcuts](user/keybindings.md) | Current keyboard shortcuts and where each one works |
 | [Board Templates](boards.md) | Templates you can import + best practices for columns and workflows |
 | [Labels Guide](labels.md) | How to use labels and groups for filtering and categorization |
 | [Specification Index](specification-kanban.md) | Canonical spec entrypoint, governance, and links to all feature/data spec files |
@@ -83,8 +84,9 @@ Want more templates? See [boards.md](boards.md).
 New to Kanban? Here's where to start:
 
 1. **[User Guide (In-App Help)](help-how-to.md)** — Learn the UI quickly: boards, tasks, columns, labels, import/export
-2. **[Board Templates](boards.md)** — Pick a workflow and import a ready-to-use board
-3. **[Labels Guide](labels.md)** — Build a label system that helps you filter without turning labels into “status”
+2. **[Keyboard Shortcuts](user/keybindings.md)** — Move faster with board, modal, task, and notification shortcuts
+3. **[Board Templates](boards.md)** — Pick a workflow and import a ready-to-use board
+4. **[Labels Guide](labels.md)** — Build a label system that helps you filter without turning labels into “status”
 
 ---
 

@@ -84,6 +84,7 @@ Track every change on your board with a built-in two-log audit system:
 ### Core Features
 
 - **🔗 Clickable URLs in Descriptions**: Paste any `http://` or `https://` link into a task description and it becomes a clickable link on the card — opens in a new tab, no page refresh. A live link preview strip also appears below the description field in the task modal as you type, so you can click URLs without saving first
+- **⌨️ Keyboard Shortcuts**: Move quickly through board management and task editing with context-aware keybindings. `Ctrl+B` opens Manage Boards, `Escape` closes active modals and menus, arrow keys navigate board and label lists, and `Enter` activates focused choices. Shortcuts are form-safe, so typing in inputs does not accidentally trigger global actions. See the full [keyboard shortcuts table](docs/user/keybindings.md).
 - **🚀 Blazing Fast & Simple**: Lightning-quick performance with a clean, intuitive interface
 - **🔍 Powerful Search**: Find tasks instantly by label, title, description, or label groups
 - **📊 Productivity Reports**: Visualize your progress with Cumulative Flow Diagrams, weekly lead time, completion stats, same-day completions tracking, and an activity heatmap covering the last 365 days

@@ -10,9 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Quick board switch: clicking the board name in the header (`#brand-text`) opens the Manage Boards modal
-- `Shift+B` global keyboard shortcut opens the Manage Boards modal (ignored when an input/textarea/select is focused)
+- `Ctrl+B` global keyboard shortcut opens the Manage Boards modal (ignored when an input/textarea/select is focused)
 - Arrow key navigation (`ArrowDown`/`ArrowUp`) cycles through board items in the open Manage Boards modal; `Enter` activates the highlighted board and closes the modal
 - `showBoardsModal` exported from `boards-modal.js` and re-exported via `modals.js`
+- User-facing keyboard shortcut documentation with a complete shortcut table in `docs/user/keybindings.md`
 
 ### Fixed
 
