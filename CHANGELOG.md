@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+
+## [1.7.1] - 2026-05-14
+
+### Added
+
 - Quick board switch: clicking the board name in the header (`#brand-text`) opens the Manage Boards modal
 - `Ctrl+B` global keyboard shortcut opens the Manage Boards modal (ignored when an input/textarea/select is focused)
 - Arrow key navigation (`ArrowDown`/`ArrowUp`) cycles through board items in the open Manage Boards modal; `Enter` activates the highlighted board and closes the modal
@@ -40,7 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `autosync.js` — per-board debounced auto-sync: `scheduleAutoSync(boardId)` debounces 700ms per board, per-board in-flight guard with queue, `kanban-local-change` listener scoped to boardId, `initializeAutoSync()` registers listener + catch-up push on page load, `isAutoSyncEnabled/enableAutoSync/disableAutoSync` feature flag; replaces global single-timer approach with per-board Map state
 - `npm run test:overview` generates `tests/TEST-OVERVIEW.md`, an AI-readable inventory of test files, test cases, source plan links, and heuristic coverage gaps
 
-### Fixed
+### Changed
 
 - chore: update version in README and enhance audit trail documentation fixed drift in spec
 - `docker-compose.yml`: PocketBase service now builds from `devops/local/backend/Dockerfile`, port corrected to `8090`, healthcheck fixed to `http://localhost:8090/api/health`, data volume path corrected to `/pocketbase/data`
