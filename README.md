@@ -7,7 +7,7 @@ kanvana == "Kanban" + "Nirvana" # smooth flow
 [![GitHub stars](https://img.shields.io/github/stars/mdiener21/kanvana.svg?style=social)](https://github.com/mdiener21/kanvana/stargazers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Visit%20Now-blue)](https://kanvana.com)
-[![Version](https://img.shields.io/badge/version-1.6.0-brightgreen)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.7.1-brightgreen)](CHANGELOG.md)
 [![CI](https://github.com/mdiener21/kanvana/actions/workflows/ci.yml/badge.svg)](https://github.com/mdiener21/kanvana/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/tests-372%20passing-brightgreen)](https://github.com/mdiener21/kanvana/actions/workflows/ci.yml)
 
