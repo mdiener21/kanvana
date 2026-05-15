@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Add secret with production pocketbase url  VITE_PB_URL: ${{ secrets.VITE_PB_URL }}
+
 ## [1.7.0] - 2026-05-09
 
 ### Added
