@@ -12,9 +12,9 @@ import {
   saveTasks,
   saveLabels,
   loadSettings,
-  saveSettings,
-  normalizeBoardModelIds
+  saveSettings
 } from './storage.js';
+import { normalizeBoardModelIds } from './board-serializer.js';
 import { alertDialog } from './dialog.js';
 import { boardDisplayName } from './normalize.js';
 

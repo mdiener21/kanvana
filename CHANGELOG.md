@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Split `storage.js` into three modules: `idb-store.js` (IDB plumbing and key helpers), `board-serializer.js` (board import ID-remapping via `normalizeBoardModelIds`), and `storage.js` (in-memory state, CRUD, init, migration). No behavior change; `getBoardEventsKey` and `_flushPersistsForTesting` remain importable from `storage.js` via re-export.
+- Moved `defaultColumnColor` to `normalize.js` alongside `isHexColor`.
 - `sync.js` `pushBoardFull` and `pullAllBoards` now round-trip all task fields (`subTasks`, `swimlaneLabelId`, `deleted`), column `role`/`deleted`, label `deleted`, task relationships via the `task_relationships` collection, and activity log entries + board events via the `events` collection; legacy entries without an `id` are skipped during event sync
 - `sync.js` syncMap extended with `task_relationships` and `events` buckets; existing stored sync maps are backfilled with empty buckets on load
 - Restored the root production `Dockerfile` used by CI/GHCR builds and aligned the production Docker compose PocketBase service with the repository backend image.
