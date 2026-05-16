@@ -28,6 +28,7 @@ services:
 
   pocketbase:
     container_name: pb
+    image: kanvana-pb:latest
     build:
       context: .
       dockerfile: backend/Dockerfile

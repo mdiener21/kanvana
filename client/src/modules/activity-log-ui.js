@@ -1,4 +1,5 @@
 import { createAccordionSection } from './accordion.js';
+import { h } from './dom.js';
 
 /**
  * Returns a human-readable string for a single activity event.
@@ -82,28 +83,15 @@ export function createTaskActivitySection(task) {
   const sorted = log.slice().sort((a, b) => (b.at > a.at ? 1 : b.at < a.at ? -1 : 0));
 
   if (sorted.length === 0) {
-    return createAccordionSection('Activity', [null], false, () => {
-      const el = document.createElement('div');
-      el.classList.add('activity-item', 'activity-empty');
-      el.textContent = 'No activity yet';
-      return el;
-    });
+    return createAccordionSection('Activity', [null], false, () =>
+      h('div', { class: 'activity-item activity-empty' }, 'No activity yet')
+    );
   }
 
-  return createAccordionSection('Activity', sorted, false, (event) => {
-    const el = document.createElement('div');
-    el.classList.add('activity-item');
-
-    const ts = document.createElement('span');
-    ts.classList.add('activity-timestamp');
-    ts.textContent = new Date(event.at).toLocaleString();
-
-    const msg = document.createElement('span');
-    msg.classList.add('activity-message');
-    msg.textContent = formatActivityEvent(event);
-
-    el.appendChild(ts);
-    el.appendChild(msg);
-    return el;
-  });
+  return createAccordionSection('Activity', sorted, false, (event) =>
+    h('div', { class: 'activity-item' },
+      h('span', { class: 'activity-timestamp' }, new Date(event.at).toLocaleString()),
+      h('span', { class: 'activity-message' }, formatActivityEvent(event))
+    )
+  );
 }

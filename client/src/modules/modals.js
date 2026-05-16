@@ -14,11 +14,12 @@ import { showLabelsModal, hideLabelModal, hideLabelsModal,
   initializeLabelsModalHandlers, setTaskModalState } from './labels-modal.js';
 import { refreshBoardsModalList, hideBoardsModal, hideBoardRenameModal,
   initializeBoardsModalHandlers, showBoardsModal } from './boards-modal.js';
+import { $id } from './dom.js';
 
 // ── Shared utility ──────────────────────────────────────────────────
 
 function isModalOpen(modalId) {
-  const modal = document.getElementById(modalId);
+  const modal = $id(modalId);
   return !!modal && !modal.classList.contains('hidden');
 }
 
@@ -27,7 +28,7 @@ function isModalOpen(modalId) {
  * Wires backdrop click, close buttons (X), and cancel buttons.
  */
 function setupModalCloseHandlers(modalId, closeHandler) {
-  const modal = document.getElementById(modalId);
+  const modal = $id(modalId);
   if (!modal) return;
 
   const backdrop = modal.querySelector('.modal-backdrop');
@@ -44,19 +45,19 @@ function setupModalCloseHandlers(modalId, closeHandler) {
 // ── Login modal ─────────────────────────────────────────────────────
 
 export function hideLoginModal() {
-  const modal = document.getElementById('login-modal');
+  const modal = $id('login-modal');
   if (modal) modal.classList.add('hidden');
 }
 
 // ── Help modal (tiny — not worth a separate file) ───────────────────
 
 function showHelpModal() {
-  const modal = document.getElementById('help-modal');
+  const modal = $id('help-modal');
   modal.classList.remove('hidden');
 }
 
 function hideHelpModal() {
-  const modal = document.getElementById('help-modal');
+  const modal = $id('help-modal');
   modal.classList.add('hidden');
 }
 
@@ -84,7 +85,7 @@ export function initializeModalHandlers() {
   initializeBoardsModalHandlers(setupModalCloseHandlers);
 
   // Help modal
-  document.getElementById('help-btn').addEventListener('click', showHelpModal);
+  $id('help-btn').addEventListener('click', showHelpModal);
   setupModalCloseHandlers('help-modal', hideHelpModal);
 
   // Close top-most modal on Escape

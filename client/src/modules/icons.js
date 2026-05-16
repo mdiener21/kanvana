@@ -42,7 +42,9 @@ import {
   LogOut,
   Chrome,
   Apple,
-  LayoutGrid
+  LayoutGrid,
+  Scale,
+  ListChecks
 } from 'lucide';
 
 // Map of all icons used in the app (PascalCase keys for createIcons)
@@ -85,7 +87,9 @@ const icons = {
   LogOut,
   Chrome,
   Apple,
-  LayoutGrid
+  LayoutGrid,
+  Scale,
+  ListChecks
 };
 
 /**

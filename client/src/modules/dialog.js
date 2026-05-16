@@ -1,13 +1,10 @@
 import { setupModalCloseHandlers } from './modals.js';
+import { $id } from './dom.js';
 
 let currentResolver = null;
 
-function getEl(id) {
-  return document.getElementById(id);
-}
-
 function closeDialog(result) {
-  const modal = getEl('dialog-modal');
+  const modal = $id('dialog-modal');
   if (modal) modal.classList.add('hidden');
 
   const resolve = currentResolver;
@@ -16,15 +13,15 @@ function closeDialog(result) {
 }
 
 function isDialogOpen() {
-  const modal = getEl('dialog-modal');
+  const modal = $id('dialog-modal');
   return modal && !modal.classList.contains('hidden');
 }
 
 function setDialog({ title, message, confirmText, cancelText, showCancel }) {
-  const titleEl = getEl('dialog-modal-title');
-  const messageEl = getEl('dialog-modal-message');
-  const confirmBtn = getEl('dialog-confirm-btn');
-  const cancelBtn = getEl('dialog-cancel-btn');
+  const titleEl = $id('dialog-modal-title');
+  const messageEl = $id('dialog-modal-message');
+  const confirmBtn = $id('dialog-confirm-btn');
+  const cancelBtn = $id('dialog-cancel-btn');
 
   if (titleEl) titleEl.textContent = title || 'Confirm';
   if (messageEl) messageEl.textContent = message || '';
@@ -37,12 +34,12 @@ function setDialog({ title, message, confirmText, cancelText, showCancel }) {
 }
 
 function ensureDialogHandlers() {
-  const modal = getEl('dialog-modal');
+  const modal = $id('dialog-modal');
   if (!modal || modal.dataset.handlersAttached === 'true') return;
   modal.dataset.handlersAttached = 'true';
 
-  const confirmBtn = getEl('dialog-confirm-btn');
-  const cancelBtn = getEl('dialog-cancel-btn');
+  const confirmBtn = $id('dialog-confirm-btn');
+  const cancelBtn = $id('dialog-cancel-btn');
   const backdrop = modal.querySelector('.modal-backdrop');
 
   confirmBtn?.addEventListener('click', () => closeDialog(true));
@@ -58,12 +55,12 @@ function ensureDialogHandlers() {
 }
 
 function showDialog() {
-  const modal = getEl('dialog-modal');
+  const modal = $id('dialog-modal');
   if (!modal) return;
   modal.classList.remove('hidden');
 
   // Focus confirm button for accessibility
-  const confirmBtn = getEl('dialog-confirm-btn');
+  const confirmBtn = $id('dialog-confirm-btn');
   confirmBtn?.focus();
 }
 

@@ -15,205 +15,125 @@ import {
 import { createTaskElement } from './task-card.js';
 import { emit, DATA_CHANGED } from './events.js';
 import { isDoneColumn as isPermanentDoneColumn } from './constants.js';
+import { h, cx } from './dom.js';
 
 export function createSwimlaneHeaderCell(column, taskCount) {
-  const header = document.createElement('section');
-  header.classList.add('swimlane-column-header');
-  header.dataset.column = column.id;
   const isCollapsed = column?.collapsed === true;
-  if (isCollapsed) header.classList.add('is-collapsed');
-  if (column?.color) {
-    header.style.setProperty('--column-accent', column.color);
-  }
 
-  const collapseBtn = document.createElement('button');
-  collapseBtn.classList.add('swimlane-column-collapse-btn');
-  collapseBtn.type = 'button';
-  collapseBtn.setAttribute('aria-label', isCollapsed ? `Expand ${column.name} column` : `Collapse ${column.name} column`);
-  collapseBtn.title = isCollapsed ? 'Expand column' : 'Collapse column';
-  const collapseIcon = document.createElement('span');
-  collapseIcon.dataset.lucide = isCollapsed ? 'chevron-right' : 'chevrons-right-left';
-  collapseIcon.setAttribute('aria-hidden', 'true');
-  collapseBtn.appendChild(collapseIcon);
-  collapseBtn.addEventListener('click', (event) => {
-    event.stopPropagation();
-    if (toggleColumnCollapsed(column.id)) emit(DATA_CHANGED);
-  });
+  const collapseBtn = h('button', {
+    class: 'swimlane-column-collapse-btn',
+    type: 'button',
+    'aria-label': isCollapsed ? `Expand ${column.name} column` : `Collapse ${column.name} column`,
+    title: isCollapsed ? 'Expand column' : 'Collapse column',
+    onClick: (event) => { event.stopPropagation(); if (toggleColumnCollapsed(column.id)) emit(DATA_CHANGED); }
+  },
+    h('span', { 'data-lucide': isCollapsed ? 'chevron-right' : 'chevrons-right-left', 'aria-hidden': 'true' })
+  );
 
-  const title = document.createElement('h2');
-  title.textContent = column.name;
-
-  const counter = document.createElement('span');
-  counter.classList.add('task-counter');
-  counter.dataset.columnId = column.id;
-  counter.textContent = String(taskCount);
-  counter.setAttribute('aria-label', 'Task count');
-
-  const addBtn = document.createElement('button');
-  addBtn.classList.add('add-task-btn-icon');
-  addBtn.type = 'button';
-  addBtn.setAttribute('aria-label', `Add task to ${column.name}`);
-  addBtn.title = 'Add task';
-  const plusIcon = document.createElement('span');
-  plusIcon.dataset.lucide = 'plus';
-  plusIcon.setAttribute('aria-hidden', 'true');
-  addBtn.appendChild(plusIcon);
-  addBtn.addEventListener('click', () => showModal(column.id));
-
-  header.appendChild(collapseBtn);
-  if (!isCollapsed) {
-    header.appendChild(title);
-    header.appendChild(counter);
-    header.appendChild(addBtn);
-  }
-  return header;
+  return h('section', {
+    class: cx('swimlane-column-header', isCollapsed && 'is-collapsed'),
+    'data-column': column.id,
+    style: column?.color ? { '--column-accent': column.color } : {}
+  },
+    collapseBtn,
+    !isCollapsed ? h('h2', {}, column.name) : null,
+    !isCollapsed ? h('span', { class: 'task-counter', 'data-column-id': column.id, 'aria-label': 'Task count' }, String(taskCount)) : null,
+    !isCollapsed ? h('button', {
+      class: 'add-task-btn-icon', type: 'button',
+      'aria-label': `Add task to ${column.name}`, title: 'Add task',
+      onClick: () => showModal(column.id)
+    }, h('span', { 'data-lucide': 'plus', 'aria-hidden': 'true' })) : null
+  );
 }
 
 export function createSwimlaneLaneHeader(lane, activeTaskCount, hiddenDoneCount, isCollapsed, laneColor) {
-  const laneHeader = document.createElement('header');
-  laneHeader.classList.add('swimlane-row-header');
-  if (laneColor) {
-    laneHeader.style.setProperty('--lane-accent', laneColor);
-  }
+  const main = h('div', { class: 'swimlane-row-header-main' },
+    h('div', { class: 'swimlane-row-title' }, lane.value),
+    h('div', { class: 'swimlane-row-meta' },
+      h('span', { class: 'swimlane-row-badge' }, `${activeTaskCount} active`),
+      hiddenDoneCount > 0 ? h('span', { class: 'swimlane-row-badge is-muted' }, `${hiddenDoneCount} done hidden`) : null
+    )
+  );
 
-  const main = document.createElement('div');
-  main.classList.add('swimlane-row-header-main');
+  const toggleBtn = h('button', {
+    class: 'swimlane-row-toggle',
+    type: 'button',
+    'aria-expanded': String(!isCollapsed),
+    'aria-label': isCollapsed ? `Expand ${lane.value} swim lane` : `Collapse ${lane.value} swim lane`,
+    title: isCollapsed ? 'Expand swim lane' : 'Collapse swim lane',
+    onClick: () => { if (toggleSwimLaneCollapsed(lane.key)) emit(DATA_CHANGED); }
+  },
+    h('span', { 'data-lucide': isCollapsed ? 'chevron-right' : 'chevron-down', 'aria-hidden': 'true' })
+  );
 
-  const title = document.createElement('div');
-  title.classList.add('swimlane-row-title');
-  title.textContent = lane.value;
-  main.appendChild(title);
-
-  const meta = document.createElement('div');
-  meta.classList.add('swimlane-row-meta');
-
-  const activeBadge = document.createElement('span');
-  activeBadge.classList.add('swimlane-row-badge');
-  activeBadge.textContent = `${activeTaskCount} active`;
-  meta.appendChild(activeBadge);
-
-  if (hiddenDoneCount > 0) {
-    const doneBadge = document.createElement('span');
-    doneBadge.classList.add('swimlane-row-badge', 'is-muted');
-    doneBadge.textContent = `${hiddenDoneCount} done hidden`;
-    meta.appendChild(doneBadge);
-  }
-
-  main.appendChild(meta);
-
-  const toggleBtn = document.createElement('button');
-  toggleBtn.classList.add('swimlane-row-toggle');
-  toggleBtn.type = 'button';
-  toggleBtn.setAttribute('aria-expanded', String(!isCollapsed));
-  toggleBtn.setAttribute('aria-label', isCollapsed ? `Expand ${lane.value} swim lane` : `Collapse ${lane.value} swim lane`);
-  toggleBtn.title = isCollapsed ? 'Expand swim lane' : 'Collapse swim lane';
-  const toggleIcon = document.createElement('span');
-  toggleIcon.dataset.lucide = isCollapsed ? 'chevron-right' : 'chevron-down';
-  toggleIcon.setAttribute('aria-hidden', 'true');
-  toggleBtn.appendChild(toggleIcon);
-  toggleBtn.addEventListener('click', () => {
-    if (toggleSwimLaneCollapsed(lane.key)) emit(DATA_CHANGED);
-  });
-
-  laneHeader.appendChild(toggleBtn);
-  laneHeader.appendChild(main);
-  return laneHeader;
+  return h('header', {
+    class: 'swimlane-row-header',
+    style: laneColor ? { '--lane-accent': laneColor } : {}
+  }, toggleBtn, main);
 }
 
 export function createSwimlaneCell(column, lane, tasksInCell, visibleTasks, settings, labelsMap, today, cellCollapsed) {
-  const cell = document.createElement('section');
-  cell.classList.add('swimlane-cell');
   const isColumnCollapsed = column?.collapsed === true;
   const isDone = isPermanentDoneColumn(column);
-  if (isColumnCollapsed) cell.classList.add('is-column-collapsed');
-  if (isDone) cell.classList.add('swimlane-cell-done');
-  if (cellCollapsed && !isColumnCollapsed && !isDone) cell.classList.add('is-cell-collapsed');
-  if (column?.color) cell.style.setProperty('--column-accent', column.color);
-  cell.dataset.column = column.id;
-  cell.dataset.laneKey = lane.key;
-  cell.dataset.laneLabel = lane.value;
-  cell.setAttribute('aria-label', `${lane.value}, ${column.name}`);
-
+  const isCollapsed = cellCollapsed === true;
   const hiddenTaskCount = getHiddenTaskCountForLane(tasksInCell, column.id);
 
+  const cell = h('section', {
+    class: cx('swimlane-cell',
+      isColumnCollapsed && 'is-column-collapsed',
+      isDone && 'swimlane-cell-done',
+      (cellCollapsed && !isColumnCollapsed && !isDone) && 'is-cell-collapsed'
+    ),
+    'data-column': column.id,
+    'data-lane-key': lane.key,
+    'data-lane-label': lane.value,
+    'aria-label': `${lane.value}, ${column.name}`,
+    style: column?.color ? { '--column-accent': column.color } : {}
+  });
+
   if (!isDone && !isColumnCollapsed) {
-    const cellHeader = document.createElement('div');
-    cellHeader.classList.add('swimlane-cell-header');
+    const taskCount = tasksInCell.length;
+    const toggleBtn = h('button', {
+      type: 'button',
+      class: 'swimlane-cell-toggle',
+      'aria-expanded': String(!isCollapsed),
+      'aria-label': `${isCollapsed ? 'Expand' : 'Collapse'} tasks in ${lane.value}, ${column.name}`,
+      onClick: () => { toggleSwimLaneCellCollapsed(lane.key, column.id); emit(DATA_CHANGED); }
+    }, h('i', { 'data-lucide': isCollapsed ? 'chevron-right' : 'chevron-down' }));
 
-    const toggleBtn = document.createElement('button');
-    toggleBtn.type = 'button';
-    toggleBtn.classList.add('swimlane-cell-toggle');
-    const isCollapsed = cellCollapsed === true;
-    toggleBtn.setAttribute('aria-expanded', String(!isCollapsed));
-    toggleBtn.setAttribute('aria-label', `${isCollapsed ? 'Expand' : 'Collapse'} tasks in ${lane.value}, ${column.name}`);
-    const toggleIcon = document.createElement('i');
-    toggleIcon.dataset.lucide = isCollapsed ? 'chevron-right' : 'chevron-down';
-    toggleBtn.appendChild(toggleIcon);
-    toggleBtn.addEventListener('click', () => {
-      toggleSwimLaneCellCollapsed(lane.key, column.id);
-      emit(DATA_CHANGED);
-    });
-    cellHeader.appendChild(toggleBtn);
+    const addBtn = h('button', {
+      type: 'button',
+      class: 'swimlane-cell-add-btn',
+      'aria-label': `Add task to ${column.name}, ${lane.value}`,
+      title: 'Add task',
+      onClick: () => showModal(column.id, { groupBy: settings.swimLaneGroupBy, laneKey: lane.key })
+    }, h('i', { 'data-lucide': 'plus', 'aria-hidden': 'true' }));
 
-    if (isCollapsed) {
-      const summary = document.createElement('span');
-      summary.classList.add('swimlane-cell-summary');
-      const taskCount = tasksInCell.length;
-      summary.textContent = taskCount > 0
-        ? `${taskCount} task${taskCount === 1 ? '' : 's'}`
-        : 'Empty';
-      cellHeader.appendChild(summary);
-    }
-
-    const addBtn = document.createElement('button');
-    addBtn.type = 'button';
-    addBtn.classList.add('swimlane-cell-add-btn');
-    addBtn.setAttribute('aria-label', `Add task to ${column.name}, ${lane.value}`);
-    addBtn.title = 'Add task';
-    const addIcon = document.createElement('i');
-    addIcon.dataset.lucide = 'plus';
-    addIcon.setAttribute('aria-hidden', 'true');
-    addBtn.appendChild(addIcon);
-    addBtn.addEventListener('click', () => {
-      showModal(column.id, {
-        groupBy: settings.swimLaneGroupBy,
-        laneKey: lane.key
-      });
-    });
-    cellHeader.appendChild(addBtn);
-
-    cell.appendChild(cellHeader);
+    cell.appendChild(h('div', { class: 'swimlane-cell-header' },
+      toggleBtn,
+      isCollapsed ? h('span', { class: 'swimlane-cell-summary' },
+        taskCount > 0 ? `${taskCount} task${taskCount === 1 ? '' : 's'}` : 'Empty'
+      ) : null,
+      addBtn
+    ));
   }
 
   if (isDone || isColumnCollapsed) {
-    const summary = document.createElement('div');
-    summary.classList.add('swimlane-cell-summary');
-    if (isColumnCollapsed) {
-      const taskCount = tasksInCell.length;
-      summary.textContent = taskCount > 0
-        ? `${taskCount} task${taskCount === 1 ? '' : 's'}`
-        : 'Empty';
-    } else {
-      summary.textContent = hiddenTaskCount > 0
-        ? `${hiddenTaskCount} completed item${hiddenTaskCount === 1 ? '' : 's'} hidden`
-        : 'Drop completed tasks here';
-    }
-    cell.appendChild(summary);
+    const summaryText = isColumnCollapsed
+      ? (tasksInCell.length > 0 ? `${tasksInCell.length} task${tasksInCell.length === 1 ? '' : 's'}` : 'Empty')
+      : (hiddenTaskCount > 0 ? `${hiddenTaskCount} completed item${hiddenTaskCount === 1 ? '' : 's'} hidden` : 'Drop completed tasks here');
+    cell.appendChild(h('div', { class: 'swimlane-cell-summary' }, summaryText));
   }
 
-  const tasksList = document.createElement('ul');
-  tasksList.classList.add('tasks', 'swimlane-tasks');
-  if (isDone || isColumnCollapsed) tasksList.classList.add('swimlane-tasks-hidden-done');
-  tasksList.dataset.column = column.id;
-  tasksList.dataset.laneKey = lane.key;
-  tasksList.dataset.laneLabel = lane.value;
-  tasksList.setAttribute('role', 'list');
-  tasksList.setAttribute('aria-label', `Tasks in ${lane.value}, ${column.name}`);
-
-  visibleTasks.forEach((task) => {
-    tasksList.appendChild(createTaskElement(task, settings, labelsMap, today));
+  const tasksList = h('ul', {
+    class: cx('tasks swimlane-tasks', (isDone || isColumnCollapsed) && 'swimlane-tasks-hidden-done'),
+    'data-column': column.id,
+    'data-lane-key': lane.key,
+    'data-lane-label': lane.value,
+    role: 'list',
+    'aria-label': `Tasks in ${lane.value}, ${column.name}`
   });
-
+  visibleTasks.forEach((task) => tasksList.appendChild(createTaskElement(task, settings, labelsMap, today)));
   cell.appendChild(tasksList);
   return cell;
 }
@@ -221,47 +141,36 @@ export function createSwimlaneCell(column, lane, tasksInCell, visibleTasks, sett
 export function renderSwimlaneBoard(container, sortedColumns, visibleTasks, labels, settings, labelsMap, today) {
   const lanes = groupTasksBySwimLane(visibleTasks, settings.swimLaneGroupBy, labels, settings.swimLaneLabelGroup, settings.swimLaneOrder);
   const grid = buildBoardGrid(sortedColumns, lanes, visibleTasks, settings.swimLaneGroupBy, labels, settings.swimLaneLabelGroup);
-  const board = document.createElement('div');
-  board.classList.add('swimlane-board');
-  board.style.setProperty('--swimlane-column-count', String(sortedColumns.length));
+
   const colTemplate = sortedColumns
     .map((column) => (column?.collapsed === true ? '72px' : 'minmax(280px, 1fr)'))
     .join(' ');
-  board.style.setProperty('--swimlane-grid-template', colTemplate);
 
-  const headerRow = document.createElement('div');
-  headerRow.classList.add('swimlane-grid-header');
-
+  const headerRow = h('div', { class: 'swimlane-grid-header' });
   sortedColumns.forEach((column) => {
     const taskCount = visibleTasks.filter((task) => task.column === column.id).length;
     headerRow.appendChild(createSwimlaneHeaderCell(column, taskCount));
   });
 
-  board.appendChild(headerRow);
+  const board = h('div', {
+    class: 'swimlane-board',
+    style: {
+      '--swimlane-column-count': String(sortedColumns.length),
+      '--swimlane-grid-template': colTemplate
+    }
+  }, headerRow);
 
   grid.forEach((lane) => {
-    const row = document.createElement('section');
-    row.classList.add('swimlane-row');
-    row.dataset.laneKey = lane.key;
-    row.dataset.laneLabel = lane.value;
-
     const collapsed = isSwimLaneCollapsed(lane.key, settings);
-    if (collapsed) row.classList.add('is-collapsed');
-
     const activeTaskCount = sortedColumns
       .filter((column) => !isPermanentDoneColumn(column))
       .reduce((count, column) => count + ((lane.cells[column.id] || []).length), 0);
     const doneColumn = sortedColumns.find((column) => isPermanentDoneColumn(column));
     const hiddenDoneCount = doneColumn ? (lane.cells[doneColumn.id] || []).length : 0;
-
     const laneLabel = labelsMap.get(lane.key);
     const laneColor = laneLabel?.color || null;
-    const laneHeader = createSwimlaneLaneHeader(lane, activeTaskCount, hiddenDoneCount, collapsed, laneColor);
-    row.appendChild(laneHeader);
 
-    const cellsWrapper = document.createElement('div');
-    cellsWrapper.classList.add('swimlane-row-cells');
-
+    const cellsWrapper = h('div', { class: 'swimlane-row-cells' });
     sortedColumns.forEach((column) => {
       const tasksInCell = (lane.cells[column.id] || []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
       const cellCollapsed = isSwimLaneCellCollapsed(lane.key, column.id, settings);
@@ -269,14 +178,18 @@ export function renderSwimlaneBoard(container, sortedColumns, visibleTasks, labe
         ? []
         : column?.collapsed === true
           ? tasksInCell
-          : cellCollapsed
-            ? []
-            : getVisibleTasksForLane(tasksInCell, column.id);
+          : cellCollapsed ? [] : getVisibleTasksForLane(tasksInCell, column.id);
       cellsWrapper.appendChild(createSwimlaneCell(column, lane, tasksInCell, visibleTasksInCell, settings, labelsMap, today, cellCollapsed));
     });
 
-    row.appendChild(cellsWrapper);
-    board.appendChild(row);
+    board.appendChild(h('section', {
+      class: cx('swimlane-row', collapsed && 'is-collapsed'),
+      'data-lane-key': lane.key,
+      'data-lane-label': lane.value,
+    },
+      createSwimlaneLaneHeader(lane, activeTaskCount, hiddenDoneCount, collapsed, laneColor),
+      cellsWrapper
+    ));
   });
 
   container.appendChild(board);

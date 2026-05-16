@@ -10,7 +10,6 @@
   overflow: hidden;
   background-color: color-mix(in srgb, var(--surface-muted), var(--task-bg-tint) 100%);
   border: 1px solid color-mix(in srgb, var(--border-subtle), var(--task-border-tint) 100%);
-  border-radius: 8px;
   padding: 12px;
   padding-left: 16px; /* space for accent stripe */
   cursor: grab;

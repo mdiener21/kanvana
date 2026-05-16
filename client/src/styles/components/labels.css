@@ -525,7 +525,7 @@
 .subtask-title {
   flex: 1;
   min-width: 0;
-  font-size: 0.875rem;
+  font-size: 0.775rem;
   cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;

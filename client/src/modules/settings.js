@@ -1,6 +1,7 @@
 import { loadSettings, saveSettings } from './storage.js';
 import { setupModalCloseHandlers } from './modals.js';
 import { emit, DATA_CHANGED } from './events.js';
+import { $id, h } from './dom.js';
 
 function uniq(values) {
   const out = [];
@@ -34,11 +35,11 @@ function buildLocaleOptions(currentLocale) {
 }
 
 function showSettingsModal() {
-  document.getElementById('settings-modal')?.classList.remove('hidden');
+  $id('settings-modal')?.classList.remove('hidden');
 }
 
 function hideSettingsModal() {
-  document.getElementById('settings-modal')?.classList.add('hidden');
+  $id('settings-modal')?.classList.add('hidden');
 }
 
 function applyAndRerender(next) {
@@ -47,19 +48,18 @@ function applyAndRerender(next) {
 }
 
 export function initializeSettingsUI() {
-  const openBtn = document.getElementById('settings-btn');
-  const closeBtn = document.getElementById('settings-close-btn');
-  const backdrop = document.querySelector('#settings-modal .modal-backdrop');
+  const openBtn = $id('settings-btn');
+  const closeBtn = $id('settings-close-btn');
 
-  const showPriorityEl = document.getElementById('settings-show-priority');
-  const showDueDateEl = document.getElementById('settings-show-due-date');
-  const notificationDaysEl = document.getElementById('settings-notification-days');
-  const countdownUrgentEl = document.getElementById('settings-countdown-urgent-threshold');
-  const countdownWarningEl = document.getElementById('settings-countdown-warning-threshold');
-  const showAgeEl = document.getElementById('settings-show-age');
-  const showChangeDateEl = document.getElementById('settings-show-change-date');
-  const localeEl = document.getElementById('settings-locale');
-  const defaultPriorityEl = document.getElementById('settings-default-priority');
+  const showPriorityEl = $id('settings-show-priority');
+  const showDueDateEl = $id('settings-show-due-date');
+  const notificationDaysEl = $id('settings-notification-days');
+  const countdownUrgentEl = $id('settings-countdown-urgent-threshold');
+  const countdownWarningEl = $id('settings-countdown-warning-threshold');
+  const showAgeEl = $id('settings-show-age');
+  const showChangeDateEl = $id('settings-show-change-date');
+  const localeEl = $id('settings-locale');
+  const defaultPriorityEl = $id('settings-default-priority');
 
   if (!openBtn || !closeBtn || !showPriorityEl || !showDueDateEl || !notificationDaysEl || !countdownUrgentEl || !countdownWarningEl || !showAgeEl || !showChangeDateEl || !localeEl || !defaultPriorityEl) return;
 
@@ -76,12 +76,7 @@ export function initializeSettingsUI() {
 
     const options = buildLocaleOptions(settings.locale);
     localeEl.innerHTML = '';
-    options.forEach((loc) => {
-      const opt = document.createElement('option');
-      opt.value = loc;
-      opt.textContent = loc;
-      localeEl.appendChild(opt);
-    });
+    options.forEach((loc) => localeEl.appendChild(h('option', { value: loc }, loc)));
 
     // Ensure selection is set even if user stored something unusual.
     localeEl.value = settings.locale;
@@ -98,7 +93,7 @@ export function initializeSettingsUI() {
   setupModalCloseHandlers('settings-modal', hideSettingsModal);
 
   document.addEventListener('keydown', (e) => {
-    const modal = document.getElementById('settings-modal');
+    const modal = $id('settings-modal');
     if (!modal || modal.classList.contains('hidden')) return;
     if (e.key === 'Escape') hideSettingsModal();
   });

@@ -7,6 +7,7 @@ import { confirmDialog } from './dialog.js';
 import { calculateDaysUntilDue, formatCountdown, getCountdownClassName } from './dateutils.js';
 import { emit, DATA_CHANGED } from './events.js';
 import { labelTextColor } from './utils.js';
+import { h, cx } from './dom.js';
 
 function formatDisplayDate(value, locale) {
   const raw = (value || '').toString().trim();
@@ -87,27 +88,22 @@ export function linkifyText(text) {
   return frag;
 }
 
-// Create a task element
 export function createTaskElement(task, settings, labelsMap = null, today = null) {
-  const li = document.createElement('li');
-  li.classList.add('task');
-  li.draggable = true;
-  li.dataset.taskId = task.id;
-  li.setAttribute('role', 'listitem');
-  li.setAttribute('aria-label', `Task: ${task.title || task.text || 'Untitled'}`);
-
-  // Card-level click-to-edit: open edit modal on click anywhere except the delete button.
   // Track pointer position to distinguish clicks from drag gestures.
   let pointerDownPos = null;
+  const li = h('li', {
+    class: 'task',
+    draggable: 'true',
+    'data-task-id': task.id,
+    role: 'listitem',
+    'aria-label': `Task: ${task.title || task.text || 'Untitled'}`
+  });
   li.addEventListener('pointerdown', (e) => {
     pointerDownPos = { x: e.clientX, y: e.clientY };
   });
   li.addEventListener('click', (e) => {
-    // Skip if click is on or inside the delete button
     if (e.target.closest('.delete-task-btn')) return;
-    // Skip if click is on a description link
     if (e.target.closest('.task-description a')) return;
-    // Skip if pointer moved significantly (user was dragging)
     if (pointerDownPos) {
       const dx = Math.abs(e.clientX - pointerDownPos.x);
       const dy = Math.abs(e.clientY - pointerDownPos.y);
@@ -116,165 +112,131 @@ export function createTaskElement(task, settings, labelsMap = null, today = null
     showEditModal(task.id);
   });
 
-  // Labels container
-  const labelsContainer = document.createElement('div');
-  labelsContainer.classList.add('task-labels');
-  labelsContainer.setAttribute('role', 'list');
-  labelsContainer.setAttribute('aria-label', 'Task labels');
+  const labelsContainer = h('div', {
+    class: 'task-labels',
+    role: 'list',
+    'aria-label': 'Task labels'
+  });
 
   const labels = labelsMap || new Map(loadLabels().map(l => [l.id, l]));
   if (task.labels && task.labels.length > 0) {
     task.labels.forEach(labelId => {
       const label = labels instanceof Map ? labels.get(labelId) : labels.find(l => l.id === labelId);
       if (label) {
-        const labelEl = document.createElement('span');
-        labelEl.classList.add('task-label');
-        labelEl.setAttribute('role', 'listitem');
-        labelEl.style.backgroundColor = label.color;
-        labelEl.style.color = labelTextColor(label.color);
-        labelEl.textContent = label.name;
-        labelsContainer.appendChild(labelEl);
+        labelsContainer.appendChild(h('span', {
+          class: 'task-label',
+          role: 'listitem',
+          style: { backgroundColor: label.color, color: labelTextColor(label.color) }
+        }, label.name));
       }
     });
   }
 
-  const header = document.createElement('div');
-  header.classList.add('task-header');
-
   const showPriority = settings?.showPriority !== false;
   const showDueDate = settings?.showDueDate !== false;
 
-  const titleEl = document.createElement('div');
-  titleEl.classList.add('task-title');
   const legacyTitle = typeof task.text === 'string' ? task.text : '';
-  titleEl.textContent = (typeof task.title === 'string' && task.title.trim() !== '') ? task.title : legacyTitle;
+  const titleEl = h('div', { class: 'task-title' },
+    (typeof task.title === 'string' && task.title.trim() !== '') ? task.title : legacyTitle
+  );
 
-  const actions = document.createElement('div');
-  actions.classList.add('task-actions');
+  const actions = h('div', { class: 'task-actions' });
 
   if (showPriority) {
     const rawPriority = typeof task.priority === 'string' ? task.priority.toLowerCase().trim() : '';
-    const priority = (rawPriority === 'urgent' || rawPriority === 'high' || rawPriority === 'medium' || rawPriority === 'low' || rawPriority === 'none')
-      ? rawPriority
-      : 'none';
-    const priorityEl = document.createElement('span');
-    priorityEl.classList.add('task-priority', `priority-${priority}`, 'task-priority-header');
-    priorityEl.textContent = priority;
-    priorityEl.setAttribute('aria-label', `Priority: ${priority}`);
-    actions.appendChild(priorityEl);
+    const priority = (['urgent', 'high', 'medium', 'low', 'none'].includes(rawPriority)) ? rawPriority : 'none';
+    actions.appendChild(h('span', {
+      class: cx('task-priority', `priority-${priority}`, 'task-priority-header'),
+      'aria-label': `Priority: ${priority}`
+    }, priority));
   }
 
-  const deleteBtn = document.createElement('button');
-  deleteBtn.classList.add('delete-task-btn');
-  deleteBtn.setAttribute('aria-label', 'Delete task');
-  deleteBtn.type = 'button';
-  const deleteIcon = document.createElement('span');
-  deleteIcon.dataset.lucide = 'trash-2';
-  deleteIcon.setAttribute('aria-hidden', 'true');
-  deleteBtn.appendChild(deleteIcon);
-  deleteBtn.addEventListener('click', async (e) => {
-    e.stopPropagation();
-    const ok = await confirmDialog({
-      title: 'Delete Task',
-      message: 'Are you sure you want to delete this task?',
-      confirmText: 'Delete'
-    });
-    if (!ok) return;
-    if (deleteTask(task.id)) emit(DATA_CHANGED);
-  });
-
-  actions.appendChild(deleteBtn);
-  header.appendChild(titleEl);
-  header.appendChild(actions);
+  actions.appendChild(h('button', {
+    class: 'delete-task-btn',
+    'aria-label': 'Delete task',
+    type: 'button',
+    onClick: async (e) => {
+      e.stopPropagation();
+      const ok = await confirmDialog({
+        title: 'Delete Task',
+        message: 'Are you sure you want to delete this task?',
+        confirmText: 'Delete'
+      });
+      if (!ok) return;
+      if (deleteTask(task.id)) emit(DATA_CHANGED);
+    }
+  },
+    h('span', { 'data-lucide': 'trash-2', 'aria-hidden': 'true' })
+  ));
 
   const descriptionValue = typeof task.description === 'string' ? task.description.trim() : '';
-  const descriptionEl = document.createElement('div');
-  descriptionEl.classList.add('task-description');
-  if (descriptionValue) {
-    descriptionEl.appendChild(linkifyText(descriptionValue));
-    descriptionEl.style.display = 'block';
-  } else {
-    descriptionEl.style.display = 'none';
-  }
+  const descriptionEl = h('div', {
+    class: 'task-description',
+    style: { display: descriptionValue ? 'block' : 'none' }
+  });
+  if (descriptionValue) descriptionEl.appendChild(linkifyText(descriptionValue));
 
-  li.appendChild(header);
+  li.appendChild(h('div', { class: 'task-header' }, titleEl, actions));
   li.appendChild(descriptionEl);
   li.appendChild(labelsContainer);
 
   if (task.relationships && task.relationships.length > 0) {
-    const relRow = document.createElement('div');
-    relRow.classList.add('task-relationships-row');
-
-    const icon = document.createElement('span');
-    icon.dataset.lucide = 'git-branch';
-    icon.setAttribute('aria-hidden', 'true');
-
-    const label = document.createElement('span');
-    label.textContent = `relationships (${task.relationships.length})`;
-
-    relRow.appendChild(icon);
-    relRow.appendChild(label);
-    li.appendChild(relRow);
+    li.appendChild(h('div', { class: 'task-relationships-row' },
+      h('span', { 'data-lucide': 'git-branch', 'aria-hidden': 'true' }),
+      h('span', {}, `relationships (${task.relationships.length})`)
+    ));
   }
 
   const showChangeDate = settings?.showChangeDate !== false;
   const showAge = settings?.showAge !== false;
   const locale = settings?.locale;
 
-  const footer = document.createElement('div');
-  footer.classList.add('task-footer');
+  const footer = h('div', { class: 'task-footer' });
 
   if (showChangeDate) {
-    const changeDateEl = document.createElement('span');
-    changeDateEl.classList.add('task-change-date');
     const changeDisplay = formatDisplayDateTime(task?.changeDate, locale);
-    changeDateEl.textContent = changeDisplay ? `Updated ${changeDisplay}` : '';
-    footer.appendChild(changeDateEl);
+    footer.appendChild(h('span', { class: 'task-change-date' },
+      changeDisplay ? `Updated ${changeDisplay}` : ''
+    ));
   }
 
-  const footerRow = document.createElement('div');
-  footerRow.classList.add('task-footer-row');
+  const footerRow = h('div', { class: 'task-footer-row' });
 
   if (showDueDate) {
     const dueDateRaw = typeof task.dueDate === 'string' ? task.dueDate.trim() : '';
-    const dueDateEl = document.createElement('span');
-    dueDateEl.classList.add('task-date');
+    let dueDateText;
+    let dueDateExtraClass;
 
     if (!dueDateRaw) {
-      dueDateEl.textContent = 'No due date';
-      dueDateEl.classList.add('countdown-none');
+      dueDateText = 'No due date';
+      dueDateExtraClass = 'countdown-none';
     } else {
       const formattedDate = formatDisplayDate(dueDateRaw, settings?.locale);
       const daysUntilDue = calculateDaysUntilDue(dueDateRaw, today);
 
       if (daysUntilDue !== null) {
-        const countdown = formatCountdown(daysUntilDue);
         const isDone = isDoneColumnId(task.column);
         if (isDone) {
-          dueDateEl.textContent = `Due ${formattedDate}`;
-          dueDateEl.classList.add('countdown-none');
+          dueDateText = `Due ${formattedDate}`;
+          dueDateExtraClass = 'countdown-none';
         } else {
           const urgentThreshold = settings?.countdownUrgentThreshold ?? 3;
           const warningThreshold = settings?.countdownWarningThreshold ?? 10;
-          const countdownClass = getCountdownClassName(daysUntilDue, urgentThreshold, warningThreshold);
-          dueDateEl.textContent = `Due ${formattedDate} (${countdown})`;
-          dueDateEl.classList.add(countdownClass);
+          dueDateExtraClass = getCountdownClassName(daysUntilDue, urgentThreshold, warningThreshold);
+          dueDateText = `Due ${formattedDate} (${formatCountdown(daysUntilDue)})`;
         }
       } else {
-        dueDateEl.textContent = 'Due ' + formattedDate;
-        dueDateEl.classList.add('countdown-none');
+        dueDateText = 'Due ' + formattedDate;
+        dueDateExtraClass = 'countdown-none';
       }
     }
 
-    footerRow.appendChild(dueDateEl);
+    footerRow.appendChild(h('span', { class: cx('task-date', dueDateExtraClass) }, dueDateText));
   }
 
   if (showAge) {
-    const ageEl = document.createElement('span');
-    ageEl.classList.add('task-age');
     const ageText = formatTaskAge(task);
-    ageEl.textContent = ageText ? `Age ${ageText}` : '';
-    footerRow.appendChild(ageEl);
+    footerRow.appendChild(h('span', { class: 'task-age' }, ageText ? `Age ${ageText}` : ''));
   }
 
   if (task.subTasks && task.subTasks.length > 0) {
@@ -283,8 +245,7 @@ export function createTaskElement(task, settings, labelsMap = null, today = null
     const pct = Math.round((completed / total) * 100);
     const isComplete = completed === total;
 
-    const stRow = document.createElement('span');
-    stRow.classList.add('task-subtasks-row');
+    const stRow = h('span', { class: 'task-subtasks-row' });
 
     const size = 16;
     const strokeWidth = 2.5;
@@ -317,11 +278,8 @@ export function createTaskElement(task, settings, labelsMap = null, today = null
     svg.appendChild(bgCircle);
     svg.appendChild(fgCircle);
 
-    const countLabel = document.createElement('span');
-    countLabel.textContent = `${completed}/${total} Done`;
-
     stRow.appendChild(svg);
-    stRow.appendChild(countLabel);
+    stRow.appendChild(h('span', {}, `${completed}/${total} Done`));
     footerRow.appendChild(stRow);
   }
 

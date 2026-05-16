@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+### Changed
+
+### Fixed
+
+- Fixed desktop task drag autoscroll so long task lists scroll vertically while dragging a card near the list edge
+- Fixed Impressum page overflow so the legal content can scroll vertically on desktop and mobile
+- Fixed font size sub-task
+- Fixed missing scale icon for impressum
+
 ## [2.0.0] - 2026-05-16
 
 ### Added
