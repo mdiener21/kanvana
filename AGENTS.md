@@ -14,11 +14,11 @@ provides auth and cloud sync when deployed.
 | Layer | Technology |
 |---|---|
 | Frontend | Vanilla JS (ES modules), HTML, CSS |
+| Optional Backend | Vanilla Pocketbase Golang behind Nginx (Docker Compose) |
 | Build | Vite 7 |
 | Tests | Vitest (unit + DOM), Playwright (E2E), MSW (API mocks) |
 | Runtime storage | IndexedDB via `idb` library |
 | UI libs | Lucide icons, SortableJS, ECharts (reports) |
-| Optional backend | PocketBase behind Nginx (Docker Compose) |
 
 ---
 
@@ -39,7 +39,7 @@ client/             Frontend app (the main product)
     mocks/          MSW API mocks shared by Vitest suites
     e2e/            Playwright end-to-end tests
 backend/            PocketBase Dockerfile + migrations (optional cloud sync)
-cli/                Go CLI tooling
+cli/                Go CLI tooling (TODO)
 docs/
   adr/              Architecture Decision Records
   agents/           AI-agent configuration (issue tracker, labels, domain)
