@@ -2,7 +2,11 @@ body.impressum-page {
     padding: 0;
     display: flex;
     flex-direction: column;
+    height: auto;
     min-height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 body.impressum-page .impressum-main {
