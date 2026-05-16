@@ -8,6 +8,7 @@ import { createAccordionSection } from './accordion.js';
 import { emit, DATA_CHANGED } from './events.js';
 import { MAX_LABEL_NAME_LENGTH } from './constants.js';
 import { labelTextColor } from './utils.js';
+import { $id, h } from './dom.js';
 
 let editingLabelId = null;
 let hasShownLabelMaxLengthAlert = false;
@@ -26,30 +27,26 @@ function isValidHexColor(value) {
 }
 
 function getLabelsManagerSearchQuery() {
-  const input = document.getElementById('labels-search');
+  const input = $id('labels-search');
   return (input?.value || '').trim().toLowerCase();
 }
 
 function updateLabelColorHex(color) {
-  const hexInput = document.getElementById('label-color-hex');
+  const hexInput = $id('label-color-hex');
   if (!hexInput) return;
   hexInput.value = color;
   hexInput.classList.remove('invalid');
 }
 
 function populateLabelGroupSuggestions() {
-  const datalist = document.getElementById('label-group-suggestions');
+  const datalist = $id('label-group-suggestions');
   if (!datalist) return;
   datalist.innerHTML = '';
   const labels = loadLabels();
   const groups = [...new Set(
     labels.map(l => (l.group || '').trim()).filter(g => g.length > 0)
   )].sort((a, b) => a.localeCompare(b));
-  groups.forEach(g => {
-    const option = document.createElement('option');
-    option.value = g;
-    datalist.appendChild(option);
-  });
+  groups.forEach(g => datalist.appendChild(h('option', { value: g })));
 }
 
 function groupLabels(labels) {
@@ -66,55 +63,39 @@ function groupLabels(labels) {
 }
 
 function createLabelListItem(label) {
-  const labelItem = document.createElement('div');
-  labelItem.classList.add('label-item');
-
-  const labelSpan = document.createElement('span');
-  labelSpan.classList.add('task-label');
-  labelSpan.style.backgroundColor = label.color;
-  labelSpan.style.color = labelTextColor(label.color);
-  labelSpan.textContent = label.name;
-
-  const actionsDiv = document.createElement('div');
-  actionsDiv.classList.add('label-actions');
-
-  const editBtn = document.createElement('button');
-  editBtn.classList.add('btn-small');
-  const editIcon = document.createElement('span');
-  editIcon.dataset.lucide = 'pencil';
-  editBtn.appendChild(editIcon);
-  editBtn.title = 'Edit label';
-  editBtn.addEventListener('click', () => showLabelModal(label.id));
-
-  const deleteBtn = document.createElement('button');
-  deleteBtn.classList.add('btn-small', 'btn-danger');
-  const deleteIcon = document.createElement('span');
-  deleteIcon.dataset.lucide = 'trash-2';
-  deleteBtn.appendChild(deleteIcon);
-  deleteBtn.title = 'Delete label';
-  deleteBtn.addEventListener('click', async () => {
-    const ok = await confirmDialog({
-      title: 'Delete Label',
-      message: `Delete label "${label.name}"? This will remove it from all tasks.`,
-      confirmText: 'Delete'
-    });
-    if (ok) {
-      deleteLabel(label.id);
-      renderLabelsList();
-      emit(DATA_CHANGED);
-    }
-  });
-
-  actionsDiv.appendChild(editBtn);
-  actionsDiv.appendChild(deleteBtn);
-
-  labelItem.appendChild(labelSpan);
-  labelItem.appendChild(actionsDiv);
-  return labelItem;
+  return h('div', { class: 'label-item' },
+    h('span', {
+      class: 'task-label',
+      style: { backgroundColor: label.color, color: labelTextColor(label.color) }
+    }, label.name),
+    h('div', { class: 'label-actions' },
+      h('button', {
+        class: 'btn-small',
+        title: 'Edit label',
+        onClick: () => showLabelModal(label.id)
+      }, h('span', { 'data-lucide': 'pencil' })),
+      h('button', {
+        class: 'btn-small btn-danger',
+        title: 'Delete label',
+        onClick: async () => {
+          const ok = await confirmDialog({
+            title: 'Delete Label',
+            message: `Delete label "${label.name}"? This will remove it from all tasks.`,
+            confirmText: 'Delete'
+          });
+          if (ok) {
+            deleteLabel(label.id);
+            renderLabelsList();
+            emit(DATA_CHANGED);
+          }
+        }
+      }, h('span', { 'data-lucide': 'trash-2' }))
+    )
+  );
 }
 
 function renderLabelsList() {
-  const container = document.getElementById('labels-list');
+  const container = $id('labels-list');
   container.innerHTML = '';
 
   const labels = loadLabels();
@@ -129,10 +110,9 @@ function renderLabelsList() {
     : labels;
 
   if (filtered.length === 0) {
-    const empty = document.createElement('div');
-    empty.classList.add('labels-empty');
-    empty.textContent = query ? 'No matching labels' : 'No labels yet';
-    container.appendChild(empty);
+    container.appendChild(h('div', { class: 'labels-empty' },
+      query ? 'No matching labels' : 'No labels yet'
+    ));
     return;
   }
 
@@ -161,12 +141,12 @@ export function showLabelModal(labelId = null, { openedFromTaskEditor = false, i
     taskModalState.setSelectCreatedLabelFlag(!!openedFromTaskEditor);
   }
 
-  const modal = document.getElementById('label-modal');
-  const modalTitle = document.getElementById('label-modal-title');
-  const nameInput = document.getElementById('label-name');
-  const colorInput = document.getElementById('label-color');
-  const groupInput = document.getElementById('label-group');
-  const submitBtn = document.getElementById('label-submit-btn');
+  const modal = $id('label-modal');
+  const modalTitle = $id('label-modal-title');
+  const nameInput = $id('label-name');
+  const colorInput = $id('label-color');
+  const groupInput = $id('label-group');
+  const submitBtn = $id('label-submit-btn');
 
   if (labelId) {
     const labels = loadLabels();
@@ -193,8 +173,7 @@ export function showLabelModal(labelId = null, { openedFromTaskEditor = false, i
 }
 
 function hideLabelModal() {
-  const modal = document.getElementById('label-modal');
-  modal.classList.add('hidden');
+  $id('label-modal').classList.add('hidden');
   editingLabelId = null;
   if (taskModalState) {
     taskModalState.setSelectCreatedLabelFlag(false);
@@ -202,23 +181,21 @@ function hideLabelModal() {
 }
 
 export function showLabelsModal() {
-  const input = document.getElementById('labels-search');
+  const input = $id('labels-search');
   if (input) input.value = '';
   renderLabelsList();
-  const modal = document.getElementById('labels-modal');
-  modal.classList.remove('hidden');
+  $id('labels-modal').classList.remove('hidden');
 
   const returnFlag = taskModalState?.getReturnToTaskModalFlag();
   if (!returnFlag) {
-    document.getElementById('labels-search')?.focus();
+    $id('labels-search')?.focus();
   }
 }
 
 function hideLabelsModal() {
-  const modal = document.getElementById('labels-modal');
-  modal.classList.add('hidden');
+  $id('labels-modal').classList.add('hidden');
 
-  const input = document.getElementById('labels-search');
+  const input = $id('labels-search');
   if (input) input.value = '';
 
   if (taskModalState?.getReturnToTaskModalFlag()) {
@@ -227,11 +204,10 @@ function hideLabelsModal() {
 }
 
 export function initializeLabelsModalHandlers(setupModalCloseHandlers) {
-  const labelsSearch = document.getElementById('labels-search');
-  labelsSearch?.addEventListener('input', renderLabelsList);
+  $id('labels-search')?.addEventListener('input', renderLabelsList);
 
-  document.getElementById('manage-labels-btn').addEventListener('click', showLabelsModal);
-  document.getElementById('add-label-btn').addEventListener('click', () => showLabelModal());
+  $id('manage-labels-btn').addEventListener('click', showLabelsModal);
+  $id('add-label-btn').addEventListener('click', () => showLabelModal());
   setupModalCloseHandlers('labels-modal', hideLabelsModal);
 
   // Listen for open-label-modal events from task-modal
@@ -243,7 +219,7 @@ export function initializeLabelsModalHandlers(setupModalCloseHandlers) {
     });
   });
 
-  const labelNameInput = document.getElementById('label-name');
+  const labelNameInput = $id('label-name');
   labelNameInput?.addEventListener('beforeinput', (e) => {
     if (!e || typeof e.data !== 'string' || e.data.length === 0) return;
     const input = e.target;
@@ -263,17 +239,15 @@ export function initializeLabelsModalHandlers(setupModalCloseHandlers) {
     });
   });
 
-  const labelColorInput = document.getElementById('label-color');
-  labelColorInput?.addEventListener('input', (e) => {
+  $id('label-color')?.addEventListener('input', (e) => {
     updateLabelColorHex(e.target.value);
   });
 
-  const labelColorHexInput = document.getElementById('label-color-hex');
-  labelColorHexInput?.addEventListener('input', (e) => {
+  $id('label-color-hex')?.addEventListener('input', (e) => {
     let val = e.target.value;
     if (val && !val.startsWith('#')) val = '#' + val;
     if (isValidHexColor(val)) {
-      labelColorInput.value = val;
+      $id('label-color').value = val;
       e.target.classList.remove('invalid');
     } else {
       e.target.classList.toggle('invalid', val.length > 0);
@@ -295,14 +269,14 @@ export function initializeLabelsModalHandlers(setupModalCloseHandlers) {
     });
   });
 
-  document.getElementById('label-form').addEventListener('submit', async (e) => {
+  $id('label-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const name = document.getElementById('label-name').value;
-    const hexInput = document.getElementById('label-color-hex');
+    const name = $id('label-name').value;
+    const hexInput = $id('label-color-hex');
     const hexVal = (hexInput?.value || '').trim();
 
     let color;
-    if (hexVal && hexVal !== document.getElementById('label-color').value) {
+    if (hexVal && hexVal !== $id('label-color').value) {
       const normalized = hexVal.startsWith('#') ? hexVal : '#' + hexVal;
       if (!isValidHexColor(normalized)) {
         hexInput?.classList.add('invalid');
@@ -313,10 +287,10 @@ export function initializeLabelsModalHandlers(setupModalCloseHandlers) {
         hexInput?.focus();
         return;
       }
-      document.getElementById('label-color').value = normalized;
+      $id('label-color').value = normalized;
       color = normalized;
     } else {
-      color = document.getElementById('label-color').value;
+      color = $id('label-color').value;
     }
 
     const trimmedName = (name || '').trim();
@@ -328,7 +302,7 @@ export function initializeLabelsModalHandlers(setupModalCloseHandlers) {
       return;
     }
 
-    const group = (document.getElementById('label-group')?.value || '').trim();
+    const group = ($id('label-group')?.value || '').trim();
     const wasCreating = !editingLabelId;
 
     const result = editingLabelId
@@ -348,7 +322,7 @@ export function initializeLabelsModalHandlers(setupModalCloseHandlers) {
       }
 
       await alertDialog({ title, message });
-      document.getElementById('label-name')?.focus();
+      $id('label-name')?.focus();
       return;
     }
 
@@ -359,7 +333,7 @@ export function initializeLabelsModalHandlers(setupModalCloseHandlers) {
         selectedLabels.push(result.label.id);
         taskModalState.setSelectedTaskLabels(selectedLabels);
       }
-      const labelSearch = document.getElementById('task-label-search');
+      const labelSearch = $id('task-label-search');
       if (labelSearch) labelSearch.value = '';
       taskModalState.updateTaskLabelsSelection();
       labelSearch?.focus();

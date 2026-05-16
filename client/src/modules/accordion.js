@@ -1,4 +1,5 @@
 import { renderIcons } from './icons.js';
+import { h, cx } from './dom.js';
 
 /**
  * Creates a collapsible accordion section.
@@ -10,37 +11,14 @@ import { renderIcons } from './icons.js';
  * @returns {HTMLElement} The accordion section element
  */
 export function createAccordionSection(title, items, expanded, renderItem) {
-  const section = document.createElement('div');
-  section.classList.add('accordion');
-
-  const header = document.createElement('button');
-  header.type = 'button';
-  header.classList.add('accordion-header');
-  header.setAttribute('aria-expanded', String(expanded));
-
-  const icon = document.createElement('span');
-  icon.dataset.lucide = expanded ? 'chevron-down' : 'chevron-right';
-  icon.setAttribute('aria-hidden', 'true');
-
-  const titleSpan = document.createElement('span');
-  titleSpan.classList.add('accordion-title');
-  titleSpan.textContent = title;
-
-  const count = document.createElement('span');
-  count.classList.add('accordion-count');
-  count.textContent = items.length;
-
-  header.appendChild(icon);
-  header.appendChild(titleSpan);
-  header.appendChild(count);
-
-  const body = document.createElement('div');
-  body.classList.add('accordion-body');
-  if (!expanded) body.classList.add('collapsed');
-
-  items.forEach(item => {
-    body.appendChild(renderItem(item));
-  });
+  const icon = h('span', { 'data-lucide': expanded ? 'chevron-down' : 'chevron-right', 'aria-hidden': 'true' });
+  const header = h('button', { type: 'button', class: 'accordion-header', 'aria-expanded': String(expanded) },
+    icon,
+    h('span', { class: 'accordion-title' }, title),
+    h('span', { class: 'accordion-count' }, String(items.length))
+  );
+  const body = h('div', { class: cx('accordion-body', !expanded && 'collapsed') });
+  items.forEach(item => body.appendChild(renderItem(item)));
 
   header.addEventListener('click', () => {
     const isExpanded = header.getAttribute('aria-expanded') === 'true';
@@ -50,7 +28,5 @@ export function createAccordionSection(title, items, expanded, renderItem) {
     renderIcons();
   });
 
-  section.appendChild(header);
-  section.appendChild(body);
-  return section;
+  return h('div', { class: 'accordion' }, header, body);
 }

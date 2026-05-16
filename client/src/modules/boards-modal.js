@@ -14,12 +14,13 @@ import { renderIcons } from './icons.js';
 import { exportBoard } from './importexport.js';
 import { emit, DATA_CHANGED } from './events.js';
 import { DEFAULT_APP_KEYBINDINGS, matchesKey } from './constants.js';
+import { $id, $, h } from './dom.js';
 
 let editingBoardId = null;
 let keyboardNavIndex = -1;
 
 function renderBoardsSelect() {
-  const selectEl = document.getElementById('board-select');
+  const selectEl = $id('board-select');
   if (!selectEl) return;
 
   const boards = listBoards();
@@ -27,21 +28,19 @@ function renderBoardsSelect() {
   selectEl.innerHTML = '';
 
   boards.forEach((b) => {
-    const option = document.createElement('option');
-    option.value = b.id;
-    option.textContent = (typeof b.name === 'string' && b.name.trim()) ? b.name.trim() : 'Untitled board';
-    selectEl.appendChild(option);
+    const name = (typeof b.name === 'string' && b.name.trim()) ? b.name.trim() : 'Untitled board';
+    selectEl.appendChild(h('option', { value: b.id }, name));
   });
 
   if (active) selectEl.value = active;
 
-  const brandEl = document.getElementById('brand-text') || document.querySelector('.brand-text');
+  const brandEl = $id('brand-text') || $('.brand-text');
   if (brandEl) brandEl.textContent = getActiveBoardName();
 }
 
 function renderBoardsList() {
   ensureBoardsInitialized();
-  const container = document.getElementById('boards-list');
+  const container = $id('boards-list');
   if (!container) return;
 
   container.innerHTML = '';
@@ -49,94 +48,51 @@ function renderBoardsList() {
   const activeId = getActiveBoardId();
 
   boards.forEach((board) => {
-    const item = document.createElement('div');
-    item.classList.add('label-item');
+    const nameWrap = h('div', { class: 'board-name-wrap' },
+      h('span', {}, (board.name || '').toString()),
+      board.id === activeId ? h('span', { class: 'task-label board-active-badge' }, 'Active') : null
+    );
 
-    const nameWrap = document.createElement('div');
-    nameWrap.classList.add('board-name-wrap');
+    const switchBtn = h('button', {
+      class: 'btn-small', title: 'Open board',
+      onClick: async () => { setActiveBoardId(board.id); renderBoardsSelect(); renderBoardsList(); emit(DATA_CHANGED); hideBoardsModal(); }
+    }, 'Open');
 
-    const nameEl = document.createElement('span');
-    nameEl.textContent = (board.name || '').toString();
-    nameWrap.appendChild(nameEl);
+    const exportBtn = h('button', {
+      class: 'btn-small', type: 'button', title: 'Export board',
+      'aria-label': `Export board ${String(board.name || 'Untitled board')}`,
+      onClick: (e) => { e.preventDefault(); e.stopPropagation(); exportBoard(board.id); }
+    }, h('span', { 'data-lucide': 'download' }));
 
-    if (board.id === activeId) {
-      const activeBadge = document.createElement('span');
-      activeBadge.classList.add('task-label', 'board-active-badge');
-      activeBadge.textContent = 'Active';
-      nameWrap.appendChild(activeBadge);
-    }
+    const editBtn = h('button', {
+      class: 'btn-small', title: 'Rename board',
+      onClick: () => showBoardRenameModal(board.id)
+    }, h('span', { 'data-lucide': 'pencil' }));
 
-    const actions = document.createElement('div');
-    actions.classList.add('label-actions');
-
-    const switchBtn = document.createElement('button');
-    switchBtn.classList.add('btn-small');
-    switchBtn.textContent = 'Open';
-    switchBtn.title = 'Open board';
-    switchBtn.addEventListener('click', async () => {
-      setActiveBoardId(board.id);
-      renderBoardsSelect();
-      renderBoardsList();
-      emit(DATA_CHANGED);
-      hideBoardsModal();
-    });
-
-    const exportBtn = document.createElement('button');
-    exportBtn.classList.add('btn-small');
-    exportBtn.type = 'button';
-    exportBtn.title = 'Export board';
-    exportBtn.setAttribute('aria-label', `Export board ${String(board.name || 'Untitled board')}`);
-    const exportIcon = document.createElement('span');
-    exportIcon.dataset.lucide = 'download';
-    exportBtn.appendChild(exportIcon);
-    exportBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      exportBoard(board.id);
-    });
-
-    const editBtn = document.createElement('button');
-    editBtn.classList.add('btn-small');
-    const editIcon = document.createElement('span');
-    editIcon.dataset.lucide = 'pencil';
-    editBtn.appendChild(editIcon);
-    editBtn.title = 'Rename board';
-    editBtn.addEventListener('click', () => showBoardRenameModal(board.id));
-
-    const deleteBtn = document.createElement('button');
-    deleteBtn.classList.add('btn-small', 'btn-danger');
-    const deleteIcon = document.createElement('span');
-    deleteIcon.dataset.lucide = 'trash-2';
-    deleteBtn.appendChild(deleteIcon);
-    deleteBtn.title = 'Delete board';
-    deleteBtn.addEventListener('click', async () => {
-      const ok = await confirmDialog({
-        title: 'Delete Board',
-        message: `Do you really want to delete the board "${board.name}"? This cannot be undone.`,
-        confirmText: 'Delete'
-      });
-      if (!ok) return;
-      const deleted = deleteBoardById(board.id);
-      if (!deleted) {
-        await alertDialog({
-          title: 'Unable to Delete',
-          message: 'Unable to delete board (you may be trying to delete the last board).'
+    const deleteBtn = h('button', {
+      class: 'btn-small btn-danger', title: 'Delete board',
+      onClick: async () => {
+        const ok = await confirmDialog({
+          title: 'Delete Board',
+          message: `Do you really want to delete the board "${board.name}"? This cannot be undone.`,
+          confirmText: 'Delete'
         });
-        return;
+        if (!ok) return;
+        const deleted = deleteBoardById(board.id);
+        if (!deleted) {
+          await alertDialog({ title: 'Unable to Delete', message: 'Unable to delete board (you may be trying to delete the last board).' });
+          return;
+        }
+        renderBoardsSelect();
+        renderBoardsList();
+        emit(DATA_CHANGED);
       }
-      renderBoardsSelect();
-      renderBoardsList();
-      emit(DATA_CHANGED);
-    });
+    }, h('span', { 'data-lucide': 'trash-2' }));
 
-    actions.appendChild(switchBtn);
-    actions.appendChild(exportBtn);
-    actions.appendChild(editBtn);
-    actions.appendChild(deleteBtn);
-
-    item.appendChild(nameWrap);
-    item.appendChild(actions);
-    container.appendChild(item);
+    container.appendChild(h('div', { class: 'label-item' },
+      nameWrap,
+      h('div', { class: 'label-actions' }, switchBtn, exportBtn, editBtn, deleteBtn)
+    ));
   });
 
   renderIcons();
@@ -145,13 +101,13 @@ function renderBoardsList() {
 export function showBoardsModal() {
   keyboardNavIndex = -1;
   renderBoardsList();
-  const modal = document.getElementById('boards-modal');
+  const modal = $id('boards-modal');
   modal?.classList.remove('hidden');
 }
 
 function hideBoardsModal() {
   keyboardNavIndex = -1;
-  const modal = document.getElementById('boards-modal');
+  const modal = $id('boards-modal');
   modal?.classList.add('hidden');
 }
 
@@ -163,7 +119,7 @@ function updateBoardKeyboardFocus(items) {
 }
 
 export function refreshBoardsModalList() {
-  const modal = document.getElementById('boards-modal');
+  const modal = $id('boards-modal');
   if (!modal || modal.classList.contains('hidden')) return;
   renderBoardsList();
 }
@@ -174,10 +130,10 @@ function showBoardRenameModal(boardId) {
   if (!board) return;
 
   editingBoardId = boardId;
-  const modal = document.getElementById('board-rename-modal');
-  const input = document.getElementById('board-rename-name');
-  const title = document.getElementById('board-rename-modal-title');
-  const submitBtn = document.getElementById('board-rename-submit-btn');
+  const modal = $id('board-rename-modal');
+  const input = $id('board-rename-name');
+  const title = $id('board-rename-modal-title');
+  const submitBtn = $id('board-rename-submit-btn');
 
   if (title) title.textContent = 'Rename Board';
   if (submitBtn) submitBtn.textContent = 'Save';
@@ -188,7 +144,7 @@ function showBoardRenameModal(boardId) {
 }
 
 function hideBoardRenameModal() {
-  const modal = document.getElementById('board-rename-modal');
+  const modal = $id('board-rename-modal');
   modal?.classList.add('hidden');
   editingBoardId = null;
 }
@@ -217,9 +173,9 @@ export function initializeBoardsModalHandlers(setupModalCloseHandlers) {
 
   // Arrow key navigation + Enter to activate board when modal is open.
   document.addEventListener('keydown', (e) => {
-    const modal = document.getElementById('boards-modal');
+    const modal = $id('boards-modal');
     if (!modal || modal.classList.contains('hidden')) return;
-    const renameModal = document.getElementById('board-rename-modal');
+    const renameModal = $id('board-rename-modal');
     if (renameModal && !renameModal.classList.contains('hidden')) return;
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Enter') return;
 
@@ -248,11 +204,11 @@ export function initializeBoardsModalHandlers(setupModalCloseHandlers) {
     }
   });
 
-  document.getElementById('manage-boards-btn')?.addEventListener('click', showBoardsModal);
-  document.getElementById('add-board-btn')?.addEventListener('click', async () => {
+  $id('manage-boards-btn')?.addEventListener('click', showBoardsModal);
+  $id('add-board-btn')?.addEventListener('click', async () => {
     document.dispatchEvent(new CustomEvent('kanban:open-board-create'));
   });
-  document.getElementById('boards-import-btn')?.addEventListener('click', async () => {
+  $id('boards-import-btn')?.addEventListener('click', async () => {
     const ok = await confirmDialog({
       title: 'Import Board (New Board)',
       message:
@@ -260,16 +216,16 @@ export function initializeBoardsModalHandlers(setupModalCloseHandlers) {
       confirmText: 'Import'
     });
     if (!ok) return;
-    document.getElementById('import-file')?.click();
+    $id('import-file')?.click();
   });
   setupModalCloseHandlers('boards-modal', hideBoardsModal);
 
   // Board rename modal
-  document.getElementById('board-rename-form')?.addEventListener('submit', async (e) => {
+  $id('board-rename-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!editingBoardId) return;
 
-    const input = document.getElementById('board-rename-name');
+    const input = $id('board-rename-name');
     const name = (input?.value || '').trim();
     if (!name) {
       await alertDialog({ title: 'Error', message: 'Board name cannot be empty.' });

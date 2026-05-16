@@ -9,6 +9,7 @@ import { createAccordionSection } from './accordion.js';
 import { createTaskActivitySection } from './activity-log-ui.js';
 import { generateUUID, labelTextColor } from './utils.js';
 import Sortable from 'sortablejs';
+import { $id, h, cx } from './dom.js';
 
 // Task modal state
 let currentColumn = 'todo';
@@ -43,11 +44,11 @@ export function getSelectCreatedLabelFlag() { return selectCreatedLabelInTaskEdi
 export function setSelectCreatedLabelFlag(val) { selectCreatedLabelInTaskEditor = val; }
 
 function setTaskModalFullscreen(isFullscreen) {
-  const modal = document.getElementById('task-modal');
+  const modal = $id('task-modal');
   if (!modal) return;
   modal.classList.toggle('fullscreen', !!isFullscreen);
 
-  const btn = document.getElementById('task-fullpage-btn');
+  const btn = $id('task-fullpage-btn');
   btn?.setAttribute('aria-pressed', isFullscreen ? 'true' : 'false');
 
   if (btn) {
@@ -62,12 +63,12 @@ function setTaskModalFullscreen(isFullscreen) {
 }
 
 function getTaskLabelSearchQuery() {
-  const input = document.getElementById('task-label-search');
+  const input = $id('task-label-search');
   return (input?.value || '').trim().toLowerCase();
 }
 
 function renderActiveTaskLabels() {
-  const container = document.getElementById('task-active-labels');
+  const container = $id('task-active-labels');
   if (!container) return;
 
   const allLabels = loadLabels();
@@ -85,78 +86,67 @@ function renderActiveTaskLabels() {
   container.style.display = selectedLabels.length > 0 ? 'flex' : 'none';
 
   selectedLabels.forEach((label) => {
-    const pill = document.createElement('span');
-    pill.classList.add('task-label');
-    pill.style.backgroundColor = label.color;
-    pill.style.color = labelTextColor(label.color);
-    pill.textContent = label.name;
-
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.classList.add('active-label-remove');
-    removeBtn.setAttribute('aria-label', `Remove label ${label.name}`);
-    removeBtn.title = 'Remove label';
-    removeBtn.textContent = '×';
-    removeBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      selectedTaskLabels = selectedTaskLabels.filter((id) => id !== label.id);
-      renderActiveTaskLabels();
-      updateTaskLabelsSelection();
-    });
-
-    pill.appendChild(removeBtn);
-    container.appendChild(pill);
+    container.appendChild(h('span', {
+      class: 'task-label',
+      style: { backgroundColor: label.color, color: labelTextColor(label.color) }
+    },
+      label.name,
+      h('button', {
+        type: 'button',
+        class: 'active-label-remove',
+        'aria-label': `Remove label ${label.name}`,
+        title: 'Remove label',
+        onClick: (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          selectedTaskLabels = selectedTaskLabels.filter((id) => id !== label.id);
+          renderActiveTaskLabels();
+          updateTaskLabelsSelection();
+        }
+      }, '×')
+    ));
   });
 }
 
 function renderActiveTaskRelationships() {
-  const container = document.getElementById('task-active-relationships');
+  const container = $id('task-active-relationships');
   if (!container) return;
 
   container.innerHTML = '';
   container.style.display = selectedTaskRelationships.length > 0 ? 'flex' : 'none';
 
   selectedTaskRelationships.forEach((rel) => {
-    const badge = document.createElement('span');
-    badge.classList.add('relationship-badge', `relationship-badge--${rel.type}`);
-
-    const typeLabel = document.createElement('span');
-    typeLabel.classList.add('relationship-badge__type');
-    typeLabel.textContent = RELATIONSHIP_LABELS[rel.type] || rel.type;
-
-    const idLink = document.createElement('button');
-    idLink.type = 'button';
-    idLink.classList.add('relationship-badge__id');
-    idLink.textContent = shortId(rel.targetTaskId);
-    idLink.setAttribute('aria-label', `Open task ${shortId(rel.targetTaskId)}`);
-    idLink.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      showEditModal(rel.targetTaskId);
-    });
-
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.classList.add('relationship-badge__remove');
-    removeBtn.setAttribute('aria-label', `Remove relationship with ${shortId(rel.targetTaskId)}`);
-    removeBtn.textContent = '×';
-    removeBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      selectedTaskRelationships = selectedTaskRelationships.filter((r) => r.targetTaskId !== rel.targetTaskId);
-      renderActiveTaskRelationships();
-    });
-
-    badge.appendChild(typeLabel);
-    badge.appendChild(idLink);
-    badge.appendChild(removeBtn);
-    container.appendChild(badge);
+    container.appendChild(h('span', {
+      class: `relationship-badge relationship-badge--${rel.type}`
+    },
+      h('span', { class: 'relationship-badge__type' }, RELATIONSHIP_LABELS[rel.type] || rel.type),
+      h('button', {
+        type: 'button',
+        class: 'relationship-badge__id',
+        'aria-label': `Open task ${shortId(rel.targetTaskId)}`,
+        onClick: (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          showEditModal(rel.targetTaskId);
+        }
+      }, shortId(rel.targetTaskId)),
+      h('button', {
+        type: 'button',
+        class: 'relationship-badge__remove',
+        'aria-label': `Remove relationship with ${shortId(rel.targetTaskId)}`,
+        onClick: (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          selectedTaskRelationships = selectedTaskRelationships.filter((r) => r.targetTaskId !== rel.targetTaskId);
+          renderActiveTaskRelationships();
+        }
+      }, '×')
+    ));
   });
 }
 
 function updateRelationshipSearchResults(query) {
-  const resultsEl = document.getElementById('task-relationship-results');
+  const resultsEl = $id('task-relationship-results');
   if (!resultsEl) return;
 
   const trimmed = (query || '').trim().toLowerCase();
@@ -178,71 +168,51 @@ function updateRelationshipSearchResults(query) {
   resultsEl.innerHTML = '';
 
   if (matches.length === 0) {
-    const empty = document.createElement('div');
-    empty.classList.add('relationship-results__empty');
-    empty.textContent = 'No tasks found';
-    resultsEl.appendChild(empty);
+    resultsEl.appendChild(h('div', { class: 'relationship-results__empty' }, 'No tasks found'));
     resultsEl.hidden = false;
     return;
   }
 
   matches.forEach((t) => {
     const existing = selectedTaskRelationships.find((r) => r.targetTaskId === t.id);
-    const item = document.createElement('button');
-    item.type = 'button';
-    item.classList.add('relationship-result-item');
-    if (existing) item.classList.add('relationship-result-item--linked');
-
-    const idSpan = document.createElement('span');
-    idSpan.classList.add('relationship-result-item__id');
-    idSpan.textContent = shortId(t.id);
-
-    const titleSpan = document.createElement('span');
-    titleSpan.classList.add('relationship-result-item__title');
-    titleSpan.textContent = t.title || '(untitled)';
-
-    if (existing) {
-      const currentType = document.createElement('span');
-      currentType.classList.add('relationship-result-item__current-type');
-      currentType.textContent = `[${RELATIONSHIP_LABELS[existing.type] || existing.type}]`;
-      item.appendChild(currentType);
-    }
-
-    item.appendChild(idSpan);
-    item.appendChild(titleSpan);
-
-    item.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      const typeSelect = document.getElementById('task-relationship-type');
-      const selectedType = typeSelect?.value || 'related';
-      // Upsert: replace if same target, otherwise add
-      selectedTaskRelationships = selectedTaskRelationships.filter((r) => r.targetTaskId !== t.id);
-      selectedTaskRelationships.push({ type: selectedType, targetTaskId: t.id });
-      renderActiveTaskRelationships();
-      const searchInput = document.getElementById('task-relationship-search');
-      if (searchInput) searchInput.value = '';
-      resultsEl.hidden = true;
-      resultsEl.innerHTML = '';
-    });
-
-    resultsEl.appendChild(item);
+    resultsEl.appendChild(h('button', {
+      type: 'button',
+      class: cx('relationship-result-item', existing && 'relationship-result-item--linked'),
+      onMousedown: (e) => {
+        e.preventDefault();
+        const typeSelect = $id('task-relationship-type');
+        const selectedType = typeSelect?.value || 'related';
+        // Upsert: replace if same target, otherwise add
+        selectedTaskRelationships = selectedTaskRelationships.filter((r) => r.targetTaskId !== t.id);
+        selectedTaskRelationships.push({ type: selectedType, targetTaskId: t.id });
+        renderActiveTaskRelationships();
+        const searchInput = $id('task-relationship-search');
+        if (searchInput) searchInput.value = '';
+        resultsEl.hidden = true;
+        resultsEl.innerHTML = '';
+      }
+    },
+      existing ? h('span', { class: 'relationship-result-item__current-type' }, `[${RELATIONSHIP_LABELS[existing.type] || existing.type}]`) : null,
+      h('span', { class: 'relationship-result-item__id' }, shortId(t.id)),
+      h('span', { class: 'relationship-result-item__title' }, t.title || '(untitled)')
+    ));
   });
 
   resultsEl.hidden = false;
 }
 
 function temporarilyHideTaskModalForLabelsManager() {
-  const taskModal = document.getElementById('task-modal');
+  const taskModal = $id('task-modal');
   if (!taskModal) return;
   taskModal.classList.add('hidden');
 }
 
 export function restoreTaskModalAfterLabelsManager() {
-  const taskModal = document.getElementById('task-modal');
+  const taskModal = $id('task-modal');
   if (!taskModal) return;
 
   taskModal.classList.remove('hidden');
-  const labelSearch = document.getElementById('task-label-search');
+  const labelSearch = $id('task-label-search');
   if (labelSearch) labelSearch.value = '';
   labelSearchHighlightIndex = 0;
   updateTaskLabelsSelection();
@@ -264,14 +234,7 @@ function groupLabels(labels) {
 }
 
 function createLabelCheckboxItem(label, index) {
-  const labelEl = document.createElement('label');
-  labelEl.classList.add('label-checkbox');
-  labelEl.dataset.labelIndex = index;
-  if (index === labelSearchHighlightIndex) labelEl.classList.add('label-highlight');
-
-  const checkbox = document.createElement('input');
-  checkbox.type = 'checkbox';
-  checkbox.value = label.id;
+  const checkbox = h('input', { type: 'checkbox', value: label.id });
   checkbox.checked = selectedTaskLabels.includes(label.id);
   checkbox.addEventListener('change', (e) => {
     if (e.target.checked) {
@@ -282,20 +245,21 @@ function createLabelCheckboxItem(label, index) {
     renderActiveTaskLabels();
   });
 
-  const labelPill = document.createElement('span');
-  labelPill.classList.add('task-label', 'label-color-swatch');
-  labelPill.style.backgroundColor = label.color;
-  labelPill.style.color = labelTextColor(label.color);
-  labelPill.textContent = label.name;
-
-  labelEl.appendChild(checkbox);
-  labelEl.appendChild(labelPill);
-  return labelEl;
+  return h('label', {
+    class: cx('label-checkbox', index === labelSearchHighlightIndex && 'label-highlight'),
+    'data-label-index': index
+  },
+    checkbox,
+    h('span', {
+      class: 'task-label label-color-swatch',
+      style: { backgroundColor: label.color, color: labelTextColor(label.color) }
+    }, label.name)
+  );
 }
 
 export function updateTaskLabelsSelection() {
   renderActiveTaskLabels();
-  const container = document.getElementById('task-labels-selection');
+  const container = $id('task-labels-selection');
   container.innerHTML = '';
 
   const query = getTaskLabelSearchQuery();
@@ -316,26 +280,21 @@ export function updateTaskLabelsSelection() {
     if (query) {
       // Add create-label sentinel so it participates in keyboard navigation
       filteredLabelIds.push(CREATE_LABEL_SENTINEL);
-      const createBtn = document.createElement('button');
-      createBtn.type = 'button';
-      createBtn.classList.add('labels-empty-button');
-      createBtn.dataset.labelIndex = '0';
-      if (labelSearchHighlightIndex === 0) createBtn.classList.add('label-highlight');
-      createBtn.textContent = `No label found "${query}" - Create label`;
-      createBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        // Dispatch event so labels-modal can handle it
-        document.dispatchEvent(new CustomEvent('kanban:open-label-modal', {
-          detail: { openedFromTaskEditor: true, initialName: query }
-        }));
-      });
-      container.appendChild(createBtn);
+      container.appendChild(h('button', {
+        type: 'button',
+        class: cx('labels-empty-button', labelSearchHighlightIndex === 0 && 'label-highlight'),
+        'data-label-index': '0',
+        onClick: (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          // Dispatch event so labels-modal can handle it
+          document.dispatchEvent(new CustomEvent('kanban:open-label-modal', {
+            detail: { openedFromTaskEditor: true, initialName: query }
+          }));
+        }
+      }, `No label found "${query}" - Create label`));
     } else {
-      const empty = document.createElement('div');
-      empty.classList.add('labels-empty');
-      empty.textContent = 'No matching labels';
-      container.appendChild(empty);
+      container.appendChild(h('div', { class: 'labels-empty' }, 'No matching labels'));
     }
     return;
   }
@@ -355,11 +314,7 @@ export function updateTaskLabelsSelection() {
   });
 
   sortedGroups.forEach(groupName => {
-    const header = document.createElement('div');
-    header.classList.add('label-group-header', 'label-group-header-picker');
-    header.textContent = groupName;
-    container.appendChild(header);
-
+    container.appendChild(h('div', { class: 'label-group-header label-group-header-picker' }, groupName));
     groupMap.get(groupName).forEach(label => {
       container.appendChild(createLabelCheckboxItem(label, idx++));
     });
@@ -367,7 +322,7 @@ export function updateTaskLabelsSelection() {
 }
 
 function updateSubTasksProgressLegend() {
-  const legend = document.getElementById('task-subtasks-progress-legend');
+  const legend = $id('task-subtasks-progress-legend');
   if (!legend) return;
   const total = selectedTaskSubTasks.length;
   if (total === 0) {
@@ -418,7 +373,7 @@ function activateSubTaskInlineEdit(li, subtaskId) {
 }
 
 function renderSubTaskList() {
-  const listEl = document.getElementById('task-subtasks-list');
+  const listEl = $id('task-subtasks-list');
   if (!listEl) return;
 
   // Sort by order before rendering
@@ -498,16 +453,16 @@ export function showModal(columnName, swimlaneContext) {
   selectCreatedLabelInTaskEditor = false;
 
   setTaskModalFullscreen(false);
-  document.getElementById('task-fullpage-btn')?.classList.add('hidden');
+  $id('task-fullpage-btn')?.classList.add('hidden');
 
-  const modal = document.getElementById('task-modal');
-  const columnSelect = document.getElementById('task-column');
-  const taskTitle = document.getElementById('task-title');
-  const taskDescription = document.getElementById('task-description');
-  const taskPriority = document.getElementById('task-priority');
-  const taskDueDate = document.getElementById('task-due-date');
-  const modalTitle = document.getElementById('task-modal-title');
-  const submitBtn = document.getElementById('task-submit-btn');
+  const modal = $id('task-modal');
+  const columnSelect = $id('task-column');
+  const taskTitle = $id('task-title');
+  const taskDescription = $id('task-description');
+  const taskPriority = $id('task-priority');
+  const taskDueDate = $id('task-due-date');
+  const modalTitle = $id('task-modal-title');
+  const submitBtn = $id('task-submit-btn');
 
   clearFieldError(taskTitle);
 
@@ -538,12 +493,12 @@ export function showModal(columnName, swimlaneContext) {
     }
   }
 
-  const labelSearch = document.getElementById('task-label-search');
+  const labelSearch = $id('task-label-search');
   if (labelSearch) labelSearch.value = '';
 
-  const relSearch = document.getElementById('task-relationship-search');
+  const relSearch = $id('task-relationship-search');
   if (relSearch) relSearch.value = '';
-  const relResults = document.getElementById('task-relationship-results');
+  const relResults = $id('task-relationship-results');
   if (relResults) { relResults.hidden = true; relResults.innerHTML = ''; }
 
   updateTaskLabelsSelection();
@@ -566,16 +521,16 @@ export function showEditModal(taskId) {
   selectCreatedLabelInTaskEditor = false;
 
   setTaskModalFullscreen(false);
-  document.getElementById('task-fullpage-btn')?.classList.remove('hidden');
+  $id('task-fullpage-btn')?.classList.remove('hidden');
 
-  const modal = document.getElementById('task-modal');
-  const columnSelect = document.getElementById('task-column');
-  const taskTitle = document.getElementById('task-title');
-  const taskDescription = document.getElementById('task-description');
-  const taskPriority = document.getElementById('task-priority');
-  const taskDueDate = document.getElementById('task-due-date');
-  const modalTitle = document.getElementById('task-modal-title');
-  const submitBtn = document.getElementById('task-submit-btn');
+  const modal = $id('task-modal');
+  const columnSelect = $id('task-column');
+  const taskTitle = $id('task-title');
+  const taskDescription = $id('task-description');
+  const taskPriority = $id('task-priority');
+  const taskDueDate = $id('task-due-date');
+  const modalTitle = $id('task-modal-title');
+  const submitBtn = $id('task-submit-btn');
 
   clearFieldError(taskTitle);
 
@@ -593,12 +548,12 @@ export function showEditModal(taskId) {
   const dueForInput = rawDue.includes('T') ? rawDue.slice(0, 10) : rawDue;
   if (taskDueDate) taskDueDate.value = dueForInput;
 
-  const labelSearch = document.getElementById('task-label-search');
+  const labelSearch = $id('task-label-search');
   if (labelSearch) labelSearch.value = '';
 
-  const relSearch = document.getElementById('task-relationship-search');
+  const relSearch = $id('task-relationship-search');
   if (relSearch) relSearch.value = '';
-  const relResults = document.getElementById('task-relationship-results');
+  const relResults = $id('task-relationship-results');
   if (relResults) { relResults.hidden = true; relResults.innerHTML = ''; }
 
   updateTaskLabelsSelection();
@@ -606,7 +561,7 @@ export function showEditModal(taskId) {
   renderSubTaskList();
 
   // Render activity accordion in right column
-  const activityContainer = document.getElementById('task-activity-section');
+  const activityContainer = $id('task-activity-section');
   if (activityContainer) {
     activityContainer.innerHTML = '';
     activityContainer.appendChild(createTaskActivitySection(task));
@@ -618,26 +573,25 @@ export function showEditModal(taskId) {
 }
 
 function hideModal() {
-  const modal = document.getElementById('task-modal');
-  modal.classList.add('hidden');
+  $id('task-modal').classList.add('hidden');
   editingTaskId = null;
   selectedTaskRelationships = [];
   selectedTaskSubTasks = [];
   if (subtaskSortable) { subtaskSortable.destroy(); subtaskSortable = null; }
   returnToTaskModalAfterLabelsManager = false;
 
-  const relResults = document.getElementById('task-relationship-results');
+  const relResults = $id('task-relationship-results');
   if (relResults) { relResults.hidden = true; relResults.innerHTML = ''; }
 
-  const activityContainer = document.getElementById('task-activity-section');
+  const activityContainer = $id('task-activity-section');
   if (activityContainer) activityContainer.innerHTML = '';
 
   setTaskModalFullscreen(false);
-  document.getElementById('task-fullpage-btn')?.classList.add('hidden');
+  $id('task-fullpage-btn')?.classList.add('hidden');
 }
 
 function scrollHighlightedLabelIntoView() {
-  const container = document.getElementById('task-labels-selection');
+  const container = $id('task-labels-selection');
   if (!container) return;
   const highlighted = container.querySelector('.label-highlight');
   if (highlighted) highlighted.scrollIntoView({ block: 'nearest' });
@@ -646,31 +600,31 @@ function scrollHighlightedLabelIntoView() {
 const URL_RE = /https?:\/\/[^\s<>"']+/g;
 
 export function updateDescriptionLinks(text) {
-  const container = document.getElementById('task-description-links');
+  const container = $id('task-description-links');
   if (!container) return;
   container.innerHTML = '';
   const matches = [...(text || '').matchAll(URL_RE)].map(m => m[0]);
   if (matches.length === 0) { container.hidden = true; return; }
   const unique = [...new Set(matches)];
   unique.forEach(url => {
-    const a = document.createElement('a');
-    a.href = url;
+    const a = h('a', {
+      href: url,
+      target: '_blank',
+      rel: 'noopener noreferrer',
+      class: 'description-link-chip'
+    }, url);
     if (a.protocol !== 'https:' && a.protocol !== 'http:') return;
-    a.textContent = url;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    a.classList.add('description-link-chip');
     container.appendChild(a);
   });
   container.hidden = container.childElementCount === 0;
 }
 
 export function initializeTaskModalHandlers(setupModalCloseHandlers) {
-  document.getElementById('task-description')?.addEventListener('input', (e) => {
+  $id('task-description')?.addEventListener('input', (e) => {
     updateDescriptionLinks(e.target.value);
   });
 
-  const taskLabelSearch = document.getElementById('task-label-search');
+  const taskLabelSearch = $id('task-label-search');
   taskLabelSearch?.addEventListener('input', () => {
     labelSearchHighlightIndex = 0;
     updateTaskLabelsSelection();
@@ -714,44 +668,42 @@ export function initializeTaskModalHandlers(setupModalCloseHandlers) {
     }
   });
 
-  const relTypeSelect = document.getElementById('task-relationship-type');
-  const relTypeTooltip = document.getElementById('rel-type-tooltip');
+  const relTypeSelect = $id('task-relationship-type');
+  const relTypeTooltip = $id('rel-type-tooltip');
   if (relTypeSelect && relTypeTooltip) {
     relTypeSelect.addEventListener('change', () => {
       relTypeTooltip.textContent = RELATIONSHIP_DESCRIPTIONS[relTypeSelect.value] || '';
     });
   }
 
-  const relSearch = document.getElementById('task-relationship-search');
+  const relSearch = $id('task-relationship-search');
   relSearch?.addEventListener('input', (e) => updateRelationshipSearchResults(e.target.value));
   relSearch?.addEventListener('focus', (e) => { if (e.target.value.trim()) updateRelationshipSearchResults(e.target.value); });
 
   document.addEventListener('click', (e) => {
-    const resultsEl = document.getElementById('task-relationship-results');
+    const resultsEl = $id('task-relationship-results');
     if (!resultsEl || resultsEl.hidden) return;
-    const fieldset = document.getElementById('task-relationships-fieldset');
+    const fieldset = $id('task-relationships-fieldset');
     if (fieldset && !fieldset.contains(e.target)) {
       resultsEl.hidden = true;
       resultsEl.innerHTML = '';
     }
   });
 
-  const taskAddLabelBtn = document.getElementById('task-add-label-btn');
-  taskAddLabelBtn?.addEventListener('click', () => {
+  $id('task-add-label-btn')?.addEventListener('click', () => {
     returnToTaskModalAfterLabelsManager = false;
     document.dispatchEvent(new CustomEvent('kanban:open-label-modal', {
       detail: { openedFromTaskEditor: true }
     }));
   });
 
-  const taskFullpageBtn = document.getElementById('task-fullpage-btn');
-  taskFullpageBtn?.addEventListener('click', () => {
-    const modal = document.getElementById('task-modal');
+  $id('task-fullpage-btn')?.addEventListener('click', () => {
+    const modal = $id('task-modal');
     if (!modal) return;
     setTaskModalFullscreen(!modal.classList.contains('fullscreen'));
   });
 
-  const subtaskInput = document.getElementById('task-subtask-input');
+  const subtaskInput = $id('task-subtask-input');
   subtaskInput?.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
@@ -763,17 +715,17 @@ export function initializeTaskModalHandlers(setupModalCloseHandlers) {
     renderSubTaskList();
   });
 
-  document.getElementById('task-form').addEventListener('submit', (e) => {
+  $id('task-form').addEventListener('submit', (e) => {
     e.preventDefault();
-    const titleInput = document.getElementById('task-title');
+    const titleInput = $id('task-title');
 
     if (!validateAndShowTaskTitleError(titleInput)) return;
 
     const title = titleInput.value.trim();
-    const description = document.getElementById('task-description').value;
-    const priority = document.getElementById('task-priority')?.value;
-    const dueDate = document.getElementById('task-due-date')?.value;
-    const column = document.getElementById('task-column').value;
+    const description = $id('task-description').value;
+    const priority = $id('task-priority')?.value;
+    const dueDate = $id('task-due-date')?.value;
+    const column = $id('task-column').value;
 
     if (editingTaskId) {
       updateTask(editingTaskId, title, description, priority, dueDate, column, selectedTaskLabels, selectedTaskRelationships, selectedTaskSubTasks);

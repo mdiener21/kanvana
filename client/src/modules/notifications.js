@@ -2,6 +2,7 @@ import { isDoneColumnId, loadTasks, loadSettings } from './storage.js';
 import { showEditModal, setupModalCloseHandlers } from './modals.js';
 import { renderIcons } from './icons.js';
 import { calculateDaysUntilDue } from './dateutils.js';
+import { $id, h } from './dom.js';
 
 const NOTIFICATION_BANNER_HIDDEN_KEY = 'kanbanNotificationBannerHidden';
 let bannerResizeTimeout;
@@ -15,7 +16,7 @@ function setNotificationBannerHidden(hidden) {
 }
 
 function syncNotificationBannerVisibilityToggle() {
-  const toggle = document.getElementById('notification-banner-visibility-toggle');
+  const toggle = $id('notification-banner-visibility-toggle');
   if (!toggle) return;
   toggle.checked = !isNotificationBannerHidden();
 }
@@ -98,8 +99,8 @@ function formatDueStatus(daysUntilDue, dueDate, locale) {
  * Render the notification banner.
  */
 export function renderNotificationBanner() {
-  const banner = document.getElementById('notification-banner');
-  const list = document.getElementById('notification-banner-list');
+  const banner = $id('notification-banner');
+  const list = $id('notification-banner-list');
   if (!banner || !list) return;
 
   const tasks = getNotificationTasks();
@@ -120,35 +121,24 @@ export function renderNotificationBanner() {
 
   const isDesktop = window.matchMedia('(min-width: 601px)').matches;
   const createBannerItem = (task) => {
-    const item = document.createElement('div');
-    item.classList.add('notification-banner-item');
-    item.setAttribute('role', 'button');
-    item.setAttribute('tabindex', '0');
-    item.setAttribute('aria-label', `Open task: ${task.title}`);
-
-    const titleSpan = document.createElement('span');
-    titleSpan.classList.add('task-title');
     const legacyTitle = typeof task.text === 'string' ? task.text : '';
-    titleSpan.textContent =
-      typeof task.title === 'string' && task.title.trim() ? task.title : legacyTitle;
-
+    const titleText = typeof task.title === 'string' && task.title.trim() ? task.title : legacyTitle;
     const dueStatus = formatDueStatus(task.daysUntilDue, task.dueDate, settings.locale);
-    const dueSpan = document.createElement('span');
-    dueSpan.classList.add('due-date', dueStatus.className);
-    dueSpan.textContent = dueStatus.text;
-
-    item.appendChild(titleSpan);
-    item.appendChild(dueSpan);
-
     const openTask = () => showEditModal(task.id);
-    item.addEventListener('click', openTask);
-    item.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        openTask();
-      }
-    });
 
+    const item = h('div', {
+      class: 'notification-banner-item',
+      role: 'button',
+      tabindex: '0',
+      'aria-label': `Open task: ${task.title}`,
+      onClick: openTask,
+    },
+      h('span', { class: 'task-title' }, titleText),
+      h('span', { class: `due-date ${dueStatus.className}` }, dueStatus.text)
+    );
+    item.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openTask(); }
+    });
     return item;
   };
 
@@ -171,17 +161,14 @@ export function renderNotificationBanner() {
 
     const remaining = tasks.length - shown;
     if (remaining > 0) {
-      const more = document.createElement('div');
-      more.classList.add('notification-banner-item', 'notification-more');
-      more.setAttribute('role', 'button');
-      more.setAttribute('tabindex', '0');
-      more.textContent = `+${remaining} `;
-      more.addEventListener('click', showNotificationsModal);
+      const more = h('div', {
+        class: 'notification-banner-item notification-more',
+        role: 'button',
+        tabindex: '0',
+        onClick: showNotificationsModal,
+      }, `+${remaining} `);
       more.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          showNotificationsModal();
-        }
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showNotificationsModal(); }
       });
 
       list.appendChild(more);
@@ -204,17 +191,14 @@ export function renderNotificationBanner() {
     });
 
     if (tasks.length > 5) {
-      const more = document.createElement('div');
-      more.classList.add('notification-banner-item', 'notification-more');
-      more.setAttribute('role', 'button');
-      more.setAttribute('tabindex', '0');
-      more.textContent = `+${tasks.length - 5} `;
-      more.addEventListener('click', showNotificationsModal);
+      const more = h('div', {
+        class: 'notification-banner-item notification-more',
+        role: 'button',
+        tabindex: '0',
+        onClick: showNotificationsModal,
+      }, `+${tasks.length - 5} `);
       more.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          showNotificationsModal();
-        }
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showNotificationsModal(); }
       });
       list.appendChild(more);
     }
@@ -228,7 +212,7 @@ export function renderNotificationBanner() {
  * Render the notifications modal content.
  */
 function renderNotificationsModalContent() {
-  const list = document.getElementById('notifications-list');
+  const list = $id('notifications-list');
   if (!list) return;
 
   const tasks = getNotificationTasks();
@@ -238,70 +222,38 @@ function renderNotificationsModalContent() {
   list.innerHTML = '';
 
   if (tasks.length === 0) {
-    const empty = document.createElement('div');
-    empty.classList.add('notifications-empty');
-    empty.textContent = thresholdDays === 0
+    list.appendChild(h('div', { class: 'notifications-empty' }, thresholdDays === 0
       ? 'No tasks due today.'
-      : `No tasks due within the next ${thresholdDays} day${thresholdDays === 1 ? '' : 's'}.`;
-    list.appendChild(empty);
+      : `No tasks due within the next ${thresholdDays} day${thresholdDays === 1 ? '' : 's'}.`));
     return;
   }
 
   tasks.forEach((task) => {
-    const item = document.createElement('div');
-    item.classList.add('notification-item');
-    item.setAttribute('role', 'button');
-    item.setAttribute('tabindex', '0');
-    item.setAttribute('aria-label', `Open task: ${task.title}`);
-
-    const content = document.createElement('div');
-    content.classList.add('notification-item-content');
-
-    const title = document.createElement('div');
-    title.classList.add('notification-item-title');
     const legacyTitle = typeof task.text === 'string' ? task.text : '';
-    title.textContent =
-      typeof task.title === 'string' && task.title.trim() ? task.title : legacyTitle;
-
-    const meta = document.createElement('div');
-    meta.classList.add('notification-item-meta');
-
+    const titleText = typeof task.title === 'string' && task.title.trim() ? task.title : legacyTitle;
     const dueStatus = formatDueStatus(task.daysUntilDue, task.dueDate, settings.locale);
-    const dueSpan = document.createElement('span');
-    dueSpan.classList.add(dueStatus.className);
-    dueSpan.textContent = dueStatus.text;
-
     const priority = typeof task.priority === 'string' ? task.priority : 'none';
-    const prioritySpan = document.createElement('span');
-    prioritySpan.classList.add('notification-item-priority', `priority-${priority}`);
-    prioritySpan.textContent = priority;
+    const openTask = () => { hideNotificationsModal(); showEditModal(task.id); };
 
-    meta.appendChild(dueSpan);
-    meta.appendChild(prioritySpan);
-
-    content.appendChild(title);
-    content.appendChild(meta);
-
-    const arrow = document.createElement('span');
-    arrow.classList.add('notification-item-arrow');
-    arrow.dataset.lucide = 'chevron-right';
-
-    item.appendChild(content);
-    item.appendChild(arrow);
-
-    // Click handler to open task and close modal
-    const openTask = () => {
-      hideNotificationsModal();
-      showEditModal(task.id);
-    };
-    item.addEventListener('click', openTask);
+    const item = h('div', {
+      class: 'notification-item',
+      role: 'button',
+      tabindex: '0',
+      'aria-label': `Open task: ${task.title}`,
+      onClick: openTask,
+    },
+      h('div', { class: 'notification-item-content' },
+        h('div', { class: 'notification-item-title' }, titleText),
+        h('div', { class: 'notification-item-meta' },
+          h('span', { class: dueStatus.className }, dueStatus.text),
+          h('span', { class: `notification-item-priority priority-${priority}` }, priority)
+        )
+      ),
+      h('span', { class: 'notification-item-arrow', 'data-lucide': 'chevron-right' })
+    );
     item.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        openTask();
-      }
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openTask(); }
     });
-
     list.appendChild(item);
   });
 
@@ -312,15 +264,8 @@ function renderNotificationsModalContent() {
  * Update the notification badge count on the bell button.
  */
 export function updateNotificationBadge() {
-  const badges = [
-    document.getElementById('notification-badge'),
-    document.getElementById('notification-quick-badge')
-  ].filter(Boolean);
-
-  const buttons = [
-    document.getElementById('notifications-btn'),
-    document.getElementById('notifications-quick-btn')
-  ].filter(Boolean);
+  const badges = ['notification-badge', 'notification-quick-badge'].map($id).filter(Boolean);
+  const buttons = ['notifications-btn', 'notifications-quick-btn'].map($id).filter(Boolean);
 
   if (badges.length === 0) return;
 
@@ -356,7 +301,7 @@ export function updateNotificationBadge() {
 export function showNotificationsModal() {
   syncNotificationBannerVisibilityToggle();
   renderNotificationsModalContent();
-  const modal = document.getElementById('notifications-modal');
+  const modal = $id('notifications-modal');
   modal?.classList.remove('hidden');
 }
 
@@ -364,7 +309,7 @@ export function showNotificationsModal() {
  * Hide the notifications modal.
  */
 export function hideNotificationsModal() {
-  const modal = document.getElementById('notifications-modal');
+  const modal = $id('notifications-modal');
   modal?.classList.add('hidden');
 }
 
@@ -372,7 +317,7 @@ export function hideNotificationsModal() {
  * Check if the notifications modal is open.
  */
 export function isNotificationsModalOpen() {
-  const modal = document.getElementById('notifications-modal');
+  const modal = $id('notifications-modal');
   return modal && !modal.classList.contains('hidden');
 }
 
@@ -380,29 +325,26 @@ export function isNotificationsModalOpen() {
  * Initialize notification handlers.
  */
 export function initializeNotifications() {
-  const bannerCloseBtn = document.getElementById('notification-banner-close-btn');
+  const bannerCloseBtn = $id('notification-banner-close-btn');
   bannerCloseBtn?.addEventListener('click', () => {
     setNotificationBannerHidden(true);
     refreshNotifications();
   });
 
-  const bannerToggle = document.getElementById('notification-banner-visibility-toggle');
+  const bannerToggle = $id('notification-banner-visibility-toggle');
   bannerToggle?.addEventListener('change', () => {
     setNotificationBannerHidden(!bannerToggle.checked);
     refreshNotifications();
   });
 
   // Bell button click handlers (menu + quick access)
-  const notificationButtons = [
-    document.getElementById('notifications-btn'),
-    document.getElementById('notifications-quick-btn')
-  ].filter(Boolean);
+  const notificationButtons = ['notifications-btn', 'notifications-quick-btn'].map($id).filter(Boolean);
   notificationButtons.forEach((button) => {
     button.addEventListener('click', showNotificationsModal);
   });
 
   // Close button handler
-  const closeBtn = document.getElementById('notifications-close-btn');
+  const closeBtn = $id('notifications-close-btn');
   closeBtn?.addEventListener('click', hideNotificationsModal);
 
   setupModalCloseHandlers('notifications-modal', hideNotificationsModal);
