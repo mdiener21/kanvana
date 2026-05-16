@@ -59,7 +59,7 @@ function destroySortables() {
   stopAutoScroll();
 }
 
-// Auto-scroll logic for horizontal scrolling during drag
+// Auto-scroll logic for board and task-list scrolling during drag
 function startAutoScroll() {
   const boardContainer = document.getElementById('board-container');
   if (!boardContainer || autoScrollInterval) return;
@@ -79,6 +79,8 @@ function startAutoScroll() {
         boardContainer.scrollLeft += scrollSpeed;
       }
     }
+
+    autoScrollActiveTaskList();
   }, 16); // ~60fps
 }
 
@@ -230,6 +232,7 @@ function initTaskSortables() {
         // Add global move listener to track pointer
         document.addEventListener('touchmove', trackPointer, { passive: true });
         document.addEventListener('mousemove', trackPointer, { passive: true });
+        document.addEventListener('dragover', trackPointer, { passive: true });
         updateCollapsedHoverFromPoint(lastTouchX, lastTouchY);
       },
 
@@ -259,6 +262,7 @@ function initTaskSortables() {
         stopAutoScroll();
         document.removeEventListener('touchmove', trackPointer);
         document.removeEventListener('mousemove', trackPointer);
+        document.removeEventListener('dragover', trackPointer);
         
         // Update task positions in storage (optimized - no full re-render)
         const dropResult = updateTaskPositionsFromDrop(evt);
