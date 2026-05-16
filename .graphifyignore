@@ -5,6 +5,14 @@ node_modules
 .venv
 .vscode
 .idea
+.claude
+.github
+.idea
+.playwright
+.worktrees
+test-results/
+.env
+.env.example
 
 playwright-report
 test-results
