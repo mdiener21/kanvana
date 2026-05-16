@@ -30,7 +30,7 @@ services:
     container_name: pb
     build:
       context: .
-      dockerfile: devops/local/backend/Dockerfile
+      dockerfile: backend/Dockerfile
     expose:
       - "8090"
     ports:

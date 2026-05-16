@@ -4,6 +4,7 @@ import {
   loadTasksForBoard,
   loadLabelsForBoard,
   loadSettingsForBoard,
+  loadBoardEvents,
   loadDeletedColumnsForBoard,
   loadDeletedTasksForBoard,
   loadDeletedLabelsForBoard,
@@ -12,6 +13,7 @@ import {
   saveTasksForBoard,
   saveLabelsForBoard,
   saveSettingsForBoard,
+  saveBoardEvents,
   getBoardById,
   setActiveBoardId,
   getActiveBoardId,
@@ -74,12 +76,20 @@ export async function loginWithProvider(provider) {
 
 // ── syncMap ────────────────────────────────────────────────────────────────────
 
+function emptySyncMap() {
+  return { boards: {}, columns: {}, labels: {}, tasks: {}, task_relationships: {}, events: {} };
+}
+
 function loadSyncMap() {
   try {
     const raw = localStorage.getItem(SYNC_MAP_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Ensure new entity-type buckets exist in stored maps from older versions.
+      return { ...emptySyncMap(), ...parsed };
+    }
   } catch { /* ignore */ }
-  return { boards: {}, columns: {}, labels: {}, tasks: {} };
+  return emptySyncMap();
 }
 
 function saveSyncMap(map) {
@@ -122,9 +132,12 @@ export async function pushBoardFull(boardId) {
   const tasks = loadTasksForBoard(boardId);
   const labels = loadLabelsForBoard(boardId);
   const settings = loadSettingsForBoard(boardId);
+  const boardEvents = loadBoardEvents(boardId);
   const deletedColumns = loadDeletedColumnsForBoard(boardId);
   const deletedTasks = loadDeletedTasksForBoard(boardId);
   const deletedLabels = loadDeletedLabelsForBoard(boardId);
+
+  // ── Board ──────────────────────────────────────────────────────────────────
 
   const boardRecord = await upsertRecord('boards', syncMap, 'boards', boardId, {
     owner: userId,
@@ -134,6 +147,8 @@ export async function pushBoardFull(boardId) {
   });
   const boardPbId = boardRecord.id;
 
+  // ── Labels ─────────────────────────────────────────────────────────────────
+
   for (const label of labels) {
     await upsertRecord('labels', syncMap, 'labels', label.id, {
       owner: userId,
@@ -142,8 +157,11 @@ export async function pushBoardFull(boardId) {
       name: label.name,
       color: label.color || '',
       group: label.group || '',
+      deleted: label.deleted || false,
     });
   }
+
+  // ── Columns ────────────────────────────────────────────────────────────────
 
   for (let i = 0; i < columns.length; i++) {
     const col = columns[i];
@@ -155,8 +173,12 @@ export async function pushBoardFull(boardId) {
       color: col.color || '',
       order: i,
       collapsed: col.collapsed || false,
+      role: col.role || '',
+      deleted: col.deleted || false,
     });
   }
+
+  // ── Tasks ──────────────────────────────────────────────────────────────────
 
   for (const task of tasks) {
     const columnPbId = getPbId(syncMap, 'columns', task.column);
@@ -179,8 +201,81 @@ export async function pushBoardFull(boardId) {
       change_date: task.changeDate || '',
       done_date: task.doneDate || '',
       column_history: task.columnHistory || [],
+      sub_tasks: task.subTasks || [],
+      swimlane_label_id: task.swimlaneLabelId || '',
+      deleted: task.deleted || false,
     });
   }
+
+  // ── Task relationships ─────────────────────────────────────────────────────
+  // Upsert current relationships; delete any stale syncMap entries.
+
+  const pushedRelLocalIds = new Set();
+
+  for (const task of tasks) {
+    const taskPbId = getPbId(syncMap, 'tasks', task.id);
+    if (!taskPbId) continue;
+    for (const rel of (task.relationships || [])) {
+      const targetPbId = getPbId(syncMap, 'tasks', rel.targetTaskId);
+      if (!targetPbId) continue;
+      const relLocalId = `${task.id}::${rel.targetTaskId}`;
+      pushedRelLocalIds.add(relLocalId);
+      await upsertRecord('task_relationships', syncMap, 'task_relationships', relLocalId, {
+        owner: userId,
+        board: boardPbId,
+        task: taskPbId,
+        target_task: targetPbId,
+        relationship_type: rel.type,
+        local_id: relLocalId,
+      });
+    }
+  }
+
+  for (const [localId, pbId] of Object.entries(syncMap.task_relationships || {})) {
+    if (!pushedRelLocalIds.has(localId)) {
+      try { await pb.collection('task_relationships').delete(pbId); } catch { /* 404 ok */ }
+      delete syncMap.task_relationships[localId];
+    }
+  }
+
+  // ── Events ─────────────────────────────────────────────────────────────────
+  // Events are append-only; skip entries without an id (pre-schema entries).
+
+  for (const task of tasks) {
+    const taskPbId = getPbId(syncMap, 'tasks', task.id);
+    if (!taskPbId) continue;
+    for (const entry of (task.activityLog || [])) {
+      if (!entry.id) continue;
+      await upsertRecord('events', syncMap, 'events', entry.id, {
+        owner: userId,
+        board: boardPbId,
+        task: taskPbId,
+        event_type: entry.type,
+        at: entry.at,
+        actor_type: entry.actor?.type || 'human',
+        actor_id: entry.actor?.id || '',
+        details: entry.details || {},
+        local_id: entry.id,
+      });
+    }
+  }
+
+  for (const entry of boardEvents) {
+    if (!entry.id) continue;
+    await upsertRecord('events', syncMap, 'events', entry.id, {
+      owner: userId,
+      board: boardPbId,
+      task: null,
+      event_type: entry.type,
+      at: entry.at,
+      actor_type: entry.actor?.type || 'human',
+      actor_id: entry.actor?.id || '',
+      details: entry.details || {},
+      local_id: entry.id,
+    });
+  }
+
+  // ── Hard-deletes ───────────────────────────────────────────────────────────
 
   for (const label of deletedLabels) {
     const pbId = getPbId(syncMap, 'labels', label.id);
@@ -199,6 +294,7 @@ export async function pushBoardFull(boardId) {
   for (const task of deletedTasks) {
     const pbId = getPbId(syncMap, 'tasks', task.id);
     if (pbId) {
+      // PocketBase cascade deletes the task's task_relationships records.
       try { await pb.collection('tasks').delete(pbId); } catch { /* 404 ok */ }
       delete syncMap.tasks[task.id];
     }
@@ -214,7 +310,7 @@ export async function pullAllBoards() {
   if (!(await ensureAuthenticated())) throw new Error('Not authenticated');
 
   const activeId = getActiveBoardId();
-  const syncMap = { boards: {}, columns: {}, labels: {}, tasks: {} };
+  const syncMap = emptySyncMap();
 
   const boardRecords = await pb.collection('boards').getFullList({ sort: '-updated' });
   if (!boardRecords || boardRecords.length === 0) return [];
@@ -225,14 +321,18 @@ export async function pullAllBoards() {
     const boardLocalId = boardRec.local_id;
     setPbId(syncMap, 'boards', boardLocalId, boardRec.id);
 
-    const [columnRecs, labelRecs, taskRecs] = await Promise.all([
+    const [columnRecs, labelRecs, taskRecs, relRecs, eventRecs] = await Promise.all([
       pb.collection('columns').getFullList({ filter: `board = "${boardRec.id}"`, sort: 'order' }),
       pb.collection('labels').getFullList({ filter: `board = "${boardRec.id}"` }),
       pb.collection('tasks').getFullList({ filter: `board = "${boardRec.id}"`, sort: 'order' }),
+      pb.collection('task_relationships').getFullList({ filter: `board = "${boardRec.id}"` }),
+      pb.collection('events').getFullList({ filter: `board = "${boardRec.id}"`, sort: 'at' }),
     ]);
 
+    // Build PB-id → local-id maps for cross-reference resolution.
     const columnPbToLocal = {};
     const labelPbToLocal = {};
+    const taskPbToLocal = {};
 
     for (const col of columnRecs) {
       setPbId(syncMap, 'columns', col.local_id, col.id);
@@ -242,6 +342,48 @@ export async function pullAllBoards() {
       setPbId(syncMap, 'labels', lbl.local_id, lbl.id);
       labelPbToLocal[lbl.id] = lbl.local_id;
     }
+    for (const t of taskRecs) {
+      setPbId(syncMap, 'tasks', t.local_id, t.id);
+      taskPbToLocal[t.id] = t.local_id;
+    }
+
+    // ── Relationships: group by source task local_id ──────────────────────
+
+    const taskRelationships = {};
+    for (const rel of relRecs) {
+      setPbId(syncMap, 'task_relationships', rel.local_id, rel.id);
+      const taskLocalId = taskPbToLocal[rel.task];
+      const targetLocalId = taskPbToLocal[rel.target_task];
+      if (!taskLocalId || !targetLocalId) continue;
+      if (!taskRelationships[taskLocalId]) taskRelationships[taskLocalId] = [];
+      taskRelationships[taskLocalId].push({ type: rel.relationship_type, targetTaskId: targetLocalId });
+    }
+
+    // ── Events: split into task-scoped and board-scoped ───────────────────
+
+    const taskActivityLogs = {};
+    const pulledBoardEvents = [];
+    for (const evtRec of eventRecs) {
+      setPbId(syncMap, 'events', evtRec.local_id, evtRec.id);
+      const entry = {
+        id: evtRec.local_id,
+        type: evtRec.event_type,
+        at: evtRec.at,
+        actor: { type: evtRec.actor_type, id: evtRec.actor_id || null },
+        details: evtRec.details || {},
+      };
+      if (evtRec.task) {
+        const taskLocalId = taskPbToLocal[evtRec.task];
+        if (taskLocalId) {
+          if (!taskActivityLogs[taskLocalId]) taskActivityLogs[taskLocalId] = [];
+          taskActivityLogs[taskLocalId].push(entry);
+        }
+      } else {
+        pulledBoardEvents.push(entry);
+      }
+    }
+
+    // ── Reconstruct local domain objects ──────────────────────────────────
 
     const localColumns = columnRecs.map(col => ({
       id: col.local_id,
@@ -249,6 +391,8 @@ export async function pullAllBoards() {
       color: col.color || '',
       order: col.order,
       collapsed: col.collapsed || false,
+      role: col.role || '',
+      deleted: col.deleted || false,
     }));
 
     const localLabels = labelRecs.map(lbl => ({
@@ -256,12 +400,13 @@ export async function pullAllBoards() {
       name: lbl.name,
       color: lbl.color || '',
       group: lbl.group || '',
+      deleted: lbl.deleted || false,
     }));
 
     const localTasks = taskRecs.map(t => {
-      setPbId(syncMap, 'tasks', t.local_id, t.id);
+      const localId = t.local_id;
       return {
-        id: t.local_id,
+        id: localId,
         title: t.title,
         description: t.description || '',
         priority: t.priority || 'none',
@@ -273,6 +418,11 @@ export async function pullAllBoards() {
         changeDate: t.change_date || '',
         doneDate: t.done_date || '',
         columnHistory: t.column_history || [],
+        subTasks: t.sub_tasks || [],
+        swimlaneLabelId: t.swimlane_label_id || '',
+        deleted: t.deleted || false,
+        relationships: taskRelationships[localId] || [],
+        activityLog: taskActivityLogs[localId] || [],
       };
     });
 
@@ -280,6 +430,7 @@ export async function pullAllBoards() {
     saveTasksForBoard(boardLocalId, localTasks);
     saveLabelsForBoard(boardLocalId, localLabels);
     saveSettingsForBoard(boardLocalId, boardRec.settings || {});
+    saveBoardEvents(boardLocalId, pulledBoardEvents);
 
     localBoards.push({ id: boardLocalId, name: boardRec.name });
   }

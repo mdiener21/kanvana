@@ -1,6 +1,6 @@
 // Shared normalizers and validators — eliminates duplication across modules.
 
-import { PRIORITY_SET, DEFAULT_PRIORITY, DEFAULT_COLUMN_COLOR } from './constants.js';
+import { PRIORITY_SET, DEFAULT_PRIORITY, DEFAULT_COLUMN_COLOR, DONE_COLUMN_ID } from './constants.js';
 
 /**
  * Validate and normalize a priority value.
@@ -108,6 +108,16 @@ export function normalizeSubTasks(value) {
       completed: entry.completed === true,
       order: Number.isFinite(entry.order) ? entry.order : index + 1
     }));
+}
+
+/**
+ * Returns the default accent color for a column by its id.
+ */
+export function defaultColumnColor(id) {
+  if (id === 'todo') return '#3b82f6';
+  if (id === 'inprogress') return '#f59e0b';
+  if (id === DONE_COLUMN_ID) return '#16a34a';
+  return DEFAULT_COLUMN_COLOR;
 }
 
 /**

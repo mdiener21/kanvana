@@ -11,7 +11,8 @@ import {
   saveBoardEvents
 } from './storage.js';
 
-import { createBoard, getActiveBoardName, listBoards, setActiveBoardId, loadTasksForBoard, loadColumnsForBoard, loadLabelsForBoard, loadSettingsForBoard, normalizeBoardModelIds } from './storage.js';
+import { createBoard, getActiveBoardName, listBoards, setActiveBoardId, loadTasksForBoard, loadColumnsForBoard, loadLabelsForBoard, loadSettingsForBoard } from './storage.js';
+import { normalizeBoardModelIds } from './board-serializer.js';
 import { emit, DATA_CHANGED } from './events.js';
 import { normalizePriority, isHexColor, boardDisplayName, normalizeDueDate, normalizeSubTasks, normalizeActivityLog } from './normalize.js';
 import { DONE_COLUMN_ID } from './constants.js';

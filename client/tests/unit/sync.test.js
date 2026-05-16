@@ -34,6 +34,7 @@ vi.mock('../../src/modules/storage.js', () => ({
   loadTasksForBoard: vi.fn(() => []),
   loadLabelsForBoard: vi.fn(() => []),
   loadSettingsForBoard: vi.fn(() => null),
+  loadBoardEvents: vi.fn(() => []),
   loadDeletedColumnsForBoard: vi.fn(() => []),
   loadDeletedTasksForBoard: vi.fn(() => []),
   loadDeletedLabelsForBoard: vi.fn(() => []),
@@ -42,6 +43,7 @@ vi.mock('../../src/modules/storage.js', () => ({
   saveTasksForBoard: vi.fn(),
   saveLabelsForBoard: vi.fn(),
   saveSettingsForBoard: vi.fn(),
+  saveBoardEvents: vi.fn(),
   getBoardById: vi.fn(() => null),
   setActiveBoardId: vi.fn(),
   getActiveBoardId: vi.fn(() => null),
@@ -282,7 +284,9 @@ describe('pullAllBoards', () => {
       .mockResolvedValueOnce([{ id: 'pb-b1', local_id: 'b1', name: 'Board 1', settings: {} }])
       .mockResolvedValueOnce([])  // columns (parallel)
       .mockResolvedValueOnce([])  // labels  (parallel)
-      .mockResolvedValueOnce([]); // tasks   (parallel)
+      .mockResolvedValueOnce([])  // tasks   (parallel)
+      .mockResolvedValueOnce([])  // task_relationships (parallel)
+      .mockResolvedValueOnce([]); // events (parallel)
 
     const result = await pullAllBoards();
 
@@ -304,7 +308,9 @@ describe('pullAllBoards', () => {
       .mockResolvedValueOnce([]) // labels
       .mockResolvedValueOnce([{ id: 'pb-t1', local_id: 't1', title: 'Task 1', column: 'pb-col1',
         description: '', priority: 'medium', due_date: '', order: 0, labels: [],
-        creation_date: '', change_date: '', done_date: '', column_history: [] }]); // tasks
+        creation_date: '', change_date: '', done_date: '', column_history: [] }]) // tasks
+      .mockResolvedValueOnce([]) // task_relationships
+      .mockResolvedValueOnce([]); // events
 
     await pullAllBoards();
 
@@ -326,8 +332,8 @@ describe('pullAllBoards', () => {
         { id: 'pb-b1', local_id: 'b1', name: 'Board 1', settings: {} },
         { id: 'pb-b2', local_id: 'b2', name: 'Board 2', settings: {} },
       ])
-      .mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]) // b1 entities
-      .mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]); // b2 entities
+      .mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]) // b1 entities
+      .mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]); // b2 entities
 
     await pullAllBoards();
 
@@ -344,7 +350,8 @@ describe('pullAllBoards', () => {
 
     mockCollection.getFullList
       .mockResolvedValueOnce([{ id: 'pb-b1', local_id: 'b1', name: 'Board 1', settings: {} }])
-      .mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+      .mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]).mockResolvedValueOnce([]);
 
     await pullAllBoards();
 
@@ -372,7 +379,9 @@ describe('pullAllBoards', () => {
         description: '', priority: 'high', due_date: '', order: 0,
         labels: ['pb-l1', 'pb-l2', 'pb-l3'],
         creation_date: '', change_date: '', done_date: '', column_history: [],
-      }]);
+      }])
+      .mockResolvedValueOnce([]) // task_relationships
+      .mockResolvedValueOnce([]); // events
 
     await pullAllBoards();
 

@@ -33,6 +33,8 @@ This file is the entrypoint to the canonical application specification. Detailed
 
 Use this mapping to decide which spec files to update alongside code changes.
 
+- `src/modules/idb-store.js` -> `docs/spec/storage.md`
+- `src/modules/board-serializer.js` -> `docs/spec/storage.md`, `docs/spec/import-export.md`, `docs/spec/data-models.md`
 - `src/modules/storage.js` -> `docs/spec/storage.md`, `docs/spec/data-models.md`
 - `src/modules/importexport.js` -> `docs/spec/import-export.md`, `docs/spec/storage.md`, `docs/spec/data-models.md`
 - `src/modules/tasks.js` -> `docs/spec/tasks.md`, `docs/spec/data-models.md`, `docs/spec/relationships.md`, `docs/spec/sub-tasks.md`

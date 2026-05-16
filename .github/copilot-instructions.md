@@ -23,7 +23,9 @@
 
 ### Module Structure (src/modules/)
 - **render.js** - Centralized rendering via `renderBoard()`. After any data change, call this to refresh UI. Exports sync helpers (`syncTaskCounters`, `syncCollapsedTitles`, `syncMovedTaskDueDate`) for incremental updates.
-- **storage.js** - Multi-board localStorage persistence. Keys: `kanbanBoards`, `kanbanActiveBoardId`, `kanbanBoard:<boardId>:columns|tasks|labels|settings`
+- **idb-store.js** - IDB singleton, key helpers (`keyFor`, `getBoardEventsKey`), `schedulePersist`, `scheduleDelete`
+- **board-serializer.js** - Board import ID-remapping: `normalizeBoardModelIds()`
+- **storage.js** - In-memory state, all CRUD helpers (`loadTasks`, `saveTasks`, etc.), `initStorage()`, migration. Keys: `kanbanBoards`, `kanbanActiveBoardId`, `kanbanBoard:<boardId>:columns|tasks|labels|settings`
 - **tasks.js** - Task CRUD, drag-drop position updates (`updateTaskPositionsFromDrop`, `moveTaskToTopInColumn`)
 - **columns.js** - Column CRUD, collapse toggle, position updates
 - **boards.js** - Multi-board management, board create/switch, template system
@@ -52,10 +54,12 @@ Mutations generally follow: **load → modify → save → `renderBoard()`**.
   - If you change any persisted shape (board/tasks/columns/labels), you MUST update `importexport.js` normalization/back-compat so exports still round-trip and imports still accept legacy fields.
 
 ## Persistence model (critical)
-- Multi-board storage is in `src/modules/storage.js`.
+- Persistence is split across three modules:
+  - `idb-store.js` — IDB plumbing (key helpers, `schedulePersist`, `scheduleDelete`). Import `normalizeBoardModelIds` from `board-serializer.js`, not from `storage.js`.
+  - `board-serializer.js` — board import ID-remapping (`normalizeBoardModelIds`).
+  - `storage.js` — in-memory state, all CRUD. Always go through `loadColumns()` / `loadTasks()` / `loadLabels()` rather than reading IDB directly.
   - Boards list key: `kanbanBoards`; active board key: `kanbanActiveBoardId`.
   - Per-board keys are `kanbanBoard:${boardId}:columns|tasks|labels|settings`.
-  - Always go through `ensureBoardsInitialized()` / `loadColumns()` / `loadTasks()` / `loadLabels()` rather than reading localStorage directly.
   - Legacy migration exists for single-board keys (`kanbanColumns`, `kanbanTasks`, `kanbanLabels`). Keep backward-compat fields like `task.text` and `task['due-date']` supported where relevant.
 
 ## Domain objects (what code expects)

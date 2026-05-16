@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `schema.js` — canonical factory functions (`createTask`, `createColumn`, `createLabel`, `createBoard`, `createSubTask`, `createRelationship`, `createActivityLogEntry`) that initialize all domain object fields to their documented defaults; `RELATIONSHIP_TYPES` and `ACTIVITY_ACTOR_TYPES` constants exported from the same module
+- `activity-log.js` `createActivityEvent` now includes an `id` (UUID) field on every entry for deterministic PocketBase sync deduplication
+- PocketBase migrations: `sub_tasks` (json), `swimlane_label_id` (text), `deleted` (bool) fields added to the `tasks` collection
+- PocketBase migrations: `role` (text) and `deleted` (bool) fields added to the `columns` collection
+- PocketBase migrations: `deleted` (bool) field added to the `labels` collection
+- PocketBase `task_relationships` collection — stores directed relationship edges (type, task, target_task) with board-scoped ownership; replaces the previous JSON-only approach for cross-task queries and real-time subscriptions
+- PocketBase `events` collection — unified event log for task-level `activityLog` and board-level `boardEvents`; task relation is optional so board events are first-class
+
+### Changed
+
+- Split `storage.js` into three modules: `idb-store.js` (IDB plumbing and key helpers), `board-serializer.js` (board import ID-remapping via `normalizeBoardModelIds`), and `storage.js` (in-memory state, CRUD, init, migration). No behavior change; `getBoardEventsKey` and `_flushPersistsForTesting` remain importable from `storage.js` via re-export.
+- Moved `defaultColumnColor` to `normalize.js` alongside `isHexColor`.
+- `sync.js` `pushBoardFull` and `pullAllBoards` now round-trip all task fields (`subTasks`, `swimlaneLabelId`, `deleted`), column `role`/`deleted`, label `deleted`, task relationships via the `task_relationships` collection, and activity log entries + board events via the `events` collection; legacy entries without an `id` are skipped during event sync
+- `sync.js` syncMap extended with `task_relationships` and `events` buckets; existing stored sync maps are backfilled with empty buckets on load
+- Restored the root production `Dockerfile` used by CI/GHCR builds and aligned the production Docker compose PocketBase service with the repository backend image.
+
+### Fixed
+
+- Fixed the CI Docker build path so `docker/build-push-action` can find the production Dockerfile and push the `prod` image target.
+- Fixed Docker build context exclusions so local frontend dependencies and build output are not copied into production image builds.
+- Fixed `sync.test.js` mock missing `loadBoardEvents` and `saveBoardEvents` exports added to `storage.js`; updated `pullAllBoards` test cases to mock the two new parallel PocketBase fetches (`task_relationships`, `events`)
+- Fixed `activity-log.test.js` assertion to include the `id` field now returned by `createActivityEvent`
+- Fixed CI workflow installing `firefox` Playwright browser while `playwright.config.js` only configures a `chromium` project; changed install step to `chromium`
+
 ## [1.7.1] - 2026-05-15
 
 ### Added

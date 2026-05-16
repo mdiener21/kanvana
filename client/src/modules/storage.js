@@ -1,13 +1,12 @@
-import { openDB } from 'idb';
 import { generateUUID } from './utils.js';
-import { normalizePriority as sharedNormalizePriority, isHexColor as sharedIsHexColor, normalizeStringKeys, normalizeRelationships, normalizeSubTasks, normalizeActivityLog } from './normalize.js';
+import { normalizePriority as sharedNormalizePriority, isHexColor, defaultColumnColor, normalizeStringKeys, normalizeRelationships, normalizeSubTasks, normalizeActivityLog } from './normalize.js';
 import { DONE_COLUMN_ID, DONE_COLUMN_ROLE, isDoneColumn } from './constants.js';
+import { openStore, KV_STORE, schedulePersist, scheduleDelete, keyFor, getBoardEventsKey, _flushPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
+// Re-export IDB helpers that tests import from this module for backward compatibility.
+export { getBoardEventsKey, _flushPersistsForTesting } from './idb-store.js';
+import { normalizeBoardModelIds } from './board-serializer.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
-
-const DB_NAME = 'kanvana-db';
-const DB_VERSION = 1;
-const KV_STORE = 'kv';
 
 const BOARDS_KEY = 'kanbanBoards';
 const ACTIVE_BOARD_KEY = 'kanbanActiveBoardId';
@@ -18,7 +17,6 @@ const LEGACY_LABELS_KEY = 'kanbanLabels';
 
 const DEFAULT_BOARD_ID = 'default';
 const ALLOWED_SWIMLANE_GROUP_BY = new Set(['label', 'label-group', 'priority']);
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // ── In-memory state ────────────────────────────────────────────────────────────
 //
@@ -39,190 +37,10 @@ const state = {
 // Per-board default-task cache (keeps defaults stable within a session).
 const taskCacheByBoard = new Map();
 
-// ── IDB singleton ──────────────────────────────────────────────────────────────
-
-let _db = null;
-
-// In-flight persist Promises — used by _flushPersistsForTesting().
-const _pendingPersists = new Set();
-
-async function getDB() {
-  if (_db) return _db;
-  _db = await openDB(DB_NAME, DB_VERSION, {
-    upgrade(db) {
-      db.createObjectStore(KV_STORE);
-    }
-  });
-  return _db;
-}
-
-function schedulePersist(key, value) {
-  if (!_db) return; // IDB not yet initialised (e.g. during testing without initStorage)
-  const p = _db.put(KV_STORE, value, key).catch((err) => {
-    console.error('[Kanvana] IDB persist failed for key', key, err);
-  });
-  _pendingPersists.add(p);
-  p.finally(() => _pendingPersists.delete(p));
-}
-
-/**
- * Wait for all fire-and-forget IDB writes to settle.
- * Only intended for use in tests — do not call in application code.
- */
-export async function _flushPersistsForTesting() {
-  await Promise.all([..._pendingPersists]);
-}
-
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function nowIso() {
   return new Date().toISOString();
-}
-
-function keyFor(boardId, kind) {
-  return `kanbanBoard:${boardId}:${kind}`;
-}
-
-export function getBoardEventsKey(boardId) {
-  return `events:${boardId}`;
-}
-
-function isUuid(value) {
-  return typeof value === 'string' && UUID_RE.test(value.trim());
-}
-
-function remapId(value, map) {
-  const raw = typeof value === 'string' ? value.trim() : String(value ?? '').trim();
-  if (isUuid(raw)) return raw;
-  if (!raw) return generateUUID();
-  if (!map.has(raw)) map.set(raw, generateUUID());
-  return map.get(raw);
-}
-
-function remapReference(value, map, fallback = '') {
-  const raw = typeof value === 'string' ? value.trim() : String(value ?? '').trim();
-  if (!raw) return fallback;
-  return map.get(raw) || (isUuid(raw) ? raw : fallback);
-}
-
-function remapCellCollapseKeys(keys, labelIdMap, columnIdMap) {
-  if (!Array.isArray(keys)) return [];
-  return normalizeStringKeys(keys).map((key) => {
-    const [laneKey, columnId] = key.split('::');
-    if (columnId === undefined) return remapReference(key, labelIdMap, key);
-    const nextLaneKey = remapReference(laneKey, labelIdMap, laneKey);
-    const nextColumnId = remapReference(columnId, columnIdMap, columnId);
-    return `${nextLaneKey}::${nextColumnId}`;
-  });
-}
-
-export function normalizeBoardModelIds({ board = null, columns = [], tasks = [], labels = [], settings = null } = {}) {
-  const boardIdMap = new Map();
-  const columnIdMap = new Map();
-  const labelIdMap = new Map();
-  const taskIdMap = new Map();
-
-  const nextBoard = board && typeof board === 'object'
-    ? {
-        ...board,
-        id: remapId(board.id, boardIdMap),
-        name: typeof board.name === 'string' && board.name.trim() ? board.name.trim() : 'Untitled board',
-        createdAt: typeof board.createdAt === 'string' ? board.createdAt : nowIso()
-      }
-    : null;
-
-  const normalizedColumns = (Array.isArray(columns) ? columns : []).map((column, index) => {
-    const source = column && typeof column === 'object' ? column : {};
-    const id = remapId(source.id || `__column_${index}`, columnIdMap);
-    const done = isDoneColumn(source);
-    return {
-      ...source,
-      id,
-      name: typeof source.name === 'string' && source.name.trim() ? source.name.trim() : (done ? 'Done' : 'Untitled column'),
-      color: isHexColor(source.color) ? source.color.trim() : defaultColumnColor(done ? DONE_COLUMN_ID : source.id),
-      collapsed: source.collapsed === true,
-      ...(Number.isFinite(source.order) ? { order: source.order } : {}),
-      ...(done ? { role: DONE_COLUMN_ROLE } : {})
-    };
-  });
-
-  if (!normalizedColumns.some((column) => column.role === DONE_COLUMN_ROLE)) {
-    const maxOrder = normalizedColumns.reduce((max, column) => Math.max(max, Number.isFinite(column?.order) ? column.order : 0), 0);
-    normalizedColumns.push({ id: generateUUID(), name: 'Done', color: '#16a34a', order: maxOrder + 1, collapsed: false, role: DONE_COLUMN_ROLE });
-  }
-
-  const fallbackColumnId = normalizedColumns.find((column) => column.role !== DONE_COLUMN_ROLE)?.id || normalizedColumns[0]?.id || '';
-
-  const normalizedLabels = (Array.isArray(labels) ? labels : []).map((label, index) => {
-    const source = label && typeof label === 'object' ? label : {};
-    return {
-      ...source,
-      id: remapId(source.id || `__label_${index}`, labelIdMap),
-      name: typeof source.name === 'string' && source.name.trim() ? source.name.trim() : 'Untitled label',
-      color: isHexColor(source.color) ? source.color.trim() : '#3b82f6',
-      group: typeof source.group === 'string' ? source.group : ''
-    };
-  });
-
-  const rawTasks = Array.isArray(tasks) ? tasks : [];
-  rawTasks.forEach((task, index) => {
-    const source = task && typeof task === 'object' ? task : {};
-    remapId(source.id || `__task_${index}`, taskIdMap);
-  });
-
-  const normalizedTasks = rawTasks.map((task, index) => {
-    const source = task && typeof task === 'object' ? task : {};
-    const id = remapId(source.id || `__task_${index}`, taskIdMap);
-    const column = remapReference(source.column, columnIdMap, fallbackColumnId);
-    const labels = Array.isArray(source.labels)
-      ? source.labels.map((labelId) => remapReference(labelId, labelIdMap, '')).filter(Boolean)
-      : [];
-    const columnHistory = Array.isArray(source.columnHistory)
-      ? source.columnHistory
-          .map((entry) => {
-            const historyColumn = remapReference(entry?.column, columnIdMap, '');
-            const at = typeof entry?.at === 'string' ? entry.at.trim() : '';
-            return historyColumn && at ? { column: historyColumn, at } : null;
-          })
-          .filter(Boolean)
-      : undefined;
-    const relationships = normalizeRelationships(source.relationships)
-      .map((relationship) => ({
-        ...relationship,
-        targetTaskId: remapReference(relationship.targetTaskId, taskIdMap, '')
-      }))
-      .filter((relationship) => relationship.targetTaskId);
-    const swimlaneLabelId = remapReference(source.swimlaneLabelId, labelIdMap, '');
-
-    return {
-      ...source,
-      id,
-      column,
-      labels,
-      relationships,
-      activityLog: normalizeActivityLog(source.activityLog),
-      ...(columnHistory && columnHistory.length ? { columnHistory } : {}),
-      ...(swimlaneLabelId ? { swimlaneLabelId } : (Object.prototype.hasOwnProperty.call(source, 'swimlaneLabelId') ? { swimlaneLabelId: '' } : {}))
-    };
-  });
-
-  const nextSettings = settings && typeof settings === 'object' && !Array.isArray(settings)
-    ? {
-        ...settings,
-        swimLaneOrder: normalizeStringKeys(settings.swimLaneOrder).map((key) => remapReference(key, labelIdMap, key)),
-        swimLaneCollapsedKeys: normalizeStringKeys(settings.swimLaneCollapsedKeys).map((key) => remapReference(key, labelIdMap, key)),
-        swimLaneCellCollapsedKeys: remapCellCollapseKeys(settings.swimLaneCellCollapsedKeys, labelIdMap, columnIdMap)
-      }
-    : settings;
-
-  return {
-    board: nextBoard,
-    columns: normalizedColumns,
-    tasks: normalizedTasks,
-    labels: normalizedLabels,
-    settings: nextSettings,
-    idMaps: { boardIdMap, columnIdMap, labelIdMap, taskIdMap }
-  };
 }
 
 async function normalizeIdbState(db) {
@@ -534,7 +352,7 @@ async function migrateFromLocalStorage(db) {
  * board data into the in-memory state so subsequent reads are synchronous.
  */
 export async function initStorage() {
-  const db = await getDB();
+  const db = await openStore();
 
   // Migrate from localStorage if IDB is empty but localStorage has data.
   const idbBoards = await db.get(KV_STORE, BOARDS_KEY);
@@ -581,8 +399,7 @@ export async function initStorage() {
  */
 export function _resetStorageForTesting() {
   // Close the open IDB connection so a subsequent deleteDB() call is not blocked.
-  if (_db) { _db.close(); _db = null; }
-  _pendingPersists.clear();
+  _resetIdbForTesting();
   state.boards = [];
   state.activeBoardId = null;
   for (const k in state.tasks) delete state.tasks[k];
@@ -731,17 +548,11 @@ export function deleteBoard(boardId) {
   taskCacheByBoard.delete(id);
 
   // Remove from IDB
-  if (_db) {
-    const p = Promise.all([
-      _db.delete(KV_STORE, keyFor(id, 'tasks')),
-      _db.delete(KV_STORE, keyFor(id, 'columns')),
-      _db.delete(KV_STORE, keyFor(id, 'labels')),
-      _db.delete(KV_STORE, keyFor(id, 'settings')),
-      _db.delete(KV_STORE, getBoardEventsKey(id))
-    ]).catch((err) => console.error('[Kanvana] IDB delete failed for board', id, err));
-    _pendingPersists.add(p);
-    p.finally(() => _pendingPersists.delete(p));
-  }
+  scheduleDelete(keyFor(id, 'tasks'));
+  scheduleDelete(keyFor(id, 'columns'));
+  scheduleDelete(keyFor(id, 'labels'));
+  scheduleDelete(keyFor(id, 'settings'));
+  scheduleDelete(getBoardEventsKey(id));
 
   if (state.activeBoardId === id) {
     state.activeBoardId = remaining[0].id;
@@ -752,17 +563,6 @@ export function deleteBoard(boardId) {
 }
 
 // ── Columns ────────────────────────────────────────────────────────────────────
-
-function isHexColor(value) {
-  return sharedIsHexColor(value);
-}
-
-function defaultColumnColor(id) {
-  if (id === 'todo') return '#3b82f6';
-  if (id === 'inprogress') return '#f59e0b';
-  if (id === DONE_COLUMN_ID) return '#16a34a';
-  return '#3b82f6';
-}
 
 function normalizeColumn(c) {
   const color = isHexColor(c?.color) ? c.color.trim() : defaultColumnColor(c?.id);

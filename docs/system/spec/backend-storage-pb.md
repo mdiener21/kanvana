@@ -65,7 +65,7 @@ Explicit push/pull with user confirmation. No merge strategy in V1.
 
 ### PocketBase Schema
 
-Normalized collections: `boards`, `columns`, `tasks`, `labels` (plus built-in `users`).
+Collections: `boards`, `columns`, `tasks`, `labels`, `task_relationships`, `events` (plus built-in `users`).
 
 Access rules on all collections, all operations (list/view/create/update/delete):
 ```
@@ -75,52 +75,87 @@ owner = @request.auth.id
 No public access. No shared boards in V1.
 
 **boards**
-| field | type |
-|---|---|
-| owner | relation → users |
-| local_id | text |
-| name | text |
-| settings | json |
-| created_at | text |
+| field | type | notes |
+|---|---|---|
+| owner | relation → users | required |
+| local_id | text | local UUID |
+| name | text | required |
+| settings | json | per-board settings blob |
+| created_at | text | ISO timestamp |
 
 **columns**
-| field | type |
-|---|---|
-| owner | relation → users |
-| board | relation → boards |
-| local_id | text |
-| name | text |
-| color | text |
-| order | number |
-| collapsed | bool |
+| field | type | notes |
+|---|---|---|
+| owner | relation → users | required |
+| board | relation → boards | required; cascade delete |
+| local_id | text | local UUID |
+| name | text | required |
+| color | text | hex color |
+| order | number | |
+| collapsed | bool | |
+| role | text | `"done"` for the Done column; empty otherwise |
+| deleted | bool | soft-delete flag |
 
 **labels**
-| field | type |
-|---|---|
-| owner | relation → users |
-| board | relation → boards |
-| local_id | text |
-| name | text |
-| color | text |
-| group | text |
+| field | type | notes |
+|---|---|---|
+| owner | relation → users | required |
+| board | relation → boards | required; cascade delete |
+| local_id | text | local UUID |
+| name | text | required |
+| color | text | hex color |
+| group | text | optional label group |
+| deleted | bool | soft-delete flag |
 
 **tasks**
-| field | type |
-|---|---|
-| owner | relation → users |
-| board | relation → boards |
-| local_id | text |
-| title | text |
-| description | text |
-| priority | text |
-| due_date | text |
-| column | relation → columns |
-| order | number |
-| labels | relation[] → labels |
-| creation_date | text |
-| change_date | text |
-| done_date | text |
-| column_history | json |
+| field | type | notes |
+|---|---|---|
+| owner | relation → users | required |
+| board | relation → boards | required; cascade delete |
+| local_id | text | local UUID |
+| title | text | required |
+| description | text | |
+| priority | text | urgent/high/medium/low/none |
+| due_date | text | YYYY-MM-DD |
+| column | relation → columns | |
+| order | number | |
+| labels | relation[] → labels | maxSelect: 999 |
+| creation_date | text | ISO timestamp |
+| change_date | text | ISO timestamp |
+| done_date | text | ISO timestamp; only when in Done column |
+| column_history | json | array of `{ column, at }` |
+| sub_tasks | json | array of SubTask objects |
+| swimlane_label_id | text | swim lane label UUID |
+| deleted | bool | soft-delete flag |
+
+**task_relationships**
+
+Stores directed relationship edges. Both directions are stored as separate records (mirrors the bidirectional JS model). `local_id` is a composite key `"${taskLocalId}::${targetTaskLocalId}"` used for sync deduplication.
+
+| field | type | notes |
+|---|---|---|
+| owner | relation → users | required |
+| board | relation → boards | required; cascade delete |
+| task | relation → tasks | required; cascade delete on task delete |
+| target_task | relation → tasks | no cascade; orphans cleaned up on next sync push |
+| relationship_type | text | prerequisite/dependent/related; required |
+| local_id | text | composite dedup key |
+
+**events**
+
+Unified event log for both task-level `activityLog` entries and board-level `boardEvents`. `task` is absent for board-level events. `local_id` is the `ActivityLogEntry.id` UUID; entries without a `local_id` are not synced.
+
+| field | type | notes |
+|---|---|---|
+| owner | relation → users | required |
+| board | relation → boards | required; cascade delete |
+| task | relation → tasks | optional; no cascade — history survives task deletion |
+| event_type | text | required |
+| at | text | ISO timestamp; required |
+| actor_type | text | human/agent/user; required |
+| actor_id | text | null for human; non-empty for agent/user |
+| details | json | event-specific payload |
+| local_id | text | ActivityLogEntry UUID for dedup |
 
 ### Orphan Cleanup (replaces deleteOrphans fetch approach)
 
@@ -151,8 +186,8 @@ Use `alertDialog` from `dialog.js`. No `alert()` or `window.confirm()`.
 | `src/modules/autosync.js` | `kanban-local-change` listener, debounced push, in-flight guard |
 | `src/modules/authsync.js` | Auth/sync UI orchestration, login modal handlers |
 | `src/styles/components/auth.css` | Auth modal + sync button styles |
-| `devops/local/backend/pb_migrations/` | PocketBase collection schema + access rules |
-| `devops/local/backend/Dockerfile` | PocketBase binary Docker image |
+| `backend/pb_migrations/` | PocketBase collection schema + access rules (JS migration files) |
+| `backend/Dockerfile` | PocketBase binary Docker image |
 
 ## Storage Keys
 
