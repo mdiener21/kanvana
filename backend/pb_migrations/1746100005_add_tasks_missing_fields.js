@@ -4,7 +4,7 @@
 migrate((app) => {
     const collection = app.findCollectionByNameOrId("tasks");
 
-    collection.fields.add(new JsonField({
+    collection.fields.add(new JSONField({
         id: "tsk_sub_tasks",
         name: "sub_tasks",
         required: false,
