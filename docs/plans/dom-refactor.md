@@ -223,24 +223,57 @@ Largest and riskiest file. Highest test coverage via E2E.
 
 ## Summary
 
-| Phase | Files | Risk | Est. Lines Saved |
-|---|---|---|---|
-| 0 | `dom.js` | None | +25 (adds utilities) |
-| 1 | `dialog.js`, `modals.js` | Low | −3 |
-| 2 | `notifications.js` | Low | −30 |
-| 3 | `accordion.js`, `activity-log-ui.js` | Low | −20 |
-| 4 | `column-modal.js`, `settings.js` | Low | −16 |
-| 5 | `boards-modal.js` | Low-Med | −40 |
-| 6 | `swimlane-renderer.js` | Low | −65 |
-| 7 | `column-element.js` | Medium | −70 |
-| 8 | `task-card.js` | Medium | −50 |
-| 9 | `labels-modal.js` | Medium | −50 |
-| 10 | `task-modal.js` | High | −90 |
-| **Total** | 13 files | | **~−409 lines net** |
+| Phase | Files | Risk | Est. Lines Saved | Actual Lines Saved |
+|---|---|---|---|---|
+| 0 | `dom.js` | None | +25 (adds utilities) | +25 |
+| 1 | `dialog.js`, `modals.js` | Low | −3 | −3 |
+| 2 | `notifications.js` | Low | −30 | ~−30 |
+| 3 | `accordion.js`, `activity-log-ui.js` | Low | −20 | ~−20 |
+| 4 | `column-modal.js`, `settings.js` | Low | −16 | ~−16 |
+| 5 | `boards-modal.js` | Low-Med | −40 | ~−40 |
+| 6 | `swimlane-renderer.js` | Low | −65 | ~−65 |
+| 7 | `column-element.js` | Medium | −70 | −120 (345→225) |
+| 8 | `task-card.js` | Medium | −50 | −80 (335→255) |
+| 9 | `labels-modal.js` | Medium | −50 | −91 (381→290) |
+| 10 | `task-modal.js` | High | −90 | ~−100 (790→~690) |
+| **Total** | 13 files | | **~−409 lines net** | **~−540 lines net** |
 
-**Verification per phase (run from `client/`):**
+**All 372 tests pass after every phase (270 unit, 65 DOM, 37 E2E).**
+
 ```bash
 npm run test:unit && npm run test:dom && npm run test:e2e
 ```
 
-**Critical files:** `dom.js`, `task-modal.js`, `column-element.js`, `swimlane-renderer.js`, `notifications.js`
+---
+
+## Findings
+
+### Bug discovered in Phase 7: `h()` dataset handling broken in Chromium
+
+The original `h()` implementation used `el.dataset[k.slice(5)] = v` for `data-*` attributes. The
+[DOMStringMap spec](https://html.spec.whatwg.org/multipage/dom.html#dom-dataset) throws
+`InvalidCharacterError` when the key contains a hyphen followed by a lowercase letter — e.g.
+`el.dataset['lane-key'] = v`. Chromium enforces this; JSDOM does not, so unit and DOM tests passed
+while all 12 swimlane E2E tests silently failed.
+
+**Fix (dom.js):** Changed the `data-*` branch to `el.setAttribute(k, v)`. Callers now write the
+attribute name exactly as it appears in HTML (hyphenated), and the browser handles it correctly in
+all environments.
+
+**Impact:** Retroactively fixed `swimlane-renderer.js` (Phase 6), which used `'data-lane-key'`,
+`'data-lane-label'`, and `'data-column-id'`. Also required updating `column-element.js` (Phase 7)
+to use `'data-column-id'` instead of the camelCase `'data-columnId'`.
+
+**Rule going forward:** Always pass `data-*` keys in hyphenated HTML form to `h()` —
+`'data-lane-key'` not `'data-laneKey'`.
+
+### What was left untouched
+
+- `renderSubTaskList()` in `task-modal.js` — inline SVG `innerHTML` strings for the drag handle
+  and delete icon; converting these to `h()` / `createElementNS` would add complexity for no gain.
+- `activateSubTaskInlineEdit()` in `task-modal.js` — short imperative function that replaces a
+  span with a live input; no createElement chains worth abstracting.
+- `linkifyText()` in `task-card.js` — while-loop over regex matches that builds a DocumentFragment;
+  structure is inherently sequential and not a good fit for `h()`.
+- All `createElementNS` SVG calls (subtask donut in `task-card.js`) — SVG elements require the
+  namespace and cannot use `h()` without a separate SVG helper.
