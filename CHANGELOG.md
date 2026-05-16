@@ -33,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed `activity-log.test.js` assertion to include the `id` field now returned by `createActivityEvent`
 - Fixed CI workflow installing `firefox` Playwright browser while `playwright.config.js` only configures a `chromium` project; changed install step to `chromium`
 
-## [1.7.1] - 2026-05-14
+## [1.7.1] - 2026-05-15
 
 ### Added
 
