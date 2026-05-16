@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-05-16
+
 ### Added
 
 - `schema.js` — canonical factory functions (`createTask`, `createColumn`, `createLabel`, `createBoard`, `createSubTask`, `createRelationship`, `createActivityLogEntry`) that initialize all domain object fields to their documented defaults; `RELATIONSHIP_TYPES` and `ACTIVITY_ACTOR_TYPES` constants exported from the same module
