@@ -15,7 +15,8 @@ Kanvana is a process task, workflow optimized kanban board system for one person
 Before making changes, read in this order:
 
 The specification files include core data structures and feature behavior that must be maintained at all times.
-
+- `docs/system/spec/overview.md` - overview of product specifications
+- `docs/system/spec/data-models.md` - data models
 - `docs/specification-kanban.md` - Specification index, update policy, and code-to-spec ownership map.
 - `docs/spec/*.md` - Canonical feature, data, storage, workflow, and testing specifications.
 - docs/spec/specification-kanban.md
@@ -70,7 +71,6 @@ The specification files include core data structures and feature behavior that m
 ## UI Expectations
 
 - Keep routes and nav aligned with available API surface
-- Use company selection context for company-scoped pages
 - Surface failures clearly; do not silently ignore API errors
 
 
