@@ -1,12 +1,17 @@
 # Kanvana — Domain Model Context
 
-> Generated 2026-04-29 from `graphify-out/GRAPH_REPORT.md` (860 nodes · 1387 edges · 54 communities).
+> Hand-maintained source of truth. Update this file when entity schemas, workflows, or architecture
+> boundaries change. Do not regenerate from graphify output.
 
 ---
 
 ## 1. Core Domain Entities
 
+All canonical factory functions live in `client/src/modules/schema.js`. Every new entity must be
+constructed through those factories so all fields are always present.
+
 ### Task
+
 The primary work unit. Every task belongs to exactly one column and one board.
 
 | Field | Type | Notes |
@@ -14,43 +19,53 @@ The primary work unit. Every task belongs to exactly one column and one board.
 | `id` | UUID | Unique per board |
 | `title` | string | Required |
 | `description` | string | Supports linkified URLs |
-| `priority` | `urgent\|high\|medium\|low\|none` | Drives swimlane grouping |
+| `priority` | `urgent\|high\|medium\|low\|none` | Drives swimlane grouping; default `none` |
 | `dueDate` | `YYYY-MM-DD` | Drives calendar + notifications |
 | `column` | Column.id | Current column |
 | `order` | number | Position within column |
-| `labels[]` | Label.id[] | Many-to-many |
+| `labels` | Label.id[] | Many-to-many |
 | `creationDate` | ISO datetime | Set on create |
 | `changeDate` | ISO datetime | Updated on every mutation |
 | `doneDate` | ISO datetime | Set when moved to Done column |
-| `columnHistory[]` | Column.id[] | Ordered log for lead-time reports |
-| `subtasks[]` | SubTask[] | Nested checklist items |
+| `columnHistory` | `{column: id, at: ISO datetime}[]` | Ordered log for lead-time/CFD reports |
+| `relationships` | Relationship[] | Task-to-task links (prerequisite/dependent/related) |
+| `subTasks` | SubTask[] | Nested checklist items |
+| `activityLog` | ActivityLogEntry[] | Per-task audit trail |
+| `swimlaneLabelId` | string | Pinned swimlane label assignment |
+| `deleted` | boolean | Soft-delete flag for PocketBase sync |
 
 **Invariants**
 - New tasks insert at order=1 (top of column).
-- `doneDate` is only set when task enters the `done` column.
+- `doneDate` is set only when the task enters the Done column.
 - `columnHistory` must be appended, never rewritten.
+- `deleted: true` means soft-deleted; excluded from all normal queries but retained in IDB for sync.
 
 ---
 
 ### Column
+
 An ordered stage in the workflow.
 
 | Field | Type | Notes |
 |---|---|---|
-| `id` | string | `done` is the permanent terminal column |
+| `id` | UUID | |
 | `name` | string | Max 40 chars |
-| `color` | hex | Display accent |
+| `color` | hex | Display accent; default `#3b82f6` |
 | `order` | number | Position on board |
 | `collapsed` | boolean | Collapse toggle |
+| `role` | `'done'\|''` | `'done'` marks the permanent terminal column |
+| `deleted` | boolean | Soft-delete flag for PocketBase sync |
 
 **Invariants**
-- The `done` column cannot be deleted or reordered past the last position.
+- The Done column (`role === 'done'`) cannot be deleted or reordered past the last position.
+- `isDoneColumn(col)` in `constants.js` is the canonical check — `role === 'done' || id === 'done'`.
 - New columns insert before the Done column.
 - Column name must be validated before save (`validateColumnName`).
 
 ---
 
 ### Label
+
 A tag applied to tasks. Labels can be grouped.
 
 | Field | Type | Notes |
@@ -59,21 +74,23 @@ A tag applied to tasks. Labels can be grouped.
 | `name` | string | Max 40 chars |
 | `color` | hex | |
 | `group` | string | Optional grouping for swimlanes |
+| `deleted` | boolean | Soft-delete flag for PocketBase sync |
 
 **Invariants**
 - Label groups drive the `label-group` swimlane dimension.
-- Deleting a label removes it from all task `labels[]` arrays.
+- Deleting a label removes it from all task `labels[]` arrays (or soft-deletes it for sync).
 
 ---
 
 ### Board
+
 A self-contained workspace with its own tasks, columns, labels, and settings.
 
 | Field | Type | Notes |
 |---|---|---|
 | `id` | UUID | |
 | `name` | string | |
-| `template` | string | Optional template origin |
+| `createdAt` | ISO datetime | Set on create |
 
 **Invariants**
 - All CRUD operations are scoped to the active board (`getActiveBoardId()`).
@@ -82,10 +99,55 @@ A self-contained workspace with its own tasks, columns, labels, and settings.
 
 ---
 
-### Settings
-Per-board configuration (swimlane mode, sort preferences, etc.).
+### SubTask
 
-Persisted under the board's IDB key via `loadSettings()` / `saveSettings()`.
+A checklist item embedded in a parent task.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | UUID | |
+| `title` | string | |
+| `completed` | boolean | |
+| `order` | number | |
+
+SubTasks are not independent entities — they live in `task.subTasks[]` and are not synced separately.
+
+---
+
+### Relationship
+
+A directional link between two tasks.
+
+| Field | Type | Notes |
+|---|---|---|
+| `type` | `prerequisite\|dependent\|related` | |
+| `targetTaskId` | UUID | The other task |
+
+Stored in `task.relationships[]` locally; synced to the `task_relationships` PocketBase collection.
+Adding a relationship always creates the inverse entry on the target task.
+
+---
+
+### ActivityLogEntry
+
+An event recorded on a task or board.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | UUID | Required for sync deduplication; absent on pre-sync legacy entries |
+| `type` | string | e.g. `task.priority_changed` |
+| `at` | ISO datetime | |
+| `actor` | `{type, id}` | See actor model below |
+| `details` | object | Before/after payload; event-specific |
+
+`actor.type` is one of `human | agent | user`. AI agents must pass `{ type: "agent", id: "<model-name>" }`.
+
+---
+
+### Settings
+
+Per-board configuration (swimlane mode, sort preferences, etc.).
+Persisted under the board's IDB key via `loadSettingsForBoard()` / `saveSettingsForBoard()`.
 
 ---
 
@@ -93,161 +155,258 @@ Persisted under the board's IDB key via `loadSettings()` / `saveSettings()`.
 
 ```
 Board ──< Column ──< Task ──< SubTask
+                 │        └─< Relationship (→ other Task)
+                 │        └─< ActivityLogEntry
                  └─< Label (shared across board)
        └─< Settings (1:1)
+       └─< BoardEvents[] (board-scoped audit log)
 ```
 
 - **Board** is the aggregate root. No cross-board references exist.
 - **Task** references Labels by ID; labels are not embedded.
-- **SubTask** is embedded inside Task (not a top-level entity).
+- **SubTask** and **Relationship** are embedded inside Task (not top-level entities).
 
 ---
 
 ## 3. Storage Layer
 
-All state is local-first, stored in **IndexedDB** (`kanvana-db`).
+All state is local-first, stored in **IndexedDB** (`kanvana-db`, version 1, single `kv` object store).
 
-| Store / Key | Content |
+The storage layer is split into three modules:
+
+| Module | Responsibility |
 |---|---|
-| `kv` object store | All board data as key-value pairs |
-| `tasks:{boardId}` | Task array |
-| `columns:{boardId}` | Column array |
-| `labels:{boardId}` | Label array |
-| `settings:{boardId}` | Settings object |
-| `boards` | Board list |
+| `idb-store.js` | IDB connection singleton, key helpers, fire-and-forget `schedulePersist()` / `scheduleDelete()` |
+| `board-serializer.js` | Board import normalizer — remaps non-UUID IDs, coerces fields on import or IDB migration |
+| `storage.js` | In-memory state + all public CRUD functions. Imports from both above. |
 
-**Key functions (god nodes — highest betweenness centrality)**
+**Key scheme** (all keys live in the single `kv` object store):
 
-| Function | Edges | Role |
-|---|---|---|
-| `loadTasks()` | 28 | Read task state for active board |
-| `ensureBoardsInitialized()` | 25 | Bootstrap guard; called before any board op |
-| `loadColumns()` | 21 | Read column state |
-| `loadLabels()` | 21 | Read label state |
-| `loadSettings()` | 19 | Read board settings |
-| `getActiveBoardId()` | 17 | Active board selector |
-| `keyFor()` | 14 | IDB key builder |
-| `listBoards()` | 14 | All board metadata |
-| `saveTasks()` | 14 | Persist task array (fire-and-forget IDB write) |
-| `main()` | 14 | Entry point; initializes page |
+| Key | Content |
+|---|---|
+| `kanbanBoards` | Board list array |
+| `kanbanActiveBoardId` | Active board ID string |
+| `kanbanBoard:{boardId}:tasks` | Task array for board |
+| `kanbanBoard:{boardId}:columns` | Column array for board |
+| `kanbanBoard:{boardId}:labels` | Label array for board |
+| `kanbanBoard:{boardId}:settings` | Settings object for board |
+| `events:{boardId}` | Board event log array |
 
-**Pattern:** `initStorage()` (async, called once at startup) → synchronous CRUD functions → fire-and-forget IDB writes → `renderBoard()`.
+**Pattern:** `initStorage()` (async, called once at startup) → synchronous CRUD functions read/write
+in-memory `state` → fire-and-forget IDB writes via `schedulePersist()` → `renderBoard()`.
 
----
+**Key public functions:**
 
-## 4. Feature Modules and Communities
-
-### Board Data Management (Community 0 — 78 nodes)
-Central hub. Covers board lifecycle: create, rename, switch, template apply, column/task CRUD, and the `renderBoard()` refresh cycle.
-
-Key symbols: `applyBoardTemplate`, `refreshBoardsModalList`, `addColumn`, `main`.
-
-### Due Date Dragging (Community 1 — 60 nodes)
-Due date calculation, countdown display, drag-drop interactions, and dialog UX. Bridges task card rendering with user interaction.
-
-Key symbols: `calculateDaysUntilDue`, `formatCountdown`, `getCountdownClassName`, `initDragDrop`.
-
-### Import / Export Security (Community 3 — 36 nodes)
-Board JSON export and import with preflight validation, version compatibility checks, and legacy ID remapping.
-
-Key symbols: `exportBoard`, `importTasks`, `inspectImportPayload`, `buildImportConfirmationMessage`.
-
-### Label & Task Modals (Community 5 — 29 nodes)
-Modal coordination between task editing and label management. Accordion UI for label grouping.
-
-Key symbols: `showLabelModal`, `renderLabelsList`, `groupLabels`, `createAccordionSection`.
-
-### Swimlane Rendering (Community 6 — 34 nodes)
-Groups tasks into swimlane rows by label, label-group, or priority. Builds the board grid. Manages per-cell collapse state.
-
-Key symbols: `renderSwimlaneBoard`, `buildBoardGrid`, `groupTasksBySwimLane`, `applySwimLaneAssignment`.
-
-### Icons / Notifications / Theme (Community 7 — 24 nodes)
-Lucide icon hydration, due-date notification banner/modal, and light/dark theme toggle.
-
-Key symbols: `renderIcons`, `initializeNotifications`, `renderNotificationBanner`.
-
-### Board Settings Modals (Community 8 — 22 nodes)
-Per-board settings UI, template selector, board selector refresh.
-
-Key symbols: `initializeBoardsUI`, `getBuiltInBoardTemplates`, `refreshBrandText`.
-
-### Reports & Analytics (Community 9 — 29 nodes)
-ECharts-based charts: lead time, daily completions, cumulative flow diagram.
-
-Key symbols: `buildLeadTimeOption`, `computeCompletions`, `computeCumulativeFlow`, `buildCfdOption`.
-
-### Drag & Drop Runtime (Community 11 — 12 nodes)
-SortableJS initialization and teardown for task and column drag-drop. Swimlane-aware drop handling.
-
-Key symbols: `initDragDrop`, `initTaskSortables`, `destroySortables`, `isSwimlaneViewEnabled`.
-
-### Calendar View (Community 13 — 10 nodes)
-Monthly calendar rendering. Groups tasks by `dueDate`; marks overdue and done tasks.
-
-Key symbols: `groupTasksByDueDateForMonth`, `isTaskDone`, `isTaskOverdue`, `formatMonthKey`.
-
-### PocketBase Backend (Communities 21–22)
-Optional backend plan: PocketBase as auth + sync layer behind Nginx proxy. Storage adapter pattern allows IDB ↔ PocketBase swap without changing feature modules.
-
-Key symbols: `PocketBase Storage Adapter`, `IDB to PocketBase Migration`, `Docker Compose Stack`.
+| Function | Role |
+|---|---|
+| `initStorage()` | Async bootstrap — opens IDB, loads all state into memory |
+| `getActiveBoardId()` | Active board selector |
+| `ensureBoardsInitialized()` | Guard called before any board operation |
+| `loadTasksForBoard(id)` | Read task state for a board |
+| `loadColumnsForBoard(id)` | Read column state for a board |
+| `loadLabelsForBoard(id)` | Read label state for a board |
+| `loadSettingsForBoard(id)` | Read settings for a board |
+| `loadBoardEvents(id)` | Read board event log |
+| `saveTasks()` / `saveTasksForBoard(id, tasks)` | Persist task array |
+| `listBoards()` | All board metadata |
+| `keyFor(boardId, kind)` | IDB key builder |
 
 ---
 
-## 5. Key Workflows (Hyperedges)
+## 4. Cloud Sync Layer (PocketBase)
 
-### Task Due Date Rendering Flow
+An optional PocketBase backend provides auth and cloud sync. The local IDB layer is unchanged
+whether sync is enabled or not.
+
+| Module | Responsibility |
+|---|---|
+| `sync.js` | PocketBase SDK instance, auth functions, `pushBoardFull()`, `pullAllBoards()` |
+| `authsync.js` | Auth UI — login modal, OAuth2 (Google/Apple/Microsoft), logout, manual sync button |
+| `autosync.js` | Debounced auto-sync on `kanban-local-change` window events (700ms debounce) |
+
+**Sync map:** A localStorage key (`kanbanSyncMap`) maps local UUIDs → PocketBase record IDs for
+boards, columns, labels, tasks, task_relationships, and events. Used for upsert decisions.
+
+**Push flow:** `pushBoardFull(boardId)` serializes the entire board (columns, tasks, labels,
+settings, events, soft-deleted records) and upserts each record to PocketBase.
+
+**Auth:** Email/password or OAuth2. `isAuthenticated()` / `ensureAuthenticated()` guard all sync
+operations. `auth-changed` custom window event fires on auth state change.
+
+**Auto-sync:** Enabled/disabled via `isAutoSyncEnabled()` (stored in localStorage). When enabled,
+any `kanban-local-change` event triggers a debounced `pushBoardFull()` per board.
+
+---
+
+## 5. Event Bus
+
+`client/src/modules/events.js` — a lightweight `EventTarget`-based bus that replaced the
+`await import('./render.js')` circular-dependency workaround.
+
+| Export | Purpose |
+|---|---|
+| `on(event, handler)` | Subscribe |
+| `off(event, handler)` | Unsubscribe |
+| `emit(event, detail)` | Publish |
+| `BOARD_CHANGED` | `'board:changed'` — board-level structure changed |
+| `DATA_CHANGED` | `'data:changed'` — any data mutation |
+
+---
+
+## 6. Feature Modules
+
+| Module | Responsibility |
+|---|---|
+| `kanban.js` | Entry point — initialises storage, renders board |
+| `boards.js` | Board lifecycle: create, rename, switch, template apply |
+| `boards-modal.js` | Board selector / management modal |
+| `columns.js` | Column CRUD |
+| `column-element.js` | Column DOM element factory |
+| `column-modal.js` | Column edit modal |
+| `tasks.js` | Task CRUD |
+| `task-card.js` | Task card DOM element factory |
+| `task-modal.js` | Task edit modal (labels, subtasks, relationships, activity log) |
+| `labels.js` | Label CRUD |
+| `labels-modal.js` | Label management modal |
+| `render.js` | `renderBoard()` and incremental sync helpers |
+| `swimlanes.js` | Swimlane grouping logic (`groupTasksBySwimLane`, etc.) |
+| `swimlane-renderer.js` | Swimlane board DOM builder |
+| `dragdrop.js` | SortableJS initialization/teardown; swimlane-aware drop handling |
+| `importexport.js` | Board JSON export/import with preflight validation |
+| `reports.js` | ECharts: lead time, daily completions, cumulative flow diagram |
+| `calendar.js` | Monthly calendar view; groups tasks by `dueDate` |
+| `activity.js` | Board event log page |
+| `activity-log.js` | Task activity log helpers |
+| `activity-log-ui.js` | Task activity log UI (collapsible section in task modal) |
+| `notifications.js` | Due-date notification banner/modal |
+| `dateutils.js` | Date calculation utilities (`calculateDaysUntilDue`, `formatCountdown`) |
+| `modals.js` | Modal coordination and shared modal state |
+| `dialog.js` | `alertDialog` / `confirmDialog` helpers |
+| `validation.js` | Field validators (column name, task, etc.) |
+| `normalize.js` | Data normalization helpers (priority, hex color, relationships, etc.) |
+| `settings.js` | Per-board settings load/save |
+| `security.js` | Input sanitization |
+| `theme.js` | Light/dark theme toggle |
+| `icons.js` | Lucide icon hydration |
+| `accordion.js` | Accordion UI component |
+| `dom.js` | Shared DOM helpers |
+| `utils.js` | `generateUUID()` and other pure utilities |
+| `constants.js` | Domain constants: priorities, column roles, keybindings |
+| `impressum.js` | Impressum/legal page |
+
+---
+
+## 7. Key Workflows
+
+### Board Render Flow
+```
+initStorage() → ensureBoardsInitialized() → renderBoard()
+  → renderSwimlaneBoard() [if swimlane mode]
+  → groupTasksBySwimLane → buildBoardGrid → applySwimLaneAssignment
+```
+
+### Task Due Date Rendering
 ```
 calculateDaysUntilDue → formatCountdown → getCountdownClassName
-  → createTaskElement → syncMovedTaskDueDate → getNotificationTasks
+  → createTaskElement → getNotificationTasks
 ```
 
-### Swimlane Board Flow
-```
-renderBoard → renderSwimlaneBoard → groupTasksBySwimLane
-  → buildBoardGrid → applySwimLaneAssignment → updateTaskPositionsFromDrop
-```
-
-### Modal Label–Task Coordination
-```
-initializeModalHandlers → initializeLabelsModalHandlers → showLabelModal
-  → updateTaskLabelsSelection → addLabel
-```
-
-### Column Management Flow
+### Column Management
 ```
 createColumnElement → initializeColumnModalHandlers
   → addColumn | updateColumn | deleteColumn
+  → emit(BOARD_CHANGED) → renderBoard()
 ```
 
 ### Import Preflight Flow
 ```
 inspectImportPayload → buildImportConfirmationMessage → importTasks
-  → (legacy ID remapping if needed)
+  → normalizeBoardModelIds (board-serializer) → legacy ID remapping if needed
 ```
 
-### Swimlane Cell Collapse
+### Sync Flow
 ```
-makeCellCollapseKey → isSwimLaneCellCollapsed
-  → toggleSwimLaneCellCollapsed → swimLaneCellCollapsedKeys
+[local change] → emit('kanban-local-change') → autosync debounce
+  → ensureAuthenticated() → pushBoardFull(boardId)
+  → upsertRecord per entity → saveSyncMap()
 ```
 
 ---
 
-## 6. Architecture Boundaries
+## 8. Architecture Boundaries
 
 | Boundary | Rule |
 |---|---|
-| Cross-board data | Use `loadTasksForBoard(id)` / `loadColumnsForBoard(id)` — never mutate another board's state |
+| Cross-board data | Use `loadTasksForBoard(id)` / `loadColumnsForBoard(id)` — never read or write another board's state |
 | Rendering | All state changes must end with `renderBoard()` or an incremental sync helper |
-| Circular deps | Use dynamic `await import('./render.js')` only for render calls; all other imports must be top-level static |
-| Done column | `id === 'done'` is permanent; sort is disabled for performance |
-| UUID | All entity IDs use `generateId()` from `utils.js`; no numeric or legacy string IDs post-migration |
-| Keybindings | Never hardcode key strings; register in `DEFAULT_APP_KEYBINDINGS` or `DEFAULT_EDITOR_KEYBINDINGS` |
+| Circular deps | Use `events.js` bus for render triggers; do not use `await import('./render.js')` outside of initialization |
+| Done column | Use `isDoneColumn(col)` from `constants.js` — checks both `role === 'done'` and legacy `id === 'done'` |
+| UUID | All entity IDs use `generateUUID()` from `utils.js`; no numeric or legacy string IDs post-migration |
+| Keybindings | Never hardcode key strings; register in `DEFAULT_APP_KEYBINDINGS` in `constants.js` |
+| Entity factories | Always use `createTask()`, `createColumn()`, etc. from `schema.js` — never construct entities ad-hoc |
+| Soft deletes | Set `deleted: true` on entities intended for removal; purge only after PocketBase sync confirms deletion |
 
 ---
 
-## 7. Test Architecture
+## 9. Audit Trail
+
+Two separate audit concepts with different scopes and lifetimes. Recorded in ADR-0001.
+
+### Task Activity Log
+
+Embedded array on each Task (`activityLog[]`). Records every meaningful change to that individual
+task. Permanently lost when the task is deleted.
+
+- Answers: "what happened to this task?"
+- Shown in the task edit modal (collapsible section at bottom).
+
+**Event types:** `task.created` · `task.title_changed` · `task.description_changed` ·
+`task.priority_changed` · `task.due_date_changed` · `task.column_moved` · `task.label_added` ·
+`task.label_removed` · `task.relationship_added` · `task.relationship_removed`
+
+### Board Event Log
+
+Board-scoped list stored independently from tasks (`events:{boardId}` IDB key). Survives task and
+column deletion. The only place column lifecycle events are recorded.
+
+- Answers: "what happened on this board?"
+- Shown on the Activity page (`activity.html`).
+
+**Event types:** `column.created` · `column.renamed` · `column.deleted` (includes task count
+destroyed) · `column.reordered` · `task.deleted`
+
+### Actor Model
+
+Every event carries `actor: { type: string, id: string | null }`.
+
+| Value | Meaning |
+|---|---|
+| `{ type: "human", id: null }` | Current single-user (no identity) |
+| `{ type: "agent", id: "claude-sonnet-4-6" }` | AI agent — identifies itself by model name |
+| `{ type: "user", id: "<uuid>" }` | Future multi-user online mode |
+
+AI agents are responsible for setting their own actor identity.
+
+### Event Envelope
+
+```json
+{
+  "id": "<uuid>",
+  "type": "task.priority_changed",
+  "at": "<ISO datetime>",
+  "actor": { "type": "human", "id": null },
+  "details": { "from": "high", "to": "medium" }
+}
+```
+
+`details` always carries before/after values for field changes.
+
+**`columnHistory` relationship:** Kept as-is for CFD/lead-time reports. `activityLog` is additive —
+column moves write to both. No consolidation. (See ADR-0001.)
+
+---
+
+## 10. Test Architecture
 
 | Layer | Tool | Location |
 |---|---|---|
@@ -256,75 +415,5 @@ makeCellCollapseKey → isSwimLaneCellCollapsed
 | API mocking | MSW | `client/tests/mocks/*.js` |
 | E2E | Playwright | `client/tests/e2e/*.spec.ts` |
 
-Key coverage areas: storage CRUD, UUID migration, swimlane utilities, import/export preflight, due-date countdown, validation, normalization, subtasks.
-
----
-
-## 8. Audit Trail
-
-Two separate audit concepts with different scopes and lifetimes.
-
-### Task Activity Log
-An embedded array on each Task. Records every meaningful change to that individual task. Lost permanently when the task is deleted (tasks have no external recovery path).
-
-- Stored as `activityLog[]` on the task object in IndexedDB.
-- Answers: "what happened to this task?"
-
-### Board Event Log
-A separate, board-scoped list of timestamped events stored independently from tasks. Survives task and column deletion. The only place where column lifecycle events (added, renamed, deleted, reordered) are recorded.
-
-- Stored as a separate IDB key per board (e.g. `events:{boardId}`).
-- Answers: "what happened on this board?"
-
-**Task Activity Log event types:**
-`task.created` · `task.title_changed` · `task.description_changed` · `task.priority_changed` · `task.due_date_changed` · `task.column_moved` · `task.label_added` · `task.label_removed` · `task.relationship_added` · `task.relationship_removed`
-
-**Board Event Log event types:**
-`column.created` · `column.renamed` · `column.deleted` (includes task count destroyed) · `column.reordered` · `task.deleted`
-
-Excluded by design: sub-task events (implementation detail) and `task.order_changed` within a column (positional noise).
-
-**Actor model:**
-Every event carries an `actor` field. Shape: `{ type: "human" | "agent" | "user", id: string | null }`.
-- `{ type: "human", id: null }` — current single-user (no identity yet)
-- `{ type: "agent", id: "claude-opus" }` — AI agent identifies itself by name
-- `{ type: "user", id: "<uuid>" }` — future multi-user online mode
-
-Actors are set by the caller; the system never infers them. AI agents are responsible for passing their own identity.
-
-**Event envelope (all events):**
-```
-{
-  type: string,           // e.g. "task.priority_changed"
-  at: ISO datetime,
-  actor: { type, id },
-  details: { ... }        // before/after payload, event-specific
-}
-```
-`details` always carries before/after values for field changes. Examples:
-- `task.priority_changed`: `{ from: "high", to: "medium" }`
-- `task.column_moved`: `{ from: "col-uuid-1", to: "col-uuid-2" }`
-- `task.label_added`: `{ labelId: "uuid", labelName: "Feature" }`
-- `task.description_changed`: `{ changed: true }` — flag only, no content stored
-- `task.created`: `{ column: "col-uuid", columnName: "In Progress" }` — column only; initial field values are on the task itself
-- `column.deleted`: `{ columnName: "Review", tasksDestroyed: 4 }`
-- `task.deleted` (Board Event Log only): `{ taskId, taskTitle, column, columnName }` — minimal; the task's activityLog is permanently lost at deletion
-
-**Visualization:** Log list only. No graph view.
-
-**Where each log lives in the UI:**
-- Task Activity Log → collapsible section at the bottom of the task edit modal (Option A)
-- Board Event Log → separate page alongside `reports.html` (Option C)
-
-**Retention:** Unbounded. Both logs grow indefinitely. Included in board JSON export/import.
-
-**`columnHistory` relationship:** Kept as-is for reports (lead time, CFD). `activityLog` is additive — column moves write to both. No consolidation.
-
----
-
-## 9. Known Gaps (from graph analysis)
-
-- 167 nodes have ≤1 connection — likely undocumented or under-specified components.
-- Communities `Impressum Encoding`, `Boards Modal Tests`, `Event Bus Tests`, `Storage Test Reset` are thin clusters (≤3 nodes) that may need more coverage or consolidation.
-- 19 inferred edges on `loadTasks()` need verification — model-reasoned connections may not reflect actual call sites.
-- `modals.js` and `render.js` are flagged as god modules in architecture review; candidate for incremental decomposition.
+Key coverage areas: storage CRUD, UUID migration, swimlane utilities, import/export preflight,
+due-date countdown, validation, normalization, subtasks, sync/autosync, activity log.

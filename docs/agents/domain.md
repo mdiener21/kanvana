@@ -5,9 +5,11 @@ How engineering skills should consume this repo's domain documentation.
 ## Before exploring, read these
 
 1. **`CONTEXT.md`** at the repo root — domain model, entity schemas, key workflows, architecture
-   boundaries, and known gaps. Read this first before working on any feature.
-2. **`docs/adr/`** — Architecture Decision Records. Read any ADR that touches the area you're
-   about to change before proposing structural edits.
+   boundaries, and storage/sync layer. Read this first before working on any feature.
+   It is hand-maintained (not generated); update it when schemas or workflows change.
+2. **`docs/adr/`** — Architecture Decision Records. Currently:
+   - `0001-two-log-audit-trail.md` — why the audit trail is split into task-embedded + board-scoped logs.
+   Read any ADR that touches the area you're about to change before proposing structural edits.
 
 If either doesn't exist, proceed silently. Don't flag their absence; don't suggest creating them
 upfront — `/grill-with-docs` creates them lazily when terms or decisions are resolved.
