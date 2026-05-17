@@ -16,10 +16,15 @@ import {
   pullAllBoards,
 } from './sync.js';
 
-const PB_HEALTH_URL = '/api/health';
+const PB_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_PB_URL) || '/';
+const PB_HEALTH_URL = `${PB_BASE_URL.replace(/\/$/, '')}/api/health`;
 const ALLOWED_PROVIDERS = new Set(['google', 'apple', 'microsoftonline']);
 
 function getTextError(err, fallback) {
+  const status = err?.status;
+  if (status >= 500) {
+    return `Server error (${status}) — the backend at ${PB_BASE_URL} may be unavailable.`;
+  }
   const msg = err?.message;
   if (typeof msg !== 'string' || !msg.trim()) return fallback;
   return msg.slice(0, 300);
@@ -224,11 +229,14 @@ export function initializeAuthSyncUI() {
 
   // ── PocketBase health probe ───────────────────────────────────────────────
   fetch(PB_HEALTH_URL, { signal: AbortSignal.timeout(3000) })
-    .then(r => { if (!r.ok) throw new Error('unhealthy'); })
-    .catch(() => {
-      loginBtn.disabled = true;
-      loginBtn.title = 'Backend unavailable';
-      console.warn('[authsync] PocketBase unreachable at', PB_HEALTH_URL);
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); })
+    .catch(async (err) => {
+      console.warn('[authsync] PocketBase unreachable at', PB_HEALTH_URL, err?.message);
+      await alertDialog({
+        title: 'Sync Server Unavailable',
+        message: `Cannot reach the sync server at:\n${PB_HEALTH_URL}\n\nYou can still use the board offline. Login and sync will be unavailable until the server is reachable.`,
+        okText: 'OK',
+      });
     });
 
   updateAuthUI();

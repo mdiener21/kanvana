@@ -20,6 +20,7 @@ This file is the entrypoint to the canonical application specification. Detailed
 - `docs/spec/relationships.md` - task relationship types, bidirectional sync, card display, modal UI
 - `docs/spec/sub-tasks.md` - sub-task data model, modal UI, completion, progress indicator, import/export
 - `docs/spec/audit-trail.md` - two-log audit trail design, event types, actor model, storage keys, UI entry points
+- `docs/spec/sync.md` - Go Online button, backend health probe, login modal, session management, sync operations
 - `docs/spec/testing.md` - testing stack, scripts, and coverage focus
 
 ## Update Policy
@@ -52,6 +53,7 @@ Use this mapping to decide which spec files to update alongside code changes.
 - `src/modules/dialog.js`, `src/modules/modals.js` -> `docs/spec/board-ui.md`
 - `src/modules/theme.js`, `src/modules/icons.js` -> `docs/spec/overview.md`, `docs/spec/board-ui.md`
 - `src/modules/activity-log.js`, `src/modules/activity-log-ui.js`, `src/modules/activity.js` -> `docs/spec/audit-trail.md`
+- `src/modules/authsync.js`, `src/modules/sync.js`, `src/modules/autosync.js` -> `docs/spec/sync.md`
 - `tests/**`, `playwright.config.js`, `vitest*.config.js` -> `docs/spec/testing.md` and `docs/testing-strategy.md` when strategy or naming conventions change
 
 ## Contributor Workflow

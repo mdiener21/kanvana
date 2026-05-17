@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `authsync.js` health probe now shows a modal notification with the full backend URL when the sync server is unreachable or returns a non-OK status, so users know immediately that login/sync is unavailable rather than experiencing a silent failure.
+
+### Fixed
+
+- "Go Online" button was silently disabled when PocketBase was unreachable (health probe set `disabled = true`); button now stays enabled so the login modal always opens.
+- Health probe URL resolved relative to the main app origin instead of the PocketBase origin; it now uses `VITE_PB_URL` (e.g. `https://pb.kanvana.com/api/health`) via the same env var as `sync.js`.
+- Login modal showed a generic "Something went wrong" message on 5xx errors; it now shows the HTTP status code and the backend URL to help diagnose connectivity issues.
+
+### Added
+
 - `schema.js` — canonical factory functions (`createTask`, `createColumn`, `createLabel`, `createBoard`, `createSubTask`, `createRelationship`, `createActivityLogEntry`) that initialize all domain object fields to their documented defaults; `RELATIONSHIP_TYPES` and `ACTIVITY_ACTOR_TYPES` constants exported from the same module
 - `activity-log.js` `createActivityEvent` now includes an `id` (UUID) field on every entry for deterministic PocketBase sync deduplication
 - PocketBase migrations: `sub_tasks` (json), `swimlane_label_id` (text), `deleted` (bool) fields added to the `tasks` collection
