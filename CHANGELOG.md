@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Global settings storage layer in `storage.js` with `loadGlobalSettings()` / `saveGlobalSettings()` persisted under `kanvana:settings:global`; `softDeleteEnabled` defaults to `false` and stays isolated from board settings.
+- Permanent task delete path now fully removes tasks by default, writes the board-level `task.deleted` event, and shows the irreversible-delete confirmation before emitting `DATA_CHANGED`.
 - `authsync.js` health probe now shows a modal notification with the full backend URL when the sync server is unreachable or returns a non-OK status, so users know immediately that login/sync is unavailable rather than experiencing a silent failure.
 
 ### Fixed

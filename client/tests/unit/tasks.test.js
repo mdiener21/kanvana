@@ -351,26 +351,23 @@ test('deleteTask appends task.deleted board event with task and column details',
   });
 });
 
-// ── soft-delete ────────────────────────────────────────────────────
+// ── permanent delete ───────────────────────────────────────────────
 
-test('deleteTask soft-deletes: task hidden from loadTasks but present in loadDeletedTasksForBoard', () => {
+test('deleteTask permanently removes task from live and deleted task lists by default', () => {
   addTask('Task 1', '', 'none', '', 'todo', []);
   const [task] = loadTasks();
 
   deleteTask(task.id);
 
   expect(loadTasks().find(t => t.id === task.id)).toBeUndefined();
-  const deleted = loadDeletedTasksForBoard(getActiveBoardId());
-  expect(deleted).toHaveLength(1);
-  expect(deleted[0].id).toBe(task.id);
-  expect(deleted[0].deleted).toBe(true);
+  expect(loadDeletedTasksForBoard(getActiveBoardId()).find(t => t.id === task.id)).toBeUndefined();
 });
 
 test('purgeDeleted hard-removes soft-deleted tasks from storage', async () => {
   const { purgeDeleted } = await import('../../src/modules/storage.js');
-  addTask('Task 1', '', 'none', '', 'todo', []);
-  const [task] = loadTasks();
-  deleteTask(task.id);
+  saveTasks([
+    { id: 'task-1', title: 'Task 1', column: 'todo', priority: 'none', deleted: true }
+  ]);
 
   expect(loadDeletedTasksForBoard(getActiveBoardId())).toHaveLength(1);
 
