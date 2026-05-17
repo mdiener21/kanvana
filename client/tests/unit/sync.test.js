@@ -38,6 +38,8 @@ vi.mock('../../src/modules/storage.js', () => ({
   loadDeletedColumnsForBoard: vi.fn(() => []),
   loadDeletedTasksForBoard: vi.fn(() => []),
   loadDeletedLabelsForBoard: vi.fn(() => []),
+  getPendingHardDeletes: vi.fn(() => []),
+  clearPendingHardDeleteEntry: vi.fn(),
   purgeDeleted: vi.fn(),
   saveColumnsForBoard: vi.fn(),
   saveTasksForBoard: vi.fn(),
@@ -66,6 +68,8 @@ import {
   loadDeletedTasksForBoard,
   loadDeletedColumnsForBoard,
   loadDeletedLabelsForBoard,
+  getPendingHardDeletes,
+  clearPendingHardDeleteEntry,
   purgeDeleted,
   saveColumnsForBoard,
   saveTasksForBoard,
@@ -86,6 +90,7 @@ beforeEach(() => {
   loadColumnsForBoard.mockReturnValue([]);
   loadTasksForBoard.mockReturnValue([]);
   loadDeletedTasksForBoard.mockReturnValue([]);
+  getPendingHardDeletes.mockReturnValue([]);
 });
 
 // ── Slice 1+2: isAuthenticated ────────────────────────────────────────────────
@@ -253,6 +258,42 @@ describe('pushBoardFull', () => {
     await pushBoardFull('board-1');
 
     expect(mockCollection.delete).toHaveBeenCalledWith('pb-task-del');
+  });
+
+  it('hard-deletes queued pending entries that have a PocketBase ID and clears them', async () => {
+    mockAuthStore.token = 'tok';
+    mockAuthStore.record = { id: 'user1' };
+    mockAuthStore.isValid = true;
+    mockCollection.create.mockResolvedValue({ id: 'pb-board-1' });
+    localStorage.setItem('kanbanSyncMap', JSON.stringify({
+      boards: {},
+      columns: {},
+      labels: {},
+      tasks: { 'task-hard-delete': 'pb-task-hard-delete' }
+    }));
+    getPendingHardDeletes.mockReturnValueOnce([
+      { localTaskId: 'task-hard-delete', boardId: 'board-1' }
+    ]);
+
+    await pushBoardFull('board-1');
+
+    expect(mockCollection.delete).toHaveBeenCalledWith('pb-task-hard-delete');
+    expect(clearPendingHardDeleteEntry).toHaveBeenCalledWith('task-hard-delete');
+  });
+
+  it('clears queued pending entries without a delete call when no PocketBase ID exists', async () => {
+    mockAuthStore.token = 'tok';
+    mockAuthStore.record = { id: 'user1' };
+    mockAuthStore.isValid = true;
+    mockCollection.create.mockResolvedValue({ id: 'pb-board-1' });
+    getPendingHardDeletes.mockReturnValueOnce([
+      { localTaskId: 'offline-task', boardId: 'board-1' }
+    ]);
+
+    await pushBoardFull('board-1');
+
+    expect(mockCollection.delete).not.toHaveBeenCalled();
+    expect(clearPendingHardDeleteEntry).toHaveBeenCalledWith('offline-task');
   });
 });
 

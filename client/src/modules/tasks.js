@@ -1,5 +1,5 @@
 import { generateUUID } from './utils.js';
-import { appendBoardEvent, getActiveBoardId, isDoneColumnId, loadColumns, loadDeletedTasksForBoard, loadGlobalSettings, loadLabels, loadSettings, loadTasks, saveTasks } from './storage.js';
+import { addPendingHardDelete, appendBoardEvent, getActiveBoardId, isDoneColumnId, loadColumns, loadDeletedTasksForBoard, loadGlobalSettings, loadLabels, loadSettings, loadTasks, saveTasks } from './storage.js';
 import { applySwimLaneAssignment } from './swimlanes.js';
 import { normalizePriority, normalizeRelationships, normalizeSubTasks } from './normalize.js';
 import { DEFAULT_HUMAN_ACTOR, appendTaskActivity, createActivityEvent } from './activity-log.js';
@@ -296,6 +296,7 @@ export function deleteTask(taskId) {
     ? allTasks.map(t => t.id === taskId ? { ...t, deleted: true } : t)
     : allTasks.filter(t => t.id !== taskId);
   saveTasks(updated);
+  if (!softDeleteEnabled) addPendingHardDelete({ localTaskId: task.id, boardId });
   return true;
 }
 

@@ -17,7 +17,10 @@ import {
   loadSettings,
   saveSettings,
   loadGlobalSettings,
-  saveGlobalSettings
+  saveGlobalSettings,
+  getPendingHardDeletes,
+  addPendingHardDelete,
+  clearPendingHardDeleteEntry
 } from '../../src/modules/storage.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -250,6 +253,29 @@ test('global settings and board settings are isolated', () => {
     swimLaneGroupBy: 'priority'
   });
   expect(loadSettings().softDeleteEnabled).toBeUndefined();
+});
+
+test('getPendingHardDeletes returns an empty queue before any hard deletes are queued', () => {
+  expect(getPendingHardDeletes()).toEqual([]);
+});
+
+test('addPendingHardDelete appends a task hard-delete intent to the queue', () => {
+  addPendingHardDelete({ localTaskId: 'task-1', boardId: 'board-1' });
+
+  expect(getPendingHardDeletes()).toEqual([
+    { localTaskId: 'task-1', boardId: 'board-1' }
+  ]);
+});
+
+test('clearPendingHardDeleteEntry removes queued entries by local task ID', () => {
+  addPendingHardDelete({ localTaskId: 'task-1', boardId: 'board-1' });
+  addPendingHardDelete({ localTaskId: 'task-2', boardId: 'board-1' });
+
+  clearPendingHardDeleteEntry('task-1');
+
+  expect(getPendingHardDeletes()).toEqual([
+    { localTaskId: 'task-2', boardId: 'board-1' }
+  ]);
 });
 
 // ── kanban-local-change events ──────────────────────────────────────

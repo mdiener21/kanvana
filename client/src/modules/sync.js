@@ -8,6 +8,8 @@ import {
   loadDeletedColumnsForBoard,
   loadDeletedTasksForBoard,
   loadDeletedLabelsForBoard,
+  getPendingHardDeletes,
+  clearPendingHardDeleteEntry,
   purgeDeleted,
   saveColumnsForBoard,
   saveTasksForBoard,
@@ -298,6 +300,16 @@ export async function pushBoardFull(boardId) {
       try { await pb.collection('tasks').delete(pbId); } catch { /* 404 ok */ }
       delete syncMap.tasks[task.id];
     }
+  }
+
+  for (const entry of getPendingHardDeletes()) {
+    const localTaskId = entry.localTaskId;
+    const pbId = getPbId(syncMap, 'tasks', localTaskId);
+    if (pbId) {
+      try { await pb.collection('tasks').delete(pbId); } catch { /* 404 ok */ }
+      delete syncMap.tasks[localTaskId];
+    }
+    clearPendingHardDeleteEntry(localTaskId);
   }
 
   await purgeDeleted(boardId);

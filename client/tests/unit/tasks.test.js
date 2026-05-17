@@ -1,6 +1,6 @@
 import { test, expect, beforeEach } from 'vitest';
 import { resetLocalStorage } from './setup.js';
-import { createBoard, getActiveBoardId, loadBoardEvents, loadDeletedTasksForBoard, loadTasks, saveColumns, saveLabels, saveSettings, saveTasks } from '../../src/modules/storage.js';
+import { createBoard, getActiveBoardId, getPendingHardDeletes, loadBoardEvents, loadDeletedTasksForBoard, loadTasks, saveColumns, saveLabels, saveSettings, saveTasks } from '../../src/modules/storage.js';
 import { addTask, updateTask, deleteTask, moveTaskToTopInColumn, updateTaskPositionsFromDrop } from '../../src/modules/tasks.js';
 
 beforeEach(() => {
@@ -361,6 +361,18 @@ test('deleteTask permanently removes task from live and deleted task lists by de
 
   expect(loadTasks().find(t => t.id === task.id)).toBeUndefined();
   expect(loadDeletedTasksForBoard(getActiveBoardId()).find(t => t.id === task.id)).toBeUndefined();
+});
+
+test('deleteTask queues a pending hard delete in permanent-delete mode', () => {
+  addTask('Task 1', '', 'none', '', 'todo', []);
+  const boardId = getActiveBoardId();
+  const [task] = loadTasks();
+
+  deleteTask(task.id);
+
+  expect(getPendingHardDeletes()).toEqual([
+    { localTaskId: task.id, boardId }
+  ]);
 });
 
 test('purgeDeleted hard-removes soft-deleted tasks from storage', async () => {

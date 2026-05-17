@@ -34,6 +34,9 @@ import {
   saveSettings,
   loadGlobalSettings,
   saveGlobalSettings,
+  getPendingHardDeletes,
+  addPendingHardDelete,
+  clearPendingHardDeleteEntry,
   loadTasksForBoard,
   loadColumnsForBoard,
   loadLabelsForBoard,
@@ -196,6 +199,22 @@ test('saveGlobalSettings persists to IDB and survives a session reset', async ()
 
   await initStorage();
   expect(loadGlobalSettings()).toEqual({ softDeleteEnabled: true });
+});
+
+test('pending hard deletes persist to IDB and survive a session reset', async () => {
+  await initStorage();
+  addPendingHardDelete({ localTaskId: 'task-1', boardId: 'board-1' });
+
+  await _flushPersistsForTesting();
+  _resetStorageForTesting();
+
+  await initStorage();
+  expect(getPendingHardDeletes()).toEqual([
+    { localTaskId: 'task-1', boardId: 'board-1' }
+  ]);
+
+  clearPendingHardDeleteEntry('task-1');
+  expect(getPendingHardDeletes()).toEqual([]);
 });
 
 test('appendBoardEvent persists board events and survives a session reset', async () => {
