@@ -1,6 +1,7 @@
-import { loadSettings, saveSettings } from './storage.js';
+import { loadGlobalSettings, loadSettings, saveGlobalSettings, saveSettings, listBoards, loadDeletedTasksForBoard, purgeDeleted } from './storage.js';
 import { setupModalCloseHandlers } from './modals.js';
 import { emit, DATA_CHANGED } from './events.js';
+import { confirmDialog } from './dialog.js';
 
 function uniq(values) {
   const out = [];
@@ -46,6 +47,11 @@ function applyAndRerender(next) {
   emit(DATA_CHANGED);
 }
 
+function applyGlobalSettings(next) {
+  saveGlobalSettings(next);
+  emit(DATA_CHANGED);
+}
+
 export function initializeSettingsUI() {
   const openBtn = document.getElementById('settings-btn');
   const closeBtn = document.getElementById('settings-close-btn');
@@ -60,11 +66,16 @@ export function initializeSettingsUI() {
   const showChangeDateEl = document.getElementById('settings-show-change-date');
   const localeEl = document.getElementById('settings-locale');
   const defaultPriorityEl = document.getElementById('settings-default-priority');
+  const softDeleteEl = document.getElementById('settings-soft-delete-enabled');
+  const purgeBtn = document.getElementById('settings-purge-btn');
+  const purgeCountEl = document.getElementById('settings-purge-count');
 
-  if (!openBtn || !closeBtn || !showPriorityEl || !showDueDateEl || !notificationDaysEl || !countdownUrgentEl || !countdownWarningEl || !showAgeEl || !showChangeDateEl || !localeEl || !defaultPriorityEl) return;
+  if (!openBtn || !closeBtn || !showPriorityEl || !showDueDateEl || !notificationDaysEl || !countdownUrgentEl || !countdownWarningEl || !showAgeEl || !showChangeDateEl || !localeEl || !defaultPriorityEl || !softDeleteEl) return;
 
   function syncFormFromSettings() {
     const settings = loadSettings();
+    const globalSettings = loadGlobalSettings();
+    softDeleteEl.checked = globalSettings.softDeleteEnabled === true;
     showPriorityEl.checked = settings.showPriority !== false;
     showDueDateEl.checked = settings.showDueDate !== false;
     showAgeEl.checked = settings.showAge !== false;
@@ -87,6 +98,12 @@ export function initializeSettingsUI() {
     localeEl.value = settings.locale;
 
     defaultPriorityEl.value = settings.defaultPriority || 'none';
+
+    if (purgeBtn && purgeCountEl) {
+      const count = listBoards().reduce((sum, board) => sum + loadDeletedTasksForBoard(board.id).length, 0);
+      purgeCountEl.textContent = String(count);
+      purgeBtn.disabled = count === 0;
+    }
   }
 
   openBtn.addEventListener('click', () => {
@@ -106,6 +123,11 @@ export function initializeSettingsUI() {
   showAgeEl.addEventListener('change', () => {
     const current = loadSettings();
     applyAndRerender({ ...current, showAge: Boolean(showAgeEl.checked) });
+  });
+
+  softDeleteEl.addEventListener('change', () => {
+    const current = loadGlobalSettings();
+    applyGlobalSettings({ ...current, softDeleteEnabled: Boolean(softDeleteEl.checked) });
   });
 
   showChangeDateEl.addEventListener('change', () => {
@@ -155,4 +177,23 @@ export function initializeSettingsUI() {
     const current = loadSettings();
     applyAndRerender({ ...current, defaultPriority: defaultPriorityEl.value });
   });
+
+  if (purgeBtn && purgeCountEl) {
+    purgeBtn.addEventListener('click', async () => {
+      const boards = listBoards();
+      const count = boards.reduce((sum, board) => sum + loadDeletedTasksForBoard(board.id).length, 0);
+      if (count === 0) return;
+      const ok = await confirmDialog({
+        title: 'Purge deleted tasks',
+        message: `Permanently delete all ${count} soft-deleted tasks across all boards? This cannot be undone.`,
+        confirmText: 'Purge',
+      });
+      if (!ok) return;
+      for (const board of boards) {
+        purgeDeleted(board.id);
+      }
+      purgeCountEl.textContent = '0';
+      purgeBtn.disabled = true;
+    });
+  }
 }
