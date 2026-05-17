@@ -19,6 +19,7 @@ import {
   getBoardById,
   setActiveBoardId,
   getActiveBoardId,
+  loadGlobalSettings,
 } from './storage.js';
 
 const PB_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_PB_URL) || '/';
@@ -129,6 +130,7 @@ export async function pushBoardFull(boardId) {
   const userId = pb.authStore.record.id;
   const syncMap = loadSyncMap();
   const board = getBoardById(boardId);
+  const softDeleteEnabled = loadGlobalSettings().softDeleteEnabled === true;
 
   const columns = loadColumnsForBoard(boardId);
   const tasks = loadTasksForBoard(boardId);
@@ -279,6 +281,35 @@ export async function pushBoardFull(boardId) {
 
   // ── Hard-deletes ───────────────────────────────────────────────────────────
 
+  if (softDeleteEnabled) {
+    for (const task of deletedTasks) {
+      const columnPbId = getPbId(syncMap, 'columns', task.column);
+      if (!columnPbId) continue;
+      const labelPbIds = (task.labels || [])
+        .map(lid => getPbId(syncMap, 'labels', lid))
+        .filter(Boolean);
+      await upsertRecord('tasks', syncMap, 'tasks', task.id, {
+        owner: userId,
+        board: boardPbId,
+        local_id: task.id,
+        title: task.title,
+        description: task.description || '',
+        priority: task.priority || '',
+        due_date: task.dueDate || '',
+        column: columnPbId,
+        order: typeof task.order === 'number' ? task.order : 0,
+        labels: labelPbIds,
+        creation_date: task.creationDate || '',
+        change_date: task.changeDate || '',
+        done_date: task.doneDate || '',
+        column_history: task.columnHistory || [],
+        sub_tasks: task.subTasks || [],
+        swimlane_label_id: task.swimlaneLabelId || '',
+        deleted: true,
+      });
+    }
+  }
+
   for (const label of deletedLabels) {
     const pbId = getPbId(syncMap, 'labels', label.id);
     if (pbId) {
@@ -293,23 +324,25 @@ export async function pushBoardFull(boardId) {
       delete syncMap.columns[col.id];
     }
   }
-  for (const task of deletedTasks) {
-    const pbId = getPbId(syncMap, 'tasks', task.id);
-    if (pbId) {
-      // PocketBase cascade deletes the task's task_relationships records.
-      try { await pb.collection('tasks').delete(pbId); } catch { /* 404 ok */ }
-      delete syncMap.tasks[task.id];
+  if (!softDeleteEnabled) {
+    for (const task of deletedTasks) {
+      const pbId = getPbId(syncMap, 'tasks', task.id);
+      if (pbId) {
+        // PocketBase cascade deletes the task's task_relationships records.
+        try { await pb.collection('tasks').delete(pbId); } catch { /* 404 ok */ }
+        delete syncMap.tasks[task.id];
+      }
     }
-  }
 
-  for (const entry of getPendingHardDeletes()) {
-    const localTaskId = entry.localTaskId;
-    const pbId = getPbId(syncMap, 'tasks', localTaskId);
-    if (pbId) {
-      try { await pb.collection('tasks').delete(pbId); } catch { /* 404 ok */ }
-      delete syncMap.tasks[localTaskId];
+    for (const entry of getPendingHardDeletes()) {
+      const localTaskId = entry.localTaskId;
+      const pbId = getPbId(syncMap, 'tasks', localTaskId);
+      if (pbId) {
+        try { await pb.collection('tasks').delete(pbId); } catch { /* 404 ok */ }
+        delete syncMap.tasks[localTaskId];
+      }
+      clearPendingHardDeleteEntry(localTaskId);
     }
-    clearPendingHardDeleteEntry(localTaskId);
   }
 
   await purgeDeleted(boardId);
