@@ -167,3 +167,39 @@ All modules use TDD (red-green-refactor). Tests assert external behaviour only �
 | **Full Decision Tree** | `docs/system/plan/draft/rework-soft-delete.md` |
 | **Module and Test Table** | `docs/system/plan/draft/rework-soft-delete-modules.md` |
 | **Specification** | `docs/system/spec/tasks.md` — *Task Deletion section* |
+
+---
+
+## 8. Completion Summary
+
+**Status: COMPLETE** — All six implementation slices delivered and committed on branch `#0002-perm-del-purge`.
+
+| Issue | Title | Status | Commit |
+|---|---|---|---|
+| 001 | Global settings storage layer | Done (pre-existing) | — |
+| 002 | Permanent delete purge path and confirmation | Done (pre-existing) | — |
+| 003 | Pending hard-deletes queue | Done (pre-existing) | — |
+| 004 | Soft-delete mode toggle in Settings UI | Done (pre-existing) | — |
+| 005 | Sync branching on soft-delete mode | **Implemented** | `79971bc` |
+| 006 | Purge button in Settings | **Implemented** | `b0a2d97` |
+
+### Issue 005 — Sync branching
+
+`pushBoardFull()` now reads `softDeleteEnabled` from global settings and branches:
+- **ON:** soft-deleted tasks are upserted to PocketBase with `deleted: true`; pending hard-deletes queue is not drained during push.
+- **OFF:** `deletedTasks` are hard-deleted from PocketBase; pending queue is drained (unchanged behavior).
+
+4 new unit tests in `client/tests/unit/sync.test.js`.
+
+### Issue 006 — Purge button
+
+- Purge button + count span added to the App settings section (`index.html`).
+- `settings.js` counts soft-deleted tasks across all boards on modal open; button is disabled at zero.
+- Confirmation dialog states exact count and "across all boards" scope.
+- On confirm: `purgeDeleted()` called for every board; button count resets to 0 and disables.
+- 7 new DOM tests in `client/tests/dom/settings-ui.test.js`.
+
+### Test results at completion
+
+- Unit tests: **285/285**
+- DOM tests: **77/78** (1 pre-existing `authsync` failure unrelated to this work)
