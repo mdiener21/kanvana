@@ -142,6 +142,27 @@ export function createRelationship(overrides = {}) {
   };
 }
 
+// ── Pending hard-delete ────────────────────────────────────────────────────────
+
+/**
+ * Queued when a task is permanently deleted locally before PocketBase is
+ * reachable. The sync resolves localTaskId → PocketBase ID via syncMap and
+ * hard-deletes the record, then clears the entry. If no PocketBase ID exists
+ * (task was never synced), the entry is silently dropped.
+ *
+ * Stored as a global array (not per-board) under the `pendingHardDeletes` key.
+ *
+ * @param {object} overrides
+ * @returns {{ localTaskId: string, boardId: string }}
+ */
+export function createPendingHardDelete(overrides = {}) {
+  return {
+    localTaskId: '',
+    boardId: '',
+    ...overrides,
+  };
+}
+
 // ── Activity log entry ─────────────────────────────────────────────────────────
 
 /**

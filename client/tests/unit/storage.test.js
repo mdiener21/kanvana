@@ -15,7 +15,9 @@ import {
   loadLabels,
   saveLabels,
   loadSettings,
-  saveSettings
+  saveSettings,
+  loadGlobalSettings,
+  saveGlobalSettings
 } from '../../src/modules/storage.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -225,6 +227,29 @@ test('loadSettings clamps countdownWarningThreshold to be >= urgentThreshold', (
   saveSettings({ countdownUrgentThreshold: 10, countdownWarningThreshold: 5 });
   const settings = loadSettings();
   expect(settings.countdownWarningThreshold >= settings.countdownUrgentThreshold).toBe(true);
+});
+
+test('loadGlobalSettings returns defaults on first run', () => {
+  expect(loadGlobalSettings()).toEqual({ softDeleteEnabled: false });
+});
+
+test('saveGlobalSettings round-trips soft-delete mode', () => {
+  saveGlobalSettings({ softDeleteEnabled: true });
+  expect(loadGlobalSettings()).toEqual({ softDeleteEnabled: true });
+});
+
+test('global settings and board settings are isolated', () => {
+  createBoard('Settings Isolation');
+
+  saveGlobalSettings({ softDeleteEnabled: true });
+  saveSettings({ swimLanesEnabled: true, swimLaneGroupBy: 'priority' });
+
+  expect(loadGlobalSettings()).toEqual({ softDeleteEnabled: true });
+  expect(loadSettings()).toMatchObject({
+    swimLanesEnabled: true,
+    swimLaneGroupBy: 'priority'
+  });
+  expect(loadSettings().softDeleteEnabled).toBeUndefined();
 });
 
 // ── kanban-local-change events ──────────────────────────────────────

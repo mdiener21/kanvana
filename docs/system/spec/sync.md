@@ -1,6 +1,6 @@
 # Sync & Auth Specification
 
-Covers the "Go Online" flow: backend health check, login modal, session management, and sync operations.
+Covers the "Go Online" flow: backend health check, login modal, session management, and sync operations. Related to `docs/system/spec/backend-storage-pb.md`
 
 ---
 

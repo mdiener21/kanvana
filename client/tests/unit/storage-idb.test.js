@@ -32,6 +32,8 @@ import {
   saveLabels,
   loadSettings,
   saveSettings,
+  loadGlobalSettings,
+  saveGlobalSettings,
   loadTasksForBoard,
   loadColumnsForBoard,
   loadLabelsForBoard,
@@ -173,6 +175,27 @@ test('saveSettings persists to IDB and survives a session reset', async () => {
   const settings = loadSettings();
   expect(settings.swimLanesEnabled).toBe(true);
   expect(settings.notificationDays).toBe(7);
+});
+
+test('initStorage loads global settings from IDB', async () => {
+  const db = await openDB(DB_NAME, 1, { upgrade(d) { d.createObjectStore('kv'); } });
+  await db.put('kv', { softDeleteEnabled: true }, 'kanvana:settings:global');
+  db.close();
+
+  await initStorage();
+
+  expect(loadGlobalSettings()).toEqual({ softDeleteEnabled: true });
+});
+
+test('saveGlobalSettings persists to IDB and survives a session reset', async () => {
+  await initStorage();
+  saveGlobalSettings({ softDeleteEnabled: true });
+
+  await _flushPersistsForTesting();
+  _resetStorageForTesting();
+
+  await initStorage();
+  expect(loadGlobalSettings()).toEqual({ softDeleteEnabled: true });
 });
 
 test('appendBoardEvent persists board events and survives a session reset', async () => {

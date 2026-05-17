@@ -10,6 +10,7 @@ import { normalizeBoardModelIds } from './board-serializer.js';
 
 const BOARDS_KEY = 'kanbanBoards';
 const ACTIVE_BOARD_KEY = 'kanbanActiveBoardId';
+const GLOBAL_SETTINGS_KEY = 'kanvana:settings:global';
 
 const LEGACY_COLUMNS_KEY = 'kanbanColumns';
 const LEGACY_TASKS_KEY = 'kanbanTasks';
@@ -31,6 +32,7 @@ const state = {
   columns: {},  // { [boardId]: column[] | null }
   labels: {},   // { [boardId]: label[] | null }
   settings: {},  // { [boardId]: object | null }
+  globalSettings: null,
   boardEvents: {} // { [boardId]: event[] | null }
 };
 
@@ -279,6 +281,12 @@ function defaultSettings() {
   };
 }
 
+function defaultGlobalSettings() {
+  return {
+    softDeleteEnabled: false
+  };
+}
+
 // ── Migration from localStorage ────────────────────────────────────────────────
 
 async function migrateFromLocalStorage(db) {
@@ -372,6 +380,7 @@ export async function initStorage() {
   // Load everything into in-memory state.
   state.boards = safeParseArray(await db.get(KV_STORE, BOARDS_KEY)) || [];
   state.activeBoardId = (await db.get(KV_STORE, ACTIVE_BOARD_KEY)) || null;
+  state.globalSettings = normalizeGlobalSettings(await db.get(KV_STORE, GLOBAL_SETTINGS_KEY));
 
   for (const board of state.boards) {
     state.tasks[board.id] = (await db.get(KV_STORE, keyFor(board.id, 'tasks'))) ?? null;
@@ -406,6 +415,7 @@ export function _resetStorageForTesting() {
   for (const k in state.columns) delete state.columns[k];
   for (const k in state.labels) delete state.labels[k];
   for (const k in state.settings) delete state.settings[k];
+  state.globalSettings = null;
   for (const k in state.boardEvents) delete state.boardEvents[k];
   taskCacheByBoard.clear();
 }
@@ -837,6 +847,13 @@ function normalizeSettings(raw) {
   };
 }
 
+function normalizeGlobalSettings(raw) {
+  const obj = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  return {
+    softDeleteEnabled: obj.softDeleteEnabled === true
+  };
+}
+
 export function loadSettings() {
   ensureBoardsInitialized();
   const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
@@ -856,6 +873,17 @@ export function saveSettings(settings) {
   const normalized = normalizeSettings(settings);
   state.settings[boardId] = normalized;
   schedulePersist(keyFor(boardId, 'settings'), normalized);
+}
+
+export function loadGlobalSettings() {
+  const parsed = safeParseObject(state.globalSettings);
+  return parsed ? normalizeGlobalSettings(parsed) : defaultGlobalSettings();
+}
+
+export function saveGlobalSettings(settings) {
+  const normalized = normalizeGlobalSettings(settings);
+  state.globalSettings = normalized;
+  schedulePersist(GLOBAL_SETTINGS_KEY, normalized);
 }
 
 // ── Board events ───────────────────────────────────────────────────────────────

@@ -32,13 +32,13 @@ The primary work unit. Every task belongs to exactly one column and one board.
 | `subTasks` | SubTask[] | Nested checklist items |
 | `activityLog` | ActivityLogEntry[] | Per-task audit trail |
 | `swimlaneLabelId` | string | Pinned swimlane label assignment |
-| `deleted` | boolean | Soft-delete flag for PocketBase sync |
+| `deleted` | boolean | User-facing soft-delete flag; `true` when soft-delete mode is active and task has been deleted |
 
 **Invariants**
 - New tasks insert at order=1 (top of column).
 - `doneDate` is set only when the task enters the Done column.
 - `columnHistory` must be appended, never rewritten.
-- `deleted: true` means soft-deleted; excluded from all normal queries but retained in IDB for sync.
+- `deleted: true` means the task is hidden from all views, counts, and filters. In soft-delete mode it is retained in IDB until purge. In permanent-delete mode the task is immediately purged from IDB and the ID is queued in `pendingHardDeletes` for the next sync.
 
 ---
 
@@ -146,8 +146,10 @@ An event recorded on a task or board.
 
 ### Settings
 
-Per-board configuration (swimlane mode, sort preferences, etc.).
-Persisted under the board's IDB key via `loadSettingsForBoard()` / `saveSettingsForBoard()`.
+Two tiers:
+
+- **Board settings** — per-board configuration (swimlane mode, sort preferences, footer display, etc.). Stored under `kanbanBoard:{boardId}:settings`.
+- **Global settings** — app-wide configuration that applies across all boards (e.g. `softDeleteEnabled`). Stored under `kanvana:settings:global`. See ADR-0003.
 
 ---
 
@@ -191,6 +193,8 @@ The storage layer is split into three modules:
 | `kanbanBoard:{boardId}:labels` | Label array for board |
 | `kanbanBoard:{boardId}:settings` | Settings object for board |
 | `events:{boardId}` | Board event log array |
+| `kanvana:settings:global` | Global (cross-board) settings object |
+| `pendingHardDeletes` | Global queue of `{ localTaskId, boardId }` entries awaiting PocketBase hard-delete after a permanent-mode deletion while offline |
 
 **Pattern:** `initStorage()` (async, called once at startup) → synchronous CRUD functions read/write
 in-memory `state` → fire-and-forget IDB writes via `schedulePersist()` → `renderBoard()`.
@@ -205,7 +209,8 @@ in-memory `state` → fire-and-forget IDB writes via `schedulePersist()` → `re
 | `loadTasksForBoard(id)` | Read task state for a board |
 | `loadColumnsForBoard(id)` | Read column state for a board |
 | `loadLabelsForBoard(id)` | Read label state for a board |
-| `loadSettingsForBoard(id)` | Read settings for a board |
+| `loadSettingsForBoard(id)` | Read board-scoped settings |
+| `loadGlobalSettings()` / `saveGlobalSettings()` | Read/write cross-board app settings |
 | `loadBoardEvents(id)` | Read board event log |
 | `saveTasks()` / `saveTasksForBoard(id, tasks)` | Persist task array |
 | `listBoards()` | All board metadata |
@@ -344,7 +349,7 @@ inspectImportPayload → buildImportConfirmationMessage → importTasks
 | UUID | All entity IDs use `generateUUID()` from `utils.js`; no numeric or legacy string IDs post-migration |
 | Keybindings | Never hardcode key strings; register in `DEFAULT_APP_KEYBINDINGS` in `constants.js` |
 | Entity factories | Always use `createTask()`, `createColumn()`, etc. from `schema.js` — never construct entities ad-hoc |
-| Soft deletes | Set `deleted: true` on entities intended for removal; purge only after PocketBase sync confirms deletion |
+| Task deletion | **Permanent delete (default):** immediately purge from IDB, write board audit event, queue ID in `pendingHardDeletes`. **Soft-delete (opt-in via global settings):** set `deleted: true`, retain in IDB, upsert to PocketBase; hard-deleted only when user runs purge. See ADR-0002. |
 
 ---
 
