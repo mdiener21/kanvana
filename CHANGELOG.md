@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed Impressum page overflow so the legal content can scroll vertically on desktop and mobile.
 - Fixed sub-task font size.
 - Fixed missing scale icon for the legal/impressum page.
+- Soft-deleted tasks were silently lost when adding, editing, moving, or reordering other tasks, causing the Settings purge count and button to no longer reflect them; soft-deleted tasks are now retained until an explicit purge.
+- Soft-deleted tasks were also removed from local storage on every background sync, so the Settings purge count could drop to zero while the tasks still existed in PocketBase; sync now keeps soft-deleted tasks locally until you purge.
 
 ## [2.0.0] - 2026-05-16
 
