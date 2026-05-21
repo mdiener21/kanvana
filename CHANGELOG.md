@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- E2E tests (`tests/e2e/task-delete.spec.ts`) for the task deletion flows: permanent delete removes card and decrements counter; cancel preserves task; soft-delete mode shows correct dialog message, removes card from board, and increments the Settings purge counter (3 tests, all passing).
 - Global settings storage layer in `storage.js` with `loadGlobalSettings()` / `saveGlobalSettings()` persisted under `kanvana:settings:global`; `softDeleteEnabled` defaults to `false` and stays isolated from board settings.
 - Settings UI now separates App settings from Board settings and exposes the global "Soft-delete tasks" toggle.
 - Permanent task delete path now fully removes tasks by default, writes the board-level `task.deleted` event, and shows the irreversible-delete confirmation before emitting `DATA_CHANGED`.
