@@ -459,6 +459,17 @@ test('purgeDeleted hard-removes soft-deleted tasks from storage', async () => {
   expect(loadDeletedTasksForBoard(getActiveBoardId())).toHaveLength(0);
 });
 
+test('purgeDeleted with { tasks: false } keeps soft-deleted tasks', async () => {
+  const { purgeDeleted } = await import('../../src/modules/storage.js');
+  saveTasks([
+    { id: 'task-1', title: 'Task 1', column: 'todo', priority: 'none', deleted: true }
+  ]);
+
+  purgeDeleted(getActiveBoardId(), { tasks: false });
+
+  expect(loadDeletedTasksForBoard(getActiveBoardId())).toHaveLength(1);
+});
+
 // ── updateTaskPositionsFromDrop ─────────────────────────────────────
 
 test('updateTaskPositionsFromDrop appends activity when task moves columns', () => {

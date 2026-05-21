@@ -237,7 +237,7 @@ describe('pushBoardFull', () => {
     expect(loadTasksForBoard).toHaveBeenCalledWith('board-1');
   });
 
-  it('calls purgeDeleted after syncing', async () => {
+  it('calls purgeDeleted after syncing (purges tasks when soft-delete is off)', async () => {
     mockAuthStore.token = 'tok';
     mockAuthStore.record = { id: 'user1' };
     mockAuthStore.isValid = true;
@@ -245,7 +245,7 @@ describe('pushBoardFull', () => {
 
     await pushBoardFull('board-1');
 
-    expect(purgeDeleted).toHaveBeenCalledWith('board-1');
+    expect(purgeDeleted).toHaveBeenCalledWith('board-1', { tasks: true });
   });
 
   it('with soft-delete OFF (default), hard-deletes soft-deleted tasks from PocketBase when syncMap entry exists', async () => {
@@ -358,6 +358,19 @@ describe('pushBoardFull', () => {
 
     expect(mockCollection.delete).not.toHaveBeenCalledWith('pb-queued');
     expect(clearPendingHardDeleteEntry).not.toHaveBeenCalled();
+  });
+
+  it('with soft-delete ON, does not purge soft-deleted tasks from local storage', async () => {
+    mockAuthStore.token = 'tok';
+    mockAuthStore.record = { id: 'user1' };
+    mockAuthStore.isValid = true;
+    mockCollection.create.mockResolvedValue({ id: 'pb-board-1' });
+    loadGlobalSettings.mockReturnValue({ softDeleteEnabled: true });
+
+    await pushBoardFull('board-1');
+
+    // Soft-deleted tasks must survive a push; only an explicit purge removes them.
+    expect(purgeDeleted).toHaveBeenCalledWith('board-1', { tasks: false });
   });
 });
 

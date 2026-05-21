@@ -976,19 +976,22 @@ export function loadDeletedLabelsForBoard(boardId) {
   return (safeParseArray(raw) || []).filter(l => l.deleted === true);
 }
 
-export function purgeDeleted(boardId) {
-  if (state.tasks[boardId]) {
+// Hard-removes soft-deleted records. The opts flags allow a caller to purge
+// only some entity types — e.g. a sync push purges deleted column/label
+// tombstones but must keep soft-deleted tasks until an explicit purge.
+export function purgeDeleted(boardId, { tasks = true, columns = true, labels = true } = {}) {
+  if (tasks && state.tasks[boardId]) {
     const live = (safeParseArray(state.tasks[boardId]) || []).filter(t => !t.deleted);
     state.tasks[boardId] = live;
     taskCacheByBoard.set(boardId, live);
     schedulePersist(keyFor(boardId, 'tasks'), live);
   }
-  if (state.columns[boardId]) {
+  if (columns && state.columns[boardId]) {
     const live = (safeParseArray(state.columns[boardId]) || []).filter(c => !c.deleted);
     state.columns[boardId] = live;
     schedulePersist(keyFor(boardId, 'columns'), live);
   }
-  if (state.labels[boardId]) {
+  if (labels && state.labels[boardId]) {
     const live = (safeParseArray(state.labels[boardId]) || []).filter(l => !l.deleted);
     state.labels[boardId] = live;
     schedulePersist(keyFor(boardId, 'labels'), live);

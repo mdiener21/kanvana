@@ -346,7 +346,10 @@ export async function pushBoardFull(boardId) {
     }
   }
 
-  await purgeDeleted(boardId);
+  // Soft-delete mode keeps soft-deleted tasks locally (they sync to PocketBase
+  // as deleted: true); only an explicit purge removes them. Column/label
+  // tombstones are always cleaned — they were hard-deleted from PocketBase above.
+  await purgeDeleted(boardId, { tasks: !softDeleteEnabled });
   saveSyncMap(syncMap);
 }
 
