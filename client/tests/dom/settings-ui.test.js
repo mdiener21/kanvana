@@ -3,6 +3,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/dom';
 import { mountToBody } from './setup.js';
 import { createBoard, getActiveBoardId, loadDeletedTasksForBoard, loadGlobalSettings, loadTasks, saveGlobalSettings, saveTasks, saveTasksForBoard } from '../../src/modules/storage.js';
 import { initializeSettingsUI } from '../../src/modules/settings.js';
+import { addTask, deleteTask } from '../../src/modules/tasks.js';
 
 const { confirmDialog, alertDialog } = vi.hoisted(() => ({
   confirmDialog: vi.fn(),
@@ -12,6 +13,14 @@ const { confirmDialog, alertDialog } = vi.hoisted(() => ({
 vi.mock('../../src/modules/dialog.js', () => ({
   confirmDialog,
   alertDialog
+}));
+
+const { runPurge } = vi.hoisted(() => ({
+  runPurge: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../../src/modules/sync.js', () => ({
+  runPurge,
 }));
 
 const { createTaskElement } = await import('../../src/modules/task-card.js');
@@ -60,6 +69,8 @@ function mountSettings() {
 
 beforeEach(() => {
   confirmDialog.mockReset();
+  runPurge.mockReset();
+  runPurge.mockResolvedValue(undefined);
   createBoard('Settings UI');
   saveTasks([]);
 });
@@ -176,6 +187,22 @@ test('purge button shows correct count and is enabled when soft-deleted tasks ex
   expect(btn.disabled).toBe(false);
 });
 
+test('purge count reflects all soft-deleted tasks after a later task operation', () => {
+  saveGlobalSettings({ softDeleteEnabled: true });
+  for (let i = 1; i <= 5; i++) addTask(`Task ${i}`, '', 'none', '', 'todo', []);
+  loadTasks().forEach(t => deleteTask(t.id));
+  // A normal task operation after the soft-deletes must not discard them.
+  addTask('Fresh task', '', 'none', '', 'todo', []);
+
+  mountSettings();
+  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+
+  const btn = document.getElementById('settings-purge-btn');
+  const count = document.getElementById('settings-purge-count');
+  expect(count.textContent).toBe('5');
+  expect(btn.disabled).toBe(false);
+});
+
 test('purge button enabled when soft-deleted tasks exist even if soft-delete toggle is off', () => {
   saveGlobalSettings({ softDeleteEnabled: false });
   const boardId = getActiveBoardId();
@@ -223,7 +250,7 @@ test('cancelling purge confirmation leaves all soft-deleted tasks untouched', as
   expect(loadDeletedTasksForBoard(boardId)).toHaveLength(1);
 });
 
-test('confirming purge removes all soft-deleted tasks from all boards', async () => {
+test('confirming purge calls runPurge with the boards list', async () => {
   const boardId = getActiveBoardId();
   saveTasksForBoard(boardId, [
     { id: 't1', deleted: true, title: 'A', column: 'todo', labels: [] },
@@ -235,9 +262,11 @@ test('confirming purge removes all soft-deleted tasks from all boards', async ()
   fireEvent.click(document.getElementById('settings-purge-btn'));
 
   await waitFor(() => {
-    expect(loadDeletedTasksForBoard(boardId)).toHaveLength(0);
+    expect(runPurge).toHaveBeenCalledOnce();
+    expect(runPurge).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ id: boardId })])
+    );
   });
-  expect(loadTasks()).toHaveLength(1);
 });
 
 test('purge button disables and shows zero count after successful purge', async () => {

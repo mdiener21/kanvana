@@ -4,11 +4,11 @@ Generated from test source. Do not edit by hand; run `npm run test:overview` fro
 
 ## Fast Scan
 
-- Test files: 31
-- Test cases: 361
+- Test files: 35
+- Test cases: 403
 - Unit files: 17
-- DOM integration files: 6
-- E2E files: 8
+- DOM integration files: 9
+- E2E files: 9
 
 ## How To Use This
 
@@ -23,21 +23,24 @@ These lists compare source/spec filenames against test file names and test title
 
 ### Source Modules Without Obvious Named Coverage
 
+- `src/modules/board-serializer.js`
 - `src/modules/calendar.js`
 - `src/modules/column-element.js`
 - `src/modules/column-modal.js`
-- `src/modules/dialog.js`
 - `src/modules/icons.js`
+- `src/modules/idb-store.js`
 - `src/modules/impressum.js`
 - `src/modules/labels-modal.js`
 - `src/modules/notifications.js`
 - `src/modules/reports.js`
+- `src/modules/schema.js`
 - `src/modules/swimlane-renderer.js`
 - `src/modules/theme.js`
 
 ### Specs Without Obvious Named Coverage
 
 - `../docs/system/spec/audit-trail.md`
+- `../docs/system/spec/backend-storage-pb.md`
 - `../docs/system/spec/board-ui.md`
 - `../docs/system/spec/calendar.md`
 - `../docs/system/spec/data-models.md`
@@ -58,11 +61,11 @@ These lists compare source/spec filenames against test file names and test title
 - Test count: 6
 
 - `tests/unit/activity-log.test.js:5` createActivityEvent returns an event envelope with caller data
-- `tests/unit/activity-log.test.js:17` createActivityEvent uses an ISO timestamp by default
-- `tests/unit/activity-log.test.js:24` createActivityEvent accepts valid actors and exposes the default human actor
-- `tests/unit/activity-log.test.js:31` createActivityEvent throws for invalid actors
-- `tests/unit/activity-log.test.js:39` appendTaskActivity initializes activityLog and appends the event
-- `tests/unit/activity-log.test.js:49` appendTaskActivity appends to an existing activityLog
+- `tests/unit/activity-log.test.js:18` createActivityEvent uses an ISO timestamp by default
+- `tests/unit/activity-log.test.js:25` createActivityEvent accepts valid actors and exposes the default human actor
+- `tests/unit/activity-log.test.js:32` createActivityEvent throws for invalid actors
+- `tests/unit/activity-log.test.js:40` appendTaskActivity initializes activityLog and appends the event
+- `tests/unit/activity-log.test.js:50` appendTaskActivity appends to an existing activityLog
 
 ### Autosync
 
@@ -118,15 +121,16 @@ These lists compare source/spec filenames against test file names and test title
 
 - Path: `tests/unit/constants.test.js`
 - Type: Unit
-- Test count: 7
+- Test count: 8
 
-- `tests/unit/constants.test.js:12` PRIORITIES contains 5 values in correct order
-- `tests/unit/constants.test.js:16` PRIORITY_SET contains all expected priorities and rejects unknown values
-- `tests/unit/constants.test.js:26` PRIORITY_ORDER maps priorities to ascending numeric rank
-- `tests/unit/constants.test.js:34` DEFAULT_PRIORITY is none
-- `tests/unit/constants.test.js:38` DONE_COLUMN_ID is done
-- `tests/unit/constants.test.js:42` DEFAULT_COLUMN_COLOR is a valid hex color
-- `tests/unit/constants.test.js:46` MAX_LABEL_NAME_LENGTH is a positive integer
+- `tests/unit/constants.test.js:14` PRIORITIES contains 5 values in correct order
+- `tests/unit/constants.test.js:18` PRIORITY_SET contains all expected priorities and rejects unknown values
+- `tests/unit/constants.test.js:28` PRIORITY_ORDER maps priorities to ascending numeric rank
+- `tests/unit/constants.test.js:36` DEFAULT_PRIORITY is none
+- `tests/unit/constants.test.js:40` DONE_COLUMN_ID is done
+- `tests/unit/constants.test.js:44` DEFAULT_COLUMN_COLOR is a valid hex color
+- `tests/unit/constants.test.js:48` MAX_LABEL_NAME_LENGTH is a positive integer
+- `tests/unit/constants.test.js:53` open boards modal shortcut defaults to Ctrl+B
 
 ### Dateutils
 
@@ -257,68 +261,77 @@ These lists compare source/spec filenames against test file names and test title
 
 - Path: `tests/unit/storage-idb.test.js`
 - Type: Unit
-- Test count: 27
+- Test count: 30
 
-- `tests/unit/storage-idb.test.js:49` getBoardEventsKey returns the board event key shape from the PRD
-- `tests/unit/storage-idb.test.js:62` initStorage on empty IDB leaves boards list empty
-- `tests/unit/storage-idb.test.js:67` initStorage is safe to call twice in the same session
-- `tests/unit/storage-idb.test.js:78` saveTasks persists to IDB and survives a session reset
-- `tests/unit/storage-idb.test.js:95` loadTasks normalizes missing and malformed task activity logs to empty arrays
-- `tests/unit/storage-idb.test.js:112` saveTasks normalizes task activity logs before persisting
-- `tests/unit/storage-idb.test.js:127` saveColumns persists to IDB and survives a session reset
-- `tests/unit/storage-idb.test.js:146` saveLabels persists to IDB and survives a session reset
-- `tests/unit/storage-idb.test.js:162` saveSettings persists to IDB and survives a session reset
-- `tests/unit/storage-idb.test.js:178` appendBoardEvent persists board events and survives a session reset
-- `tests/unit/storage-idb.test.js:193` saveBoardEvents persists board events and survives a session reset
-- `tests/unit/storage-idb.test.js:208` createBoard persists board list and per-board defaults across sessions
-- `tests/unit/storage-idb.test.js:223` active board id persists across sessions
-- `tests/unit/storage-idb.test.js:238` deleteBoard removes per-board data from IDB
-- `tests/unit/storage-idb.test.js:260` deleteBoard removes board event data from IDB
-- `tests/unit/storage-idb.test.js:281` migrates multi-board localStorage data on first initStorage
-- `tests/unit/storage-idb.test.js:308` migrates legacy done id to a UUID done role and rewrites task references
-- `tests/unit/storage-idb.test.js:345` migration cleans up localStorage after completing
-- `tests/unit/storage-idb.test.js:365` migrates legacy single-board localStorage keys (pre-multi-board format)
-- `tests/unit/storage-idb.test.js:387` migrates legacy single-board tasks without columns using UUID default column mappings
-- `tests/unit/storage-idb.test.js:409` migration does not run again on a subsequent initStorage call (same IDB)
-- `tests/unit/storage-idb.test.js:429` initStorage with corrupt kanbanBoards in IDB yields empty boards list
-- `tests/unit/storage-idb.test.js:443` loadTasksForBoard reads tasks for a non-active board without changing active board
-- `tests/unit/storage-idb.test.js:460` loadColumnsForBoard reads columns for a non-active board
-- `tests/unit/storage-idb.test.js:479` loadLabelsForBoard reads labels for a non-active board
-- `tests/unit/storage-idb.test.js:495` loadSettingsForBoard reads settings for a non-active board
-- `tests/unit/storage-idb.test.js:511` loadTasksForBoard returns empty array for unknown board id
+- `tests/unit/storage-idb.test.js:54` getBoardEventsKey returns the board event key shape from the PRD
+- `tests/unit/storage-idb.test.js:67` initStorage on empty IDB leaves boards list empty
+- `tests/unit/storage-idb.test.js:72` initStorage is safe to call twice in the same session
+- `tests/unit/storage-idb.test.js:83` saveTasks persists to IDB and survives a session reset
+- `tests/unit/storage-idb.test.js:100` loadTasks normalizes missing and malformed task activity logs to empty arrays
+- `tests/unit/storage-idb.test.js:117` saveTasks normalizes task activity logs before persisting
+- `tests/unit/storage-idb.test.js:132` saveColumns persists to IDB and survives a session reset
+- `tests/unit/storage-idb.test.js:151` saveLabels persists to IDB and survives a session reset
+- `tests/unit/storage-idb.test.js:167` saveSettings persists to IDB and survives a session reset
+- `tests/unit/storage-idb.test.js:183` initStorage loads global settings from IDB
+- `tests/unit/storage-idb.test.js:193` saveGlobalSettings persists to IDB and survives a session reset
+- `tests/unit/storage-idb.test.js:204` pending hard deletes persist to IDB and survive a session reset
+- `tests/unit/storage-idb.test.js:220` appendBoardEvent persists board events and survives a session reset
+- `tests/unit/storage-idb.test.js:235` saveBoardEvents persists board events and survives a session reset
+- `tests/unit/storage-idb.test.js:250` createBoard persists board list and per-board defaults across sessions
+- `tests/unit/storage-idb.test.js:265` active board id persists across sessions
+- `tests/unit/storage-idb.test.js:280` deleteBoard removes per-board data from IDB
+- `tests/unit/storage-idb.test.js:302` deleteBoard removes board event data from IDB
+- `tests/unit/storage-idb.test.js:323` migrates multi-board localStorage data on first initStorage
+- `tests/unit/storage-idb.test.js:350` migrates legacy done id to a UUID done role and rewrites task references
+- `tests/unit/storage-idb.test.js:387` migration cleans up localStorage after completing
+- `tests/unit/storage-idb.test.js:407` migrates legacy single-board localStorage keys (pre-multi-board format)
+- `tests/unit/storage-idb.test.js:429` migrates legacy single-board tasks without columns using UUID default column mappings
+- `tests/unit/storage-idb.test.js:451` migration does not run again on a subsequent initStorage call (same IDB)
+- `tests/unit/storage-idb.test.js:471` initStorage with corrupt kanbanBoards in IDB yields empty boards list
+- `tests/unit/storage-idb.test.js:485` loadTasksForBoard reads tasks for a non-active board without changing active board
+- `tests/unit/storage-idb.test.js:502` loadColumnsForBoard reads columns for a non-active board
+- `tests/unit/storage-idb.test.js:521` loadLabelsForBoard reads labels for a non-active board
+- `tests/unit/storage-idb.test.js:537` loadSettingsForBoard reads settings for a non-active board
+- `tests/unit/storage-idb.test.js:553` loadTasksForBoard returns empty array for unknown board id
 
 ### Storage
 
 - Path: `tests/unit/storage.test.js`
 - Type: Unit
-- Test count: 26
+- Test count: 32
 
-- `tests/unit/storage.test.js:29` ensureBoardsInitialized creates default board on empty storage
-- `tests/unit/storage.test.js:38` ensureBoardsInitialized is idempotent
-- `tests/unit/storage.test.js:47` listBoards returns empty array before any board is initialised
-- `tests/unit/storage.test.js:53` createBoard creates board with correct keys
-- `tests/unit/storage.test.js:64` createBoard uses Untitled board for empty name
-- `tests/unit/storage.test.js:70` renameBoard updates board name
-- `tests/unit/storage.test.js:81` renameBoard returns false for non-existent board
-- `tests/unit/storage.test.js:86` renameBoard returns false for empty name
-- `tests/unit/storage.test.js:92` deleteBoard removes board and its data
-- `tests/unit/storage.test.js:102` deleteBoard returns false when only one board exists
-- `tests/unit/storage.test.js:108` deleteBoard switches active board if deleted board was active
-- `tests/unit/storage.test.js:119` getActiveBoardName returns board name
-- `tests/unit/storage.test.js:127` loadColumns returns default columns on fresh board
-- `tests/unit/storage.test.js:136` loadColumns ensures Done column exists
-- `tests/unit/storage.test.js:144` saveColumns + loadColumns roundtrip
-- `tests/unit/storage.test.js:156` loadTasks normalizes priority on load
-- `tests/unit/storage.test.js:166` loadTasks adds doneDate to tasks in Done column that lack it
-- `tests/unit/storage.test.js:176` loadTasks removes doneDate from tasks not in Done column
-- `tests/unit/storage.test.js:186` saveTasks + loadTasks roundtrip
-- `tests/unit/storage.test.js:197` loadLabels adds empty group to labels missing it
-- `tests/unit/storage.test.js:207` loadSettings returns defaults on fresh board
-- `tests/unit/storage.test.js:216` loadSettings normalizes invalid swimLaneGroupBy
-- `tests/unit/storage.test.js:223` loadSettings clamps countdownWarningThreshold to be >= urgentThreshold
-- `tests/unit/storage.test.js:232` saveTasks emits kanban-local-change with boardId and entity=task
-- `tests/unit/storage.test.js:246` saveColumns emits kanban-local-change with boardId and entity=column
-- `tests/unit/storage.test.js:260` saveLabels emits kanban-local-change with boardId and entity=label
+- `tests/unit/storage.test.js:34` ensureBoardsInitialized creates default board on empty storage
+- `tests/unit/storage.test.js:43` ensureBoardsInitialized is idempotent
+- `tests/unit/storage.test.js:52` listBoards returns empty array before any board is initialised
+- `tests/unit/storage.test.js:58` createBoard creates board with correct keys
+- `tests/unit/storage.test.js:69` createBoard uses Untitled board for empty name
+- `tests/unit/storage.test.js:75` renameBoard updates board name
+- `tests/unit/storage.test.js:86` renameBoard returns false for non-existent board
+- `tests/unit/storage.test.js:91` renameBoard returns false for empty name
+- `tests/unit/storage.test.js:97` deleteBoard removes board and its data
+- `tests/unit/storage.test.js:107` deleteBoard returns false when only one board exists
+- `tests/unit/storage.test.js:113` deleteBoard switches active board if deleted board was active
+- `tests/unit/storage.test.js:124` getActiveBoardName returns board name
+- `tests/unit/storage.test.js:132` loadColumns returns default columns on fresh board
+- `tests/unit/storage.test.js:141` loadColumns ensures Done column exists
+- `tests/unit/storage.test.js:149` saveColumns + loadColumns roundtrip
+- `tests/unit/storage.test.js:161` loadTasks normalizes priority on load
+- `tests/unit/storage.test.js:171` loadTasks adds doneDate to tasks in Done column that lack it
+- `tests/unit/storage.test.js:181` loadTasks removes doneDate from tasks not in Done column
+- `tests/unit/storage.test.js:191` saveTasks + loadTasks roundtrip
+- `tests/unit/storage.test.js:202` loadLabels adds empty group to labels missing it
+- `tests/unit/storage.test.js:212` loadSettings returns defaults on fresh board
+- `tests/unit/storage.test.js:221` loadSettings normalizes invalid swimLaneGroupBy
+- `tests/unit/storage.test.js:228` loadSettings clamps countdownWarningThreshold to be >= urgentThreshold
+- `tests/unit/storage.test.js:235` loadGlobalSettings returns defaults on first run
+- `tests/unit/storage.test.js:239` saveGlobalSettings round-trips soft-delete mode
+- `tests/unit/storage.test.js:244` global settings and board settings are isolated
+- `tests/unit/storage.test.js:258` getPendingHardDeletes returns an empty queue before any hard deletes are queued
+- `tests/unit/storage.test.js:262` addPendingHardDelete appends a task hard-delete intent to the queue
+- `tests/unit/storage.test.js:270` clearPendingHardDeleteEntry removes queued entries by local task ID
+- `tests/unit/storage.test.js:283` saveTasks emits kanban-local-change with boardId and entity=task
+- `tests/unit/storage.test.js:297` saveColumns emits kanban-local-change with boardId and entity=column
+- `tests/unit/storage.test.js:311` saveLabels emits kanban-local-change with boardId and entity=label
 
 ### Swimlanes Utils
 
@@ -342,41 +355,46 @@ These lists compare source/spec filenames against test file names and test title
 
 - Path: `tests/unit/sync.test.js`
 - Type: Unit
-- Test count: 27
+- Test count: 32
 
-- `tests/unit/sync.test.js:92` isAuthenticated > returns false when authStore has no token
-- `tests/unit/sync.test.js:98` isAuthenticated > returns false when token present but no record
-- `tests/unit/sync.test.js:104` isAuthenticated > returns true when both token and record present
-- `tests/unit/sync.test.js:114` ensureAuthenticated > returns false when no token or record
-- `tests/unit/sync.test.js:120` ensureAuthenticated > returns true when token and record are valid
-- `tests/unit/sync.test.js:127` ensureAuthenticated > returns false when token present but refresh fails
-- `tests/unit/sync.test.js:135` ensureAuthenticated > returns true after successful refresh
-- `tests/unit/sync.test.js:152` loginUser > calls authWithPassword with email and password
-- `tests/unit/sync.test.js:160` loginUser > propagates errors from PocketBase
-- `tests/unit/sync.test.js:169` registerUser > creates user with passwordConfirm field
-- `tests/unit/sync.test.js:182` registerUser > does not call authStore.save — no auto-login
-- `tests/unit/sync.test.js:188` registerUser > defaults name to empty string when not provided
-- `tests/unit/sync.test.js:200` logoutUser > clears the auth store
-- `tests/unit/sync.test.js:209` pushBoardFull > throws when not authenticated
-- `tests/unit/sync.test.js:215` pushBoardFull > loads board data from storage by boardId
-- `tests/unit/sync.test.js:227` pushBoardFull > calls purgeDeleted after syncing
-- `tests/unit/sync.test.js:238` pushBoardFull > deletes soft-deleted tasks from PocketBase when syncMap entry exists
-- `tests/unit/sync.test.js:260` pullAllBoards > throws when not authenticated
-- `tests/unit/sync.test.js:266` pullAllBoards > returns empty array when server has no boards
-- `tests/unit/sync.test.js:276` pullAllBoards > writes pulled board data to storage
-- `tests/unit/sync.test.js:296` pullAllBoards > maps PocketBase column IDs back to local IDs in tasks
-- `tests/unit/sync.test.js:316` pullAllBoards > preserves active board ID if it exists in pulled boards
-- `tests/unit/sync.test.js:337` pullAllBoards > sets active board to first when current active not in pulled boards
-- `tests/unit/sync.test.js:354` pullAllBoards > maps all PocketBase label IDs back to local IDs for a task with multiple labels
-- `tests/unit/sync.test.js:390` pushBoardFull multi-label > sends all label PB IDs for a task with multiple labels
-- `tests/unit/sync.test.js:425` pushBoardFull multi-label > sends correct label PB IDs when syncMap already has label mappings (update path)
-- `tests/unit/sync.test.js:465` pushBoardFull multi-label > omits label IDs not present in syncMap rather than sending null
+- `tests/unit/sync.test.js:102` isAuthenticated > returns false when authStore has no token
+- `tests/unit/sync.test.js:108` isAuthenticated > returns false when token present but no record
+- `tests/unit/sync.test.js:114` isAuthenticated > returns true when both token and record present
+- `tests/unit/sync.test.js:124` ensureAuthenticated > returns false when no token or record
+- `tests/unit/sync.test.js:130` ensureAuthenticated > returns true when token and record are valid
+- `tests/unit/sync.test.js:137` ensureAuthenticated > returns false when token present but refresh fails
+- `tests/unit/sync.test.js:145` ensureAuthenticated > returns true after successful refresh
+- `tests/unit/sync.test.js:162` loginUser > calls authWithPassword with email and password
+- `tests/unit/sync.test.js:170` loginUser > propagates errors from PocketBase
+- `tests/unit/sync.test.js:179` registerUser > creates user with passwordConfirm field
+- `tests/unit/sync.test.js:192` registerUser > does not call authStore.save — no auto-login
+- `tests/unit/sync.test.js:198` registerUser > defaults name to empty string when not provided
+- `tests/unit/sync.test.js:210` logoutUser > clears the auth store
+- `tests/unit/sync.test.js:219` pushBoardFull > throws when not authenticated
+- `tests/unit/sync.test.js:225` pushBoardFull > loads board data from storage by boardId
+- `tests/unit/sync.test.js:237` pushBoardFull > calls purgeDeleted after syncing
+- `tests/unit/sync.test.js:248` pushBoardFull > with soft-delete OFF (default), hard-deletes soft-deleted tasks from PocketBase when syncMap entry exists
+- `tests/unit/sync.test.js:266` pushBoardFull > hard-deletes queued pending entries that have a PocketBase ID and clears them
+- `tests/unit/sync.test.js:287` pushBoardFull > clears queued pending entries without a delete call when no PocketBase ID exists
+- `tests/unit/sync.test.js:302` pushBoardFull > with soft-delete ON, does not hard-delete soft-deleted tasks during push
+- `tests/unit/sync.test.js:318` pushBoardFull > with soft-delete ON, upserts deleted tasks to PocketBase with deleted flag
+- `tests/unit/sync.test.js:343` pushBoardFull > with soft-delete ON, does not drain pending hard-deletes queue
+- `tests/unit/sync.test.js:364` pullAllBoards > throws when not authenticated
+- `tests/unit/sync.test.js:370` pullAllBoards > returns empty array when server has no boards
+- `tests/unit/sync.test.js:380` pullAllBoards > writes pulled board data to storage
+- `tests/unit/sync.test.js:402` pullAllBoards > maps PocketBase column IDs back to local IDs in tasks
+- `tests/unit/sync.test.js:424` pullAllBoards > preserves active board ID if it exists in pulled boards
+- `tests/unit/sync.test.js:445` pullAllBoards > sets active board to first when current active not in pulled boards
+- `tests/unit/sync.test.js:463` pullAllBoards > maps all PocketBase label IDs back to local IDs for a task with multiple labels
+- `tests/unit/sync.test.js:501` pushBoardFull multi-label > sends all label PB IDs for a task with multiple labels
+- `tests/unit/sync.test.js:536` pushBoardFull multi-label > sends correct label PB IDs when syncMap already has label mappings (update path)
+- `tests/unit/sync.test.js:576` pushBoardFull multi-label > omits label IDs not present in syncMap rather than sending null
 
 ### Tasks
 
 - Path: `tests/unit/tasks.test.js`
 - Type: Unit
-- Test count: 35
+- Test count: 36
 
 - `tests/unit/tasks.test.js:14` addTask creates task with order 1 (top of column)
 - `tests/unit/tasks.test.js:24` addTask bumps existing task orders in same column
@@ -400,19 +418,20 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/unit/tasks.test.js:315` updateTask seeds columnHistory if missing
 - `tests/unit/tasks.test.js:328` deleteTask removes task by ID
 - `tests/unit/tasks.test.js:338` deleteTask appends task.deleted board event with task and column details
-- `tests/unit/tasks.test.js:356` deleteTask soft-deletes: task hidden from loadTasks but present in loadDeletedTasksForBoard
-- `tests/unit/tasks.test.js:369` purgeDeleted hard-removes soft-deleted tasks from storage
-- `tests/unit/tasks.test.js:384` updateTaskPositionsFromDrop appends activity when task moves columns
-- `tests/unit/tasks.test.js:428` updateTaskPositionsFromDrop appends activity when swimlane drag changes priority
-- `tests/unit/tasks.test.js:472` updateTaskPositionsFromDrop appends activity when swimlane drag changes labels
-- `tests/unit/tasks.test.js:519` moveTaskToTopInColumn moves specified task to order 1
-- `tests/unit/tasks.test.js:534` moveTaskToTopInColumn returns null for missing args
-- `tests/unit/tasks.test.js:541` addTask stores subTasks when provided
-- `tests/unit/tasks.test.js:556` addTask stores empty subTasks array when none provided
-- `tests/unit/tasks.test.js:563` updateTask persists updated subTasks
-- `tests/unit/tasks.test.js:581` updateTask clears subTasks when empty array passed
-- `tests/unit/tasks.test.js:593` updateTask normalizes invalid subTask entries
-- `tests/unit/tasks.test.js:608` subTasks persist through storage round-trip
+- `tests/unit/tasks.test.js:356` deleteTask permanently removes task from live and deleted task lists by default
+- `tests/unit/tasks.test.js:366` deleteTask queues a pending hard delete in permanent-delete mode
+- `tests/unit/tasks.test.js:378` purgeDeleted hard-removes soft-deleted tasks from storage
+- `tests/unit/tasks.test.js:393` updateTaskPositionsFromDrop appends activity when task moves columns
+- `tests/unit/tasks.test.js:437` updateTaskPositionsFromDrop appends activity when swimlane drag changes priority
+- `tests/unit/tasks.test.js:481` updateTaskPositionsFromDrop appends activity when swimlane drag changes labels
+- `tests/unit/tasks.test.js:528` moveTaskToTopInColumn moves specified task to order 1
+- `tests/unit/tasks.test.js:543` moveTaskToTopInColumn returns null for missing args
+- `tests/unit/tasks.test.js:550` addTask stores subTasks when provided
+- `tests/unit/tasks.test.js:565` addTask stores empty subTasks array when none provided
+- `tests/unit/tasks.test.js:572` updateTask persists updated subTasks
+- `tests/unit/tasks.test.js:590` updateTask clears subTasks when empty array passed
+- `tests/unit/tasks.test.js:602` updateTask normalizes invalid subTask entries
+- `tests/unit/tasks.test.js:617` subTasks persist through storage round-trip
 
 ### Utils
 
@@ -508,6 +527,23 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/dom/authsync.test.js:221` sync push > calls pushBoardFull(boardId) for each board — not old multi-arg signature
 - `tests/dom/authsync.test.js:246` sync pull > calls renderBoard and initializeBoardsUI after successful pull
 
+### Boards Quick Switch
+
+- Path: `tests/dom/boards-quick-switch.test.js`
+- Type: DOM Integration
+- Test count: 10
+
+- `tests/dom/boards-quick-switch.test.js:87` click brand-text > opens the boards modal
+- `tests/dom/boards-quick-switch.test.js:100` Ctrl+B shortcut > opens the boards modal
+- `tests/dom/boards-quick-switch.test.js:108` Ctrl+B shortcut > does not open the boards modal with the old Shift+B shortcut
+- `tests/dom/boards-quick-switch.test.js:118` Ctrl+B shortcut > does not open the modal when an input is focused
+- `tests/dom/boards-quick-switch.test.js:131` keyboard navigation in open boards modal > ArrowDown adds keyboard-focused to the first item on first press
+- `tests/dom/boards-quick-switch.test.js:144` keyboard navigation in open boards modal > ArrowDown then ArrowDown moves focus to second item
+- `tests/dom/boards-quick-switch.test.js:155` keyboard navigation in open boards modal > ArrowUp does not go below index 0
+- `tests/dom/boards-quick-switch.test.js:166` keyboard navigation in open boards modal > does not navigate when modal is closed
+- `tests/dom/boards-quick-switch.test.js:181` keyboard navigation in open boards modal > Enter on highlighted board activates it and closes the modal
+- `tests/dom/boards-quick-switch.test.js:193` keyboard navigation in open boards modal > Enter does nothing when no item is highlighted
+
 ### Msw Example
 
 - Path: `tests/dom/msw-example.test.js`
@@ -516,6 +552,33 @@ These lists compare source/spec filenames against test file names and test title
 
 - `tests/dom/msw-example.test.js:37` MSW intercepts requests and DOM reflects successful response
 - `tests/dom/msw-example.test.js:45` MSW per-test handler override causes DOM to reflect error state
+
+### Settings Ui
+
+- Path: `tests/dom/settings-ui.test.js`
+- Type: DOM Integration
+- Test count: 10
+
+- `tests/dom/settings-ui.test.js:67` soft-delete toggle reflects persisted global settings when Settings opens
+- `tests/dom/settings-ui.test.js:79` toggling soft-delete on switches task deletion to soft-delete mode immediately
+- `tests/dom/settings-ui.test.js:111` toggling soft-delete off switches confirmation back and leaves soft-deleted tasks untouched
+- `tests/dom/settings-ui.test.js:152` purge button shows count of zero and is disabled when no soft-deleted tasks
+- `tests/dom/settings-ui.test.js:163` purge button shows correct count and is enabled when soft-deleted tasks exist
+- `tests/dom/settings-ui.test.js:179` purge button enabled when soft-deleted tasks exist even if soft-delete toggle is off
+- `tests/dom/settings-ui.test.js:191` clicking purge shows confirmation with count and across all boards
+- `tests/dom/settings-ui.test.js:212` cancelling purge confirmation leaves all soft-deleted tasks untouched
+- `tests/dom/settings-ui.test.js:226` confirming purge removes all soft-deleted tasks from all boards
+- `tests/dom/settings-ui.test.js:243` purge button disables and shows zero count after successful purge
+
+### Task Card Delete
+
+- Path: `tests/dom/task-card-delete.test.js`
+- Type: DOM Integration
+- Test count: 3
+
+- `tests/dom/task-card-delete.test.js:54` delete button shows permanent-delete confirmation message by default
+- `tests/dom/task-card-delete.test.js:66` cancelling delete leaves the task untouched
+- `tests/dom/task-card-delete.test.js:77` confirming permanent delete emits DATA_CHANGED after deletion succeeds
 
 ### Task Card Linkify
 
@@ -625,6 +688,16 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/e2e/swimlanes-toggle.spec.js:71` Swim lane toggle > collapses and expands a workflow column while swim lanes are enabled
 - `tests/e2e/swimlanes-toggle.spec.js:92` Swim lane toggle > keeps swim lane column headers visible while vertically scrolling
 - `tests/e2e/swimlanes-toggle.spec.js:169` Swim lane toggle > shows one row per label inside the selected label group
+
+### Task Delete
+
+- Path: `tests/e2e/task-delete.spec.ts`
+- Type: End-to-End
+- Test count: 3
+
+- `tests/e2e/task-delete.spec.ts:65` Task Deletion > permanent delete — confirm removes task and decrements counter
+- `tests/e2e/task-delete.spec.ts:83` Task Deletion > cancel delete — task survives and counter is unchanged
+- `tests/e2e/task-delete.spec.ts:100` Task Deletion > soft-delete — dialog shows soft-delete message, task removed from board, purge count increments
 
 ### Validation Missing Title
 

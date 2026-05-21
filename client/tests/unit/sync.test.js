@@ -40,6 +40,7 @@ vi.mock('../../src/modules/storage.js', () => ({
   loadDeletedLabelsForBoard: vi.fn(() => []),
   getPendingHardDeletes: vi.fn(() => []),
   clearPendingHardDeleteEntry: vi.fn(),
+  addPendingHardDelete: vi.fn(),
   purgeDeleted: vi.fn(),
   saveColumnsForBoard: vi.fn(),
   saveTasksForBoard: vi.fn(),
@@ -60,6 +61,7 @@ import {
   logoutUser,
   pushBoardFull,
   pullAllBoards,
+  runPurge,
 } from '../../src/modules/sync.js';
 
 import {
@@ -71,6 +73,7 @@ import {
   loadDeletedLabelsForBoard,
   getPendingHardDeletes,
   clearPendingHardDeleteEntry,
+  addPendingHardDelete,
   purgeDeleted,
   saveColumnsForBoard,
   saveTasksForBoard,
@@ -355,6 +358,59 @@ describe('pushBoardFull', () => {
 
     expect(mockCollection.delete).not.toHaveBeenCalledWith('pb-queued');
     expect(clearPendingHardDeleteEntry).not.toHaveBeenCalled();
+  });
+});
+
+// ── runPurge ──────────────────────────────────────────────────────────────────
+
+describe('runPurge', () => {
+  it('online: hard-deletes tasks with a known PB id', async () => {
+    mockAuthStore.token = 'tok';
+    mockAuthStore.record = { id: 'u1' };
+    mockAuthStore.isValid = true;
+    localStorage.setItem('kanbanSyncMap', JSON.stringify({ tasks: { 'local-t1': 'pb-t1' } }));
+    loadDeletedTasksForBoard.mockReturnValue([{ id: 'local-t1' }]);
+
+    await runPurge([{ id: 'board-1' }]);
+
+    expect(mockCollection.delete).toHaveBeenCalledWith('pb-t1');
+    expect(purgeDeleted).toHaveBeenCalledWith('board-1');
+  });
+
+  it('online: silently skips tasks with no PB id', async () => {
+    mockAuthStore.token = 'tok';
+    mockAuthStore.record = { id: 'u1' };
+    mockAuthStore.isValid = true;
+    localStorage.setItem('kanbanSyncMap', JSON.stringify({ tasks: {} }));
+    loadDeletedTasksForBoard.mockReturnValue([{ id: 'ghost-task' }]);
+
+    await runPurge([{ id: 'board-1' }]);
+
+    expect(mockCollection.delete).not.toHaveBeenCalled();
+    expect(purgeDeleted).toHaveBeenCalledWith('board-1');
+  });
+
+  it('offline: queues each task in pendingHardDeletes', async () => {
+    mockAuthStore.token = null;
+    loadDeletedTasksForBoard.mockReturnValue([{ id: 'task-a' }, { id: 'task-b' }]);
+
+    await runPurge([{ id: 'board-1' }]);
+
+    expect(addPendingHardDelete).toHaveBeenCalledWith({ localTaskId: 'task-a', boardId: 'board-1' });
+    expect(addPendingHardDelete).toHaveBeenCalledWith({ localTaskId: 'task-b', boardId: 'board-1' });
+    expect(mockCollection.delete).not.toHaveBeenCalled();
+    expect(purgeDeleted).toHaveBeenCalledWith('board-1');
+  });
+
+  it('always: purgeDeleted called for every board', async () => {
+    mockAuthStore.token = null;
+    loadDeletedTasksForBoard.mockReturnValue([]);
+
+    await runPurge([{ id: 'board-1' }, { id: 'board-2' }]);
+
+    expect(purgeDeleted).toHaveBeenCalledWith('board-1');
+    expect(purgeDeleted).toHaveBeenCalledWith('board-2');
+    expect(purgeDeleted).toHaveBeenCalledTimes(2);
   });
 });
 
