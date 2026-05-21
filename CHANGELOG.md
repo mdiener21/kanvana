@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-05-16
+
 ### Added
 
 - Global settings storage layer in `storage.js` with `loadGlobalSettings()` / `saveGlobalSettings()` persisted under `kanvana:settings:global`; `softDeleteEnabled` defaults to `false` and stays isolated from board settings.
