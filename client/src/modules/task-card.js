@@ -175,25 +175,6 @@ export function createTaskElement(task, settings, labelsMap = null, today = null
   });
 
   actions.appendChild(deleteBtn);
-  header.appendChild(titleEl);
-  header.appendChild(actions);
-  actions.appendChild(h('button', {
-    class: 'delete-task-btn',
-    'aria-label': 'Delete task',
-    type: 'button',
-    onClick: async (e) => {
-      e.stopPropagation();
-      const ok = await confirmDialog({
-        title: 'Delete Task',
-        message: 'Are you sure you want to delete this task?',
-        confirmText: 'Delete'
-      });
-      if (!ok) return;
-      if (deleteTask(task.id)) emit(DATA_CHANGED);
-    }
-  },
-    h('span', { 'data-lucide': 'trash-2', 'aria-hidden': 'true' })
-  ));
 
   const descriptionValue = typeof task.description === 'string' ? task.description.trim() : '';
   const descriptionEl = h('div', {

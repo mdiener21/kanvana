@@ -232,6 +232,11 @@ export function initializeAuthSyncUI() {
     .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); })
     .catch(async (err) => {
       console.warn('[authsync] PocketBase unreachable at', PB_HEALTH_URL, err?.message);
+      const loginBtn = document.getElementById('login-btn');
+      if (loginBtn) {
+        loginBtn.disabled = true;
+        loginBtn.title = 'Backend unavailable';
+      }
       await alertDialog({
         title: 'Sync Server Unavailable',
         message: `Cannot reach the sync server at:\n${PB_HEALTH_URL}\n\nYou can still use the board offline. Login and sync will be unavailable until the server is reachable.`,
