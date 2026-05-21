@@ -44,7 +44,8 @@ docs/
   adr/              Architecture Decision Records
   agents/           AI-agent configuration (issue tracker, labels, domain)
   spec/             Feature specifications
-  superpowers/      Agent workflow docs and plans
+  user/             User-facing documentation (guides, FAQs, etc.)
+
 CONTEXT.md          Domain model — read before working on any feature
 CHANGELOG.md        Keep updated under [Unreleased] as you work
 ```
