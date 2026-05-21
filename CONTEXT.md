@@ -83,6 +83,10 @@ in-memory `state` → fire-and-forget IDB writes via `schedulePersist()` → `re
 An optional PocketBase backend provides auth and cloud sync. The local IDB layer is unchanged
 whether sync is enabled or not.
 
+**Online Mode:** User-facing name for the optional authenticated PocketBase path. It starts at the
+`Go Online` header button and includes backend health probing, login/register/OAuth, manual
+push/pull sync, and auto-sync after the first successful push.
+
 | Module | Responsibility |
 |---|---|
 | `sync.js` | PocketBase SDK instance, auth functions, `pushBoardFull()`, `pullAllBoards()` |

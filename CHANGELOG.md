@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Online Mode PocketBase sync PRD documenting the current Go Online, auth, manual sync, auto-sync, and no-merge V1 contract.
 - Global "Soft-delete tasks" toggle in App Settings — choose between permanent deletion (default) and soft-delete mode where deleted tasks are hidden until explicitly purged.
 - "Purge deleted tasks" button in App Settings — hard-removes all soft-deleted tasks from local storage and syncs deletions to PocketBase when online.
 - Settings UI now separates App-level settings from Board-level settings, making global preferences distinct from per-board configuration.
@@ -16,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- "Go Online" button was silently disabled when PocketBase was unreachable; button now stays enabled so the login modal always opens.
+- Sync documentation now matches current Online Mode behavior: failed PocketBase health probes disable "Go Online" and show the probed health URL.
 - Health probe URL now correctly uses `VITE_PB_URL` (e.g. `https://pb.kanvana.com/api/health`) instead of resolving relative to the app origin, preventing false "unreachable" reports.
 - Login modal now shows the HTTP status code and backend URL on 5xx errors instead of a generic "Something went wrong" message.
 - Sync server unreachability now shows a modal notification with the full backend URL so users know immediately when login/sync is unavailable rather than seeing a silent failure.

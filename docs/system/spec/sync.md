@@ -6,22 +6,25 @@ Covers the "Go Online" flow: backend health check, login modal, session manageme
 
 ## Backend URL
 
-The PocketBase base URL is set via the `VITE_PB_URL` environment variable:
+The PocketBase base URL is set via the `VITE_PB_URL` environment variable. When the variable is
+absent, the frontend uses the same origin (`/`):
 
 | Environment | Value |
 |---|---|
 | Development | `http://localhost:8090` (`.env.local`) |
 | Production | `https://pb.kanvana.com` (`.env.production`) |
 
-The health endpoint is derived as `${VITE_PB_URL}/api/health`. Both `sync.js` and `authsync.js` use this env var; no hardcoded host is permitted.
+The health endpoint is derived by trimming the base URL's trailing slash and appending
+`/api/health`. Both `sync.js` and `authsync.js` use this env var; no hardcoded host is permitted.
 
 ---
 
 ## Go Online Button (`#login-btn`)
 
 - Visible when the user is not authenticated.
-- Clicking it always opens the login modal regardless of backend health.
-- The button is never disabled by the health probe — the login attempt surfaces errors inline.
+- Clicking it opens the login modal when the backend health probe has succeeded.
+- The health probe disables the button when PocketBase is unreachable.
+- Disabled tooltip text is `Backend unavailable`.
 
 ---
 
@@ -32,7 +35,7 @@ On page load, `initializeAuthSyncUI` fetches `${VITE_PB_URL}/api/health` with a 
 | Probe result | Behavior |
 |---|---|
 | 200 OK | No UI change. |
-| Non-2xx or network error | Show a modal notification (via `alertDialog`) with the title "Sync Server Unavailable", the full health URL, and a message that the board remains usable offline. Log a warning to the console. |
+| Non-2xx or network error | Disable `Go Online`, set tooltip text to `Backend unavailable`, show a modal notification (via `alertDialog`) with the title "Sync Server Unavailable", the full health URL, and a message that the board remains usable offline. Log a warning to the console. |
 
 The modal must display the exact URL that was probed so users and support staff can diagnose DNS or routing issues without inspecting devtools.
 
