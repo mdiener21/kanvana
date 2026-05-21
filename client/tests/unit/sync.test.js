@@ -38,6 +38,9 @@ vi.mock('../../src/modules/storage.js', () => ({
   loadDeletedColumnsForBoard: vi.fn(() => []),
   loadDeletedTasksForBoard: vi.fn(() => []),
   loadDeletedLabelsForBoard: vi.fn(() => []),
+  getPendingHardDeletes: vi.fn(() => []),
+  clearPendingHardDeleteEntry: vi.fn(),
+  addPendingHardDelete: vi.fn(),
   purgeDeleted: vi.fn(),
   saveColumnsForBoard: vi.fn(),
   saveTasksForBoard: vi.fn(),
@@ -47,6 +50,7 @@ vi.mock('../../src/modules/storage.js', () => ({
   getBoardById: vi.fn(() => null),
   setActiveBoardId: vi.fn(),
   getActiveBoardId: vi.fn(() => null),
+  loadGlobalSettings: vi.fn(() => ({ softDeleteEnabled: false })),
 }));
 
 import {
@@ -57,6 +61,7 @@ import {
   logoutUser,
   pushBoardFull,
   pullAllBoards,
+  runPurge,
 } from '../../src/modules/sync.js';
 
 import {
@@ -66,6 +71,9 @@ import {
   loadDeletedTasksForBoard,
   loadDeletedColumnsForBoard,
   loadDeletedLabelsForBoard,
+  getPendingHardDeletes,
+  clearPendingHardDeleteEntry,
+  addPendingHardDelete,
   purgeDeleted,
   saveColumnsForBoard,
   saveTasksForBoard,
@@ -74,6 +82,7 @@ import {
   getBoardById,
   setActiveBoardId,
   getActiveBoardId,
+  loadGlobalSettings,
 } from '../../src/modules/storage.js';
 
 beforeEach(() => {
@@ -86,6 +95,8 @@ beforeEach(() => {
   loadColumnsForBoard.mockReturnValue([]);
   loadTasksForBoard.mockReturnValue([]);
   loadDeletedTasksForBoard.mockReturnValue([]);
+  getPendingHardDeletes.mockReturnValue([]);
+  loadGlobalSettings.mockReturnValue({ softDeleteEnabled: false });
 });
 
 // ── Slice 1+2: isAuthenticated ────────────────────────────────────────────────
@@ -226,7 +237,7 @@ describe('pushBoardFull', () => {
     expect(loadTasksForBoard).toHaveBeenCalledWith('board-1');
   });
 
-  it('calls purgeDeleted after syncing', async () => {
+  it('calls purgeDeleted after syncing (purges tasks when soft-delete is off)', async () => {
     mockAuthStore.token = 'tok';
     mockAuthStore.record = { id: 'user1' };
     mockAuthStore.isValid = true;
@@ -234,10 +245,10 @@ describe('pushBoardFull', () => {
 
     await pushBoardFull('board-1');
 
-    expect(purgeDeleted).toHaveBeenCalledWith('board-1');
+    expect(purgeDeleted).toHaveBeenCalledWith('board-1', { tasks: true });
   });
 
-  it('deletes soft-deleted tasks from PocketBase when syncMap entry exists', async () => {
+  it('with soft-delete OFF (default), hard-deletes soft-deleted tasks from PocketBase when syncMap entry exists', async () => {
     mockAuthStore.token = 'tok';
     mockAuthStore.record = { id: 'user1' };
     mockAuthStore.isValid = true;
@@ -253,6 +264,166 @@ describe('pushBoardFull', () => {
     await pushBoardFull('board-1');
 
     expect(mockCollection.delete).toHaveBeenCalledWith('pb-task-del');
+  });
+
+  it('hard-deletes queued pending entries that have a PocketBase ID and clears them', async () => {
+    mockAuthStore.token = 'tok';
+    mockAuthStore.record = { id: 'user1' };
+    mockAuthStore.isValid = true;
+    mockCollection.create.mockResolvedValue({ id: 'pb-board-1' });
+    localStorage.setItem('kanbanSyncMap', JSON.stringify({
+      boards: {},
+      columns: {},
+      labels: {},
+      tasks: { 'task-hard-delete': 'pb-task-hard-delete' }
+    }));
+    getPendingHardDeletes.mockReturnValueOnce([
+      { localTaskId: 'task-hard-delete', boardId: 'board-1' }
+    ]);
+
+    await pushBoardFull('board-1');
+
+    expect(mockCollection.delete).toHaveBeenCalledWith('pb-task-hard-delete');
+    expect(clearPendingHardDeleteEntry).toHaveBeenCalledWith('task-hard-delete');
+  });
+
+  it('clears queued pending entries without a delete call when no PocketBase ID exists', async () => {
+    mockAuthStore.token = 'tok';
+    mockAuthStore.record = { id: 'user1' };
+    mockAuthStore.isValid = true;
+    mockCollection.create.mockResolvedValue({ id: 'pb-board-1' });
+    getPendingHardDeletes.mockReturnValueOnce([
+      { localTaskId: 'offline-task', boardId: 'board-1' }
+    ]);
+
+    await pushBoardFull('board-1');
+
+    expect(mockCollection.delete).not.toHaveBeenCalled();
+    expect(clearPendingHardDeleteEntry).toHaveBeenCalledWith('offline-task');
+  });
+
+  it('with soft-delete ON, does not hard-delete soft-deleted tasks during push', async () => {
+    mockAuthStore.token = 'tok';
+    mockAuthStore.record = { id: 'user1' };
+    mockAuthStore.isValid = true;
+    mockCollection.create.mockResolvedValue({ id: 'pb-board-1' });
+    loadGlobalSettings.mockReturnValue({ softDeleteEnabled: true });
+
+    const syncMap = { boards: {}, columns: {}, labels: {}, tasks: { 'task-soft': 'pb-task-soft' }, task_relationships: {}, events: {} };
+    localStorage.setItem('kanbanSyncMap', JSON.stringify(syncMap));
+    loadDeletedTasksForBoard.mockReturnValue([{ id: 'task-soft', deleted: true, column: 'col-1', labels: [] }]);
+
+    await pushBoardFull('board-1');
+
+    expect(mockCollection.delete).not.toHaveBeenCalledWith('pb-task-soft');
+  });
+
+  it('with soft-delete ON, upserts deleted tasks to PocketBase with deleted flag', async () => {
+    mockAuthStore.token = 'tok';
+    mockAuthStore.record = { id: 'user1' };
+    mockAuthStore.isValid = true;
+    loadGlobalSettings.mockReturnValue({ softDeleteEnabled: true });
+
+    const syncMap = { boards: { 'board-1': 'pb-b1' }, columns: { 'col-1': 'pb-col-1' }, labels: {}, tasks: {}, task_relationships: {}, events: {} };
+    localStorage.setItem('kanbanSyncMap', JSON.stringify(syncMap));
+    getBoardById.mockReturnValue({ id: 'board-1', name: 'Board' });
+    loadDeletedTasksForBoard.mockReturnValue([{
+      id: 'task-soft', title: 'Soft deleted', deleted: true,
+      column: 'col-1', labels: [], description: '', priority: 'none',
+      dueDate: '', order: 0, creationDate: '', changeDate: '', doneDate: '',
+      columnHistory: [], subTasks: [],
+    }]);
+    mockCollection.update.mockResolvedValue({ id: 'pb-b1' });
+    mockCollection.create.mockResolvedValue({ id: 'pb-task-soft-new' });
+
+    await pushBoardFull('board-1');
+
+    const upsertCall = mockCollection.create.mock.calls.find(c => c[0]?.local_id === 'task-soft');
+    expect(upsertCall).toBeDefined();
+    expect(upsertCall[0].deleted).toBe(true);
+  });
+
+  it('with soft-delete ON, does not drain pending hard-deletes queue', async () => {
+    mockAuthStore.token = 'tok';
+    mockAuthStore.record = { id: 'user1' };
+    mockAuthStore.isValid = true;
+    mockCollection.create.mockResolvedValue({ id: 'pb-board-1' });
+    loadGlobalSettings.mockReturnValue({ softDeleteEnabled: true });
+    localStorage.setItem('kanbanSyncMap', JSON.stringify({
+      boards: {}, columns: {}, labels: {}, tasks: { 'queued-task': 'pb-queued' }, task_relationships: {}, events: {}
+    }));
+    getPendingHardDeletes.mockReturnValue([{ localTaskId: 'queued-task', boardId: 'board-1' }]);
+
+    await pushBoardFull('board-1');
+
+    expect(mockCollection.delete).not.toHaveBeenCalledWith('pb-queued');
+    expect(clearPendingHardDeleteEntry).not.toHaveBeenCalled();
+  });
+
+  it('with soft-delete ON, does not purge soft-deleted tasks from local storage', async () => {
+    mockAuthStore.token = 'tok';
+    mockAuthStore.record = { id: 'user1' };
+    mockAuthStore.isValid = true;
+    mockCollection.create.mockResolvedValue({ id: 'pb-board-1' });
+    loadGlobalSettings.mockReturnValue({ softDeleteEnabled: true });
+
+    await pushBoardFull('board-1');
+
+    // Soft-deleted tasks must survive a push; only an explicit purge removes them.
+    expect(purgeDeleted).toHaveBeenCalledWith('board-1', { tasks: false });
+  });
+});
+
+// ── runPurge ──────────────────────────────────────────────────────────────────
+
+describe('runPurge', () => {
+  it('online: hard-deletes tasks with a known PB id', async () => {
+    mockAuthStore.token = 'tok';
+    mockAuthStore.record = { id: 'u1' };
+    mockAuthStore.isValid = true;
+    localStorage.setItem('kanbanSyncMap', JSON.stringify({ tasks: { 'local-t1': 'pb-t1' } }));
+    loadDeletedTasksForBoard.mockReturnValue([{ id: 'local-t1' }]);
+
+    await runPurge([{ id: 'board-1' }]);
+
+    expect(mockCollection.delete).toHaveBeenCalledWith('pb-t1');
+    expect(purgeDeleted).toHaveBeenCalledWith('board-1');
+  });
+
+  it('online: silently skips tasks with no PB id', async () => {
+    mockAuthStore.token = 'tok';
+    mockAuthStore.record = { id: 'u1' };
+    mockAuthStore.isValid = true;
+    localStorage.setItem('kanbanSyncMap', JSON.stringify({ tasks: {} }));
+    loadDeletedTasksForBoard.mockReturnValue([{ id: 'ghost-task' }]);
+
+    await runPurge([{ id: 'board-1' }]);
+
+    expect(mockCollection.delete).not.toHaveBeenCalled();
+    expect(purgeDeleted).toHaveBeenCalledWith('board-1');
+  });
+
+  it('offline: queues each task in pendingHardDeletes', async () => {
+    mockAuthStore.token = null;
+    loadDeletedTasksForBoard.mockReturnValue([{ id: 'task-a' }, { id: 'task-b' }]);
+
+    await runPurge([{ id: 'board-1' }]);
+
+    expect(addPendingHardDelete).toHaveBeenCalledWith({ localTaskId: 'task-a', boardId: 'board-1' });
+    expect(addPendingHardDelete).toHaveBeenCalledWith({ localTaskId: 'task-b', boardId: 'board-1' });
+    expect(mockCollection.delete).not.toHaveBeenCalled();
+    expect(purgeDeleted).toHaveBeenCalledWith('board-1');
+  });
+
+  it('always: purgeDeleted called for every board', async () => {
+    mockAuthStore.token = null;
+    loadDeletedTasksForBoard.mockReturnValue([]);
+
+    await runPurge([{ id: 'board-1' }, { id: 'board-2' }]);
+
+    expect(purgeDeleted).toHaveBeenCalledWith('board-1');
+    expect(purgeDeleted).toHaveBeenCalledWith('board-2');
+    expect(purgeDeleted).toHaveBeenCalledTimes(2);
   });
 });
 

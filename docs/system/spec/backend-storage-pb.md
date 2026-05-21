@@ -1,4 +1,4 @@
-# Plan: Optional Backend Storage via PocketBase
+# Optional Backend Storage via PocketBase
 
 Product spec for optional online storage: authenticated multi-device sync, local-first by default.
 

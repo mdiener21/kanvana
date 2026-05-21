@@ -31,6 +31,8 @@ All canonical specs live under `docs/system/spec/`. Start here when adding, chan
 | `docs/system/spec/audit-trail.md` | Two-log audit trail design: task `activityLog` + board `boardEvents`, event type catalogue |
 | `docs/system/spec/notifications.md` | Due-date notification banner and modal behavior |
 | `docs/system/spec/import-export.md` | Board JSON export/import format and ID-remapping rules |
+| `docs/system/spec/sync.md` | Sync backend Pocketbase data to from local storage |
+
 
 ### Reporting
 

@@ -1,6 +1,6 @@
 // Task card DOM construction — extracted from render.js
 
-import { isDoneColumnId, loadLabels } from './storage.js';
+import { isDoneColumnId, loadGlobalSettings, loadLabels } from './storage.js';
 import { deleteTask } from './tasks.js';
 import { showEditModal } from './modals.js';
 import { confirmDialog } from './dialog.js';
@@ -151,6 +151,32 @@ export function createTaskElement(task, settings, labelsMap = null, today = null
     }, priority));
   }
 
+  const deleteBtn = document.createElement('button');
+  deleteBtn.classList.add('delete-task-btn');
+  deleteBtn.setAttribute('aria-label', 'Delete task');
+  deleteBtn.type = 'button';
+  const deleteIcon = document.createElement('span');
+  deleteIcon.dataset.lucide = 'trash-2';
+  deleteIcon.setAttribute('aria-hidden', 'true');
+  deleteBtn.appendChild(deleteIcon);
+  deleteBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const globalSettings = loadGlobalSettings();
+    const message = globalSettings.softDeleteEnabled === true
+      ? 'You have soft-delete active, this will set the task as deleted and will not count or show in any location, to permanently delete you must click purge in the settings.'
+      : 'Delete this task? This cannot be undone.';
+    const ok = await confirmDialog({
+      title: 'Delete Task',
+      message,
+      confirmText: 'Delete'
+    });
+    if (!ok) return;
+    if (deleteTask(task.id)) emit(DATA_CHANGED);
+  });
+
+  actions.appendChild(deleteBtn);
+  header.appendChild(titleEl);
+  header.appendChild(actions);
   actions.appendChild(h('button', {
     class: 'delete-task-btn',
     'aria-label': 'Delete task',

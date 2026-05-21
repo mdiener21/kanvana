@@ -9,10 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-### Changed
+- Global "Soft-delete tasks" toggle in App Settings — choose between permanent deletion (default) and soft-delete mode where deleted tasks are hidden until explicitly purged.
+- "Purge deleted tasks" button in App Settings — hard-removes all soft-deleted tasks from local storage and syncs deletions to PocketBase when online.
+- Settings UI now separates App-level settings from Board-level settings, making global preferences distinct from per-board configuration.
+- Sync: `pushBoardFull()` now branches on `softDeleteEnabled` — in soft-delete mode it enqueues PocketBase cleanup intents via a pending hard-delete queue; in permanent mode it removes tasks immediately.
 
 ### Fixed
 
+- "Go Online" button was silently disabled when PocketBase was unreachable; button now stays enabled so the login modal always opens.
+- Health probe URL now correctly uses `VITE_PB_URL` (e.g. `https://pb.kanvana.com/api/health`) instead of resolving relative to the app origin, preventing false "unreachable" reports.
+- Login modal now shows the HTTP status code and backend URL on 5xx errors instead of a generic "Something went wrong" message.
+- Sync server unreachability now shows a modal notification with the full backend URL so users know immediately when login/sync is unavailable rather than seeing a silent failure.
+- Fixed desktop task drag autoscroll so long task lists scroll vertically while dragging a card near the list edge.
+- Fixed Impressum page overflow so the legal content can scroll vertically on desktop and mobile.
+- Fixed sub-task font size.
+- Fixed missing scale icon for the legal/impressum page.
+- Soft-deleted tasks were silently lost when adding, editing, moving, or reordering other tasks, causing the Settings purge count and button to no longer reflect them; soft-deleted tasks are now retained until an explicit purge.
+- Soft-deleted tasks were also removed from local storage on every background sync, so the Settings purge count could drop to zero while the tasks still existed in PocketBase; sync now keeps soft-deleted tasks locally until you purge.
 - Fixed desktop task drag autoscroll so long task lists scroll vertically while dragging a card near the list edge
 - Fixed Impressum page overflow so the legal content can scroll vertically on desktop and mobile
 - Fixed font size sub-task
