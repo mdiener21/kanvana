@@ -765,6 +765,15 @@ export function saveTasks(tasks) {
   emitLocalChange(boardId, 'task');
 }
 
+// Persist a live-task set without destroying the board's soft-deleted tasks.
+// loadTasks() returns live tasks only, so callers that mutate the live set
+// must route through here to keep soft-deleted tasks countable until purge.
+export function saveLiveTasks(liveTasks) {
+  const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
+  const live = Array.isArray(liveTasks) ? liveTasks : [];
+  saveTasks([...live, ...loadDeletedTasksForBoard(boardId)]);
+}
+
 // ── Labels ─────────────────────────────────────────────────────────────────────
 
 export function loadLabels() {

@@ -1,4 +1,5 @@
-import { loadGlobalSettings, loadSettings, saveGlobalSettings, saveSettings, listBoards, loadDeletedTasksForBoard, purgeDeleted } from './storage.js';
+import { loadGlobalSettings, loadSettings, saveGlobalSettings, saveSettings, listBoards, loadDeletedTasksForBoard } from './storage.js';
+import { runPurge } from './sync.js';
 import { setupModalCloseHandlers } from './modals.js';
 import { emit, DATA_CHANGED } from './events.js';
 import { confirmDialog } from './dialog.js';
@@ -189,9 +190,7 @@ export function initializeSettingsUI() {
         confirmText: 'Purge',
       });
       if (!ok) return;
-      for (const board of boards) {
-        purgeDeleted(board.id);
-      }
+      await runPurge(boards);
       purgeCountEl.textContent = '0';
       purgeBtn.disabled = true;
     });

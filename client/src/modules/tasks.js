@@ -1,5 +1,5 @@
 import { generateUUID } from './utils.js';
-import { addPendingHardDelete, appendBoardEvent, getActiveBoardId, isDoneColumnId, loadColumns, loadDeletedTasksForBoard, loadGlobalSettings, loadLabels, loadSettings, loadTasks, saveTasks } from './storage.js';
+import { addPendingHardDelete, appendBoardEvent, getActiveBoardId, isDoneColumnId, loadColumns, loadDeletedTasksForBoard, loadGlobalSettings, loadLabels, loadSettings, loadTasks, saveLiveTasks, saveTasks } from './storage.js';
 import { applySwimLaneAssignment } from './swimlanes.js';
 import { normalizePriority, normalizeRelationships, normalizeSubTasks } from './normalize.js';
 import { DEFAULT_HUMAN_ACTOR, appendTaskActivity, createActivityEvent } from './activity-log.js';
@@ -165,7 +165,7 @@ export function addTask(title, description, priority, dueDate, columnName, label
 
   updatedTasks.push(newTask);
   syncRelationshipInverses(updatedTasks, newTask.id, [], normalizedRelationships, nowIso);
-  saveTasks(updatedTasks);
+  saveLiveTasks(updatedTasks);
 }
 
 // Update an existing task
@@ -272,7 +272,7 @@ export function updateTask(taskId, title, description, priority, dueDate, column
     }
 
     tasks[taskIndex].changeDate = nowIso;
-    saveTasks(tasks);
+    saveLiveTasks(tasks);
   }
 }
 
@@ -489,7 +489,7 @@ export function updateTaskPositionsFromDrop(evt) {
     ? reorderColumnTasks(updatedTasks, toColumn, movedTaskId)
     : updatedTasks;
 
-  saveTasks(finalTasks);
+  saveLiveTasks(finalTasks);
 
   return {
     movedTaskId,
@@ -511,7 +511,7 @@ export function moveTaskToTopInColumn(taskId, columnId, tasksCache) {
   const didUpdate = updatedTasks.some((task, index) => task !== tasks[index]);
 
   if (didUpdate) {
-    saveTasks(updatedTasks);
+    saveLiveTasks(updatedTasks);
     return updatedTasks;
   }
   return tasks;

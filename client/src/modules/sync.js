@@ -10,6 +10,7 @@ import {
   loadDeletedLabelsForBoard,
   getPendingHardDeletes,
   clearPendingHardDeleteEntry,
+  addPendingHardDelete,
   purgeDeleted,
   saveColumnsForBoard,
   saveTasksForBoard,
@@ -347,6 +348,38 @@ export async function pushBoardFull(boardId) {
 
   await purgeDeleted(boardId);
   saveSyncMap(syncMap);
+}
+
+// ── runPurge ──────────────────────────────────────────────────────────────────
+
+export async function runPurge(boards) {
+  const online = isAuthenticated();
+  const syncMap = online ? loadSyncMap() : null;
+  let syncMapDirty = false;
+
+  for (const board of boards) {
+    const boardId = board.id;
+    const deletedTasks = loadDeletedTasksForBoard(boardId);
+
+    if (online) {
+      for (const task of deletedTasks) {
+        const pbId = getPbId(syncMap, 'tasks', task.id);
+        if (pbId) {
+          try { await pb.collection('tasks').delete(pbId); } catch { /* 404 ok */ }
+          delete syncMap.tasks[task.id];
+          syncMapDirty = true;
+        }
+      }
+    } else {
+      for (const task of deletedTasks) {
+        addPendingHardDelete({ localTaskId: task.id, boardId });
+      }
+    }
+
+    await purgeDeleted(boardId);
+  }
+
+  if (online && syncMapDirty) saveSyncMap(syncMap);
 }
 
 // ── pullAllBoards ─────────────────────────────────────────────────────────────
