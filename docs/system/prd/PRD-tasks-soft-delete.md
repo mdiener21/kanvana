@@ -31,6 +31,7 @@ Users who want a recovery safety net can opt in to **soft-delete mode** via a ne
 
 * **Soft-Delete Notice:** As a board user in soft-delete mode (enabled in settings), I want the confirmation dialog to tell me the task will be soft deleted and hidden and how to permanently remove it, so that I understand the soft-delete behaviour before confirming.
 * **Workspace Cleanliness:** As a board user in soft-delete mode, I want deleted tasks not to be included in any and all board views, column counts, reports, and calendar, so that my workspace stays clean.
+* **Deletion Durability:** As a board user in soft-delete mode, I want soft-deleted tasks to stay retained — and stay counted for purge — even after I add, edit, move, or reorder other tasks, so that nothing is silently lost before I explicitly purge. Concretely: if I soft-delete 5 tasks and then continue working on the board, the Settings purge count must still read 5.
 * **Global Configuration:** As a kanvana user, I want to enable soft-delete from Settings on a global level for all boards, so that I can control deletion flow.
 
 ### Purging Mechanics
@@ -97,6 +98,10 @@ A global IDB key (`pendingHardDeletes`) holds an array of `{ localTaskId, boardI
 ### Soft-Delete Scope
 
 Soft-delete mode applies to tasks only. Columns and labels continue to use the existing implementation-level deleted flag (not user-facing).
+
+### Soft-Deleted Task Retention
+
+`loadTasks()` returns live tasks only (soft-deleted tasks filtered out). Any task-mutation function that reads the live set and writes it back must NOT overwrite the board's soft-deleted tasks. The persistence path `saveLiveTasks()` re-merges the board's current soft-deleted tasks before writing, so `addTask`, `updateTask`, drag-drop reorder, and move-to-top all preserve the soft-deleted set. Soft-deleted tasks are removed only by an explicit purge. The Settings purge count therefore always reflects the true total of soft-deleted tasks across all boards.
 
 ---
 
@@ -203,3 +208,15 @@ All modules use TDD (red-green-refactor). Tests assert external behaviour only �
 
 - Unit tests: **285/285**
 - DOM tests: **77/78** (1 pre-existing `authsync` failure unrelated to this work)
+
+### Post-completion fix — soft-deleted task retention (2026-05-21)
+
+A correctness gap was found after completion: `addTask`, `updateTask`, `updateTaskPositionsFromDrop`, and `moveTaskToTopInColumn` saved the live-task set directly via `saveTasks()`, which overwrote the board's task list and silently destroyed any soft-deleted tasks. After soft-deleting tasks, any subsequent add/edit/move/drag wiped them from storage and dropped the Settings purge count below the true total.
+
+Fix: added `saveLiveTasks()` to `storage.js`, which re-merges the board's soft-deleted tasks before persisting; the four mutators now route through it. `deleteTask` and `columns.js` already preserved soft-deleted tasks and were unchanged. Covered by 4 new unit tests in `tasks.test.js` and 1 DOM regression test in `settings-ui.test.js`. Expected behavior is documented in §3 (*Deletion Durability*) and §4 (*Soft-Deleted Task Retention*).
+
+### Post-completion fix — sync push purged soft-deleted tasks (2026-05-21)
+
+A second correctness gap: `pushBoardFull()` called `purgeDeleted(boardId)` unconditionally at the end of every push. In soft-delete mode this hard-removed the soft-deleted tasks from local storage on every sync — directly contradicting §4 *Sync Branching* ("hard-delete happens only when purge runs"). After any autosync cycle the Settings purge count dropped to 0 even though PocketBase still held the records.
+
+Fix: `purgeDeleted(boardId, opts)` now takes optional `{ tasks, columns, labels }` flags (all default `true`). `pushBoardFull()` calls `purgeDeleted(boardId, { tasks: !softDeleteEnabled })` — column/label tombstones are still cleaned (they were hard-deleted from PocketBase during the push), but soft-deleted tasks are kept until an explicit purge. `runPurge()` still calls `purgeDeleted(boardId)` with no flags, so the explicit Purge removes everything. Covered by new unit tests in `sync.test.js` and `tasks.test.js`.
