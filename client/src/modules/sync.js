@@ -109,6 +109,13 @@ function setPbId(syncMap, entityType, localId, pbId) {
   syncMap[entityType][localId] = pbId;
 }
 
+async function deleteMappedRecord(collection, syncMap, entityType, localId) {
+  const pbId = getPbId(syncMap, entityType, localId);
+  if (!pbId) return;
+  try { await pb.collection(collection).delete(pbId); } catch { /* 404 ok */ }
+  delete syncMap[entityType][localId];
+}
+
 async function upsertRecord(collection, syncMap, entityType, localId, data) {
   const pbId = getPbId(syncMap, entityType, localId);
   if (pbId) {
@@ -351,6 +358,58 @@ export async function pushBoardFull(boardId) {
   // tombstones are always cleaned — they were hard-deleted from PocketBase above.
   await purgeDeleted(boardId, { tasks: !softDeleteEnabled });
   saveSyncMap(syncMap);
+}
+
+export async function deleteBoardRemote(boardId) {
+  if (!(await ensureAuthenticated())) throw new Error('Not authenticated');
+
+  const syncMap = loadSyncMap();
+  const boardPbId = getPbId(syncMap, 'boards', boardId);
+  if (!boardPbId) return false;
+
+  const columns = [...loadColumnsForBoard(boardId), ...loadDeletedColumnsForBoard(boardId)];
+  const labels = [...loadLabelsForBoard(boardId), ...loadDeletedLabelsForBoard(boardId)];
+  const tasks = [...loadTasksForBoard(boardId), ...loadDeletedTasksForBoard(boardId)];
+  const boardEvents = loadBoardEvents(boardId);
+
+  const taskIds = new Set(tasks.map((task) => task.id).filter(Boolean));
+  const relationshipIds = new Set();
+  const eventIds = new Set(boardEvents.map((entry) => entry.id).filter(Boolean));
+
+  for (const task of tasks) {
+    for (const rel of (task.relationships || [])) {
+      if (rel?.targetTaskId) relationshipIds.add(`${task.id}::${rel.targetTaskId}`);
+    }
+    for (const entry of (task.activityLog || [])) {
+      if (entry?.id) eventIds.add(entry.id);
+    }
+  }
+
+  for (const localId of Object.keys(syncMap.task_relationships || {})) {
+    const [sourceId, targetId] = localId.split('::');
+    if (taskIds.has(sourceId) || taskIds.has(targetId)) relationshipIds.add(localId);
+  }
+
+  for (const localId of relationshipIds) {
+    await deleteMappedRecord('task_relationships', syncMap, 'task_relationships', localId);
+  }
+  for (const localId of eventIds) {
+    await deleteMappedRecord('events', syncMap, 'events', localId);
+  }
+  for (const task of tasks) {
+    await deleteMappedRecord('tasks', syncMap, 'tasks', task.id);
+  }
+  for (const label of labels) {
+    await deleteMappedRecord('labels', syncMap, 'labels', label.id);
+  }
+  for (const column of columns) {
+    await deleteMappedRecord('columns', syncMap, 'columns', column.id);
+  }
+
+  try { await pb.collection('boards').delete(boardPbId); } catch { /* 404 ok */ }
+  delete syncMap.boards[boardId];
+  saveSyncMap(syncMap);
+  return true;
 }
 
 // ── runPurge ──────────────────────────────────────────────────────────────────

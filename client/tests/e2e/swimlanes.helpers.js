@@ -139,10 +139,13 @@ export async function readIDBSettings(page, boardId = TEST_BOARD_ID) {
 }
 
 export async function openSwimlaneSettings(page) {
+  await expect(page.locator('#board-container')).toHaveAttribute('data-view-mode', /^(columns|swimlanes)$/);
+
   const settingsButton = page.locator('#settings-btn');
   if (!(await settingsButton.isVisible())) {
     await page.locator('#desktop-menu-btn').click();
   }
+  await expect(settingsButton).toBeVisible();
   await settingsButton.click();
   await expect(page.locator('#settings-modal')).toBeVisible();
 }

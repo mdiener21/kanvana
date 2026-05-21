@@ -60,8 +60,10 @@ import {
   registerUser,
   logoutUser,
   pushBoardFull,
+  deleteBoardRemote,
   pullAllBoards,
   runPurge,
+  getPb,
 } from '../../src/modules/sync.js';
 
 import {
@@ -371,6 +373,54 @@ describe('pushBoardFull', () => {
 
     // Soft-deleted tasks must survive a push; only an explicit purge removes them.
     expect(purgeDeleted).toHaveBeenCalledWith('board-1', { tasks: false });
+  });
+});
+
+// ── Slice 7b: deleteBoardRemote ───────────────────────────────────────────────
+
+describe('deleteBoardRemote', () => {
+  it('deletes the PocketBase board and all board-scoped records', async () => {
+    mockAuthStore.token = 'tok';
+    mockAuthStore.record = { id: 'user1' };
+    mockAuthStore.isValid = true;
+    localStorage.setItem('kanbanSyncMap', JSON.stringify({
+      boards: { 'board-1': 'pb-board-1' },
+      columns: { 'col-1': 'pb-col-1' },
+      labels: { 'label-1': 'pb-label-1' },
+      tasks: { 'task-1': 'pb-task-1' },
+      task_relationships: { 'task-1::task-2': 'pb-rel-1' },
+      events: { 'event-1': 'pb-event-1' },
+    }));
+    loadColumnsForBoard.mockReturnValue([{ id: 'col-1' }]);
+    loadLabelsForBoard.mockReturnValue([{ id: 'label-1' }]);
+    loadTasksForBoard.mockReturnValue([{
+      id: 'task-1',
+      relationships: [{ targetTaskId: 'task-2' }],
+      activityLog: [{ id: 'event-1' }],
+    }]);
+
+    await deleteBoardRemote('board-1');
+
+    expect(getPb().collection).toHaveBeenCalledWith('task_relationships');
+    expect(getPb().collection).toHaveBeenCalledWith('events');
+    expect(getPb().collection).toHaveBeenCalledWith('tasks');
+    expect(getPb().collection).toHaveBeenCalledWith('labels');
+    expect(getPb().collection).toHaveBeenCalledWith('columns');
+    expect(getPb().collection).toHaveBeenCalledWith('boards');
+    expect(mockCollection.delete).toHaveBeenCalledWith('pb-rel-1');
+    expect(mockCollection.delete).toHaveBeenCalledWith('pb-event-1');
+    expect(mockCollection.delete).toHaveBeenCalledWith('pb-task-1');
+    expect(mockCollection.delete).toHaveBeenCalledWith('pb-label-1');
+    expect(mockCollection.delete).toHaveBeenCalledWith('pb-col-1');
+    expect(mockCollection.delete).toHaveBeenCalledWith('pb-board-1');
+    expect(JSON.parse(localStorage.getItem('kanbanSyncMap'))).toEqual({
+      boards: {},
+      columns: {},
+      labels: {},
+      tasks: {},
+      task_relationships: {},
+      events: {},
+    });
   });
 });
 

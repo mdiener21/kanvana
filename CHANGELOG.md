@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed missing scale icon for the legal/impressum page.
 - Soft-deleted tasks were silently lost when adding, editing, moving, or reordering other tasks, causing the Settings purge count and button to no longer reflect them; soft-deleted tasks are now retained until an explicit purge.
 - Soft-deleted tasks were also removed from local storage on every background sync, so the Settings purge count could drop to zero while the tasks still existed in PocketBase; sync now keeps soft-deleted tasks locally until you purge.
+- Deleting a board while signed in now also deletes the mapped PocketBase board and its board-scoped columns, labels, tasks, relationships, and events before removing the local board.
 - Fixed desktop task drag autoscroll so long task lists scroll vertically while dragging a card near the list edge
 - Fixed Impressum page overflow so the legal content can scroll vertically on desktop and mobile
 - Fixed font size sub-task
