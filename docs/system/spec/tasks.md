@@ -112,7 +112,7 @@ taken. The message depends on the active deletion mode:
      added to the pending hard-deletes queue and the hard-delete runs on the next sync after
      reconnect.
 - Turning off the soft-delete toggle does **not** auto-purge existing soft-deleted tasks; they
-  remain hidden until the user explicitly purges them.
+  remain hidden until the user explicitly purges them using the purge button.
 
 ### PocketBase sync behavior
 

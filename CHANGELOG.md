@@ -7,22 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [2.0.0] - 2026-05-16
-
 ### Added
 
-- E2E tests (`tests/e2e/task-delete.spec.ts`) for the task deletion flows: permanent delete removes card and decrements counter; cancel preserves task; soft-delete mode shows correct dialog message, removes card from board, and increments the Settings purge counter (3 tests, all passing).
-- Global settings storage layer in `storage.js` with `loadGlobalSettings()` / `saveGlobalSettings()` persisted under `kanvana:settings:global`; `softDeleteEnabled` defaults to `false` and stays isolated from board settings.
-- Settings UI now separates App settings from Board settings and exposes the global "Soft-delete tasks" toggle.
-- Permanent task delete path now fully removes tasks by default, writes the board-level `task.deleted` event, and shows the irreversible-delete confirmation before emitting `DATA_CHANGED`.
-- Pending hard-delete queue in `storage.js` persisted under `pendingHardDeletes`; permanent task deletes enqueue PocketBase cleanup intents, and `pushBoardFull()` drains mapped entries or drops unmapped offline-only tasks.
-- `authsync.js` health probe now shows a modal notification with the full backend URL when the sync server is unreachable or returns a non-OK status, so users know immediately that login/sync is unavailable rather than experiencing a silent failure.
+- Global "Soft-delete tasks" toggle in App Settings — choose between permanent deletion (default) and soft-delete mode where deleted tasks are hidden until explicitly purged.
+- "Purge deleted tasks" button in App Settings — hard-removes all soft-deleted tasks from local storage and syncs deletions to PocketBase when online.
+- Settings UI now separates App-level settings from Board-level settings, making global preferences distinct from per-board configuration.
+- Sync: `pushBoardFull()` now branches on `softDeleteEnabled` — in soft-delete mode it enqueues PocketBase cleanup intents via a pending hard-delete queue; in permanent mode it removes tasks immediately.
 
 ### Fixed
 
-- "Go Online" button was silently disabled when PocketBase was unreachable (health probe set `disabled = true`); button now stays enabled so the login modal always opens.
-- Health probe URL resolved relative to the main app origin instead of the PocketBase origin; it now uses `VITE_PB_URL` (e.g. `https://pb.kanvana.com/api/health`) via the same env var as `sync.js`.
-- Login modal showed a generic "Something went wrong" message on 5xx errors; it now shows the HTTP status code and the backend URL to help diagnose connectivity issues.
+- "Go Online" button was silently disabled when PocketBase was unreachable; button now stays enabled so the login modal always opens.
+- Health probe URL now correctly uses `VITE_PB_URL` (e.g. `https://pb.kanvana.com/api/health`) instead of resolving relative to the app origin, preventing false "unreachable" reports.
+- Login modal now shows the HTTP status code and backend URL on 5xx errors instead of a generic "Something went wrong" message.
+- Sync server unreachability now shows a modal notification with the full backend URL so users know immediately when login/sync is unavailable rather than seeing a silent failure.
+- Fixed desktop task drag autoscroll so long task lists scroll vertically while dragging a card near the list edge.
+- Fixed Impressum page overflow so the legal content can scroll vertically on desktop and mobile.
+- Fixed sub-task font size.
+- Fixed missing scale icon for the legal/impressum page.
+
+## [2.0.0] - 2026-05-16
 
 ### Added
 
