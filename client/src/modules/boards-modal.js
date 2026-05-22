@@ -13,6 +13,7 @@ import { confirmDialog, alertDialog } from './dialog.js';
 import { renderIcons } from './icons.js';
 import { exportBoard } from './importexport.js';
 import { emit, DATA_CHANGED } from './events.js';
+import { deleteBoardRemote, isAuthenticated } from './sync.js';
 import { DEFAULT_APP_KEYBINDINGS, matchesKey } from './constants.js';
 import { $id, $, h } from './dom.js';
 
@@ -78,6 +79,13 @@ function renderBoardsList() {
           confirmText: 'Delete'
         });
         if (!ok) return;
+        if (isAuthenticated()) {
+          try {
+            await deleteBoardRemote(board.id);
+          } catch (err) {
+            console.error(`[boards] remote delete failed for ${board.id}:`, err);
+          }
+        }
         const deleted = deleteBoardById(board.id);
         if (!deleted) {
           await alertDialog({ title: 'Unable to Delete', message: 'Unable to delete board (you may be trying to delete the last board).' });

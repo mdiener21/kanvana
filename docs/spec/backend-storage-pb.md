@@ -1,4 +1,4 @@
-# Plan: Optional Backend Storage via PocketBase
+# Optional Backend Storage via PocketBase
 
 Product spec for optional online storage: authenticated multi-device sync, local-first by default.
 
@@ -58,8 +58,9 @@ Explicit push/pull with user confirmation. No merge strategy in V1.
 
 ### PocketBase URL / Nginx
 
-- Default URL: `/api/pb` (proxied through nginx)
-- `VITE_PB_URL` env var overrides default
+- Default URL: `/` (same-origin PocketBase API paths when served through nginx)
+- `VITE_PB_URL` env var overrides default for local dev and production hosted PocketBase
+- Health probe URL is `<base>/api/health`
 - If PocketBase unreachable at runtime: log console warning, disable "Go Online" button with tooltip
 - Never a hard build error — local-first still works without backend
 
@@ -199,7 +200,7 @@ Use `alertDialog` from `dialog.js`. No `alert()` or `window.confirm()`.
 
 ## Docker / Deployment
 
-- Backend: PocketBase binary in `devops/local/backend/Dockerfile`
-- Collections defined in `devops/local/backend/pb_migrations/` — no manual admin UI setup
-- Nginx proxies `/api/pb/*` → PocketBase at internal port 8080
+- Backend: PocketBase binary in `backend/Dockerfile`
+- Collections defined in `backend/pb_migrations/` — no manual admin UI setup
+- Nginx proxies `/api/*` and `/_/*` → PocketBase at internal port 8090
 - `docker compose up` starts nginx + PocketBase stack

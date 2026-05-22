@@ -10,144 +10,6 @@
 All canonical factory functions live in `client/src/modules/schema.js`. Every new entity must be
 constructed through those factories so all fields are always present.
 
-### Task
-
-The primary work unit. Every task belongs to exactly one column and one board.
-
-| Field | Type | Notes |
-|---|---|---|
-| `id` | UUID | Unique per board |
-| `title` | string | Required |
-| `description` | string | Supports linkified URLs |
-| `priority` | `urgent\|high\|medium\|low\|none` | Drives swimlane grouping; default `none` |
-| `dueDate` | `YYYY-MM-DD` | Drives calendar + notifications |
-| `column` | Column.id | Current column |
-| `order` | number | Position within column |
-| `labels` | Label.id[] | Many-to-many |
-| `creationDate` | ISO datetime | Set on create |
-| `changeDate` | ISO datetime | Updated on every mutation |
-| `doneDate` | ISO datetime | Set when moved to Done column |
-| `columnHistory` | `{column: id, at: ISO datetime}[]` | Ordered log for lead-time/CFD reports |
-| `relationships` | Relationship[] | Task-to-task links (prerequisite/dependent/related) |
-| `subTasks` | SubTask[] | Nested checklist items |
-| `activityLog` | ActivityLogEntry[] | Per-task audit trail |
-| `swimlaneLabelId` | string | Pinned swimlane label assignment |
-| `deleted` | boolean | Soft-delete flag for PocketBase sync |
-
-**Invariants**
-- New tasks insert at order=1 (top of column).
-- `doneDate` is set only when the task enters the Done column.
-- `columnHistory` must be appended, never rewritten.
-- `deleted: true` means soft-deleted; excluded from all normal queries but retained in IDB for sync.
-
----
-
-### Column
-
-An ordered stage in the workflow.
-
-| Field | Type | Notes |
-|---|---|---|
-| `id` | UUID | |
-| `name` | string | Max 40 chars |
-| `color` | hex | Display accent; default `#3b82f6` |
-| `order` | number | Position on board |
-| `collapsed` | boolean | Collapse toggle |
-| `role` | `'done'\|''` | `'done'` marks the permanent terminal column |
-| `deleted` | boolean | Soft-delete flag for PocketBase sync |
-
-**Invariants**
-- The Done column (`role === 'done'`) cannot be deleted or reordered past the last position.
-- `isDoneColumn(col)` in `constants.js` is the canonical check — `role === 'done' || id === 'done'`.
-- New columns insert before the Done column.
-- Column name must be validated before save (`validateColumnName`).
-
----
-
-### Label
-
-A tag applied to tasks. Labels can be grouped.
-
-| Field | Type | Notes |
-|---|---|---|
-| `id` | UUID | |
-| `name` | string | Max 40 chars |
-| `color` | hex | |
-| `group` | string | Optional grouping for swimlanes |
-| `deleted` | boolean | Soft-delete flag for PocketBase sync |
-
-**Invariants**
-- Label groups drive the `label-group` swimlane dimension.
-- Deleting a label removes it from all task `labels[]` arrays (or soft-deletes it for sync).
-
----
-
-### Board
-
-A self-contained workspace with its own tasks, columns, labels, and settings.
-
-| Field | Type | Notes |
-|---|---|---|
-| `id` | UUID | |
-| `name` | string | |
-| `createdAt` | ISO datetime | Set on create |
-
-**Invariants**
-- All CRUD operations are scoped to the active board (`getActiveBoardId()`).
-- `ensureBoardsInitialized()` must run before any board operation.
-- On switch, state is flushed and reloaded from IDB for the new board.
-
----
-
-### SubTask
-
-A checklist item embedded in a parent task.
-
-| Field | Type | Notes |
-|---|---|---|
-| `id` | UUID | |
-| `title` | string | |
-| `completed` | boolean | |
-| `order` | number | |
-
-SubTasks are not independent entities — they live in `task.subTasks[]` and are not synced separately.
-
----
-
-### Relationship
-
-A directional link between two tasks.
-
-| Field | Type | Notes |
-|---|---|---|
-| `type` | `prerequisite\|dependent\|related` | |
-| `targetTaskId` | UUID | The other task |
-
-Stored in `task.relationships[]` locally; synced to the `task_relationships` PocketBase collection.
-Adding a relationship always creates the inverse entry on the target task.
-
----
-
-### ActivityLogEntry
-
-An event recorded on a task or board.
-
-| Field | Type | Notes |
-|---|---|---|
-| `id` | UUID | Required for sync deduplication; absent on pre-sync legacy entries |
-| `type` | string | e.g. `task.priority_changed` |
-| `at` | ISO datetime | |
-| `actor` | `{type, id}` | See actor model below |
-| `details` | object | Before/after payload; event-specific |
-
-`actor.type` is one of `human | agent | user`. AI agents must pass `{ type: "agent", id: "<model-name>" }`.
-
----
-
-### Settings
-
-Per-board configuration (swimlane mode, sort preferences, etc.).
-Persisted under the board's IDB key via `loadSettingsForBoard()` / `saveSettingsForBoard()`.
 
 ---
 
@@ -191,6 +53,8 @@ The storage layer is split into three modules:
 | `kanbanBoard:{boardId}:labels` | Label array for board |
 | `kanbanBoard:{boardId}:settings` | Settings object for board |
 | `events:{boardId}` | Board event log array |
+| `kanvana:settings:global` | Global (cross-board) settings object |
+| `pendingHardDeletes` | Global queue of `{ localTaskId, boardId }` entries awaiting PocketBase hard-delete after a permanent-mode deletion while offline |
 
 **Pattern:** `initStorage()` (async, called once at startup) → synchronous CRUD functions read/write
 in-memory `state` → fire-and-forget IDB writes via `schedulePersist()` → `renderBoard()`.
@@ -205,7 +69,8 @@ in-memory `state` → fire-and-forget IDB writes via `schedulePersist()` → `re
 | `loadTasksForBoard(id)` | Read task state for a board |
 | `loadColumnsForBoard(id)` | Read column state for a board |
 | `loadLabelsForBoard(id)` | Read label state for a board |
-| `loadSettingsForBoard(id)` | Read settings for a board |
+| `loadSettingsForBoard(id)` | Read board-scoped settings |
+| `loadGlobalSettings()` / `saveGlobalSettings()` | Read/write cross-board app settings |
 | `loadBoardEvents(id)` | Read board event log |
 | `saveTasks()` / `saveTasksForBoard(id, tasks)` | Persist task array |
 | `listBoards()` | All board metadata |
@@ -217,6 +82,10 @@ in-memory `state` → fire-and-forget IDB writes via `schedulePersist()` → `re
 
 An optional PocketBase backend provides auth and cloud sync. The local IDB layer is unchanged
 whether sync is enabled or not.
+
+**Online Mode:** User-facing name for the optional authenticated PocketBase path. It starts at the
+`Go Online` header button and includes backend health probing, login/register/OAuth, manual
+push/pull sync, and auto-sync after the first successful push.
 
 | Module | Responsibility |
 |---|---|
@@ -344,7 +213,7 @@ inspectImportPayload → buildImportConfirmationMessage → importTasks
 | UUID | All entity IDs use `generateUUID()` from `utils.js`; no numeric or legacy string IDs post-migration |
 | Keybindings | Never hardcode key strings; register in `DEFAULT_APP_KEYBINDINGS` in `constants.js` |
 | Entity factories | Always use `createTask()`, `createColumn()`, etc. from `schema.js` — never construct entities ad-hoc |
-| Soft deletes | Set `deleted: true` on entities intended for removal; purge only after PocketBase sync confirms deletion |
+| Task deletion | **Permanent delete (default):** immediately purge from IDB, write board audit event, queue ID in `pendingHardDeletes`. **Soft-delete (opt-in via global settings):** set `deleted: true`, retain in IDB, upsert to PocketBase; hard-deleted only when user runs purge. See ADR-0002. |
 
 ---
 

@@ -67,6 +67,61 @@
 - Cards with no sub-tasks show no indicator
 - See [sub-tasks.md](sub-tasks.md) for full sub-task specification
 
+## Task Deletion
+
+### Confirmation
+
+Clicking the delete button on a task card always shows a confirmation dialog before any action is
+taken. The message depends on the active deletion mode:
+
+- **Permanent delete (default):** "Delete this task? This cannot be undone."
+- **Soft-delete mode active:** "You have soft-delete active, this will set the task as deleted
+  and will not count or show in any location, to permanently delete you must click purge in the
+  settings."
+
+### Permanent delete (default mode)
+
+- The task is immediately and irreversibly removed from local storage (IndexedDB).
+- A board-level `task.deleted` audit event is written before the task is purged; the task's own
+  `activityLog` is destroyed with it (accepted loss — use soft-delete if history must be kept).
+- The task ID is added to the global pending hard-deletes queue so the next sync can hard-delete
+  the corresponding PocketBase record.
+- If the task was created offline and never synced, the queue entry is silently cleared at sync
+  time (no PocketBase record to delete).
+
+### Soft-delete mode (opt-in via Settings)
+
+- Enabled by toggling **"Soft-delete tasks"** in Settings.
+- When active, deletion sets `task.deleted = true` instead of purging. The task is hidden from
+  all views, counts, and filters across the board.
+- A board-level `task.deleted` audit event is written.
+- The task is upserted to PocketBase with `deleted: true` during the next sync push; it is
+  **not** hard-deleted from PocketBase until purge runs.
+- Soft-delete applies to tasks only — columns and labels are unaffected by this setting.
+
+### Purge
+
+- Available in Settings as the **"Purge deleted tasks"** button.
+- The button is **enabled** whenever soft-deleted tasks exist across any board, even if the
+  soft-delete toggle is currently off. It is **disabled** when no soft-deleted tasks exist.
+- Before executing, a confirmation dialog states the total count across all boards:
+  "Permanently delete all N soft-deleted tasks across all boards? This cannot be undone."
+- Purge is a two-phase operation:
+  1. All soft-deleted tasks are immediately removed from IndexedDB across all boards.
+  2. If online, PocketBase records are hard-deleted immediately. If offline, the task IDs are
+     added to the pending hard-deletes queue and the hard-delete runs on the next sync after
+     reconnect.
+- Turning off the soft-delete toggle does **not** auto-purge existing soft-deleted tasks; they
+  remain hidden until the user explicitly purges them using the purge button.
+
+### PocketBase sync behavior
+
+- **Permanent delete mode:** Deletions are tracked in a global pending hard-deletes queue
+  (`{ localTaskId, boardId }[]`). The sync resolves each entry to a PocketBase ID via the
+  syncMap and hard-deletes the record, then clears the queue entry.
+- **Soft-delete mode:** Deleted tasks are upserted with `deleted: true`; hard-delete from
+  PocketBase happens only when purge runs (see above).
+
 ## Task List Size Controls
 
 - Columns with more than 12 tasks show a scrollbar and optional "Show all tasks (N)" control
@@ -82,3 +137,4 @@ Update this file when you change:
 - task modal fields or inline label UX
 - relationship UI behavior or card indicator
 - sub-task card indicator layout (full sub-task spec lives in [sub-tasks.md](sub-tasks.md))
+- deletion mode behavior, confirmation wording, purge logic, or sync branching

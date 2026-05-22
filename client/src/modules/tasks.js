@@ -1,5 +1,5 @@
 import { generateUUID } from './utils.js';
-import { appendBoardEvent, getActiveBoardId, isDoneColumnId, loadColumns, loadDeletedTasksForBoard, loadLabels, loadSettings, loadTasks, saveTasks } from './storage.js';
+import { addPendingHardDelete, appendBoardEvent, getActiveBoardId, isDoneColumnId, loadColumns, loadDeletedTasksForBoard, loadGlobalSettings, loadLabels, loadSettings, loadTasks, saveLiveTasks, saveTasks } from './storage.js';
 import { applySwimLaneAssignment } from './swimlanes.js';
 import { normalizePriority, normalizeRelationships, normalizeSubTasks } from './normalize.js';
 import { DEFAULT_HUMAN_ACTOR, appendTaskActivity, createActivityEvent } from './activity-log.js';
@@ -165,7 +165,7 @@ export function addTask(title, description, priority, dueDate, columnName, label
 
   updatedTasks.push(newTask);
   syncRelationshipInverses(updatedTasks, newTask.id, [], normalizedRelationships, nowIso);
-  saveTasks(updatedTasks);
+  saveLiveTasks(updatedTasks);
 }
 
 // Update an existing task
@@ -272,7 +272,7 @@ export function updateTask(taskId, title, description, priority, dueDate, column
     }
 
     tasks[taskIndex].changeDate = nowIso;
-    saveTasks(tasks);
+    saveLiveTasks(tasks);
   }
 }
 
@@ -281,17 +281,22 @@ export function deleteTask(taskId) {
   const boardId = getActiveBoardId();
   const liveTasks = loadTasks();
   const task = liveTasks.find(t => t.id === taskId);
-  if (task) {
-    appendBoardEvent(boardId, createActivityEvent('task.deleted', {
-      taskId: task.id,
-      taskTitle: task.title,
-      column: task.column,
-      columnName: getColumnName(task.column)
-    }, DEFAULT_HUMAN_ACTOR));
-  }
+  if (!task) return false;
+
+  appendBoardEvent(boardId, createActivityEvent('task.deleted', {
+    taskId: task.id,
+    taskTitle: task.title,
+    column: task.column,
+    columnName: getColumnName(task.column)
+  }, DEFAULT_HUMAN_ACTOR));
+
   const allTasks = [...liveTasks, ...loadDeletedTasksForBoard(boardId)];
-  const updated = allTasks.map(t => t.id === taskId ? { ...t, deleted: true } : t);
+  const softDeleteEnabled = loadGlobalSettings().softDeleteEnabled === true;
+  const updated = softDeleteEnabled
+    ? allTasks.map(t => t.id === taskId ? { ...t, deleted: true } : t)
+    : allTasks.filter(t => t.id !== taskId);
   saveTasks(updated);
+  if (!softDeleteEnabled) addPendingHardDelete({ localTaskId: task.id, boardId });
   return true;
 }
 
@@ -484,7 +489,7 @@ export function updateTaskPositionsFromDrop(evt) {
     ? reorderColumnTasks(updatedTasks, toColumn, movedTaskId)
     : updatedTasks;
 
-  saveTasks(finalTasks);
+  saveLiveTasks(finalTasks);
 
   return {
     movedTaskId,
@@ -506,7 +511,7 @@ export function moveTaskToTopInColumn(taskId, columnId, tasksCache) {
   const didUpdate = updatedTasks.some((task, index) => task !== tasks[index]);
 
   if (didUpdate) {
-    saveTasks(updatedTasks);
+    saveLiveTasks(updatedTasks);
     return updatedTasks;
   }
   return tasks;

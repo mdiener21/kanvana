@@ -1,5 +1,5 @@
 import { vi, describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
-import { fireEvent } from '@testing-library/dom';
+import { fireEvent, waitFor } from '@testing-library/dom';
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
 
@@ -14,6 +14,11 @@ vi.mock('../../src/modules/storage.js', () => ({
   getActiveBoardName: vi.fn(() => 'Work'),
   renameBoard: vi.fn(() => true),
   deleteBoard: vi.fn(() => true),
+}));
+
+vi.mock('../../src/modules/sync.js', () => ({
+  deleteBoardRemote: vi.fn(async () => true),
+  isAuthenticated: vi.fn(() => true),
 }));
 
 vi.mock('../../src/modules/dialog.js', () => ({
@@ -35,8 +40,10 @@ vi.mock('../../src/modules/events.js', () => ({
 }));
 
 import { initializeBoardsModalHandlers } from '../../src/modules/boards-modal.js';
-import { setActiveBoardId } from '../../src/modules/storage.js';
+import { setActiveBoardId, deleteBoard } from '../../src/modules/storage.js';
 import { emit } from '../../src/modules/events.js';
+import { confirmDialog } from '../../src/modules/dialog.js';
+import { deleteBoardRemote } from '../../src/modules/sync.js';
 
 // ── HTML fixture ──────────────────────────────────────────────────────────────
 
@@ -91,6 +98,19 @@ describe('click brand-text', () => {
     expect(modal.classList.contains('hidden')).toBe(true);
     fireEvent.click(brandText);
     expect(modal.classList.contains('hidden')).toBe(false);
+  });
+});
+
+describe('delete board', () => {
+  it('deletes the PocketBase board before removing the local board', async () => {
+    confirmDialog.mockResolvedValueOnce(true);
+    fireEvent.click(document.getElementById('brand-text'));
+
+    fireEvent.click(document.querySelector('[title="Delete board"]'));
+
+    await waitFor(() => expect(deleteBoardRemote).toHaveBeenCalledWith('board-1'));
+    expect(deleteBoard).toHaveBeenCalledWith('board-1');
+    expect(deleteBoardRemote.mock.invocationCallOrder[0]).toBeLessThan(deleteBoard.mock.invocationCallOrder[0]);
   });
 });
 

@@ -5,11 +5,14 @@ import { openStore, KV_STORE, schedulePersist, scheduleDelete, keyFor, getBoardE
 // Re-export IDB helpers that tests import from this module for backward compatibility.
 export { getBoardEventsKey, _flushPersistsForTesting } from './idb-store.js';
 import { normalizeBoardModelIds } from './board-serializer.js';
+import { createPendingHardDelete } from './schema.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 const BOARDS_KEY = 'kanbanBoards';
 const ACTIVE_BOARD_KEY = 'kanbanActiveBoardId';
+const GLOBAL_SETTINGS_KEY = 'kanvana:settings:global';
+const PENDING_HARD_DELETES_KEY = 'pendingHardDeletes';
 
 const LEGACY_COLUMNS_KEY = 'kanbanColumns';
 const LEGACY_TASKS_KEY = 'kanbanTasks';
@@ -31,6 +34,8 @@ const state = {
   columns: {},  // { [boardId]: column[] | null }
   labels: {},   // { [boardId]: label[] | null }
   settings: {},  // { [boardId]: object | null }
+  globalSettings: null,
+  pendingHardDeletes: null,
   boardEvents: {} // { [boardId]: event[] | null }
 };
 
@@ -279,6 +284,12 @@ function defaultSettings() {
   };
 }
 
+function defaultGlobalSettings() {
+  return {
+    softDeleteEnabled: false
+  };
+}
+
 // ── Migration from localStorage ────────────────────────────────────────────────
 
 async function migrateFromLocalStorage(db) {
@@ -372,6 +383,8 @@ export async function initStorage() {
   // Load everything into in-memory state.
   state.boards = safeParseArray(await db.get(KV_STORE, BOARDS_KEY)) || [];
   state.activeBoardId = (await db.get(KV_STORE, ACTIVE_BOARD_KEY)) || null;
+  state.globalSettings = normalizeGlobalSettings(await db.get(KV_STORE, GLOBAL_SETTINGS_KEY));
+  state.pendingHardDeletes = safeParseArray(await db.get(KV_STORE, PENDING_HARD_DELETES_KEY)) || [];
 
   for (const board of state.boards) {
     state.tasks[board.id] = (await db.get(KV_STORE, keyFor(board.id, 'tasks'))) ?? null;
@@ -406,6 +419,8 @@ export function _resetStorageForTesting() {
   for (const k in state.columns) delete state.columns[k];
   for (const k in state.labels) delete state.labels[k];
   for (const k in state.settings) delete state.settings[k];
+  state.globalSettings = null;
+  state.pendingHardDeletes = null;
   for (const k in state.boardEvents) delete state.boardEvents[k];
   taskCacheByBoard.clear();
 }
@@ -750,6 +765,15 @@ export function saveTasks(tasks) {
   emitLocalChange(boardId, 'task');
 }
 
+// Persist a live-task set without destroying the board's soft-deleted tasks.
+// loadTasks() returns live tasks only, so callers that mutate the live set
+// must route through here to keep soft-deleted tasks countable until purge.
+export function saveLiveTasks(liveTasks) {
+  const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
+  const live = Array.isArray(liveTasks) ? liveTasks : [];
+  saveTasks([...live, ...loadDeletedTasksForBoard(boardId)]);
+}
+
 // ── Labels ─────────────────────────────────────────────────────────────────────
 
 export function loadLabels() {
@@ -837,6 +861,13 @@ function normalizeSettings(raw) {
   };
 }
 
+function normalizeGlobalSettings(raw) {
+  const obj = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  return {
+    softDeleteEnabled: obj.softDeleteEnabled === true
+  };
+}
+
 export function loadSettings() {
   ensureBoardsInitialized();
   const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
@@ -856,6 +887,35 @@ export function saveSettings(settings) {
   const normalized = normalizeSettings(settings);
   state.settings[boardId] = normalized;
   schedulePersist(keyFor(boardId, 'settings'), normalized);
+}
+
+export function loadGlobalSettings() {
+  const parsed = safeParseObject(state.globalSettings);
+  return parsed ? normalizeGlobalSettings(parsed) : defaultGlobalSettings();
+}
+
+export function saveGlobalSettings(settings) {
+  const normalized = normalizeGlobalSettings(settings);
+  state.globalSettings = normalized;
+  schedulePersist(GLOBAL_SETTINGS_KEY, normalized);
+}
+
+export function getPendingHardDeletes() {
+  return safeParseArray(state.pendingHardDeletes) || [];
+}
+
+export function addPendingHardDelete(entry) {
+  const queued = createPendingHardDelete(entry);
+  const next = [...getPendingHardDeletes(), queued];
+  state.pendingHardDeletes = next;
+  schedulePersist(PENDING_HARD_DELETES_KEY, next);
+}
+
+export function clearPendingHardDeleteEntry(localTaskId) {
+  const id = typeof localTaskId === 'string' ? localTaskId : '';
+  const next = getPendingHardDeletes().filter(entry => entry.localTaskId !== id);
+  state.pendingHardDeletes = next;
+  schedulePersist(PENDING_HARD_DELETES_KEY, next);
 }
 
 // ── Board events ───────────────────────────────────────────────────────────────
@@ -916,19 +976,22 @@ export function loadDeletedLabelsForBoard(boardId) {
   return (safeParseArray(raw) || []).filter(l => l.deleted === true);
 }
 
-export function purgeDeleted(boardId) {
-  if (state.tasks[boardId]) {
+// Hard-removes soft-deleted records. The opts flags allow a caller to purge
+// only some entity types — e.g. a sync push purges deleted column/label
+// tombstones but must keep soft-deleted tasks until an explicit purge.
+export function purgeDeleted(boardId, { tasks = true, columns = true, labels = true } = {}) {
+  if (tasks && state.tasks[boardId]) {
     const live = (safeParseArray(state.tasks[boardId]) || []).filter(t => !t.deleted);
     state.tasks[boardId] = live;
     taskCacheByBoard.set(boardId, live);
     schedulePersist(keyFor(boardId, 'tasks'), live);
   }
-  if (state.columns[boardId]) {
+  if (columns && state.columns[boardId]) {
     const live = (safeParseArray(state.columns[boardId]) || []).filter(c => !c.deleted);
     state.columns[boardId] = live;
     schedulePersist(keyFor(boardId, 'columns'), live);
   }
-  if (state.labels[boardId]) {
+  if (labels && state.labels[boardId]) {
     const live = (safeParseArray(state.labels[boardId]) || []).filter(l => !l.deleted);
     state.labels[boardId] = live;
     schedulePersist(keyFor(boardId, 'labels'), live);

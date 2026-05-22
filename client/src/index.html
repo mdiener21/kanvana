@@ -344,85 +344,108 @@
         </button>
       </header>
       <form id="settings-form" novalidate>
-        <div class="form-group checkbox-group">
-          <label>
-            <input id="settings-show-priority" type="checkbox">
-            Show task priority
-          </label>
-        </div>
-        <div class="form-group checkbox-group">
-          <label>
-            <input id="settings-show-due-date" type="checkbox">
-            Show task due date
-          </label>
-        </div>
-        <div class="form-group">
-          <label for="settings-notification-days">Notifications: upcoming window (days)</label>
-          <input
-            id="settings-notification-days"
-            type="number"
-            min="0"
-            max="365"
-            step="1"
-            inputmode="numeric"
-            aria-label="Number of days ahead to include for notifications"
-          >
-        </div>
-        <div class="form-group">
-          <label for="settings-countdown-urgent-threshold">Countdown: urgent threshold (days)</label>
-          <input
-            id="settings-countdown-urgent-threshold"
-            type="number"
-            min="1"
-            max="365"
-            step="1"
-            inputmode="numeric"
-            aria-label="Days until due date to show countdown in red (urgent)"
-            title="Tasks due within this many days show in red"
-          >
-          <small class="form-help">Tasks due within this many days show in <span style="font-weight:800; color:red">red</span></small>
-        </div>
-        <div class="form-group">
-          <label for="settings-countdown-warning-threshold">Countdown: warning threshold (days)</label>
-          <input
-            id="settings-countdown-warning-threshold"
-            type="number"
-            min="1"
-            max="365"
-            step="1"
-            inputmode="numeric"
-            aria-label="Days until due date to show countdown in amber (warning)"
-            title="Tasks due within this many days show in amber (must be > urgent threshold)"
-          >
-          <small class="form-help">Tasks due within this many days show in <span style="font-weight:800; color:#ffd000">amber</span> (must be ≥ urgent threshold)</small>
-        </div>
-        <div class="form-group checkbox-group">
-          <label>
-            <input id="settings-show-age" type="checkbox">
-            Show task age
-          </label>
-        </div>
-        <div class="form-group checkbox-group">
-          <label>
-            <input id="settings-show-change-date" type="checkbox">
-            Show updated date/time
-          </label>
-        </div>
-        <div class="form-group">
-          <label for="settings-locale">Locale</label>
-          <select id="settings-locale" aria-label="Select locale"></select>
-        </div>
-        <div class="form-group">
-          <label for="settings-default-priority">Default task priority</label>
-          <select id="settings-default-priority" aria-label="Select default task priority">
-            <option value="urgent">Urgent</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-            <option value="none" selected>None</option>
-          </select>
-        </div>
-        <section class="settings-section" aria-labelledby="settings-swimlanes-title">
+        <section class="settings-section settings-section-app" aria-labelledby="settings-app-title">
+          <div class="settings-section-header">
+            <h4 id="settings-app-title">App settings</h4>
+            <p class="form-help">These settings apply across all boards on this device.</p>
+          </div>
+          <div class="form-group checkbox-group">
+            <label>
+              <input id="settings-soft-delete-enabled" type="checkbox">
+              Soft-delete tasks
+            </label>
+          </div>
+          <div class="form-group">
+            <button type="button" id="settings-purge-btn" disabled>
+              Purge deleted tasks (<span id="settings-purge-count">0</span>)
+            </button>
+          </div>
+        </section>
+        <section class="settings-section settings-section-board" aria-labelledby="settings-board-title">
+          <div class="settings-section-header">
+            <h4 id="settings-board-title">Board settings</h4>
+            <p class="form-help">These settings apply only to the current board.</p>
+          </div>
+          <div class="form-group checkbox-group">
+            <label>
+              <input id="settings-show-priority" type="checkbox">
+              Show task priority
+            </label>
+          </div>
+          <div class="form-group checkbox-group">
+            <label>
+              <input id="settings-show-due-date" type="checkbox">
+              Show task due date
+            </label>
+          </div>
+          <div class="form-group">
+            <label for="settings-notification-days">Notifications: upcoming window (days)</label>
+            <input
+              id="settings-notification-days"
+              type="number"
+              min="0"
+              max="365"
+              step="1"
+              inputmode="numeric"
+              aria-label="Number of days ahead to include for notifications"
+            >
+          </div>
+          <div class="form-group">
+            <label for="settings-countdown-urgent-threshold">Countdown: urgent threshold (days)</label>
+            <input
+              id="settings-countdown-urgent-threshold"
+              type="number"
+              min="1"
+              max="365"
+              step="1"
+              inputmode="numeric"
+              aria-label="Days until due date to show countdown in red (urgent)"
+              title="Tasks due within this many days show in red"
+            >
+            <small class="form-help">Tasks due within this many days show in <span style="font-weight:800; color:red">red</span></small>
+          </div>
+          <div class="form-group">
+            <label for="settings-countdown-warning-threshold">Countdown: warning threshold (days)</label>
+            <input
+              id="settings-countdown-warning-threshold"
+              type="number"
+              min="1"
+              max="365"
+              step="1"
+              inputmode="numeric"
+              aria-label="Days until due date to show countdown in amber (warning)"
+              title="Tasks due within this many days show in amber (must be > urgent threshold)"
+            >
+            <small class="form-help">Tasks due within this many days show in <span style="font-weight:800; color:#ffd000">amber</span> (must be ≥ urgent threshold)</small>
+          </div>
+          <div class="form-group checkbox-group">
+            <label>
+              <input id="settings-show-age" type="checkbox">
+              Show task age
+            </label>
+          </div>
+          <div class="form-group checkbox-group">
+            <label>
+              <input id="settings-show-change-date" type="checkbox">
+              Show updated date/time
+            </label>
+          </div>
+          <div class="form-group">
+            <label for="settings-locale">Locale</label>
+            <select id="settings-locale" aria-label="Select locale"></select>
+          </div>
+          <div class="form-group">
+            <label for="settings-default-priority">Default task priority</label>
+            <select id="settings-default-priority" aria-label="Select default task priority">
+              <option value="urgent">Urgent</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+              <option value="none" selected>None</option>
+            </select>
+          </div>
+        </section>
+        <section class="settings-section settings-section-board" aria-labelledby="settings-swimlanes-title">
           <div class="settings-section-header">
             <h4 id="settings-swimlanes-title">Swim Lanes</h4>
             <p class="form-help">Done-column cards stay hidden in swim lane rows to keep the board compact, but you can still drag tasks into Done.</p>
