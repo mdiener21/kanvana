@@ -15,6 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings UI now separates App-level settings from Board-level settings, making global preferences distinct from per-board configuration.
 - Sync: `pushBoardFull()` now branches on `softDeleteEnabled` — in soft-delete mode it enqueues PocketBase cleanup intents via a pending hard-delete queue; in permanent mode it removes tasks immediately.
 
+### Changed
+
+- CI now runs `npm audit` on every push and pull request, and Dependabot is configured for weekly npm and GitHub Actions dependency updates.
+
+### Security
+
+- Added HTTP security response headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Strict-Transport-Security`) to the production nginx config.
+- Removed a duplicate Content-Security-Policy meta tag on the Impressum page; its stricter `script-src` was silently blocking the page's analytics script.
+
 ### Fixed
 
 - Sync documentation now matches current Online Mode behavior: failed PocketBase health probes disable "Go Online" and show the probed health URL.
