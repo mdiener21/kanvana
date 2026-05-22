@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - "Purge deleted tasks" button in App Settings — hard-removes all soft-deleted tasks from local storage and syncs deletions to PocketBase when online.
 - Settings UI now separates App-level settings from Board-level settings, making global preferences distinct from per-board configuration.
 - Sync: `pushBoardFull()` now branches on `softDeleteEnabled` — in soft-delete mode it enqueues PocketBase cleanup intents via a pending hard-delete queue; in permanent mode it removes tasks immediately.
+- CI now includes a Semgrep security scan (`p/security-audit` and `p/secrets`) and blocks deploy jobs until the scan passes.
 
 ### Fixed
 
