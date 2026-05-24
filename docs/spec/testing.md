@@ -19,6 +19,12 @@ The canonical folder and naming conventions live in `docs/testing-strategy.md`.
 - `npm run test:debug` - run Playwright debug mode
 - `npm run test:overview` - regenerate `tests/TEST-OVERVIEW.md` from test source
 
+## CI Security Gate for Deploy
+
+- `.github/workflows/ci.yml` runs a Semgrep security scan (`p/security-audit` and `p/secrets`) on each push and pull request.
+- Deploy jobs (`ftp-deploy`, `pages-deploy`, `docker-push`) run only after the Semgrep scan passes on push events.
+- Semgrep SARIF output is uploaded to GitHub Code Scanning for centralized security findings visibility.
+
 ## IDB Unit Test Setup
 
 Storage tests are split across two files:
