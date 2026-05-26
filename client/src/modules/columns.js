@@ -1,7 +1,6 @@
 import { generateUUID } from './utils.js';
-import { appendBoardEvent, getActiveBoardId, isDoneColumnId, loadColumns, loadDeletedColumnsForBoard, loadDeletedTasksForBoard, saveColumns, loadTasks, saveTasks } from './storage.js';
+import { getActiveBoardId, isDoneColumnId, loadColumns, loadDeletedColumnsForBoard, loadDeletedTasksForBoard, saveColumns, loadTasks, saveTasks } from './storage.js';
 import { normalizeHexColor } from './normalize.js';
-import { DEFAULT_HUMAN_ACTOR, createActivityEvent } from './activity-log.js';
 import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 
 // Add a new column
@@ -13,10 +12,6 @@ export function addColumn(name, color) {
   const id = generateUUID();
   const newColumn = { id, name: name.trim(), color: normalizeHexColor(color), order: maxOrder - 1, collapsed: false };
   columns.push(newColumn);
-  appendBoardEvent(getActiveBoardId(), createActivityEvent('column.created', {
-    columnId: newColumn.id,
-    columnName: newColumn.name
-  }, DEFAULT_HUMAN_ACTOR));
   saveColumns(columns);
   scheduleDomainEvent({
     type: 'column.created',
@@ -50,11 +45,6 @@ export function updateColumn(columnId, name, color) {
     columns[columnIndex].name = name.trim();
     columns[columnIndex].color = normalizeHexColor(color);
     if (previousName !== columns[columnIndex].name) {
-      appendBoardEvent(getActiveBoardId(), createActivityEvent('column.renamed', {
-        columnId,
-        from: previousName,
-        to: columns[columnIndex].name
-      }, DEFAULT_HUMAN_ACTOR));
     }
     saveColumns(columns);
     scheduleDomainEvent({
@@ -100,18 +90,7 @@ export function deleteColumn(columnId) {
   );
   saveColumns(updatedColumns);
 
-  appendBoardEvent(boardId, createActivityEvent('column.deleted', {
-    columnName,
-    tasksDestroyed: tasksInColumn.length
-  }, DEFAULT_HUMAN_ACTOR));
-
   tasksInColumn.forEach((task) => {
-    appendBoardEvent(boardId, createActivityEvent('task.deleted', {
-      taskId: task.id,
-      taskTitle: task.title,
-      column: task.column,
-      columnName
-    }, DEFAULT_HUMAN_ACTOR));
     scheduleDomainEvent({
       type: 'task.deleted',
       boardId,
@@ -153,7 +132,6 @@ export function updateColumnPositions() {
   // Emit a single event only when at least one column moved; details {} kept
   // minimal as the PRD does not specify a bulk payload shape.
   if (anyMoved) {
-    appendBoardEvent(getActiveBoardId(), createActivityEvent('column.reordered', {}, DEFAULT_HUMAN_ACTOR));
     scheduleDomainEvent({
       type: 'column.reordered',
       boardId: getActiveBoardId(),

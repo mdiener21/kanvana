@@ -1,13 +1,13 @@
 import { generateUUID } from './utils.js';
-import { normalizePriority as sharedNormalizePriority, isHexColor, defaultColumnColor, normalizeStringKeys, normalizeRelationships, normalizeSubTasks, normalizeActivityLog } from './normalize.js';
+import { normalizePriority as sharedNormalizePriority, isHexColor, defaultColumnColor, normalizeStringKeys, normalizeRelationships, normalizeSubTasks } from './normalize.js';
 import { DONE_COLUMN_ID, DONE_COLUMN_ROLE, isDoneColumn } from './constants.js';
-import { openStore, KV_STORE, READ_MODEL_STORE, schedulePersist, scheduleDelete, scheduleReadModelPersist, scheduleReadModelDelete, keyFor, readModelKeyFor, getBoardEventsKey, _flushPersistsForTesting as _flushIdbPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
+import { openStore, KV_STORE, READ_MODEL_STORE, schedulePersist, scheduleDelete, scheduleReadModelPersist, scheduleReadModelDelete, keyFor, readModelKeyFor, _flushPersistsForTesting as _flushIdbPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
 // Re-export IDB helpers that tests import from this module for backward compatibility.
-export { getBoardEventsKey } from './idb-store.js';
 import { normalizeBoardModelIds } from './board-serializer.js';
 import { createPendingHardDelete } from './schema.js';
 import { initHlc } from './event-sourcing/hlc.js';
 import { _flushDomainEventsForTesting, scheduleDomainEvent } from './event-sourcing/emitter.js';
+import { checkAndScheduleSnapshot, GLOBAL_SNAPSHOT_KEY, _resetSnapshotSchedulerForTesting } from './event-sourcing/snapshot.js';
 import { DATA_CHANGED, EVENT_EMITTED, emit, off, on } from './events.js';
 import { applyEvent, createProjectionState } from './reducer.js';
 
@@ -39,8 +39,7 @@ const state = {
   labels: {},   // { [boardId]: label[] | null }
   settings: {},  // { [boardId]: object | null }
   globalSettings: null,
-  pendingHardDeletes: null,
-  boardEvents: {} // { [boardId]: event[] | null }
+  pendingHardDeletes: null
 };
 
 // Per-board default-task cache (keeps defaults stable within a session).
@@ -408,7 +407,6 @@ export async function initStorage() {
     state.columns[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'columns'))) ?? null;
     state.labels[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'labels'))) ?? null;
     state.settings[board.id] = (await db.get(KV_STORE, keyFor(board.id, 'settings'))) ?? null;
-    state.boardEvents[board.id] = (await db.get(KV_STORE, getBoardEventsKey(board.id))) ?? null;
   }
 
   // Non-blocking quota warning at 80%.
@@ -445,6 +443,7 @@ function projectDomainEvent(event) {
     const projected = applyEvent(createProjectionState({ globalSettings: loadGlobalSettings() }), event);
     state.globalSettings = projected.globalSettings;
     schedulePersist(GLOBAL_SETTINGS_KEY, state.globalSettings);
+    checkAndScheduleSnapshot(GLOBAL_SNAPSHOT_KEY, projected, event.hlc);
     emit(DATA_CHANGED, { event });
     return;
   }
@@ -471,6 +470,7 @@ function projectDomainEvent(event) {
   scheduleReadModelPersist(boardId, 'columns', projected.columns);
   scheduleReadModelPersist(boardId, 'labels', projected.labels);
   schedulePersist(keyFor(boardId, 'settings'), projected.settings);
+  checkAndScheduleSnapshot(boardId, projected, event.hlc);
   emit(DATA_CHANGED, { event });
 }
 
@@ -489,12 +489,12 @@ export function _resetStorageForTesting() {
   for (const k in state.settings) delete state.settings[k];
   state.globalSettings = null;
   state.pendingHardDeletes = null;
-  for (const k in state.boardEvents) delete state.boardEvents[k];
   taskCacheByBoard.clear();
   appliedDomainEventIds.clear();
   if (domainEventProjectionHandler) off(EVENT_EMITTED, domainEventProjectionHandler);
   domainEventProjectionHandler = null;
   domainEventProjectionRegistered = false;
+  _resetSnapshotSchedulerForTesting();
 }
 
 // ── Boards ─────────────────────────────────────────────────────────────────────
@@ -643,7 +643,6 @@ export function deleteBoard(boardId) {
   delete state.columns[id];
   delete state.labels[id];
   delete state.settings[id];
-  delete state.boardEvents[id];
   taskCacheByBoard.delete(id);
 
   // Remove from IDB
@@ -651,7 +650,6 @@ export function deleteBoard(boardId) {
   scheduleReadModelDelete(id, 'columns');
   scheduleReadModelDelete(id, 'labels');
   scheduleDelete(keyFor(id, 'settings'));
-  scheduleDelete(getBoardEventsKey(id));
 
   if (state.activeBoardId === id) {
     state.activeBoardId = remaining[0].id;
@@ -810,12 +808,6 @@ export function loadTasks() {
         didChange = true;
       }
 
-      const nextActivityLog = normalizeActivityLog(task.activityLog);
-      if (JSON.stringify(task.activityLog) !== JSON.stringify(nextActivityLog)) {
-        task.activityLog = nextActivityLog;
-        didChange = true;
-      }
-
       return task;
     });
 
@@ -846,8 +838,7 @@ export function saveTasks(tasks) {
   ensureBoardsInitialized();
   const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
   const normalized = (Array.isArray(tasks) ? tasks : []).map((task) => ({
-    ...task,
-    activityLog: normalizeActivityLog(task?.activityLog)
+    ...task
   }));
   state.tasks[boardId] = normalized;
   taskCacheByBoard.set(boardId, normalized);
@@ -1008,27 +999,6 @@ export function clearPendingHardDeleteEntry(localTaskId) {
   schedulePersist(PENDING_HARD_DELETES_KEY, next);
 }
 
-// ── Board events ───────────────────────────────────────────────────────────────
-
-export function loadBoardEvents(boardId) {
-  const id = typeof boardId === 'string' ? boardId : '';
-  if (!id) return [];
-  return normalizeActivityLog(safeParseArray(state.boardEvents[id]) || []);
-}
-
-export function saveBoardEvents(boardId, events) {
-  const id = typeof boardId === 'string' ? boardId : '';
-  if (!id) return;
-  const normalized = normalizeActivityLog(events);
-  state.boardEvents[id] = normalized;
-  schedulePersist(getBoardEventsKey(id), normalized);
-}
-
-export function appendBoardEvent(boardId, event) {
-  const events = loadBoardEvents(boardId);
-  saveBoardEvents(boardId, [...events, event]);
-}
-
 // ── Cross-board read helpers (used by exportBoard in importexport.js) ──────────
 
 export function loadTasksForBoard(boardId) {
@@ -1096,7 +1066,6 @@ export function saveColumnsForBoard(boardId, columns) {
 export function saveTasksForBoard(boardId, tasks) {
   const normalized = (Array.isArray(tasks) ? tasks : []).map((task) => ({
     ...task,
-    activityLog: normalizeActivityLog(task?.activityLog),
   }));
   state.tasks[boardId] = normalized;
   taskCacheByBoard.set(boardId, normalized);

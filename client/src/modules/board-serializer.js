@@ -7,7 +7,6 @@ import {
   isHexColor,
   defaultColumnColor,
   normalizeRelationships,
-  normalizeActivityLog,
   normalizeStringKeys,
 } from './normalize.js';
 
@@ -138,7 +137,6 @@ export function normalizeBoardModelIds({ board = null, columns = [], tasks = [],
       column,
       labels,
       relationships,
-      activityLog: normalizeActivityLog(source.activityLog),
       ...(columnHistory && columnHistory.length ? { columnHistory } : {}),
       ...(swimlaneLabelId ? { swimlaneLabelId } : (Object.prototype.hasOwnProperty.call(source, 'swimlaneLabelId') ? { swimlaneLabelId: '' } : {}))
     };

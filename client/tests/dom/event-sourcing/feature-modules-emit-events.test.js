@@ -1,7 +1,7 @@
 import { beforeEach, expect, test } from 'vitest';
 import { deleteDB } from 'idb';
 import { EVENT_EMITTED, on, off } from '../../../src/modules/events.js';
-import { createBoard, initStorage, saveColumns, saveTasks, _resetStorageForTesting } from '../../../src/modules/storage.js';
+import { createBoard, initStorage, saveColumns, saveTasks, _flushPersistsForTesting, _resetStorageForTesting } from '../../../src/modules/storage.js';
 import { addColumn } from '../../../src/modules/columns.js';
 import { addLabel, deleteLabel } from '../../../src/modules/labels.js';
 import { deleteTask, updateTask } from '../../../src/modules/tasks.js';
@@ -13,7 +13,7 @@ beforeEach(async () => {
   await deleteDB(DB_NAME);
   await initStorage();
   createBoard('Events');
-  await settleEvents();
+  await _flushPersistsForTesting();
 });
 
 function settleEvents() {
@@ -25,7 +25,7 @@ async function collectEvents(action) {
   const handler = (customEvent) => events.push(customEvent.detail);
   on(EVENT_EMITTED, handler);
   action();
-  await settleEvents();
+  await _flushPersistsForTesting();
   off(EVENT_EMITTED, handler);
   return events;
 }
@@ -77,7 +77,7 @@ test('addColumn emits column.created with the created column payload', async () 
 });
 
 test('label mutations emit label entity and task membership events', async () => {
-  saveTasks([{ id: 'task-a', title: 'Task', column: 'todo', labels: [], activityLog: [] }]);
+  saveTasks([{ id: 'task-a', title: 'Task', column: 'todo', labels: [] }]);
 
   const addEvents = await collectEvents(() => {
     addLabel('Bug', '#ff0000', 'Type');
@@ -120,7 +120,7 @@ test('updateTask emits collection-op and move events for non-scalar changes', as
 });
 
 test('deleteTask emits task.deleted', async () => {
-  saveTasks([{ id: 'task-a', title: 'Task', column: 'todo', labels: [], activityLog: [] }]);
+  saveTasks([{ id: 'task-a', title: 'Task', column: 'todo', labels: [] }]);
 
   const events = await collectEvents(() => {
     deleteTask('task-a');

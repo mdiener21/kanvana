@@ -4,7 +4,6 @@ import {
   loadTasksForBoard,
   loadLabelsForBoard,
   loadSettingsForBoard,
-  loadBoardEvents,
   loadDeletedColumnsForBoard,
   loadDeletedTasksForBoard,
   loadDeletedLabelsForBoard,
@@ -16,7 +15,6 @@ import {
   saveTasksForBoard,
   saveLabelsForBoard,
   saveSettingsForBoard,
-  saveBoardEvents,
   getBoardById,
   setActiveBoardId,
   getActiveBoardId,
@@ -144,7 +142,6 @@ export async function pushBoardFull(boardId) {
   const tasks = loadTasksForBoard(boardId);
   const labels = loadLabelsForBoard(boardId);
   const settings = loadSettingsForBoard(boardId);
-  const boardEvents = loadBoardEvents(boardId);
   const deletedColumns = loadDeletedColumnsForBoard(boardId);
   const deletedTasks = loadDeletedTasksForBoard(boardId);
   const deletedLabels = loadDeletedLabelsForBoard(boardId);
@@ -250,43 +247,6 @@ export async function pushBoardFull(boardId) {
     }
   }
 
-  // ── Events ─────────────────────────────────────────────────────────────────
-  // Events are append-only; skip entries without an id (pre-schema entries).
-
-  for (const task of tasks) {
-    const taskPbId = getPbId(syncMap, 'tasks', task.id);
-    if (!taskPbId) continue;
-    for (const entry of (task.activityLog || [])) {
-      if (!entry.id) continue;
-      await upsertRecord('events', syncMap, 'events', entry.id, {
-        owner: userId,
-        board: boardPbId,
-        task: taskPbId,
-        event_type: entry.type,
-        at: entry.at,
-        actor_type: entry.actor?.type || 'human',
-        actor_id: entry.actor?.id || '',
-        details: entry.details || {},
-        local_id: entry.id,
-      });
-    }
-  }
-
-  for (const entry of boardEvents) {
-    if (!entry.id) continue;
-    await upsertRecord('events', syncMap, 'events', entry.id, {
-      owner: userId,
-      board: boardPbId,
-      task: null,
-      event_type: entry.type,
-      at: entry.at,
-      actor_type: entry.actor?.type || 'human',
-      actor_id: entry.actor?.id || '',
-      details: entry.details || {},
-      local_id: entry.id,
-    });
-  }
-
   // ── Hard-deletes ───────────────────────────────────────────────────────────
 
   if (softDeleteEnabled) {
@@ -370,18 +330,13 @@ export async function deleteBoardRemote(boardId) {
   const columns = [...loadColumnsForBoard(boardId), ...loadDeletedColumnsForBoard(boardId)];
   const labels = [...loadLabelsForBoard(boardId), ...loadDeletedLabelsForBoard(boardId)];
   const tasks = [...loadTasksForBoard(boardId), ...loadDeletedTasksForBoard(boardId)];
-  const boardEvents = loadBoardEvents(boardId);
 
   const taskIds = new Set(tasks.map((task) => task.id).filter(Boolean));
   const relationshipIds = new Set();
-  const eventIds = new Set(boardEvents.map((entry) => entry.id).filter(Boolean));
 
   for (const task of tasks) {
     for (const rel of (task.relationships || [])) {
       if (rel?.targetTaskId) relationshipIds.add(`${task.id}::${rel.targetTaskId}`);
-    }
-    for (const entry of (task.activityLog || [])) {
-      if (entry?.id) eventIds.add(entry.id);
     }
   }
 
@@ -392,9 +347,6 @@ export async function deleteBoardRemote(boardId) {
 
   for (const localId of relationshipIds) {
     await deleteMappedRecord('task_relationships', syncMap, 'task_relationships', localId);
-  }
-  for (const localId of eventIds) {
-    await deleteMappedRecord('events', syncMap, 'events', localId);
   }
   for (const task of tasks) {
     await deleteMappedRecord('tasks', syncMap, 'tasks', task.id);
@@ -499,30 +451,6 @@ export async function pullAllBoards() {
       taskRelationships[taskLocalId].push({ type: rel.relationship_type, targetTaskId: targetLocalId });
     }
 
-    // ── Events: split into task-scoped and board-scoped ───────────────────
-
-    const taskActivityLogs = {};
-    const pulledBoardEvents = [];
-    for (const evtRec of eventRecs) {
-      setPbId(syncMap, 'events', evtRec.local_id, evtRec.id);
-      const entry = {
-        id: evtRec.local_id,
-        type: evtRec.event_type,
-        at: evtRec.at,
-        actor: { type: evtRec.actor_type, id: evtRec.actor_id || null },
-        details: evtRec.details || {},
-      };
-      if (evtRec.task) {
-        const taskLocalId = taskPbToLocal[evtRec.task];
-        if (taskLocalId) {
-          if (!taskActivityLogs[taskLocalId]) taskActivityLogs[taskLocalId] = [];
-          taskActivityLogs[taskLocalId].push(entry);
-        }
-      } else {
-        pulledBoardEvents.push(entry);
-      }
-    }
-
     // ── Reconstruct local domain objects ──────────────────────────────────
 
     const localColumns = columnRecs.map(col => ({
@@ -562,7 +490,6 @@ export async function pullAllBoards() {
         swimlaneLabelId: t.swimlane_label_id || '',
         deleted: t.deleted || false,
         relationships: taskRelationships[localId] || [],
-        activityLog: taskActivityLogs[localId] || [],
       };
     });
 
@@ -570,7 +497,6 @@ export async function pullAllBoards() {
     saveTasksForBoard(boardLocalId, localTasks);
     saveLabelsForBoard(boardLocalId, localLabels);
     saveSettingsForBoard(boardLocalId, boardRec.settings || {});
-    saveBoardEvents(boardLocalId, pulledBoardEvents);
 
     localBoards.push({ id: boardLocalId, name: boardRec.name });
   }

@@ -1,6 +1,5 @@
 import { generateUUID } from './utils.js';
 import { getActiveBoardId, loadDeletedLabelsForBoard, loadLabels, saveLabels, loadTasks, saveTasks } from './storage.js';
-import { DEFAULT_HUMAN_ACTOR, appendTaskActivity, createActivityEvent } from './activity-log.js';
 import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 
 const MAX_LABEL_NAME_LENGTH = 40;
@@ -118,14 +117,10 @@ export function deleteLabel(labelId) {
   const allTasks = [...liveTasks, ...[]]; // live only — deleted tasks don't need label cleanup
   const updatedTasks = allTasks.map(task => {
     if (task.labels?.includes(labelId)) {
-      const updatedTask = {
+      return {
         ...task,
         labels: task.labels.filter(id => id !== labelId)
       };
-      return appendTaskActivity(updatedTask, createActivityEvent('task.label_removed', {
-        labelId,
-        labelName: label?.name || ''
-      }, DEFAULT_HUMAN_ACTOR));
     }
     return task;
   });

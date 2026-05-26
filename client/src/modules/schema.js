@@ -13,8 +13,6 @@ function nowIso() {
 
 export const RELATIONSHIP_TYPES = ['prerequisite', 'dependent', 'related'];
 
-export const ACTIVITY_ACTOR_TYPES = ['human', 'agent', 'user'];
-
 // ── Task ───────────────────────────────────────────────────────────────────────
 
 /**
@@ -22,7 +20,6 @@ export const ACTIVITY_ACTOR_TYPES = ['human', 'agent', 'user'];
  *
  * Stored flat per-board in IndexedDB; synced to PocketBase tasks collection.
  * `relationships` syncs to the task_relationships collection.
- * `activityLog` syncs to the events collection (task-scoped entries).
  *
  * @param {object} overrides
  * @returns {Task}
@@ -45,7 +42,6 @@ export function createTask(overrides = {}) {
     columnHistory: [{ column: '', at: now }],
     relationships: [],
     subTasks: [],
-    activityLog: [],
     swimlaneLabelId: '',
     deleted: false,
     ...overrides,

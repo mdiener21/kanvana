@@ -41,21 +41,12 @@ import {
   loadColumnsForBoard,
   loadLabelsForBoard,
   loadSettingsForBoard,
-  appendBoardEvent,
-  loadBoardEvents,
-  saveBoardEvents,
-  getBoardEventsKey,
 } from '../../src/modules/storage.js';
 import { openStore } from '../../src/modules/idb-store.js';
 import { emitDomainEvent } from '../../src/modules/event-sourcing/emitter.js';
-import { DEFAULT_HUMAN_ACTOR, createActivityEvent } from '../../src/modules/activity-log.js';
 
 const DB_NAME = 'kanvana-db';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-test('getBoardEventsKey returns the board event key shape from the PRD', () => {
-  expect(getBoardEventsKey('board-1')).toBe('events:board-1');
-});
 
 beforeEach(async () => {
   // Reset in-memory state (also closes DB connection so deleteDB is not blocked).
@@ -123,38 +114,6 @@ test('emitted task.updated events project into task read model', async () => {
 
   const db = await openStore();
   expect((await db.get('read_model', `${boardId}:tasks`))[0].title).toBe('After');
-});
-
-test('loadTasks normalizes missing and malformed task activity logs to empty arrays', async () => {
-  await initStorage();
-  ensureBoardsInitialized();
-  saveTasks([
-    { id: 't1', title: 'Missing log', column: 'todo', priority: 'none', order: 1 },
-    { id: 't2', title: 'Malformed log', column: 'todo', priority: 'none', order: 2, activityLog: 'bad' }
-  ]);
-
-  await _flushPersistsForTesting();
-  const boardId = getActiveBoardId();
-  _resetStorageForTesting();
-
-  await initStorage();
-  setActiveBoardId(boardId);
-  expect(loadTasks().map((task) => task.activityLog)).toEqual([[], []]);
-});
-
-test('saveTasks normalizes task activity logs before persisting', async () => {
-  await initStorage();
-  ensureBoardsInitialized();
-  const boardId = getActiveBoardId();
-  saveTasks([{ id: 't1', title: 'Malformed log', column: 'todo', priority: 'none', order: 1, activityLog: 'bad' }]);
-
-  expect(loadTasksForBoard(boardId)[0].activityLog).toEqual([]);
-
-  await _flushPersistsForTesting();
-  _resetStorageForTesting();
-
-  await initStorage();
-  expect(loadTasksForBoard(boardId)[0].activityLog).toEqual([]);
 });
 
 test('saveColumns persists to IDB and survives a session reset', async () => {
@@ -245,36 +204,6 @@ test('pending hard deletes persist to IDB and survive a session reset', async ()
   expect(getPendingHardDeletes()).toEqual([]);
 });
 
-test('appendBoardEvent persists board events and survives a session reset', async () => {
-  await initStorage();
-  ensureBoardsInitialized();
-  const boardId = getActiveBoardId();
-  const event = createActivityEvent('column.created', { columnId: 'column-1' }, DEFAULT_HUMAN_ACTOR, '2026-05-01T00:00:00.000Z');
-
-  appendBoardEvent(boardId, event);
-
-  await _flushPersistsForTesting();
-  _resetStorageForTesting();
-
-  await initStorage();
-  expect(loadBoardEvents(boardId)).toEqual([event]);
-});
-
-test('saveBoardEvents persists board events and survives a session reset', async () => {
-  await initStorage();
-  ensureBoardsInitialized();
-  const boardId = getActiveBoardId();
-  const event = createActivityEvent('column.created', { columnId: 'column-1' }, DEFAULT_HUMAN_ACTOR, '2026-05-01T00:00:00.000Z');
-
-  saveBoardEvents(boardId, [event]);
-
-  await _flushPersistsForTesting();
-  _resetStorageForTesting();
-
-  await initStorage();
-  expect(loadBoardEvents(boardId)).toEqual([event]);
-});
-
 test('createBoard persists board list and per-board defaults across sessions', async () => {
   await initStorage();
   ensureBoardsInitialized();
@@ -325,25 +254,6 @@ test('deleteBoard removes per-board data from IDB', async () => {
   // Board-scoped helpers should return empty arrays for the deleted board.
   expect(loadTasksForBoard(other.id)).toEqual([]);
   expect(loadColumnsForBoard(other.id)).toEqual([]);
-});
-
-test('deleteBoard removes board event data from IDB', async () => {
-  await initStorage();
-  ensureBoardsInitialized();
-  const defaultId = getActiveBoardId();
-  const other = createBoard('Doomed events');
-  const event = createActivityEvent('column.created', { columnId: 'column-1' }, DEFAULT_HUMAN_ACTOR, '2026-05-01T00:00:00.000Z');
-  appendBoardEvent(other.id, event);
-
-  await _flushPersistsForTesting();
-
-  setActiveBoardId(defaultId);
-  deleteBoard(other.id);
-  await _flushPersistsForTesting();
-
-  const db = await openDB(DB_NAME, 2);
-  expect(await db.get('kv', getBoardEventsKey(other.id))).toBeUndefined();
-  db.close();
 });
 
 test('v2 migration rehomes board read models and removes legacy kv keys', async () => {

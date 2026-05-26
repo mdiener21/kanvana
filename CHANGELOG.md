@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Event-sourced sync foundation: HLC module with persisted node IDs and IndexedDB v2 stores for events, snapshots, and reducer read models.
 - Event-sourced reducer foundation with idempotent handlers for task, label, column, board, settings, subtask, and relationship events; feature modules now emit persisted domain events while keeping offline behavior intact.
+- Snapshot module with local GC: periodic board snapshots written to IndexedDB; old events pruned after each snapshot; configurable snapshot interval.
+
+### Removed
+
+- Activity log feature retired: `activity.html`, `activity-log.js`, `activity-log-ui.js`, and `activity.js` removed; navigation links and all write-paths cleaned from tasks, columns, labels, storage, import/export, and sync modules.
+- ADR-0001 (dual-log audit trail) superseded by ADR-0004 (domain-event stream).
 - Online Mode PocketBase sync PRD documenting the current Go Online, auth, manual sync, auto-sync, and no-merge V1 contract.
 - Global "Soft-delete tasks" toggle in App Settings — choose between permanent deletion (default) and soft-delete mode where deleted tasks are hidden until explicitly purged.
 - "Purge deleted tasks" button in App Settings — hard-removes all soft-deleted tasks from local storage and syncs deletions to PocketBase when online.
