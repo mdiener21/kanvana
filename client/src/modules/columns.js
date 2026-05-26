@@ -2,6 +2,7 @@ import { generateUUID } from './utils.js';
 import { appendBoardEvent, getActiveBoardId, isDoneColumnId, loadColumns, loadDeletedColumnsForBoard, loadDeletedTasksForBoard, saveColumns, loadTasks, saveTasks } from './storage.js';
 import { normalizeHexColor } from './normalize.js';
 import { DEFAULT_HUMAN_ACTOR, createActivityEvent } from './activity-log.js';
+import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 
 // Add a new column
 export function addColumn(name, color) {
@@ -17,6 +18,12 @@ export function addColumn(name, color) {
     columnName: newColumn.name
   }, DEFAULT_HUMAN_ACTOR));
   saveColumns(columns);
+  scheduleDomainEvent({
+    type: 'column.created',
+    boardId: getActiveBoardId(),
+    entityId: newColumn.id,
+    payload: { column: newColumn }
+  });
 }
 
 export function toggleColumnCollapsed(columnId) {
@@ -50,6 +57,12 @@ export function updateColumn(columnId, name, color) {
       }, DEFAULT_HUMAN_ACTOR));
     }
     saveColumns(columns);
+    scheduleDomainEvent({
+      type: 'column.updated',
+      boardId: getActiveBoardId(),
+      entityId: columnId,
+      payload: { fields: { name: columns[columnIndex].name, color: columns[columnIndex].color } }
+    });
   }
 }
 
@@ -99,8 +112,20 @@ export function deleteColumn(columnId) {
       column: task.column,
       columnName
     }, DEFAULT_HUMAN_ACTOR));
+    scheduleDomainEvent({
+      type: 'task.deleted',
+      boardId,
+      entityId: task.id,
+      payload: { column: task.column }
+    });
   });
 
+  scheduleDomainEvent({
+    type: 'column.deleted',
+    boardId,
+    entityId: columnId,
+    payload: { tasksDestroyed: tasksInColumn.length }
+  });
   return true;
 }
 
@@ -129,5 +154,11 @@ export function updateColumnPositions() {
   // minimal as the PRD does not specify a bulk payload shape.
   if (anyMoved) {
     appendBoardEvent(getActiveBoardId(), createActivityEvent('column.reordered', {}, DEFAULT_HUMAN_ACTOR));
+    scheduleDomainEvent({
+      type: 'column.reordered',
+      boardId: getActiveBoardId(),
+      entityId: '',
+      payload: { order: columns.map((column) => ({ id: column.id, order: column.order })) }
+    });
   }
 }

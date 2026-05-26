@@ -1,11 +1,15 @@
 import { generateUUID } from './utils.js';
 import { normalizePriority as sharedNormalizePriority, isHexColor, defaultColumnColor, normalizeStringKeys, normalizeRelationships, normalizeSubTasks, normalizeActivityLog } from './normalize.js';
 import { DONE_COLUMN_ID, DONE_COLUMN_ROLE, isDoneColumn } from './constants.js';
-import { openStore, KV_STORE, schedulePersist, scheduleDelete, keyFor, getBoardEventsKey, _flushPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
+import { openStore, KV_STORE, READ_MODEL_STORE, schedulePersist, scheduleDelete, scheduleReadModelPersist, scheduleReadModelDelete, keyFor, readModelKeyFor, getBoardEventsKey, _flushPersistsForTesting as _flushIdbPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
 // Re-export IDB helpers that tests import from this module for backward compatibility.
-export { getBoardEventsKey, _flushPersistsForTesting } from './idb-store.js';
+export { getBoardEventsKey } from './idb-store.js';
 import { normalizeBoardModelIds } from './board-serializer.js';
 import { createPendingHardDelete } from './schema.js';
+import { initHlc } from './event-sourcing/hlc.js';
+import { _flushDomainEventsForTesting, scheduleDomainEvent } from './event-sourcing/emitter.js';
+import { DATA_CHANGED, EVENT_EMITTED, emit, off, on } from './events.js';
+import { applyEvent, createProjectionState } from './reducer.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -41,6 +45,9 @@ const state = {
 
 // Per-board default-task cache (keeps defaults stable within a session).
 const taskCacheByBoard = new Map();
+const appliedDomainEventIds = new Set();
+let domainEventProjectionRegistered = false;
+let domainEventProjectionHandler = null;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -55,33 +62,39 @@ async function normalizeIdbState(db) {
   const rawActiveId = await db.get(KV_STORE, ACTIVE_BOARD_KEY);
   const nextBoards = [];
   const activeIdMap = new Map();
-  const tx = db.transaction(KV_STORE, 'readwrite');
+  const tx = db.transaction([KV_STORE, READ_MODEL_STORE], 'readwrite');
   const store = tx.objectStore(KV_STORE);
+  const readModel = tx.objectStore(READ_MODEL_STORE);
 
   for (const rawBoard of rawBoards) {
     if (!rawBoard || typeof rawBoard !== 'object') continue;
     const oldBoardId = typeof rawBoard.id === 'string' ? rawBoard.id.trim() : '';
     const normalized = normalizeBoardModelIds({
       board: rawBoard,
-      tasks: safeParseArray(await store.get(keyFor(oldBoardId, 'tasks'))) || [],
-      columns: safeParseArray(await store.get(keyFor(oldBoardId, 'columns'))) || legacyDefaultColumns(),
-      labels: safeParseArray(await store.get(keyFor(oldBoardId, 'labels'))) || [],
+      tasks: safeParseArray(await readModel.get(readModelKeyFor(oldBoardId, 'tasks')) ?? await store.get(keyFor(oldBoardId, 'tasks'))) || [],
+      columns: safeParseArray(await readModel.get(readModelKeyFor(oldBoardId, 'columns')) ?? await store.get(keyFor(oldBoardId, 'columns'))) || legacyDefaultColumns(),
+      labels: safeParseArray(await readModel.get(readModelKeyFor(oldBoardId, 'labels')) ?? await store.get(keyFor(oldBoardId, 'labels'))) || [],
       settings: safeParseObject(await store.get(keyFor(oldBoardId, 'settings'))) || defaultSettings()
     });
 
     const newBoardId = normalized.board.id;
     activeIdMap.set(oldBoardId, newBoardId);
     nextBoards.push(normalized.board);
-    await store.put(normalized.tasks, keyFor(newBoardId, 'tasks'));
-    await store.put(normalized.columns, keyFor(newBoardId, 'columns'));
-    await store.put(normalized.labels, keyFor(newBoardId, 'labels'));
+    await readModel.put(normalized.tasks, readModelKeyFor(newBoardId, 'tasks'));
+    await readModel.put(normalized.columns, readModelKeyFor(newBoardId, 'columns'));
+    await readModel.put(normalized.labels, readModelKeyFor(newBoardId, 'labels'));
     await store.put(normalized.settings, keyFor(newBoardId, 'settings'));
 
     if (oldBoardId && oldBoardId !== newBoardId) {
+      await readModel.delete(readModelKeyFor(oldBoardId, 'tasks'));
+      await readModel.delete(readModelKeyFor(oldBoardId, 'columns'));
+      await readModel.delete(readModelKeyFor(oldBoardId, 'labels'));
+      await store.delete(keyFor(oldBoardId, 'settings'));
+    }
+    if (oldBoardId) {
       await store.delete(keyFor(oldBoardId, 'tasks'));
       await store.delete(keyFor(oldBoardId, 'columns'));
       await store.delete(keyFor(oldBoardId, 'labels'));
-      await store.delete(keyFor(oldBoardId, 'settings'));
     }
   }
 
@@ -306,13 +319,14 @@ async function migrateFromLocalStorage(db) {
   if (!boards && (legacyColumns || legacyTasks || legacyLabels)) {
     // Oldest migration path: single-board localStorage → IDB default board
     boards = [{ id: DEFAULT_BOARD_ID, name: 'Default Board', createdAt: nowIso() }];
-    const tx = db.transaction(KV_STORE, 'readwrite');
+    const tx = db.transaction([KV_STORE, READ_MODEL_STORE], 'readwrite');
     const store = tx.objectStore(KV_STORE);
+    const readModel = tx.objectStore(READ_MODEL_STORE);
     await store.put(boards, BOARDS_KEY);
     await store.put(DEFAULT_BOARD_ID, ACTIVE_BOARD_KEY);
-    await store.put(legacyColumns || legacyDefaultColumns(), keyFor(DEFAULT_BOARD_ID, 'columns'));
-    await store.put(legacyTasks || defaultTasks(), keyFor(DEFAULT_BOARD_ID, 'tasks'));
-    await store.put(legacyLabels || defaultLabels(), keyFor(DEFAULT_BOARD_ID, 'labels'));
+    await readModel.put(legacyColumns || legacyDefaultColumns(), readModelKeyFor(DEFAULT_BOARD_ID, 'columns'));
+    await readModel.put(legacyTasks || defaultTasks(), readModelKeyFor(DEFAULT_BOARD_ID, 'tasks'));
+    await readModel.put(legacyLabels || defaultLabels(), readModelKeyFor(DEFAULT_BOARD_ID, 'labels'));
     await store.put(defaultSettings(), keyFor(DEFAULT_BOARD_ID, 'settings'));
     await tx.done;
 
@@ -327,8 +341,9 @@ async function migrateFromLocalStorage(db) {
   if (!boards) return;
 
   // Multi-board localStorage → IDB
-  const tx = db.transaction(KV_STORE, 'readwrite');
+  const tx = db.transaction([KV_STORE, READ_MODEL_STORE], 'readwrite');
   const store = tx.objectStore(KV_STORE);
+  const readModel = tx.objectStore(READ_MODEL_STORE);
 
   await store.put(boards, BOARDS_KEY);
   if (lsActiveId) await store.put(lsActiveId, ACTIVE_BOARD_KEY);
@@ -339,9 +354,9 @@ async function migrateFromLocalStorage(db) {
     const labels = safeParseArray(localStorage.getItem(keyFor(board.id, 'labels'))) || [];
     const settings = safeParseObject(localStorage.getItem(keyFor(board.id, 'settings')));
 
-    await store.put(tasks, keyFor(board.id, 'tasks'));
-    await store.put(columns, keyFor(board.id, 'columns'));
-    await store.put(labels, keyFor(board.id, 'labels'));
+    await readModel.put(tasks, readModelKeyFor(board.id, 'tasks'));
+    await readModel.put(columns, readModelKeyFor(board.id, 'columns'));
+    await readModel.put(labels, readModelKeyFor(board.id, 'labels'));
     if (settings) await store.put(settings, keyFor(board.id, 'settings'));
 
     localStorage.removeItem(keyFor(board.id, 'tasks'));
@@ -364,6 +379,8 @@ async function migrateFromLocalStorage(db) {
  */
 export async function initStorage() {
   const db = await openStore();
+  await initHlc();
+  registerDomainEventProjection();
 
   // Migrate from localStorage if IDB is empty but localStorage has data.
   const idbBoards = await db.get(KV_STORE, BOARDS_KEY);
@@ -387,9 +404,9 @@ export async function initStorage() {
   state.pendingHardDeletes = safeParseArray(await db.get(KV_STORE, PENDING_HARD_DELETES_KEY)) || [];
 
   for (const board of state.boards) {
-    state.tasks[board.id] = (await db.get(KV_STORE, keyFor(board.id, 'tasks'))) ?? null;
-    state.columns[board.id] = (await db.get(KV_STORE, keyFor(board.id, 'columns'))) ?? null;
-    state.labels[board.id] = (await db.get(KV_STORE, keyFor(board.id, 'labels'))) ?? null;
+    state.tasks[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'tasks'))) ?? null;
+    state.columns[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'columns'))) ?? null;
+    state.labels[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'labels'))) ?? null;
     state.settings[board.id] = (await db.get(KV_STORE, keyFor(board.id, 'settings'))) ?? null;
     state.boardEvents[board.id] = (await db.get(KV_STORE, getBoardEventsKey(board.id))) ?? null;
   }
@@ -404,6 +421,57 @@ export async function initStorage() {
       }
     }).catch(() => {});
   }
+}
+
+export async function _flushPersistsForTesting() {
+  await _flushDomainEventsForTesting();
+  await _flushIdbPersistsForTesting();
+}
+
+function registerDomainEventProjection() {
+  if (domainEventProjectionRegistered) return;
+  domainEventProjectionRegistered = true;
+  domainEventProjectionHandler = (event) => {
+    projectDomainEvent(event.detail);
+  };
+  on(EVENT_EMITTED, domainEventProjectionHandler);
+}
+
+function projectDomainEvent(event) {
+  if (!event?.id || appliedDomainEventIds.has(event.id)) return;
+  appliedDomainEventIds.add(event.id);
+
+  if (event.scope === 'global') {
+    const projected = applyEvent(createProjectionState({ globalSettings: loadGlobalSettings() }), event);
+    state.globalSettings = projected.globalSettings;
+    schedulePersist(GLOBAL_SETTINGS_KEY, state.globalSettings);
+    emit(DATA_CHANGED, { event });
+    return;
+  }
+
+  const boardId = event.board_id;
+  if (typeof boardId !== 'string' || !boardId) return;
+
+  const projected = applyEvent(createProjectionState({
+    boards: state.boards,
+    tasks: safeParseArray(state.tasks[boardId]) || [],
+    columns: safeParseArray(state.columns[boardId]) || [],
+    labels: safeParseArray(state.labels[boardId]) || [],
+    settings: safeParseObject(state.settings[boardId]) || {}
+  }), event);
+
+  state.boards = projected.boards;
+  state.tasks[boardId] = projected.tasks;
+  state.columns[boardId] = projected.columns;
+  state.labels[boardId] = projected.labels;
+  state.settings[boardId] = projected.settings;
+  taskCacheByBoard.set(boardId, projected.tasks);
+  schedulePersist(BOARDS_KEY, state.boards);
+  scheduleReadModelPersist(boardId, 'tasks', projected.tasks);
+  scheduleReadModelPersist(boardId, 'columns', projected.columns);
+  scheduleReadModelPersist(boardId, 'labels', projected.labels);
+  schedulePersist(keyFor(boardId, 'settings'), projected.settings);
+  emit(DATA_CHANGED, { event });
 }
 
 /**
@@ -423,6 +491,10 @@ export function _resetStorageForTesting() {
   state.pendingHardDeletes = null;
   for (const k in state.boardEvents) delete state.boardEvents[k];
   taskCacheByBoard.clear();
+  appliedDomainEventIds.clear();
+  if (domainEventProjectionHandler) off(EVENT_EMITTED, domainEventProjectionHandler);
+  domainEventProjectionHandler = null;
+  domainEventProjectionRegistered = false;
 }
 
 // ── Boards ─────────────────────────────────────────────────────────────────────
@@ -495,9 +567,9 @@ export function ensureBoardsInitialized() {
 
   schedulePersist(BOARDS_KEY, state.boards);
   schedulePersist(ACTIVE_BOARD_KEY, boardId);
-  schedulePersist(keyFor(boardId, 'columns'), state.columns[boardId]);
-  schedulePersist(keyFor(boardId, 'tasks'), state.tasks[boardId]);
-  schedulePersist(keyFor(boardId, 'labels'), state.labels[boardId]);
+  scheduleReadModelPersist(boardId, 'columns', state.columns[boardId]);
+  scheduleReadModelPersist(boardId, 'tasks', state.tasks[boardId]);
+  scheduleReadModelPersist(boardId, 'labels', state.labels[boardId]);
   schedulePersist(keyFor(boardId, 'settings'), state.settings[boardId]);
 }
 
@@ -517,13 +589,19 @@ export function createBoard(name) {
   state.labels[id] = defaults.labels;
   state.settings[id] = defaults.settings;
 
-  schedulePersist(keyFor(id, 'columns'), state.columns[id]);
-  schedulePersist(keyFor(id, 'tasks'), state.tasks[id]);
-  schedulePersist(keyFor(id, 'labels'), state.labels[id]);
+  scheduleReadModelPersist(id, 'columns', state.columns[id]);
+  scheduleReadModelPersist(id, 'tasks', state.tasks[id]);
+  scheduleReadModelPersist(id, 'labels', state.labels[id]);
   schedulePersist(keyFor(id, 'settings'), state.settings[id]);
 
   state.activeBoardId = id;
   schedulePersist(ACTIVE_BOARD_KEY, id);
+  scheduleDomainEvent({
+    type: 'board.created',
+    boardId: id,
+    entityId: id,
+    payload: { board }
+  });
 
   return board;
 }
@@ -539,6 +617,12 @@ export function renameBoard(boardId, newName) {
 
   const updated = boards.map((b) => (b.id === id ? { ...b, name } : b));
   saveBoards(updated);
+  scheduleDomainEvent({
+    type: 'board.updated',
+    boardId: id,
+    entityId: id,
+    payload: { fields: { name } }
+  });
   return true;
 }
 
@@ -563,9 +647,9 @@ export function deleteBoard(boardId) {
   taskCacheByBoard.delete(id);
 
   // Remove from IDB
-  scheduleDelete(keyFor(id, 'tasks'));
-  scheduleDelete(keyFor(id, 'columns'));
-  scheduleDelete(keyFor(id, 'labels'));
+  scheduleReadModelDelete(id, 'tasks');
+  scheduleReadModelDelete(id, 'columns');
+  scheduleReadModelDelete(id, 'labels');
   scheduleDelete(keyFor(id, 'settings'));
   scheduleDelete(getBoardEventsKey(id));
 
@@ -574,6 +658,12 @@ export function deleteBoard(boardId) {
     schedulePersist(ACTIVE_BOARD_KEY, remaining[0].id);
   }
 
+  scheduleDomainEvent({
+    type: 'board.deleted',
+    boardId: id,
+    entityId: id,
+    payload: {}
+  });
   return true;
 }
 
@@ -620,7 +710,7 @@ export function loadColumns() {
       const deleted = parsed.filter(c => c.deleted);
       const merged = [...normalized, ...deleted];
       state.columns[boardId] = merged;
-      schedulePersist(keyFor(boardId, 'columns'), merged);
+      scheduleReadModelPersist(boardId, 'columns', merged);
     }
     return normalized;
   }
@@ -631,7 +721,7 @@ export function saveColumns(columns) {
   ensureBoardsInitialized();
   const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
   state.columns[boardId] = columns;
-  schedulePersist(keyFor(boardId, 'columns'), columns);
+  scheduleReadModelPersist(boardId, 'columns', columns);
   emitLocalChange(boardId, 'column');
 }
 
@@ -731,7 +821,7 @@ export function loadTasks() {
 
     if (didChange) {
       state.tasks[boardId] = normalized;
-      schedulePersist(keyFor(boardId, 'tasks'), normalized);
+      scheduleReadModelPersist(boardId, 'tasks', normalized);
     }
 
     taskCacheByBoard.set(boardId, normalized);
@@ -761,7 +851,7 @@ export function saveTasks(tasks) {
   }));
   state.tasks[boardId] = normalized;
   taskCacheByBoard.set(boardId, normalized);
-  schedulePersist(keyFor(boardId, 'tasks'), normalized);
+  scheduleReadModelPersist(boardId, 'tasks', normalized);
   emitLocalChange(boardId, 'task');
 }
 
@@ -796,7 +886,7 @@ export function saveLabels(labels) {
   ensureBoardsInitialized();
   const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
   state.labels[boardId] = labels;
-  schedulePersist(keyFor(boardId, 'labels'), labels);
+  scheduleReadModelPersist(boardId, 'labels', labels);
   emitLocalChange(boardId, 'label');
 }
 
@@ -984,23 +1074,23 @@ export function purgeDeleted(boardId, { tasks = true, columns = true, labels = t
     const live = (safeParseArray(state.tasks[boardId]) || []).filter(t => !t.deleted);
     state.tasks[boardId] = live;
     taskCacheByBoard.set(boardId, live);
-    schedulePersist(keyFor(boardId, 'tasks'), live);
+    scheduleReadModelPersist(boardId, 'tasks', live);
   }
   if (columns && state.columns[boardId]) {
     const live = (safeParseArray(state.columns[boardId]) || []).filter(c => !c.deleted);
     state.columns[boardId] = live;
-    schedulePersist(keyFor(boardId, 'columns'), live);
+    scheduleReadModelPersist(boardId, 'columns', live);
   }
   if (labels && state.labels[boardId]) {
     const live = (safeParseArray(state.labels[boardId]) || []).filter(l => !l.deleted);
     state.labels[boardId] = live;
-    schedulePersist(keyFor(boardId, 'labels'), live);
+    scheduleReadModelPersist(boardId, 'labels', live);
   }
 }
 
 export function saveColumnsForBoard(boardId, columns) {
   state.columns[boardId] = Array.isArray(columns) ? columns : [];
-  schedulePersist(keyFor(boardId, 'columns'), state.columns[boardId]);
+  scheduleReadModelPersist(boardId, 'columns', state.columns[boardId]);
 }
 
 export function saveTasksForBoard(boardId, tasks) {
@@ -1010,12 +1100,12 @@ export function saveTasksForBoard(boardId, tasks) {
   }));
   state.tasks[boardId] = normalized;
   taskCacheByBoard.set(boardId, normalized);
-  schedulePersist(keyFor(boardId, 'tasks'), normalized);
+  scheduleReadModelPersist(boardId, 'tasks', normalized);
 }
 
 export function saveLabelsForBoard(boardId, labels) {
   state.labels[boardId] = Array.isArray(labels) ? labels : [];
-  schedulePersist(keyFor(boardId, 'labels'), state.labels[boardId]);
+  scheduleReadModelPersist(boardId, 'labels', state.labels[boardId]);
 }
 
 export function saveSettingsForBoard(boardId, settings) {

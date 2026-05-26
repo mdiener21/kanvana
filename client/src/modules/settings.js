@@ -1,9 +1,10 @@
-import { loadGlobalSettings, loadSettings, saveGlobalSettings, saveSettings, listBoards, loadDeletedTasksForBoard } from './storage.js';
+import { getActiveBoardId, loadGlobalSettings, loadSettings, saveGlobalSettings, saveSettings, listBoards, loadDeletedTasksForBoard } from './storage.js';
 import { runPurge } from './sync.js';
 import { setupModalCloseHandlers } from './modals.js';
 import { emit, DATA_CHANGED } from './events.js';
 import { confirmDialog } from './dialog.js';
 import { $id, h } from './dom.js';
+import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 
 function uniq(values) {
   const out = [];
@@ -46,11 +47,23 @@ function hideSettingsModal() {
 
 function applyAndRerender(next) {
   saveSettings(next);
+  scheduleDomainEvent({
+    type: 'settings.updated',
+    boardId: getActiveBoardId(),
+    entityId: getActiveBoardId() || '',
+    payload: { fields: next }
+  });
   emit(DATA_CHANGED);
 }
 
 function applyGlobalSettings(next) {
   saveGlobalSettings(next);
+  scheduleDomainEvent({
+    type: 'settings.updated',
+    scope: 'global',
+    entityId: 'global',
+    payload: { fields: next }
+  });
   emit(DATA_CHANGED);
 }
 

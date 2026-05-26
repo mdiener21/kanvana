@@ -16,12 +16,13 @@ const BOARD_ID = TEST_BOARD_ID;
 async function writeIDBValue(page, key, value) {
   await page.evaluate(async ({ k, v }) => {
     const db = await new Promise((resolve, reject) => {
-      const req = indexedDB.open('kanvana-db', 1);
+      const req = indexedDB.open('kanvana-db', 2);
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
     });
-    const tx = db.transaction('kv', 'readwrite');
-    tx.objectStore('kv').put(v, k);
+    const isReadModelKey = /:[a-z]+$/.test(k) && !k.startsWith('kanbanBoard:');
+    const tx = db.transaction(isReadModelKey ? 'read_model' : 'kv', 'readwrite');
+    tx.objectStore(isReadModelKey ? 'read_model' : 'kv').put(v, k);
     await new Promise((resolve, reject) => {
       tx.oncomplete = resolve;
       tx.onerror = () => reject(tx.error);

@@ -3,6 +3,7 @@ import { addPendingHardDelete, appendBoardEvent, getActiveBoardId, isDoneColumnI
 import { applySwimLaneAssignment } from './swimlanes.js';
 import { normalizePriority, normalizeRelationships, normalizeSubTasks } from './normalize.js';
 import { DEFAULT_HUMAN_ACTOR, appendTaskActivity, createActivityEvent } from './activity-log.js';
+import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 
 const RELATIONSHIP_INVERSE = { prerequisite: 'dependent', dependent: 'prerequisite', related: 'related' };
 
@@ -166,6 +167,12 @@ export function addTask(title, description, priority, dueDate, columnName, label
   updatedTasks.push(newTask);
   syncRelationshipInverses(updatedTasks, newTask.id, [], normalizedRelationships, nowIso);
   saveLiveTasks(updatedTasks);
+  scheduleDomainEvent({
+    type: 'task.created',
+    boardId: getActiveBoardId(),
+    entityId: newTask.id,
+    payload: { task: newTask }
+  });
 }
 
 // Update an existing task
@@ -194,6 +201,8 @@ export function updateTask(taskId, title, description, priority, dueDate, column
     const nextDescription = (description || '').toString().trim();
     const nextPriority = normalizePriority(priority);
     const nextDueDate = normalizeDueDate(dueDate);
+    const nextSubTasks = normalizeSubTasks(subTasks);
+    const changedFields = {};
 
     tasks[taskIndex].title = nextTitle;
     tasks[taskIndex].description = nextDescription;
@@ -202,7 +211,7 @@ export function updateTask(taskId, title, description, priority, dueDate, column
     tasks[taskIndex].column = nextColumn;
     tasks[taskIndex].labels = [...labels];
     tasks[taskIndex].relationships = newRelationships;
-    tasks[taskIndex].subTasks = normalizeSubTasks(subTasks);
+    tasks[taskIndex].subTasks = nextSubTasks;
 
     syncRelationshipInverses(tasks, taskId, oldRelationships, newRelationships, nowIso);
 
@@ -211,15 +220,19 @@ export function updateTask(taskId, title, description, priority, dueDate, column
     }
 
     if (previousTask.title !== nextTitle) {
+      changedFields.title = nextTitle;
       tasks[taskIndex] = appendTaskEvent(tasks[taskIndex], 'task.title_changed', { from: previousTask.title, to: nextTitle }, nowIso);
     }
     if ((previousTask.description || '') !== nextDescription) {
+      changedFields.description = nextDescription;
       tasks[taskIndex] = appendTaskEvent(tasks[taskIndex], 'task.description_changed', { changed: true }, nowIso);
     }
     if (normalizePriority(previousTask.priority) !== nextPriority) {
+      changedFields.priority = nextPriority;
       tasks[taskIndex] = appendTaskEvent(tasks[taskIndex], 'task.priority_changed', { from: normalizePriority(previousTask.priority), to: nextPriority }, nowIso);
     }
     if (normalizeDueDate(previousTask.dueDate) !== nextDueDate) {
+      changedFields.dueDate = nextDueDate;
       tasks[taskIndex] = appendTaskEvent(tasks[taskIndex], 'task.due_date_changed', { from: normalizeDueDate(previousTask.dueDate), to: nextDueDate }, nowIso);
     }
     if (prevColumn !== nextColumn) {
@@ -273,6 +286,73 @@ export function updateTask(taskId, title, description, priority, dueDate, column
 
     tasks[taskIndex].changeDate = nowIso;
     saveLiveTasks(tasks);
+    const boardId = getActiveBoardId();
+    if (Object.keys(changedFields).length > 0) {
+      scheduleDomainEvent({
+        type: 'task.updated',
+        boardId,
+        entityId: taskId,
+        payload: { fields: changedFields }
+      });
+    }
+    if (prevColumn !== nextColumn) {
+      scheduleDomainEvent({
+        type: 'task.moved',
+        boardId,
+        entityId: taskId,
+        payload: {
+          from_column: prevColumn,
+          to_column: nextColumn,
+          order: tasks.map((task) => ({ id: task.id, column: task.column, order: task.order }))
+        }
+      });
+    }
+    nextLabels
+      .filter((labelId) => !previousLabels.includes(labelId))
+      .forEach((labelId) => {
+        scheduleDomainEvent({ type: 'label.added_to_task', boardId, entityId: taskId, payload: { label_id: labelId } });
+      });
+    previousLabels
+      .filter((labelId) => !nextLabels.includes(labelId))
+      .forEach((labelId) => {
+        scheduleDomainEvent({ type: 'label.removed_from_task', boardId, entityId: taskId, payload: { label_id: labelId } });
+      });
+    newRelationships
+      .filter((relationship) => !previousRelationshipKeys.has(relationshipKey(relationship)))
+      .forEach((relationship) => {
+        scheduleDomainEvent({ type: 'relationship.added', boardId, entityId: taskId, payload: { relationship } });
+      });
+    oldRelationships
+      .filter((relationship) => !nextRelationshipKeys.has(relationshipKey(relationship)))
+      .forEach((relationship) => {
+        scheduleDomainEvent({
+          type: 'relationship.removed',
+          boardId,
+          entityId: taskId,
+          payload: { targetTaskId: relationship.targetTaskId, relationship_type: relationship.type }
+        });
+      });
+    const previousSubTasks = normalizeSubTasks(previousTask.subTasks);
+    const previousSubTasksById = new Map(previousSubTasks.map((subtask) => [subtask.id, subtask]));
+    const nextSubTasksById = new Map(nextSubTasks.map((subtask) => [subtask.id, subtask]));
+    nextSubTasks.forEach((subtask) => {
+      const previous = previousSubTasksById.get(subtask.id);
+      if (!previous) {
+        scheduleDomainEvent({ type: 'subtask.added', boardId, entityId: taskId, payload: { subtask } });
+        return;
+      }
+      if (previous.completed !== subtask.completed) {
+        scheduleDomainEvent({ type: 'subtask.toggled', boardId, entityId: taskId, payload: { subtask_id: subtask.id, completed: subtask.completed === true } });
+      }
+      if ((previous.text || '') !== (subtask.text || '')) {
+        scheduleDomainEvent({ type: 'subtask.text_changed', boardId, entityId: taskId, payload: { subtask_id: subtask.id, text: subtask.text || '' } });
+      }
+    });
+    previousSubTasks
+      .filter((subtask) => !nextSubTasksById.has(subtask.id))
+      .forEach((subtask) => {
+        scheduleDomainEvent({ type: 'subtask.removed', boardId, entityId: taskId, payload: { subtask_id: subtask.id } });
+      });
   }
 }
 
@@ -297,6 +377,17 @@ export function deleteTask(taskId) {
     : allTasks.filter(t => t.id !== taskId);
   saveTasks(updated);
   if (!softDeleteEnabled) addPendingHardDelete({ localTaskId: task.id, boardId });
+  scheduleDomainEvent(softDeleteEnabled ? {
+    type: 'task.updated',
+    boardId,
+    entityId: task.id,
+    payload: { fields: { deleted: true } }
+  } : {
+    type: 'task.deleted',
+    boardId,
+    entityId: task.id,
+    payload: { column: task.column }
+  });
   return true;
 }
 
@@ -490,6 +581,16 @@ export function updateTaskPositionsFromDrop(evt) {
     : updatedTasks;
 
   saveLiveTasks(finalTasks);
+  scheduleDomainEvent({
+    type: 'task.moved',
+    boardId: getActiveBoardId(),
+    entityId: movedTaskId,
+    payload: {
+      from_column: fromColumn,
+      to_column: toColumn,
+      order: finalTasks.map((task) => ({ id: task.id, column: task.column, order: task.order }))
+    }
+  });
 
   return {
     movedTaskId,
@@ -512,6 +613,16 @@ export function moveTaskToTopInColumn(taskId, columnId, tasksCache) {
 
   if (didUpdate) {
     saveLiveTasks(updatedTasks);
+    scheduleDomainEvent({
+      type: 'task.moved',
+      boardId: getActiveBoardId(),
+      entityId: taskId,
+      payload: {
+        from_column: columnId,
+        to_column: columnId,
+        order: updatedTasks.map((task) => ({ id: task.id, column: task.column, order: task.order }))
+      }
+    });
     return updatedTasks;
   }
   return tasks;

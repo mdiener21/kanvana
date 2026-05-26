@@ -46,6 +46,8 @@ import {
   saveBoardEvents,
   getBoardEventsKey,
 } from '../../src/modules/storage.js';
+import { openStore } from '../../src/modules/idb-store.js';
+import { emitDomainEvent } from '../../src/modules/event-sourcing/emitter.js';
 import { DEFAULT_HUMAN_ACTOR, createActivityEvent } from '../../src/modules/activity-log.js';
 
 const DB_NAME = 'kanvana-db';
@@ -67,6 +69,12 @@ beforeEach(async () => {
 test('initStorage on empty IDB leaves boards list empty', async () => {
   await initStorage();
   expect(listBoards()).toEqual([]);
+});
+
+test('initStorage creates a stable HLC node id on boot', async () => {
+  await initStorage();
+  const db = await openStore();
+  expect(await db.get('kv', 'kanvana:hlc:node')).toMatch(UUID_RE);
 });
 
 test('initStorage is safe to call twice in the same session', async () => {
@@ -95,6 +103,26 @@ test('saveTasks persists to IDB and survives a session reset', async () => {
   setActiveBoardId(boardId);
   const tasks = loadTasks();
   expect(tasks.some(t => t.title === 'Persisted task')).toBe(true);
+});
+
+test('emitted task.updated events project into task read model', async () => {
+  await initStorage();
+  ensureBoardsInitialized();
+  const boardId = getActiveBoardId();
+  saveTasks([{ id: 'task-a', title: 'Before', column: 'todo', priority: 'none', order: 1 }]);
+
+  await emitDomainEvent({
+    type: 'task.updated',
+    boardId,
+    entityId: 'task-a',
+    payload: { fields: { title: 'After' } }
+  });
+  await _flushPersistsForTesting();
+
+  expect(loadTasks()[0].title).toBe('After');
+
+  const db = await openStore();
+  expect((await db.get('read_model', `${boardId}:tasks`))[0].title).toBe('After');
 });
 
 test('loadTasks normalizes missing and malformed task activity logs to empty arrays', async () => {
@@ -313,9 +341,52 @@ test('deleteBoard removes board event data from IDB', async () => {
   deleteBoard(other.id);
   await _flushPersistsForTesting();
 
-  const db = await openDB(DB_NAME, 1);
+  const db = await openDB(DB_NAME, 2);
   expect(await db.get('kv', getBoardEventsKey(other.id))).toBeUndefined();
   db.close();
+});
+
+test('v2 migration rehomes board read models and removes legacy kv keys', async () => {
+  const boardId = '11111111-1111-4111-8111-111111111111';
+  const taskId = '22222222-2222-4222-8222-222222222222';
+  const columnId = '33333333-3333-4333-8333-333333333333';
+  const labelId = '44444444-4444-4444-8444-444444444444';
+  const db = await openDB(DB_NAME, 1, { upgrade(d) { d.createObjectStore('kv'); } });
+  await db.put('kv', [{ id: boardId, name: 'Alpha', createdAt: '2024-01-01T00:00:00Z' }], 'kanbanBoards');
+  await db.put('kv', boardId, 'kanbanActiveBoardId');
+  await db.put('kv', [{ id: taskId, title: 'Task A' }], `kanbanBoard:${boardId}:tasks`);
+  await db.put('kv', [{ id: columnId, name: 'Column A' }], `kanbanBoard:${boardId}:columns`);
+  await db.put('kv', [{ id: labelId, name: 'Label A' }], `kanbanBoard:${boardId}:labels`);
+  db.close();
+
+  const upgraded = await openStore();
+  expect(await upgraded.get('read_model', `${boardId}:tasks`)).toEqual([{ id: taskId, title: 'Task A' }]);
+  expect(await upgraded.get('read_model', `${boardId}:columns`)).toEqual([{ id: columnId, name: 'Column A' }]);
+  expect(await upgraded.get('read_model', `${boardId}:labels`)).toEqual([{ id: labelId, name: 'Label A' }]);
+  expect(await upgraded.get('kv', `kanbanBoard:${boardId}:tasks`)).toBeUndefined();
+  expect(await upgraded.get('kv', `kanbanBoard:${boardId}:columns`)).toBeUndefined();
+  expect(await upgraded.get('kv', `kanbanBoard:${boardId}:labels`)).toBeUndefined();
+});
+
+test('v2 migration deletes legacy pending hard deletes and board event logs', async () => {
+  const db = await openDB(DB_NAME, 1, { upgrade(d) { d.createObjectStore('kv'); } });
+  await db.put('kv', [{ localTaskId: 'task-a', boardId: 'board-a' }], 'pendingHardDeletes');
+  await db.put('kv', [{ id: 'event-a', type: 'task.deleted' }], 'events:board-a');
+  db.close();
+
+  const upgraded = await openStore();
+  expect(await upgraded.get('kv', 'pendingHardDeletes')).toBeUndefined();
+  expect(await upgraded.get('kv', 'events:board-a')).toBeUndefined();
+});
+
+test('v2 schema creates event sourcing stores and event indexes', async () => {
+  const db = await openStore();
+
+  expect([...db.objectStoreNames]).toEqual(['events', 'kv', 'read_model', 'snapshots']);
+
+  const tx = db.transaction('events', 'readonly');
+  expect([...tx.objectStore('events').indexNames]).toEqual(['hlc', 'synced']);
+  await tx.done;
 });
 
 // ── localStorage → IDB migration ─────────────────────────────────────────────────

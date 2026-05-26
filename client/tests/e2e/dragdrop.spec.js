@@ -26,15 +26,20 @@ test.describe('Drag and Drop Performance', () => {
       indexedDB.deleteDatabase('kanvana-db');
 
       const boardId = 'perf-test-board';
-      const req = indexedDB.open('kanvana-db', 1);
+      const req = indexedDB.open('kanvana-db', 2);
       req.onupgradeneeded = () => {
         const store = req.result.createObjectStore('kv');
+        const events = req.result.createObjectStore('events', { keyPath: 'id' });
+        events.createIndex('hlc', ['hlc.wallTime', 'hlc.counter', 'hlc.nodeId']);
+        events.createIndex('synced', 'synced');
+        req.result.createObjectStore('snapshots');
+        const readModel = req.result.createObjectStore('read_model');
         const boards = [{ id: boardId, name: 'Performance Test Board', createdAt: new Date().toISOString() }];
         store.put(boards, 'kanbanBoards');
         store.put(boardId, 'kanbanActiveBoardId');
-        store.put(data.columns, `kanbanBoard:${boardId}:columns`);
-        store.put(data.tasks, `kanbanBoard:${boardId}:tasks`);
-        store.put(data.labels, `kanbanBoard:${boardId}:labels`);
+        readModel.put(data.columns, `${boardId}:columns`);
+        readModel.put(data.tasks, `${boardId}:tasks`);
+        readModel.put(data.labels, `${boardId}:labels`);
         store.put(data.settings, `kanbanBoard:${boardId}:settings`);
       };
     }, fixture);

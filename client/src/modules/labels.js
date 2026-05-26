@@ -1,6 +1,7 @@
 import { generateUUID } from './utils.js';
 import { getActiveBoardId, loadDeletedLabelsForBoard, loadLabels, saveLabels, loadTasks, saveTasks } from './storage.js';
 import { DEFAULT_HUMAN_ACTOR, appendTaskActivity, createActivityEvent } from './activity-log.js';
+import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 
 const MAX_LABEL_NAME_LENGTH = 40;
 
@@ -56,6 +57,12 @@ export function addLabel(name, color, group = '') {
   const newLabel = { id, name: trimmedName, color, group: trimmedGroup };
   labels.push(newLabel);
   saveLabels(labels);
+  scheduleDomainEvent({
+    type: 'label.created',
+    boardId: getActiveBoardId(),
+    entityId: id,
+    payload: { label: newLabel }
+  });
 
   return { success: true, label: newLabel };
 }
@@ -90,6 +97,12 @@ export function updateLabel(labelId, name, color, group = '') {
   labels[labelIndex].color = color;
   labels[labelIndex].group = typeof group === 'string' ? group.trim() : '';
   saveLabels(labels);
+  scheduleDomainEvent({
+    type: 'label.updated',
+    boardId: getActiveBoardId(),
+    entityId: labelId,
+    payload: { fields: { name: labels[labelIndex].name, color: labels[labelIndex].color, group: labels[labelIndex].group } }
+  });
 
   return { success: true, label: labels[labelIndex] };
 }
@@ -122,4 +135,20 @@ export function deleteLabel(labelId) {
   const allLabels = [...liveLabels, ...loadDeletedLabelsForBoard(boardId)];
   const updatedLabels = allLabels.map(l => l.id === labelId ? { ...l, deleted: true } : l);
   saveLabels(updatedLabels);
+  liveTasks
+    .filter((task) => task.labels?.includes(labelId))
+    .forEach((task) => {
+      scheduleDomainEvent({
+        type: 'label.removed_from_task',
+        boardId,
+        entityId: task.id,
+        payload: { label_id: labelId }
+      });
+    });
+  scheduleDomainEvent({
+    type: 'label.deleted',
+    boardId,
+    entityId: labelId,
+    payload: {}
+  });
 }
