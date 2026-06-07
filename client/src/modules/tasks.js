@@ -1,5 +1,5 @@
 import { generateUUID } from './utils.js';
-import { addPendingHardDelete, getActiveBoardId, isDoneColumnId, loadColumns, loadDeletedTasksForBoard, loadGlobalSettings, loadLabels, loadSettings, loadTasks, saveLiveTasks, saveTasks } from './storage.js';
+import { getActiveBoardId, isDoneColumnId, loadColumns, loadDeletedTasksForBoard, loadLabels, loadSettings, loadTasks, saveLiveTasks, saveTasks } from './storage.js';
 import { applySwimLaneAssignment } from './swimlanes.js';
 import { normalizePriority, normalizeRelationships, normalizeSubTasks } from './normalize.js';
 import { scheduleDomainEvent } from './event-sourcing/emitter.js';
@@ -301,18 +301,8 @@ export function deleteTask(taskId) {
   if (!task) return false;
 
   const allTasks = [...liveTasks, ...loadDeletedTasksForBoard(boardId)];
-  const softDeleteEnabled = loadGlobalSettings().softDeleteEnabled === true;
-  const updated = softDeleteEnabled
-    ? allTasks.map(t => t.id === taskId ? { ...t, deleted: true } : t)
-    : allTasks.filter(t => t.id !== taskId);
-  saveTasks(updated);
-  if (!softDeleteEnabled) addPendingHardDelete({ localTaskId: task.id, boardId });
-  scheduleDomainEvent(softDeleteEnabled ? {
-    type: 'task.updated',
-    boardId,
-    entityId: task.id,
-    payload: { fields: { deleted: true } }
-  } : {
+  saveTasks(allTasks.filter(t => t.id !== taskId));
+  scheduleDomainEvent({
     type: 'task.deleted',
     boardId,
     entityId: task.id,

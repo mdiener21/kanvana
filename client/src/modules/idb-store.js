@@ -52,7 +52,7 @@ async function migrateReadModelFromKv(db) {
       await kv.delete(key);
       continue;
     }
-    if (key === 'pendingHardDeletes' || key.startsWith('events:')) {
+    if (key.startsWith('events:')) {
       await kv.delete(key);
     }
   }

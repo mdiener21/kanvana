@@ -4,7 +4,6 @@ import { DONE_COLUMN_ID, DONE_COLUMN_ROLE, isDoneColumn } from './constants.js';
 import { openStore, KV_STORE, READ_MODEL_STORE, schedulePersist, scheduleDelete, scheduleReadModelPersist, scheduleReadModelDelete, keyFor, readModelKeyFor, _flushPersistsForTesting as _flushIdbPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
 // Re-export IDB helpers that tests import from this module for backward compatibility.
 import { normalizeBoardModelIds } from './board-serializer.js';
-import { createPendingHardDelete } from './schema.js';
 import { initHlc } from './event-sourcing/hlc.js';
 import { _flushDomainEventsForTesting, scheduleDomainEvent } from './event-sourcing/emitter.js';
 import { checkAndScheduleSnapshot, GLOBAL_SNAPSHOT_KEY, _resetSnapshotSchedulerForTesting } from './event-sourcing/snapshot.js';
@@ -16,7 +15,6 @@ import { applyEvent, createProjectionState } from './reducer.js';
 const BOARDS_KEY = 'kanbanBoards';
 const ACTIVE_BOARD_KEY = 'kanbanActiveBoardId';
 const GLOBAL_SETTINGS_KEY = 'kanvana:settings:global';
-const PENDING_HARD_DELETES_KEY = 'pendingHardDeletes';
 
 const LEGACY_COLUMNS_KEY = 'kanbanColumns';
 const LEGACY_TASKS_KEY = 'kanbanTasks';
@@ -38,8 +36,7 @@ const state = {
   columns: {},  // { [boardId]: column[] | null }
   labels: {},   // { [boardId]: label[] | null }
   settings: {},  // { [boardId]: object | null }
-  globalSettings: null,
-  pendingHardDeletes: null
+  globalSettings: null
 };
 
 // Per-board default-task cache (keeps defaults stable within a session).
@@ -297,9 +294,7 @@ function defaultSettings() {
 }
 
 function defaultGlobalSettings() {
-  return {
-    softDeleteEnabled: false
-  };
+  return {};
 }
 
 // ── Migration from localStorage ────────────────────────────────────────────────
@@ -400,7 +395,6 @@ export async function initStorage() {
   state.boards = safeParseArray(await db.get(KV_STORE, BOARDS_KEY)) || [];
   state.activeBoardId = (await db.get(KV_STORE, ACTIVE_BOARD_KEY)) || null;
   state.globalSettings = normalizeGlobalSettings(await db.get(KV_STORE, GLOBAL_SETTINGS_KEY));
-  state.pendingHardDeletes = safeParseArray(await db.get(KV_STORE, PENDING_HARD_DELETES_KEY)) || [];
 
   for (const board of state.boards) {
     state.tasks[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'tasks'))) ?? null;
@@ -488,7 +482,6 @@ export function _resetStorageForTesting() {
   for (const k in state.labels) delete state.labels[k];
   for (const k in state.settings) delete state.settings[k];
   state.globalSettings = null;
-  state.pendingHardDeletes = null;
   taskCacheByBoard.clear();
   appliedDomainEventIds.clear();
   if (domainEventProjectionHandler) off(EVENT_EMITTED, domainEventProjectionHandler);
@@ -943,10 +936,8 @@ function normalizeSettings(raw) {
 }
 
 function normalizeGlobalSettings(raw) {
-  const obj = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
-  return {
-    softDeleteEnabled: obj.softDeleteEnabled === true
-  };
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  return {};
 }
 
 export function loadSettings() {
@@ -981,25 +972,7 @@ export function saveGlobalSettings(settings) {
   schedulePersist(GLOBAL_SETTINGS_KEY, normalized);
 }
 
-export function getPendingHardDeletes() {
-  return safeParseArray(state.pendingHardDeletes) || [];
-}
-
-export function addPendingHardDelete(entry) {
-  const queued = createPendingHardDelete(entry);
-  const next = [...getPendingHardDeletes(), queued];
-  state.pendingHardDeletes = next;
-  schedulePersist(PENDING_HARD_DELETES_KEY, next);
-}
-
-export function clearPendingHardDeleteEntry(localTaskId) {
-  const id = typeof localTaskId === 'string' ? localTaskId : '';
-  const next = getPendingHardDeletes().filter(entry => entry.localTaskId !== id);
-  state.pendingHardDeletes = next;
-  schedulePersist(PENDING_HARD_DELETES_KEY, next);
-}
-
-// ── Cross-board read helpers (used by exportBoard in importexport.js) ──────────
+// ── Cross-board read helpers
 
 export function loadTasksForBoard(boardId) {
   const raw = state.tasks[boardId];
