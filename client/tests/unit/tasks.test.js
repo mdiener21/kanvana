@@ -1,6 +1,6 @@
 import { test, expect, beforeEach } from 'vitest';
 import { resetLocalStorage } from './setup.js';
-import { createBoard, getActiveBoardId, getPendingHardDeletes, loadDeletedTasksForBoard, loadTasks, saveColumns, saveGlobalSettings, saveLabels, saveSettings, saveTasks } from '../../src/modules/storage.js';
+import { createBoard, getActiveBoardId, loadDeletedTasksForBoard, loadTasks, saveColumns, saveLabels, saveSettings, saveTasks } from '../../src/modules/storage.js';
 import { addTask, updateTask, deleteTask, moveTaskToTopInColumn, updateTaskPositionsFromDrop } from '../../src/modules/tasks.js';
 
 beforeEach(() => {
@@ -152,61 +152,7 @@ test('deleteTask permanently removes task from live and deleted task lists by de
   expect(loadDeletedTasksForBoard(getActiveBoardId()).find(t => t.id === task.id)).toBeUndefined();
 });
 
-test('deleteTask queues a pending hard delete in permanent-delete mode', () => {
-  addTask('Task 1', '', 'none', '', 'todo', []);
-  const boardId = getActiveBoardId();
-  const [task] = loadTasks();
-
-  deleteTask(task.id);
-
-  expect(getPendingHardDeletes()).toEqual([
-    { localTaskId: task.id, boardId }
-  ]);
-});
-
-// ── soft-delete preservation across task operations ────────────────
-
-test('addTask preserves existing soft-deleted tasks', () => {
-  saveGlobalSettings({ softDeleteEnabled: true });
-  addTask('Keep', '', 'none', '', 'todo', []);
-  addTask('Trash', '', 'none', '', 'todo', []);
-  const trash = loadTasks().find(t => t.title === 'Trash');
-  deleteTask(trash.id);
-  expect(loadDeletedTasksForBoard(getActiveBoardId())).toHaveLength(1);
-
-  addTask('New', '', 'none', '', 'todo', []);
-
-  expect(loadDeletedTasksForBoard(getActiveBoardId())).toHaveLength(1);
-});
-
-test('updateTask preserves existing soft-deleted tasks', () => {
-  saveGlobalSettings({ softDeleteEnabled: true });
-  addTask('Keep', '', 'none', '', 'todo', []);
-  addTask('Trash', '', 'none', '', 'todo', []);
-  const trash = loadTasks().find(t => t.title === 'Trash');
-  deleteTask(trash.id);
-  const keep = loadTasks().find(t => t.title === 'Keep');
-
-  updateTask(keep.id, 'Keep edited', '', 'none', '', 'todo', []);
-
-  expect(loadDeletedTasksForBoard(getActiveBoardId())).toHaveLength(1);
-});
-
-test('moveTaskToTopInColumn preserves existing soft-deleted tasks', () => {
-  saveGlobalSettings({ softDeleteEnabled: true });
-  addTask('A', '', 'none', '', 'todo', []);
-  addTask('B', '', 'none', '', 'todo', []);
-  addTask('Trash', '', 'none', '', 'todo', []);
-  const trash = loadTasks().find(t => t.title === 'Trash');
-  deleteTask(trash.id);
-  const a = loadTasks().find(t => t.title === 'A');
-
-  moveTaskToTopInColumn(a.id, 'todo');
-
-  expect(loadDeletedTasksForBoard(getActiveBoardId())).toHaveLength(1);
-});
-
-test('updateTaskPositionsFromDrop preserves existing soft-deleted tasks', () => {
+test('updateTaskPositionsFromDrop preserves existing task tombstones', () => {
   saveTasks([
     { id: 't1', title: 'Live', column: 'todo', order: 1, priority: 'none', labels: [], columnHistory: [{ column: 'todo', at: '2024-01-01T00:00:00.000Z' }] },
     { id: 't2', title: 'Trash', column: 'todo', order: 2, priority: 'none', labels: [], deleted: true }
@@ -235,7 +181,7 @@ test('updateTaskPositionsFromDrop preserves existing soft-deleted tasks', () => 
   expect(loadDeletedTasksForBoard(getActiveBoardId())).toHaveLength(1);
 });
 
-test('purgeDeleted hard-removes soft-deleted tasks from storage', async () => {
+test('purgeDeleted hard-removes task tombstones from storage', async () => {
   const { purgeDeleted } = await import('../../src/modules/storage.js');
   saveTasks([
     { id: 'task-1', title: 'Task 1', column: 'todo', priority: 'none', deleted: true }
@@ -248,7 +194,7 @@ test('purgeDeleted hard-removes soft-deleted tasks from storage', async () => {
   expect(loadDeletedTasksForBoard(getActiveBoardId())).toHaveLength(0);
 });
 
-test('purgeDeleted with { tasks: false } keeps soft-deleted tasks', async () => {
+test('purgeDeleted with { tasks: false } keeps task tombstones', async () => {
   const { purgeDeleted } = await import('../../src/modules/storage.js');
   saveTasks([
     { id: 'task-1', title: 'Task 1', column: 'todo', priority: 'none', deleted: true }

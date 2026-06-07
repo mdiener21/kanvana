@@ -59,7 +59,7 @@ expect(loadTasks().some(t => t.title === 'Persisted task')).toBe(true);
 - The overview also includes filename-based gap heuristics for source modules and spec files without obvious named coverage. These heuristics are a fast triage aid, not a coverage guarantee.
 - Board management flows
 - Task creation and validation
-- Task deletion flows: permanent delete (confirm removes card, counter decrements), cancel (card survives), soft-delete mode (correct dialog message, card hidden, purge counter increments) — `tests/e2e/task-delete.spec.ts`
+- Task deletion flows: permanent delete confirmation removes the card and decrements the counter; cancel leaves the card and counter unchanged — `tests/e2e/task-delete.spec.ts`
 - Drag-and-drop performance into Done with large fixture boards
 - Done-column virtualization behavior
 - Swim lane rendering, settings persistence, and lane-aware moves

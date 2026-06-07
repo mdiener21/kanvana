@@ -34,9 +34,6 @@ import {
   saveSettings,
   loadGlobalSettings,
   saveGlobalSettings,
-  getPendingHardDeletes,
-  addPendingHardDelete,
-  clearPendingHardDeleteEntry,
   loadTasksForBoard,
   loadColumnsForBoard,
   loadLabelsForBoard,
@@ -174,7 +171,7 @@ test('initStorage loads global settings from IDB', async () => {
 
   await initStorage();
 
-  expect(loadGlobalSettings()).toEqual({ softDeleteEnabled: true });
+  expect(loadGlobalSettings()).toEqual({});
 });
 
 test('saveGlobalSettings persists to IDB and survives a session reset', async () => {
@@ -185,23 +182,7 @@ test('saveGlobalSettings persists to IDB and survives a session reset', async ()
   _resetStorageForTesting();
 
   await initStorage();
-  expect(loadGlobalSettings()).toEqual({ softDeleteEnabled: true });
-});
-
-test('pending hard deletes persist to IDB and survive a session reset', async () => {
-  await initStorage();
-  addPendingHardDelete({ localTaskId: 'task-1', boardId: 'board-1' });
-
-  await _flushPersistsForTesting();
-  _resetStorageForTesting();
-
-  await initStorage();
-  expect(getPendingHardDeletes()).toEqual([
-    { localTaskId: 'task-1', boardId: 'board-1' }
-  ]);
-
-  clearPendingHardDeleteEntry('task-1');
-  expect(getPendingHardDeletes()).toEqual([]);
+  expect(loadGlobalSettings()).toEqual({});
 });
 
 test('createBoard persists board list and per-board defaults across sessions', async () => {
@@ -278,14 +259,14 @@ test('v2 migration rehomes board read models and removes legacy kv keys', async 
   expect(await upgraded.get('kv', `kanbanBoard:${boardId}:labels`)).toBeUndefined();
 });
 
-test('v2 migration deletes legacy pending hard deletes and board event logs', async () => {
+test('v2 migration deletes legacy board event logs', async () => {
   const db = await openDB(DB_NAME, 1, { upgrade(d) { d.createObjectStore('kv'); } });
   await db.put('kv', [{ localTaskId: 'task-a', boardId: 'board-a' }], 'pendingHardDeletes');
   await db.put('kv', [{ id: 'event-a', type: 'task.deleted' }], 'events:board-a');
   db.close();
 
   const upgraded = await openStore();
-  expect(await upgraded.get('kv', 'pendingHardDeletes')).toBeUndefined();
+  expect(await upgraded.get('kv', 'pendingHardDeletes')).toEqual([{ localTaskId: 'task-a', boardId: 'board-a' }]);
   expect(await upgraded.get('kv', 'events:board-a')).toBeUndefined();
 });
 

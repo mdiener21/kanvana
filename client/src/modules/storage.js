@@ -839,9 +839,9 @@ export function saveTasks(tasks) {
   emitLocalChange(boardId, 'task');
 }
 
-// Persist a live-task set without destroying the board's soft-deleted tasks.
+// Persist a live-task set without destroying the board's task tombstones.
 // loadTasks() returns live tasks only, so callers that mutate the live set
-// must route through here to keep soft-deleted tasks countable until purge.
+// must route through here to preserve deleted records until sync cleanup.
 export function saveLiveTasks(liveTasks) {
   const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
   const live = Array.isArray(liveTasks) ? liveTasks : [];
@@ -1009,9 +1009,9 @@ export function loadDeletedLabelsForBoard(boardId) {
   return (safeParseArray(raw) || []).filter(l => l.deleted === true);
 }
 
-// Hard-removes soft-deleted records. The opts flags allow a caller to purge
+// Hard-removes deleted records. The opts flags allow a caller to purge
 // only some entity types — e.g. a sync push purges deleted column/label
-// tombstones but must keep soft-deleted tasks until an explicit purge.
+// tombstones while leaving other deleted records for a later cleanup.
 export function purgeDeleted(boardId, { tasks = true, columns = true, labels = true } = {}) {
   if (tasks && state.tasks[boardId]) {
     const live = (safeParseArray(state.tasks[boardId]) || []).filter(t => !t.deleted);

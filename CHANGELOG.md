@@ -18,10 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Activity log feature retired: `activity.html`, `activity-log.js`, `activity-log-ui.js`, and `activity.js` removed; navigation links and all write-paths cleaned from tasks, columns, labels, storage, import/export, and sync modules.
 - ADR-0001 (dual-log audit trail) superseded by ADR-0004 (domain-event stream).
 - Online Mode PocketBase sync PRD documenting the current Go Online, auth, manual sync, auto-sync, and no-merge V1 contract.
-- Global "Soft-delete tasks" toggle in App Settings — choose between permanent deletion (default) and soft-delete mode where deleted tasks are hidden until explicitly purged.
-- "Purge deleted tasks" button in App Settings — hard-removes all soft-deleted tasks from local storage and syncs deletions to PocketBase when online.
+- Global `softDeleteEnabled` setting and "Soft-delete tasks" toggle in App Settings.
+- "Purge deleted tasks" settings action and `runPurge` flow.
 - Settings UI now separates App-level settings from Board-level settings, making global preferences distinct from per-board configuration.
-- Sync: `pushBoardFull()` now branches on `softDeleteEnabled` — in soft-delete mode it enqueues PocketBase cleanup intents via a pending hard-delete queue; in permanent mode it removes tasks immediately.
+- Sync branching on `softDeleteEnabled` and `pendingHardDeletes`; deletion propagation now follows the domain-event stream/tombstone model.
 
 ### Fixed
 
@@ -33,8 +33,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed Impressum page overflow so the legal content can scroll vertically on desktop and mobile.
 - Fixed sub-task font size.
 - Fixed missing scale icon for the legal/impressum page.
-- Soft-deleted tasks were silently lost when adding, editing, moving, or reordering other tasks, causing the Settings purge count and button to no longer reflect them; soft-deleted tasks are now retained until an explicit purge.
-- Soft-deleted tasks were also removed from local storage on every background sync, so the Settings purge count could drop to zero while the tasks still existed in PocketBase; sync now keeps soft-deleted tasks locally until you purge.
 - Deleting a board while signed in now also deletes the mapped PocketBase board and its board-scoped columns, labels, tasks, relationships, and events before removing the local board.
 - Fixed desktop task drag autoscroll so long task lists scroll vertically while dragging a card near the list edge
 - Fixed Impressum page overflow so the legal content can scroll vertically on desktop and mobile

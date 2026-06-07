@@ -59,7 +59,7 @@
 - `subTasks` defaults to `[]`; each entry is a SubTask — see SubTask Model below
 - `relationships` defaults to `[]`; each entry stores a `type` (`prerequisite`, `dependent`, or `related`) and the UUID `targetTaskId` of the linked task; both sides of a relationship are always stored (bidirectional)
 - `activityLog` defaults to `[]`; each entry is an `ActivityLogEntry` — see `docs/system/spec/audit-trail.md` for full shape and event type catalogue; `normalizeActivityLog()` strips structurally invalid entries on load; the `id` field is required for sync deduplication; entries without an `id` are local-only
-- `deleted` supports soft-delete; all read functions filter `deleted: true` — callers never see deleted items
+- `deleted` marks internal tombstones/deleted records; normal read functions filter `deleted: true`
 
 ## Column Model
 
@@ -81,7 +81,7 @@
 - All column IDs are UUIDs
 - The column with `role: "done"` is permanent and cannot be deleted
 - Legacy imported or migrated column id `done` is remapped to a UUID-backed column with `role: "done"`
-- `deleted` supports soft-delete
+- `deleted` marks internal tombstones/deleted records
 
 ## Label Model
 
@@ -101,7 +101,7 @@
 - All label IDs are UUIDs
 - `group` is optional and defaults to an empty string
 - Label groups are strings, not separate persisted entities
-- `deleted` supports soft-delete
+- `deleted` marks internal tombstones/deleted records
 
 ## SubTask Model
 
@@ -188,7 +188,7 @@ When cloud sync is enabled, local models are mirrored to PocketBase. All collect
 | order | number | |
 | collapsed | bool | |
 | role | text | `"done"` for the Done column; empty otherwise |
-| deleted | bool | soft-delete flag |
+| deleted | bool | tombstone/deleted-record flag |
 
 **labels**
 | field | type | notes |
@@ -199,7 +199,7 @@ When cloud sync is enabled, local models are mirrored to PocketBase. All collect
 | name | text | required |
 | color | text | hex color |
 | group | text | optional label group |
-| deleted | bool | soft-delete flag |
+| deleted | bool | tombstone/deleted-record flag |
 
 **tasks**
 | field | type | notes |
@@ -220,7 +220,7 @@ When cloud sync is enabled, local models are mirrored to PocketBase. All collect
 | column_history | json | array of `{ column, at }` |
 | sub_tasks | json | array of SubTask objects |
 | swimlane_label_id | text | swim lane label UUID |
-| deleted | bool | soft-delete flag |
+| deleted | bool | tombstone/deleted-record flag |
 
 **task_relationships**
 

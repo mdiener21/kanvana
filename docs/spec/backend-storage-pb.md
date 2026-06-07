@@ -21,15 +21,14 @@ Let users opt-in to cloud sync, accessing boards from multiple devices. Local-fi
 - Auto-sync reads board data via `loadColumnsForBoard(id)`, `loadTasksForBoard(id)`, `loadLabelsForBoard(id)`, `loadSettingsForBoard(id)` — never mutates `activeBoardId`
 - Pull writes through `storage.js` write fns, then calls `renderBoard()`
 
-### Soft-Delete
+### Deleted Records
 
 All entity types (tasks, columns, labels, boards) get a `deleted: boolean` field.
 
-- Delete operations in `storage.js` set `deleted: true` instead of splicing
+- Some delete operations retain `deleted: true` tombstones until sync can propagate cleanup
 - All read fns (`loadTasks`, `loadColumns`, etc.) filter `deleted: true` — callers never see deleted items
 - Sync layer accesses deleted items via internal fns to push deletes to PocketBase
-- `purgeDeleted()` hard-removes `deleted: true` from IDB and triggers PocketBase hard-delete in same operation
-- Purge only runs after confirmed successful sync
+- `purgeDeleted()` hard-removes `deleted: true` records from IDB after confirmed sync cleanup
 
 ### Conflict Resolution
 
@@ -95,7 +94,7 @@ No public access. No shared boards in V1.
 | order | number | |
 | collapsed | bool | |
 | role | text | `"done"` for the Done column; empty otherwise |
-| deleted | bool | soft-delete flag |
+| deleted | bool | tombstone/deleted-record flag |
 
 **labels**
 | field | type | notes |
@@ -106,7 +105,7 @@ No public access. No shared boards in V1.
 | name | text | required |
 | color | text | hex color |
 | group | text | optional label group |
-| deleted | bool | soft-delete flag |
+| deleted | bool | tombstone/deleted-record flag |
 
 **tasks**
 | field | type | notes |
@@ -127,7 +126,7 @@ No public access. No shared boards in V1.
 | column_history | json | array of `{ column, at }` |
 | sub_tasks | json | array of SubTask objects |
 | swimlane_label_id | text | swim lane label UUID |
-| deleted | bool | soft-delete flag |
+| deleted | bool | tombstone/deleted-record flag |
 
 **task_relationships**
 
@@ -160,7 +159,7 @@ Unified event log for both task-level `activityLog` entries and board-level `boa
 
 ### Orphan Cleanup (replaces deleteOrphans fetch approach)
 
-No full-fetch diff. Soft-delete drives remote cleanup:
+No full-fetch diff. Tombstones/deleted records drive remote cleanup:
 
 1. Deleted entities have `deleted: true` in IDB
 2. On push, sync sends targeted PocketBase deletes for each `deleted: true` entity

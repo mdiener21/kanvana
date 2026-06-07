@@ -54,7 +54,6 @@ The storage layer is split into three modules:
 | `kanbanBoard:{boardId}:settings` | Settings object for board |
 | `events:{boardId}` | Board event log array |
 | `kanvana:settings:global` | Global (cross-board) settings object |
-| `pendingHardDeletes` | Global queue of `{ localTaskId, boardId }` entries awaiting PocketBase hard-delete after a permanent-mode deletion while offline |
 
 **Pattern:** `initStorage()` (async, called once at startup) → synchronous CRUD functions read/write
 in-memory `state` → fire-and-forget IDB writes via `schedulePersist()` → `renderBoard()`.
@@ -97,7 +96,7 @@ push/pull sync, and auto-sync after the first successful push.
 boards, columns, labels, tasks, task_relationships, and events. Used for upsert decisions.
 
 **Push flow:** `pushBoardFull(boardId)` serializes the entire board (columns, tasks, labels,
-settings, events, soft-deleted records) and upserts each record to PocketBase.
+settings, and events) and upserts each record to PocketBase.
 
 **Auth:** Email/password or OAuth2. `isAuthenticated()` / `ensureAuthenticated()` guard all sync
 operations. `auth-changed` custom window event fires on auth state change.
@@ -213,7 +212,7 @@ inspectImportPayload → buildImportConfirmationMessage → importTasks
 | UUID | All entity IDs use `generateUUID()` from `utils.js`; no numeric or legacy string IDs post-migration |
 | Keybindings | Never hardcode key strings; register in `DEFAULT_APP_KEYBINDINGS` in `constants.js` |
 | Entity factories | Always use `createTask()`, `createColumn()`, etc. from `schema.js` — never construct entities ad-hoc |
-| Task deletion | **Permanent delete (default):** immediately purge from IDB, write board audit event, queue ID in `pendingHardDeletes`. **Soft-delete (opt-in via global settings):** set `deleted: true`, retain in IDB, upsert to PocketBase; hard-deleted only when user runs purge. See ADR-0002. |
+| Task deletion | Task delete is permanent: emit `task.deleted`, remove from the active task list, and let sync propagate deletion through the domain-event stream/tombstone model. ADR-0002's soft-delete mode was superseded by ADR-0004 and removed in issue #111. |
 
 ---
 

@@ -76,14 +76,14 @@ export function deleteColumn(columnId) {
   const liveTasks = loadTasks();
   const tasksInColumn = liveTasks.filter(t => t.column === columnId);
 
-  // Soft-delete tasks in the column, preserving already-deleted tasks
+  // Mark tasks in the column as deleted, preserving existing tombstones
   const allTasks = [...liveTasks, ...loadDeletedTasksForBoard(boardId)];
   const updatedTasks = allTasks.map(t =>
     t.column === columnId ? { ...t, deleted: true } : t
   );
   saveTasks(updatedTasks);
 
-  // Soft-delete the column, preserving already-deleted columns
+  // Mark the column as deleted, preserving existing tombstones
   const allColumns = [...columns, ...loadDeletedColumnsForBoard(boardId)];
   const updatedColumns = allColumns.map(c =>
     c.id === columnId ? { ...c, deleted: true } : c

@@ -137,31 +137,3 @@ export function createRelationship(overrides = {}) {
     ...overrides,
   };
 }
-
-// ── Pending hard-delete ────────────────────────────────────────────────────────
-
-// ── Activity log entry ─────────────────────────────────────────────────────────
-
-/**
- * Stored in `task.activityLog[]` locally; synced to the events PocketBase
- * collection (task-scoped). Board-level events (`boardEvents` in storage) use
- * the same shape and sync to the same collection without a task reference.
- *
- * `id` is required for deduplication during sync. Entries created before this
- * field was introduced will lack an id and will not be synced.
- *
- * @param {object} overrides
- * @returns {ActivityLogEntry}
- */
-export function createActivityLogEntry(overrides = {}) {
-  return {
-    id: generateUUID(),
-    type: '',
-    at: nowIso(),
-    // actor.type: one of ACTIVITY_ACTOR_TYPES.
-    // actor.id: null for human, non-empty string for agent/user.
-    actor: { type: 'human', id: null },
-    details: {},
-    ...overrides,
-  };
-}
