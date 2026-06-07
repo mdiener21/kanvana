@@ -15,6 +15,7 @@ import { initializeAuthSyncUI } from './modules/authsync.js';
 import { initializeAutoSync } from './modules/autosync.js';
 import { initSyncQueue } from './modules/event-sourcing/sync-queue.js';
 import { initSnapshotSync } from './modules/event-sourcing/snapshot-sync.js';
+import { initRealtime } from './modules/event-sourcing/realtime.js';
 
 // Add task button listeners
 document.addEventListener('DOMContentLoaded', async () => {
@@ -64,6 +65,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Snapshot upload: push locally-saved snapshots to PB (pre-flight + GC)
   initSnapshotSync();
+
+  // Inbound sync: SSE realtime subscription + launch/reconnect catch-up pull
+  initRealtime();
 
   // Initialize modal handlers
   initializeModalHandlers();
