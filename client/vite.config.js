@@ -34,7 +34,14 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    open: !process.env.CI && !process.env.DOCKER
+    open: !process.env.CI && !process.env.DOCKER,
+    // Opt-in same-origin proxy to PocketBase for live e2e: the sandboxed test
+    // browser can only reach its own origin, so a cross-origin call to PB :8090
+    // is blocked. Set PB_PROXY_TARGET to route /api through the dev server.
+    // Normal dev (no env var) is unaffected.
+    proxy: process.env.PB_PROXY_TARGET
+      ? { '/api': { target: process.env.PB_PROXY_TARGET, changeOrigin: true } }
+      : undefined
   },
   base: './'
 });

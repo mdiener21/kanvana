@@ -9,6 +9,9 @@ const e2eBaseUrl = `http://127.0.0.1:${e2ePort}`;
  */
 export default defineConfig({
   testDir: './tests/e2e',
+  // Live event-sourcing specs need a running PocketBase + the /api proxy;
+  // they run via playwright.live.config.js, not the default suite.
+  testIgnore: '**/event-sourcing/**',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
