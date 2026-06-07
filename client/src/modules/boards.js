@@ -1,6 +1,6 @@
 import { generateUUID } from './utils.js';
 import { setupModalCloseHandlers } from './modals.js';
-import { emit, DATA_CHANGED } from './events.js';
+import { emit, on, DATA_CHANGED } from './events.js';
 import {
   ensureBoardsInitialized,
   listBoards,
@@ -104,6 +104,18 @@ function refreshBoardSelect(selectEl) {
   if (activeId) selectEl.value = activeId;
 }
 
+// True when #board-select already reflects the current board list (ids + labels).
+// Lets us skip rebuilding on unrelated DATA_CHANGED churn (task moves, etc.).
+function boardSelectMatchesState(selectEl) {
+  const boards = listBoards();
+  if (selectEl.options.length !== boards.length) return false;
+  return boards.every(
+    (b, i) =>
+      selectEl.options[i].value === b.id &&
+      selectEl.options[i].textContent === boardDisplayName(b)
+  );
+}
+
 function refreshBrandText() {
   const brandEl = document.getElementById('brand-text') || document.querySelector('.brand-text');
   if (!brandEl) return;
@@ -137,6 +149,16 @@ export function initializeBoardsUI() {
 
   refreshBoardSelect(selectEl);
   refreshBrandText();
+
+  // A remote board.created/renamed (catch-up or SSE) updates state.boards and
+  // emits DATA_CHANGED, but the dropdown was built once at startup. Rebuild it
+  // when the board list changes so new boards appear without a reload.
+  on(DATA_CHANGED, () => {
+    if (!boardSelectMatchesState(selectEl)) {
+      refreshBoardSelect(selectEl);
+      refreshBrandText();
+    }
+  });
 
   document.addEventListener('kanban:open-board-create', () => {
     showBoardCreateModal();
