@@ -1,7 +1,10 @@
 // Event-sourced sync schema (PRD docs/temp/prd/PRD-event-sourced-sync.md §7, §5.4).
 //
 // events: gains hlc (json), scope (board|global), entity_id (string);
-//   board relation becomes optional (global-scoped events carry no board);
+//   board becomes an optional TEXT field holding the local board UUID — under
+//   pure event sourcing the board ref is a client-side UUID, never a PB boards
+//   record id, so a relation field would reject every board-scoped push. This
+//   deviates from PRD §7 (which described board staying a relation); see commit.
 //   details -> payload; the task relation is dropped (entity_id generalises it);
 //   updates are forbidden (events are immutable).
 // snapshots: new collection holding gzipped projected state as a file.
@@ -27,14 +30,20 @@ migrate((app) => {
         required: false,
     }));
 
-    const boardField = events.fields.getByName("board");
-    if (boardField) boardField.required = false;
+    // board: relation -> optional text (holds the local board UUID). PB forbids
+    // changing a field's type in place, so drop the relation and add a fresh
+    // text field reusing the same name.
+    events.fields.removeByName("board");
+    events.fields.add(new TextField({
+        id: "evt_board_txt",
+        name: "board",
+        required: false,
+    }));
 
     const detailsField = events.fields.getByName("details");
     if (detailsField) detailsField.name = "payload";
 
-    const taskField = events.fields.getByName("task");
-    if (taskField) events.fields.remove(taskField);
+    events.fields.removeByName("task");
 
     events.updateRule = null; // immutable
     app.save(events);
@@ -116,15 +125,23 @@ migrate((app) => {
     const events = app.findCollectionByNameOrId("events");
 
     for (const fname of ["hlc", "scope", "entity_id"]) {
-        const f = events.fields.getByName(fname);
-        if (f) events.fields.remove(f);
+        events.fields.removeByName(fname);
     }
 
     const payloadField = events.fields.getByName("payload");
     if (payloadField) payloadField.name = "details";
 
-    const boardField = events.fields.getByName("board");
-    if (boardField) boardField.required = true;
+    // board: text -> relation (required) again.
+    events.fields.removeByName("board");
+    events.fields.add(new RelationField({
+        id: "evt_board",
+        name: "board",
+        required: true,
+        collectionId: "kanvana_boards",
+        cascadeDelete: true,
+        minSelect: 0,
+        maxSelect: 1,
+    }));
 
     events.fields.add(new RelationField({
         id: "evt_task",
