@@ -21,6 +21,11 @@ const LEGACY_TASKS_KEY = 'kanbanTasks';
 const LEGACY_LABELS_KEY = 'kanbanLabels';
 
 const DEFAULT_BOARD_ID = 'default';
+// Well-known stable id for the auto-seeded "Default Board". Every fresh device
+// mints the default board with THIS id (not a random UUID) so two devices on the
+// same account converge onto a single board instead of accruing duplicates.
+// Valid uuid-v4 shape so it passes existing id validation/UUID_RE checks.
+const STABLE_DEFAULT_BOARD_ID = '00000000-0000-4000-8000-000000000001';
 const ALLOWED_SWIMLANE_GROUP_BY = new Set(['label', 'label-group', 'priority']);
 
 // ── In-memory state ────────────────────────────────────────────────────────────
@@ -265,6 +270,41 @@ function defaultBoardData(includeTasks = true) {
     columns,
     labels,
     tasks: includeTasks ? defaultTasks(columns, labels) : [],
+    settings: defaultSettings()
+  };
+}
+
+// Deterministic column/label ids for the well-known default board, so two
+// devices seeding their own default board emit identical column.created /
+// label.created events that dedup on merge (see STABLE_DEFAULT_BOARD_ID).
+function stableDefaultColumns() {
+  return [
+    { id: '00000000-0000-4000-8000-000000000010', name: 'To Do', color: '#3583ff' },
+    { id: '00000000-0000-4000-8000-000000000011', name: 'In Progress', color: '#f59e0b' },
+    { id: '00000000-0000-4000-8000-000000000012', name: 'Done', color: '#505050', role: DONE_COLUMN_ROLE }
+  ];
+}
+
+function stableDefaultLabels() {
+  return [
+    { id: '00000000-0000-4000-8000-000000000020', name: 'Task', color: '#f59e0b', group: 'Activity' },
+    { id: '00000000-0000-4000-8000-000000000021', name: 'Meeting', color: '#ffd001', group: 'Activity' },
+    { id: '00000000-0000-4000-8000-000000000022', name: 'Email', color: '#d4a300', group: 'Activity' },
+    { id: '00000000-0000-4000-8000-000000000023', name: 'Idea', color: '#25b631', group: '' },
+    { id: '00000000-0000-4000-8000-000000000024', name: 'Goal', color: '#1b7cbd', group: '' }
+  ];
+}
+
+// Default board scaffold with stable ids. Demo tasks keep random ids and are
+// intentionally local-only (not event-sourced): they are first-run flavour and
+// random ids would duplicate on merge across devices.
+function stableDefaultBoardData() {
+  const columns = stableDefaultColumns();
+  const labels = stableDefaultLabels();
+  return {
+    columns,
+    labels,
+    tasks: defaultTasks(columns, labels),
     settings: defaultSettings()
   };
 }
@@ -548,8 +588,8 @@ export function ensureBoardsInitialized() {
   // First run: seed default board directly into state (IDB is either empty or
   // not yet initialised — migration from localStorage is handled in initStorage()).
   const created = nowIso();
-  const boardId = generateUUID();
-  const defaults = defaultBoardData(true);
+  const boardId = STABLE_DEFAULT_BOARD_ID;
+  const defaults = stableDefaultBoardData();
   const board = { id: boardId, name: 'Default Board', createdAt: created };
   state.boards = [board];
   state.activeBoardId = boardId;
@@ -564,6 +604,41 @@ export function ensureBoardsInitialized() {
   scheduleReadModelPersist(boardId, 'tasks', state.tasks[boardId]);
   scheduleReadModelPersist(boardId, 'labels', state.labels[boardId]);
   schedulePersist(keyFor(boardId, 'settings'), state.settings[boardId]);
+
+  // Emit the scaffold to the event log so a second device reconstructs the
+  // default board's columns/labels (and converges with this one via the stable
+  // ids above). Demo tasks are deliberately not emitted (local-only flavour).
+  scheduleDomainEvent({
+    type: 'board.created',
+    boardId,
+    entityId: boardId,
+    payload: { board }
+  });
+  emitBoardScaffoldEvents(boardId, { columns: defaults.columns, labels: defaults.labels });
+}
+
+// Emit a column.created / label.created event for every column and label in a
+// freshly scaffolded board, so a remote device can reconstruct the board's
+// contents from the event log alone (the board.created event only carries the
+// board row). entity_id matches each column/label id so live projection and
+// catch-up replay dedup against the locally written read-model.
+function emitBoardScaffoldEvents(boardId, { columns = [], labels = [] }) {
+  for (const column of columns) {
+    scheduleDomainEvent({
+      type: 'column.created',
+      boardId,
+      entityId: column.id,
+      payload: { column }
+    });
+  }
+  for (const label of labels) {
+    scheduleDomainEvent({
+      type: 'label.created',
+      boardId,
+      entityId: label.id,
+      payload: { label }
+    });
+  }
 }
 
 export function createBoard(name) {
@@ -595,6 +670,7 @@ export function createBoard(name) {
     entityId: id,
     payload: { board }
   });
+  emitBoardScaffoldEvents(id, { columns: defaults.columns, labels: defaults.labels });
 
   return board;
 }
