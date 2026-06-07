@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Event-sourced sync foundation: HLC module with persisted node IDs and IndexedDB v2 stores for events, snapshots, and reducer read models.
 - Event-sourced reducer foundation with idempotent handlers for task, label, column, board, settings, subtask, and relationship events; feature modules now emit persisted domain events while keeping offline behavior intact.
 - Snapshot module with local GC: periodic board snapshots written to IndexedDB; old events pruned after each snapshot; configurable snapshot interval.
+- Event-sourced sync backend schema and outbound push queue (issue #112): PocketBase `events` collection extended with `hlc`/`scope`/`entity_id`, nullable `board`, `details`→`payload`, immutable updates; new `snapshots` collection; legacy collections locked read-only. Client `sync-queue` drains unsynced events to PocketBase in HLC order with a 5-deep in-flight cap, 500 ms debounce, three-tier retry (network backoff, auth-pause, permanent 4xx), online-event resume, and no-rollback semantics.
 
 ### Removed
 

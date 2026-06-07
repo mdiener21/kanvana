@@ -13,6 +13,7 @@ import { initStorage, ensureBoardsInitialized, setActiveBoardId } from './module
 import { initializeSwimLaneControls } from './modules/swimlanes.js';
 import { initializeAuthSyncUI } from './modules/authsync.js';
 import { initializeAutoSync } from './modules/autosync.js';
+import { initSyncQueue } from './modules/event-sourcing/sync-queue.js';
 
 // Add task button listeners
 document.addEventListener('DOMContentLoaded', async () => {
@@ -56,6 +57,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Auth/sync UI and auto-sync listener
   initializeAuthSyncUI();
   initializeAutoSync();
+
+  // Event-sourced outbound push queue (drains unsynced events to PocketBase)
+  initSyncQueue();
 
   // Initialize modal handlers
   initializeModalHandlers();

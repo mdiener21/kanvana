@@ -101,6 +101,22 @@ export async function persistEvent(event) {
   await db.put(EVENTS_STORE, { ...event, synced: event.synced === true });
 }
 
+// Events not yet acknowledged by PocketBase. Unsorted — the sync queue orders
+// them by HLC before draining (boolean values are not valid IDB index keys, so
+// the `synced` index can't be range-queried; a full scan + filter is correct).
+export async function getUnsyncedEvents() {
+  const db = await getDB();
+  const all = await db.getAll(EVENTS_STORE);
+  return all.filter(e => e.synced !== true);
+}
+
+export async function markEventSynced(id) {
+  const db = await getDB();
+  const event = await db.get(EVENTS_STORE, id);
+  if (!event) return;
+  await db.put(EVENTS_STORE, { ...event, synced: true });
+}
+
 /**
  * Wait for all fire-and-forget IDB writes to settle.
  * Only intended for use in tests — do not call in application code.
