@@ -14,6 +14,7 @@ import { initializeSwimLaneControls } from './modules/swimlanes.js';
 import { initializeAuthSyncUI } from './modules/authsync.js';
 import { initializeAutoSync } from './modules/autosync.js';
 import { initSyncQueue } from './modules/event-sourcing/sync-queue.js';
+import { initSnapshotSync } from './modules/event-sourcing/snapshot-sync.js';
 
 // Add task button listeners
 document.addEventListener('DOMContentLoaded', async () => {
@@ -60,6 +61,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Event-sourced outbound push queue (drains unsynced events to PocketBase)
   initSyncQueue();
+
+  // Snapshot upload: push locally-saved snapshots to PB (pre-flight + GC)
+  initSnapshotSync();
 
   // Initialize modal handlers
   initializeModalHandlers();

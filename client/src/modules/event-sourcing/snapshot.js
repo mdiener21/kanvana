@@ -9,8 +9,9 @@ export const GLOBAL_SNAPSHOT_KEY = '__global__';
 
 const _pendingSnapshots = new Map();
 let _getJitter = () => Math.floor(Math.random() * (MAX_JITTER_MS + 1));
+let _afterSnapshotSaved = null;
 
-function serializeState(state) {
+export function serializeState(state) {
   return {
     boards: Array.isArray(state.boards) ? state.boards : [],
     tasks: Array.isArray(state.tasks) ? state.tasks : [],
@@ -92,6 +93,7 @@ export function checkAndScheduleSnapshot(key, state, hlc) {
       if (!should) return;
       await saveSnapshot(key, state, hlc);
       await gcEvents(hlc);
+      if (_afterSnapshotSaved) await _afterSnapshotSaved(key, state, hlc);
     } catch (err) {
       if (err?.code !== 11) console.error('[Kanvana] Snapshot failed', err);
     }
@@ -99,10 +101,15 @@ export function checkAndScheduleSnapshot(key, state, hlc) {
   _pendingSnapshots.set(key, id);
 }
 
+export function setAfterSnapshotSaved(fn) {
+  _afterSnapshotSaved = fn;
+}
+
 export function _resetSnapshotSchedulerForTesting() {
   for (const id of _pendingSnapshots.values()) clearTimeout(id);
   _pendingSnapshots.clear();
   _getJitter = () => Math.floor(Math.random() * (MAX_JITTER_MS + 1));
+  _afterSnapshotSaved = null;
 }
 
 export function _setJitterForTesting(fn) {
