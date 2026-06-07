@@ -1,6 +1,6 @@
 # Product Requirement Document (PRD): Event-Sourced Multi-Device Sync
 
-> Source plan: `~/.claude/plans/vast-snacking-mountain.md` (grill-with-docs session, 2026-05-25).
+> Source plan: `../plans/2026-05-25-event-driven.md` (grill-with-docs session, 2026-05-25).
 > Supersedes the LWW push/pull architecture defined in `PRD-online-mode-pocketbase-sync.md` and shipped as PR #89.
 
 ---
@@ -104,6 +104,11 @@ The 39 decisions below are the contract for implementation. Any deviation must b
 11. **Scope discrimination.** Events are either `scope: 'board'` (carry `board_id`) or `scope: 'global'` (no board ref; for cross-device user-level settings).
 12. **Pure-UI state is per-device, NOT synced.** Collapsed columns, view toggles, theme. Stays in separate IDB keys. Never enters the event stream.
 13. **Global settings ARE synced** as `scope: 'global'` events. Pre-login global-setting changes stay local-only with `actor: { type: "human", id: null }`; on first successful login, all unsynced local events (board and global) flush to PB tagged with the now-known user.
+**Board scaffolding & default-board convergence** (implementation of the above for #114):
+
+- **Board creation emits scaffold events, not just `board.created`.** A new board's starter columns and labels are part of its initial state, so `createBoard()` emits `board.created` followed by one `column.created` per starter column and one `label.created` per starter label (each with the column's/label's `entity_id`). Without this, a board replayed on another device would arrive column-less.
+- **The default ("first-run") board has a well-known stable id and deterministic scaffold ids.** Id `00000000-0000-4000-8000-000000000001`; its columns/labels use fixed UUIDs (`…010/011/012` for columns, `…020`–`…024` for labels). A stable board id alone is insufficient: with random column/label ids, two devices' independently-bootstrapped default boards merge to 6 columns / duplicated labels. Matching `entity_id`s let the reducer dedup (`applyColumnCreated`/`applyLabelCreated` are idempotent by `entity_id`) so the default board converges to 3 columns / 5 labels across devices.
+- **Default-board demo tasks are local-only — NOT event-sourced.** They are first-run flavour with random ids that would duplicate on cross-device merge. User-created tasks emit `task.created` as normal; only the seeded demo tasks are excluded from the event stream.
 
 ### 4.3 Reducer & Projection
 
@@ -396,7 +401,7 @@ For a board that has never been snapshotted (edge case: brand-new device hitting
 | `hlc` | NEW — JSON `{ wallTime: number, counter: number, nodeId: string }` |
 | `scope` | NEW — string enum `'board' \| 'global'` |
 | `entity_id` | NEW — string; generalizes the existing `task` relation to any entity kind |
-| `board` (relation) | NULLABLE — required for `scope: 'board'`, null for `scope: 'global'` |
+| `board` | CHANGED — relation → optional **TEXT** holding the local board UUID. Under pure event sourcing the board ref is a client-generated UUID, never a PB `boards` record id, so a relation field would reject every board-scoped push. Holds the board UUID for `scope: 'board'`, empty for `scope: 'global'`. (Migration `1746100010` drops the relation and re-adds `board` as TEXT — PB forbids in-place type changes.) |
 | `type` | UNCHANGED — string |
 | `at` | UNCHANGED — datetime |
 | `actor_type`, `actor_id` | UNCHANGED |
