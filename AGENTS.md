@@ -45,7 +45,8 @@ docs/
   adr/              Architecture Decision Records
   spec/             Feature specifications
   user/             User-facing documentation (guides, FAQs, etc.)
-
+  plans/            Plans for all work to be done
+  prd/              Result from plans and are now ready to create issues from PRD  issues live under prd/prd-name/issues
 CONTEXT.md          Domain model — read before working on any feature
 CHANGELOG.md        Keep updated under [Unreleased] as you work
 ```
