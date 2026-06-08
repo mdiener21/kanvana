@@ -142,4 +142,9 @@ export async function _resetRealtimeForTesting() {
   _unsubscribe = null;
 }
 
+// True when the SSE subscription is live (used by the header sync indicator, #115).
+export function isRealtimeActive() {
+  return !!_unsubscribe;
+}
+
 export { recordToEvent, LAST_SEEN_PREFIX };

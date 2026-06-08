@@ -16,6 +16,7 @@ import { initializeAutoSync } from './modules/autosync.js';
 import { initSyncQueue } from './modules/event-sourcing/sync-queue.js';
 import { initSnapshotSync } from './modules/event-sourcing/snapshot-sync.js';
 import { initRealtime } from './modules/event-sourcing/realtime.js';
+import { initSyncIndicator } from './modules/event-sourcing/sync-indicator.js';
 
 // Add task button listeners
 document.addEventListener('DOMContentLoaded', async () => {
@@ -68,6 +69,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Inbound sync: SSE realtime subscription + launch/reconnect catch-up pull
   initRealtime();
+
+  // Header sync-state indicator (Live / Syncing / unsynced / Offline)
+  initSyncIndicator();
 
   // Initialize modal handlers
   initializeModalHandlers();

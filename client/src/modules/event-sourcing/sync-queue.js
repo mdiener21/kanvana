@@ -159,6 +159,14 @@ export function _isPausedForTesting() {
   return _paused;
 }
 
+// Public snapshot of queue health for the header sync indicator (#115).
+// depth = events still unsynced; retrying = network/5xx backoff in progress;
+// paused = drain halted on auth failure.
+export async function getSyncStatus() {
+  const depth = (await getUnsyncedEvents()).length;
+  return { depth, retrying: _retryIndex > 0, paused: _paused };
+}
+
 export async function _settleForTesting() {
   try { await _inFlightDrain; } catch { /* drain failures are handled internally */ }
 }
