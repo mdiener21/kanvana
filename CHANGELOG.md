@@ -42,10 +42,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Event-sourced PocketBase migration fixed for PocketBase v0.38.1 (issue #114): `events.board` is stored as TEXT (a client-side local UUID, not a `kanvana_boards` relation), so board-scoped events no longer fail validation; uses the v0.38.1 field API (`removeByName`/`add`).
 - Corrected the frontend reverse-proxy URL in the Nginx configuration.
 - Vite now loads the `client/.env.local` (dev) and `client/.env.production` (build) files: `envDir` was previously resolving to `client/src/`, so `VITE_PB_URL` was silently ignored and the app fell back to the same origin; the production build now correctly targets `https://pb.kanvana.com`. The Playwright e2e configs pin `VITE_PB_URL=/` so the sandboxed browser stays same-origin via the `/api` proxy.
-- Fixed desktop task drag autoscroll so long task lists scroll vertically while dragging a card near the list edge
-- Fixed Impressum page overflow so the legal content can scroll vertically on desktop and mobile
-- Fixed font size sub-task
-- Fixed missing scale icon for impressum
 
 ## [2.0.0] - 2026-05-16
 
