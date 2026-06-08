@@ -35,15 +35,6 @@
   subTasks: [
     { id: "uuid", title: "subtask title", completed: boolean, order: number }
   ],
-  activityLog: [
-    {
-      id: "uuid",
-      type: "task.created" | "task.title_changed" | ...,
-      at: "YYYY-MM-DDTHH:MM:SS.mmmZ",
-      details: object,
-      actor: { type: "human", id: null } | { type: "agent" | "user", id: "string" }
-    }
-  ],
   deleted: boolean
 }
 ```
@@ -58,8 +49,8 @@
 - `swimlaneLabelId` preserves explicit swim lane assignment metadata
 - `subTasks` defaults to `[]`; each entry is a SubTask — see SubTask Model below
 - `relationships` defaults to `[]`; each entry stores a `type` (`prerequisite`, `dependent`, or `related`) and the UUID `targetTaskId` of the linked task; both sides of a relationship are always stored (bidirectional)
-- `activityLog` defaults to `[]`; each entry is an `ActivityLogEntry` — see `docs/system/spec/audit-trail.md` for full shape and event type catalogue; `normalizeActivityLog()` strips structurally invalid entries on load; the `id` field is required for sync deduplication; entries without an `id` are local-only
 - `deleted` marks internal tombstones/deleted records; normal read functions filter `deleted: true`
+- The task no longer carries an inline `activityLog` — the audit-trail feature was removed (issue #110); mutation history now lives in the event stream (see [ADR-0004](../adr/0004-event-sourced-sync.md))
 
 ## Column Model
 
@@ -127,21 +118,13 @@ Relationships are stored inline in the `relationships` array on each task. Both 
 }
 ```
 
-## ActivityLogEntry Model
+## Domain Event Model
 
-ActivityLogEntries are stored inline in the `activityLog` array on a task, and separately as board-level events. See `docs/system/spec/audit-trail.md` for the full event type catalogue.
-
-```javascript
-{
-  id: "uuid",
-  type: "task.created" | "task.title_changed" | ...,
-  at: "YYYY-MM-DDTHH:MM:SS.mmmZ",
-  actor: { type: "human", id: null } | { type: "agent" | "user", id: "string" },
-  details: object
-}
-```
-
-- `id` is required for sync deduplication; entries created before this field was introduced are local-only
+> The standalone `ActivityLogEntry` model (inline task `activityLog` + board events) was **removed**
+> with the audit-trail feature (issue #110). Mutations are now recorded as **domain events** in the
+> event-sourced stream and persisted to the PocketBase `events` collection (below). See
+> [ADR-0004](../adr/0004-event-sourced-sync.md) and `backend-storage-pb.md` for the event schema,
+> HLC ordering, and reducer.
 
 ## Settings Model
 
@@ -237,16 +220,33 @@ Stores directed relationship edges. Both directions are stored as separate recor
 
 **events**
 
-Unified event log for both task-level `activityLog` entries and board-level `boardEvents`. `task` is absent for board-level events. `local_id` is the `ActivityLogEntry.id` UUID; entries without a `local_id` are not synced.
+The event-sourced domain-event log — the source of truth for sync (migration `1746100010`, see
+[ADR-0004](../adr/0004-event-sourced-sync.md)). Records are immutable (no update rule). `board` is
+**text** (a client-side local UUID, not a relation) so board-scoped events validate; `entity_id`
+generalises the old `task` relation; `hlc` gives total ordering; `details` was renamed to `payload`.
 
 | field | type | notes |
 |---|---|---|
 | owner | relation → users | required |
-| board | relation → boards | required; cascade delete |
-| task | relation → tasks | optional; no cascade — history survives task deletion |
+| hlc | json | Hybrid Logical Clock stamp; reducer sorts by this on replay |
+| scope | text | `board` or `global` |
+| entity_id | text | id of the entity the event applies to (replaces the `task` relation) |
+| board | text | local board UUID (text, **not** a relation) |
 | event_type | text | required |
 | at | text | ISO timestamp; required |
 | actor_type | text | human/agent/user; required |
 | actor_id | text | null for human; non-empty for agent/user |
-| details | json | event-specific payload |
-| local_id | text | ActivityLogEntry UUID for dedup |
+| payload | json | event-specific data (formerly `details`) |
+| local_id | text | event UUID for dedup; entries without one are not synced |
+
+**snapshots**
+
+Client-computed board/global projection snapshots used to bound replay and GC old events (W1, immutable inserts).
+
+| field | type | notes |
+|---|---|---|
+| owner | relation → users | required |
+| board_id | text | local board UUID; null for global-scope snapshots |
+| hlc | json | HLC up to which the snapshot folds events |
+| payload | file | gzipped projected state |
+| local_id | text | snapshot UUID for dedup |

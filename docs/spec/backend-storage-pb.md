@@ -1,5 +1,13 @@
 # Optional Backend Storage via PocketBase
 
+> **⚠️ Partially stale — rewrite pending.** This document still describes the **legacy whole-record
+> LWW** sync (PR #89: `pushBoardFull`/`pullAllBoards`, auto-sync, conflict resolution). That model was
+> replaced by **event-sourced sync** on branch `feature-event-driven` — see
+> [ADR-0004](../adr/0004-event-sourced-sync.md) for the current architecture (HLC-ordered domain
+> events, outbound queue, SSE realtime, snapshots) and `data-models.md` for the `events`/`snapshots`
+> PocketBase schema. The auth / health-probe / login sections below remain accurate; the sync-mechanics
+> sections do not. Tracked for a full rewrite.
+
 Product spec for optional online storage: authenticated multi-device sync, local-first by default.
 
 ## Goal

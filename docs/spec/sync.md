@@ -68,17 +68,22 @@ A toggle link switches between Login and Sign-up mode within the email pane. Sig
 
 - PocketBase auth token is persisted in `localStorage` by the PocketBase SDK.
 - On auth state change the `auth-changed` window event fires; `updateAuthUI` subscribes to it.
-- `ensureAuthenticated` attempts a token refresh before sync; on failure the sync button opens the login modal with a "Session expired" message.
+- `ensureAuthenticated` attempts a token refresh before a push; on failure the login modal opens with a "Session expired" message.
 
 ---
 
 ## Sync Operations
 
-Triggered by the sync button (`#sync-btn`), visible when authenticated and auto-sync is off.
+> The manual push/pull `#sync-btn` button was **removed** in issue #115. Sync is now fully automatic
+> under event sourcing — there is no "Push to Cloud / Pull from Cloud" choice.
 
-| Action | Result |
+Once authenticated, sync runs without user action:
+
+| Direction | Mechanism |
 |---|---|
-| Push to Cloud | Calls `pushBoardFull` for every local board, then enables auto-sync. |
-| Pull from Cloud | Confirms before replacing all local board data with remote data; re-renders the board and rebuilds the boards UI. |
+| Outbound | The event queue (`event-sourcing/sync-queue.js`) drains unsynced domain events to PocketBase in HLC order. |
+| Inbound | An SSE subscription (`event-sourcing/realtime.js`) applies remote events live, plus a catch-up pull on launch/reconnect. |
 
-Auto-sync is enabled after a successful push and thereafter keeps boards in sync automatically via `scheduleAutoSync`.
+The header **sync-state indicator** (`event-sourcing/sync-indicator.js`) reflects status: `Live ●`,
+`Syncing… (N)`, `⚠ N unsynced`, or `Offline`. See `backend-storage-pb.md` and
+[ADR-0004](../adr/0004-event-sourced-sync.md) for the full architecture.

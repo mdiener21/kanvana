@@ -6,47 +6,47 @@ Kanvana is a local-first kanban application with an optional PocketBase-powered 
 
 ## Specification Index
 
-All canonical specs live under `docs/system/spec/`. Start here when adding, changing, or reviewing any feature.
+All canonical specs live under `docs/spec/`. Start here when adding, changing, or reviewing any feature.
 
 ### Core Architecture
 
 | Spec | Purpose |
 |---|---|
-| `docs/system/spec/data-models.md` | Canonical shapes for board, task, column, label, subtask, relationship, activity log entry, and all PocketBase collection schemas |
-| `docs/system/spec/storage.md` | IDB persistence model, in-memory state pattern, storage key layout, migration logic |
-| `docs/system/spec/backend-storage-pb.md` | PocketBase sync architecture: auth, auto-sync, conflict resolution, module map, collection schemas |
+| `docs/spec/data-models.md` | Canonical shapes for board, task, column, label, subtask, relationship, and all PocketBase collection schemas |
+| `docs/spec/storage.md` | IDB persistence model, in-memory state pattern, storage key layout, migration logic |
+| `docs/adr/0004-event-sourced-sync.md` | **Architecture decision (current sync)** — pure event sourcing + HLC replaces whole-record LWW; PocketBase as a dumb event store; offline-first. Read this first for sync. |
+| `docs/spec/backend-storage-pb.md` | PocketBase auth / health-probe / login flow. ⚠️ Sync-mechanics sections still describe the legacy LWW design (rewrite pending) — see ADR-0004 |
 
 ### Features
 
 | Spec | Purpose |
 |---|---|
-| `docs/system/spec/board-ui.md` | Main board layout, column/card rendering, drag-drop, mobile behavior |
-| `docs/system/spec/tasks.md` | Task CRUD, priority, due date, card display rules |
-| `docs/system/spec/columns.md` | Column CRUD, Done column invariants, ordering, collapse |
-| `docs/system/spec/labels.md` | Label management, groups, color constraints |
-| `docs/system/spec/settings.md` | Per-board settings fields and persistence |
-| `docs/system/spec/relationships.md` | Task relationship types, bidirectional sync rules |
-| `docs/system/spec/sub-tasks.md` | Sub-task model, checklist behavior, ordering |
-| `docs/system/spec/swimlanes.md` | Swim lane grouping modes, collapse state, lane-aware drag-drop |
-| `docs/system/spec/audit-trail.md` | Two-log audit trail design: task `activityLog` + board `boardEvents`, event type catalogue |
-| `docs/system/spec/notifications.md` | Due-date notification banner and modal behavior |
-| `docs/system/spec/import-export.md` | Board JSON export/import format and ID-remapping rules |
-| `docs/system/spec/sync.md` | Sync backend Pocketbase data to from local storage |
+| `docs/spec/board-ui.md` | Main board layout, column/card rendering, drag-drop, mobile behavior |
+| `docs/spec/tasks.md` | Task CRUD, priority, due date, card display rules |
+| `docs/spec/columns.md` | Column CRUD, Done column invariants, ordering, collapse |
+| `docs/spec/labels.md` | Label management, groups, color constraints |
+| `docs/spec/settings.md` | Per-board settings fields and persistence |
+| `docs/spec/relationships.md` | Task relationship types, bidirectional sync rules |
+| `docs/spec/sub-tasks.md` | Sub-task model, checklist behavior, ordering |
+| `docs/spec/swimlanes.md` | Swim lane grouping modes, collapse state, lane-aware drag-drop |
+| `docs/spec/notifications.md` | Due-date notification banner and modal behavior |
+| `docs/spec/import-export.md` | Board JSON export/import format and ID-remapping rules |
+| `docs/spec/sync.md` | "Go Online" auth flow: backend health probe, login modal, session management (event-sourced sync itself lives in `backend-storage-pb.md`) |
 
 
 ### Reporting
 
 | Spec | Purpose |
 |---|---|
-| `docs/system/spec/reports.md` | Reports page: lead time, completions, cumulative flow (ECharts) |
-| `docs/system/spec/calendar.md` | Calendar view: task-by-due-date rendering (ECharts) |
+| `docs/spec/reports.md` | Reports page: lead time, completions, cumulative flow (ECharts) |
+| `docs/spec/calendar.md` | Calendar view: task-by-due-date rendering (ECharts) |
 
 ### Testing
 
 | Spec | Purpose |
 |---|---|
-| `docs/system/spec/testing-strategy.md` | Canonical test stack, folder layout, naming conventions, layer goals |
-| `docs/system/spec/testing.md` | Test scripts, IDB unit test setup, fixture conventions |
+| `docs/spec/testing-strategy.md` | Canonical test stack, folder layout, naming conventions, layer goals |
+| `docs/spec/testing.md` | Test scripts, IDB unit test setup, fixture conventions |
 
 ### Governance
 
@@ -76,14 +76,13 @@ All canonical specs live under `docs/system/spec/`. Start here when adding, chan
 - `src/kanban.js` / `src/index.html` - main board UI, wires handlers, calls `renderBoard()`
 - `src/reports.html` - reports page (ECharts)
 - `src/calendar.html` - calendar page (ECharts)
-- `src/activity.html` - board activity log page
 - `src/impressum.html` - impressum/imprint page
 
 **Every entry point must call `await initStorage()` before accessing any storage functions.**
 
 ## Module Map
 
-- `src/modules/schema.js` - canonical factory functions for all domain objects (`createTask`, `createColumn`, `createLabel`, `createBoard`, `createSubTask`, `createRelationship`, `createActivityLogEntry`)
+- `src/modules/schema.js` - canonical factory functions for all domain objects (`createTask`, `createColumn`, `createLabel`, `createBoard`, `createSubTask`, `createRelationship`)
 - `src/modules/render.js` - centralized board rendering and incremental sync helpers (`renderBoard`, `syncTaskCounters`, `syncCollapsedTitles`)
 - `src/modules/idb-store.js` - IDB singleton, key helpers (`keyFor`, `getBoardEventsKey`), `schedulePersist`, `scheduleDelete`
 - `src/modules/board-serializer.js` - board import ID-remapping (`normalizeBoardModelIds`)
@@ -108,7 +107,7 @@ All canonical specs live under `docs/system/spec/`. Start here when adding, chan
 - `src/modules/swimlane-renderer.js` - swim lane DOM rendering helpers
 - `src/modules/validation.js` - form validation helpers
 - `src/modules/utils.js` - UUID generation and shared utilities
-- `src/modules/normalize.js` - data normalization: priority, color (`isHexColor`, `defaultColumnColor`), dates, relationships, sub-tasks, activity log, string keys
+- `src/modules/normalize.js` - data normalization: priority, color (`isHexColor`, `defaultColumnColor`), dates, relationships, sub-tasks, string keys
 - `src/modules/security.js` - HTML escaping (`escapeHtml`) and byte formatting utilities
 - `src/modules/dom.js` - minimal DOM construction helper (`el()` factory)
 - `src/modules/events.js` - lightweight event bus replacing circular dynamic imports
@@ -120,12 +119,18 @@ All canonical specs live under `docs/system/spec/`. Start here when adding, chan
 - `src/modules/boards-modal.js` - manage boards modal logic
 - `src/modules/labels-modal.js` - label management modal UI
 - `src/modules/impressum.js` - impressum/imprint page logic
-- `src/modules/activity-log.js` - activity event factory (`createActivityEvent`), `appendTaskActivity`, board event helpers
-- `src/modules/activity-log-ui.js` - activity event formatting (`formatActivityEvent`) and accordion rendering for the activity page
-- `src/modules/activity.js` - activity page entry: initialises storage, renders the board activity log
-- `src/modules/sync.js` - PocketBase SDK init, auth functions, `pushBoardFull`, `pullAllBoards`
-- `src/modules/autosync.js` - `kanban-local-change` event listener, debounced auto-push, in-flight guard
-- `src/modules/authsync.js` - auth/sync UI orchestration, login modal handlers
+- `src/modules/sync.js` - PocketBase SDK init and auth functions (`isAuthenticated`, `loginUser`, `registerUser`, `logoutUser`, `loginWithProvider`)
+- `src/modules/autosync.js` - debounced auto-push trigger for the event queue
+- `src/modules/authsync.js` - auth/sync UI orchestration, login modal handlers, backend health probe
+
+### Event sourcing (`src/modules/event-sourcing/`)
+
+- `hlc.js` - Hybrid Logical Clock: monotonic stamps with a persisted node id; `compareHlc` total ordering
+- `emitter.js` / `dispatcher.js` - emit domain events from feature modules and dispatch them into the reducer + IDB event store
+- `sync-queue.js` - outbound push queue: drains unsynced events to PocketBase in HLC order (in-flight cap, debounce, three-tier retry); `getSyncStatus()` for the indicator
+- `realtime.js` - inbound SSE subscription + launch/reconnect catch-up pull; `isRealtimeActive()`
+- `snapshot.js` / `snapshot-sync.js` - client-side board snapshots, upload to PocketBase, and event GC
+- `sync-indicator.js` - header sync-state indicator (`Live` / `Syncing… (N)` / `⚠ N unsynced` / `Offline`)
 
 ## Data Flow
 
