@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Event-sourced reducer foundation with idempotent handlers for task, label, column, board, settings, subtask, and relationship events; feature modules now emit persisted domain events while keeping offline behavior intact.
 - Snapshot module with local GC: periodic board snapshots written to IndexedDB; old events pruned after each snapshot; configurable snapshot interval.
 - Event-sourced sync backend schema and outbound push queue (issue #112): PocketBase `events` collection extended with `hlc`/`scope`/`entity_id`, nullable `board`, `details`→`payload`, immutable updates; new `snapshots` collection; legacy collections locked read-only. Client `sync-queue` drains unsynced events to PocketBase in HLC order with a 5-deep in-flight cap, 500 ms debounce, three-tier retry (network backoff, auth-pause, permanent 4xx), online-event resume, and no-rollback semantics.
+- Inbound realtime sync (issue #114): a PocketBase SSE subscription applies remote events live across devices, plus a launch/reconnect catch-up pull so a just-opened device converges without manual sync.
+- Board scaffolding now emits domain events with a stable default board id (issue #114): a new device and an existing one converge on the same default board without a board-sharing handshake.
+- Header sync-state indicator (issue #115): a single live indicator replaces the manual Sync button — `Live ●` (green) when online and synced, `Syncing… (N)` (yellow) while events drain, `⚠ N unsynced` (orange) when retrying or paused, and `Offline` (gray) when offline or signed out; updates without a page reload.
 
 ### Removed
 
@@ -35,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed sub-task font size.
 - Fixed missing scale icon for the legal/impressum page.
 - Deleting a board while signed in now also deletes the mapped PocketBase board and its board-scoped columns, labels, tasks, relationships, and events before removing the local board.
+- Board changes from another device now refresh the board selector live (issue #114): remotely created or renamed boards appear in the dropdown without a reload.
+- Event-sourced PocketBase migration fixed for PocketBase v0.38.1 (issue #114): `events.board` is stored as TEXT (a client-side local UUID, not a `kanvana_boards` relation), so board-scoped events no longer fail validation; uses the v0.38.1 field API (`removeByName`/`add`).
+- Corrected the frontend reverse-proxy URL in the Nginx configuration.
+- Vite now loads the `client/.env.local` (dev) and `client/.env.production` (build) files: `envDir` was previously resolving to `client/src/`, so `VITE_PB_URL` was silently ignored and the app fell back to the same origin; the production build now correctly targets `https://pb.kanvana.com`. The Playwright e2e configs pin `VITE_PB_URL=/` so the sandboxed browser stays same-origin via the `/api` proxy.
 - Fixed desktop task drag autoscroll so long task lists scroll vertically while dragging a card near the list edge
 - Fixed Impressum page overflow so the legal content can scroll vertically on desktop and mobile
 - Fixed font size sub-task
