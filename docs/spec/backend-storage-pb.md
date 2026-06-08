@@ -1,213 +1,182 @@
 # Optional Backend Storage via PocketBase
 
-> **⚠️ Partially stale — rewrite pending.** This document still describes the **legacy whole-record
-> LWW** sync (PR #89: `pushBoardFull`/`pullAllBoards`, auto-sync, conflict resolution). That model was
-> replaced by **event-sourced sync** on branch `feature-event-driven` — see
-> [ADR-0004](../adr/0004-event-sourced-sync.md) for the current architecture (HLC-ordered domain
-> events, outbound queue, SSE realtime, snapshots) and `data-models.md` for the `events`/`snapshots`
-> PocketBase schema. The auth / health-probe / login sections below remain accurate; the sync-mechanics
-> sections do not. Tracked for a full rewrite.
-
-Product spec for optional online storage: authenticated multi-device sync, local-first by default.
+Spec for optional online storage: authenticated, **event-sourced** multi-device sync, local-first by
+default. Architecture decision: [ADR-0004](../adr/0004-event-sourced-sync.md). PocketBase collection
+schemas: `data-models.md`.
 
 ## Goal
 
-Let users opt-in to cloud sync, accessing boards from multiple devices. Local-first (IDB) remains the default. PocketBase provides the backend.
+Let users opt into cloud sync and reach their boards from multiple devices. Local-first (IndexedDB)
+remains the default and works fully offline forever — PocketBase is an **optional fan-out**, never a
+dependency.
 
 ## Technical Components
 
-- **Backend**: PocketBase binary (not a Go project) in Docker, collection schema defined via `pb_migrations/` JSON files
-- **Authentication**: Email/Password (default) + OAuth2 (Google, Apple, Microsoft) via PocketBase Users collection
-- **Frontend SDK**: `pocketbase` npm package
+- **Backend**: PocketBase binary (v0.38.1) in Docker; collection schema defined via `backend/pb_migrations/` JS migration files (baked into the image).
+- **Authentication**: Email/Password (default) + OAuth2 (Google, Apple, Microsoft) via the built-in `users` collection.
+- **Frontend SDK**: `pocketbase` npm package.
 
-## Architecture Decisions
+## Sync model: pure event sourcing
 
-### Storage Layer
+Mutations are **domain events**, not whole records. Events are the source of truth; the tasks,
+columns, and labels in IndexedDB are reducer-maintained **projections**. A Hybrid Logical Clock (HLC)
+gives a total order across devices. PocketBase is a dumb event store — it runs no business logic. See
+ADR-0004 for the rationale; this spec documents the mechanics.
 
-- Local storage is IDB via `storage.js` — all sync read/write must use `storage.js` exported fns, never `localStorage` directly
-- Exception: `syncMap` (`kanbanSyncMap`) stays in `localStorage` — small coordination metadata, needed synchronously, no async overhead needed
-- Auto-sync reads board data via `loadColumnsForBoard(id)`, `loadTasksForBoard(id)`, `loadLabelsForBoard(id)`, `loadSettingsForBoard(id)` — never mutates `activeBoardId`
-- Pull writes through `storage.js` write fns, then calls `renderBoard()`
+### Local emission → projection
 
-### Deleted Records
+1. A feature module calls `emitDomainEvent({ type, scope, boardId, entityId, payload, actor })`
+   (`event-sourcing/emitter.js`).
+2. The emitter stamps a UUID `id`, an HLC (`emitLocal()`), and `at`, then **persists the event to IDB**
+   (`synced=false`) and fires the `EVENT_EMITTED` bus event.
+3. The reducer (`reduceEventAndNotify`, `event-sourcing/dispatcher.js`) folds the event into the read
+   model — the reducer is the **sole writer** of the projection. Feature modules never write
+   projections directly.
+4. `EVENT_EMITTED` also wakes the outbound queue.
 
-All entity types (tasks, columns, labels, boards) get a `deleted: boolean` field.
+`scope` is `board` (carries a `board_id`) or `global` (settings shared across boards; no board id).
 
-- Some delete operations retain `deleted: true` tombstones until sync can propagate cleanup
-- All read fns (`loadTasks`, `loadColumns`, etc.) filter `deleted: true` — callers never see deleted items
-- Sync layer accesses deleted items via internal fns to push deletes to PocketBase
-- `purgeDeleted()` hard-removes `deleted: true` records from IDB after confirmed sync cleanup
+### Outbound: event push queue (`event-sourcing/sync-queue.js`)
 
-### Conflict Resolution
+Drains IDB events where `synced=false` to the PocketBase `events` collection, then flips `synced=true`.
 
-Explicit push/pull with user confirmation. No merge strategy in V1.
+- **Ordering**: events are sorted by `compareHlc` before pushing.
+- **Debounce**: `EVENT_EMITTED` schedules a drain after **500 ms** (rapid edits collapse).
+- **Concurrency**: up to **5** in-flight creates (`MAX_IN_FLIGHT`); each `create` passes
+  `requestKey: null` to opt out of PocketBase auto-cancellation (concurrent same-path creates would
+  otherwise abort each other).
+- **Never rolls back**: a rejected push leaves the event queued (`synced=false`) — local state is never
+  reverted (R-A).
+- **Three-tier retry** on failure (`classifyError`):
+  | Error | Tier | Behaviour |
+  |---|---|---|
+  | 401 / 403 | auth | Pause the queue; resume on the next `auth-changed`. |
+  | other 4xx | permanent | Retry after **1 hour**. |
+  | 5xx / network | network | Exponential backoff: **5s → 30s → 120s → 300s**. |
+- **Resume triggers**: the `online` window event and `auth-changed` (un-pause) force an immediate drain.
+- **Status**: `getSyncStatus()` returns `{ depth, retrying, paused }` for the header indicator (#115).
 
-- **Push**: local → cloud, overwrites cloud
-- **Pull**: cloud → local, replaces local (requires explicit confirmation dialog)
-- Post-pull: preserve active board ID if it exists in pulled data, else fallback to first board
+### Inbound: realtime + catch-up (`event-sourcing/realtime.js`)
 
-### Auto-Sync
+- **SSE subscription**: `startRealtime()` subscribes to the `events` collection filtered by
+  `owner = "<id>"`; each `create` runs `applyRemoteEvent`.
+- **Ingest**: a remote record is mapped to an event, `observeRemote(hlc)` advances the local clock, the
+  event is **persisted as `synced=true`** (so the outbound queue never echoes it back), and
+  `EVENT_EMITTED` is fired — feeding the *same* projection pipeline as local events.
+- **Dedup for free**: the reducer keys on the event UUID, so SSE/catch-up overlap and self-echoes are
+  idempotent no-ops.
+- **Catch-up pull** (`catchUp()`, on launch / reconnect / login): fetch owner-scoped events, sort by
+  HLC, skip events at or below the per-scope `lastSeenHlc` watermark, ingest the rest, then advance
+  `lastSeenHlc` per scope. (PocketBase can't range-filter the JSON `hlc` field; client-side HLC
+  filtering is correct because the reducer re-sorts and server order is irrelevant.)
 
-- Triggered by `kanban-local-change` custom event emitted from every mutating `storage.js` fn
-- Event detail: `{ boardId, entity }` (e.g. `{ boardId: 'abc', entity: 'task' }`)
-- Auto-sync pushes only the affected board (`detail.boardId`), not all boards
-- Debounced 700ms — rapid edits collapse into one push
-- In-flight guard + queue: if sync running, queue one follow-up push
-- Push-all is only for the manual Sync button
+### Hybrid Logical Clock (`event-sourcing/hlc.js`)
 
-### Authentication
+- A node id is generated once and persisted at `kanvana:hlc:node`.
+- `emitLocal()` returns a monotonic stamp; `observeRemote(hlc)` merges a remote stamp forward.
+- `compareHlc(a, b)` gives the total order used everywhere events are sorted.
+- Clock drift beyond `MAX_DRIFT_MS` (60 s) is logged as a warning (multi-device single-user is
+  forgiving).
 
-- PocketBase SDK auto-persists auth to `localStorage` — no manual hydration fn needed
-- `isAuthenticated()` reads directly from `pb.authStore.token` and `pb.authStore.record`
-- `ensureAuthenticated()`: if token expired, call `authRefresh()`; if refresh fails → return `false`, force re-login
-- Post-register: show "Check your email to confirm your account before logging in." — no auto-login (PocketBase requires email confirmation before first login)
-- Failed auth refresh always returns `false`
+### Snapshots & GC (`event-sourcing/snapshot.js`, `snapshot-sync.js`)
 
-### PocketBase URL / Nginx
+To bound replay and prune old events:
 
-- Default URL: `/` (same-origin PocketBase API paths when served through nginx)
-- `VITE_PB_URL` env var overrides default for local dev and production hosted PocketBase
-- Health probe URL is `<base>/api/health`
-- If PocketBase unreachable at runtime: log console warning, disable "Go Online" button with tooltip
-- Never a hard build error — local-first still works without backend
+- **Trigger**: after `SNAPSHOT_EVENT_THRESHOLD` (**500**) events for a scope, or snapshot age past
+  `SNAPSHOT_AGE_MS` (**14 days**), a snapshot is scheduled with up to `MAX_JITTER_MS` (60 s) jitter.
+- **Local**: `saveSnapshot(key, state, hlc)` serializes the projection; `gcEvents(snapshotHlc)` removes
+  superseded local events. On load, `hydrateFromSnapshot` replays only events after the snapshot HLC.
+- **Upload** (`uploadSnapshot`): pre-flight HLC check (skip if the server already has an equal-or-higher
+  snapshot), gzipped-JSON upload to the `snapshots` **file** field, an arbitration sweep that deletes
+  losing snapshots per board, then server-side event GC (delete events covered by the snapshot HLC).
+- **Race-on-write (W1)**: highest HLC wins; losers are discarded.
 
-### PocketBase Schema
+## Authentication
 
-Collections: `boards`, `columns`, `tasks`, `labels`, `task_relationships`, `events` (plus built-in `users`).
+- The PocketBase SDK auto-persists auth to `localStorage` — no manual hydration.
+- `isAuthenticated()` reads `pb.authStore.token` / `pb.authStore.record`.
+- `ensureAuthenticated()` refreshes an expired token via `authRefresh()`; on failure it returns `false`
+  and forces re-login.
+- After registration the UI shows "Check your email to confirm your account before logging in." — no
+  auto-login (PocketBase requires email confirmation before first login).
+- On auth state change the `auth-changed` window event fires; the sync queue, realtime, and header UI
+  all subscribe to it.
 
-Access rules on all collections, all operations (list/view/create/update/delete):
-```
-owner = @request.auth.id
-```
+## PocketBase URL / Nginx
 
-No public access. No shared boards in V1.
+- Default base URL is `/` (same-origin API paths served through nginx).
+- `VITE_PB_URL` overrides the base for local dev (`http://localhost:8090`) and production
+  (`https://pb.kanvana.com`). These live in `client/.env.local` / `client/.env.production`; Vite's
+  `envDir` is set to `client/` so they load (the Playwright configs pin `VITE_PB_URL=/` to keep the
+  sandboxed browser same-origin via the `/api` proxy — see `testing.md`).
+- The health probe is `<base>/api/health`. If PocketBase is unreachable, "Go Online" is disabled with a
+  tooltip and a modal notes the board stays usable offline — never a hard error.
 
-**boards**
-| field | type | notes |
-|---|---|---|
-| owner | relation → users | required |
-| local_id | text | local UUID |
-| name | text | required |
-| settings | json | per-board settings blob |
-| created_at | text | ISO timestamp |
+## PocketBase Schema
 
-**columns**
-| field | type | notes |
-|---|---|---|
-| owner | relation → users | required |
-| board | relation → boards | required; cascade delete |
-| local_id | text | local UUID |
-| name | text | required |
-| color | text | hex color |
-| order | number | |
-| collapsed | bool | |
-| role | text | `"done"` for the Done column; empty otherwise |
-| deleted | bool | tombstone/deleted-record flag |
+Access rule on every collection and operation: `owner = @request.auth.id`. No public access, no shared
+boards in v1.
 
-**labels**
-| field | type | notes |
-|---|---|---|
-| owner | relation → users | required |
-| board | relation → boards | required; cascade delete |
-| local_id | text | local UUID |
-| name | text | required |
-| color | text | hex color |
-| group | text | optional label group |
-| deleted | bool | tombstone/deleted-record flag |
+### Active collections
 
-**tasks**
-| field | type | notes |
-|---|---|---|
-| owner | relation → users | required |
-| board | relation → boards | required; cascade delete |
-| local_id | text | local UUID |
-| title | text | required |
-| description | text | |
-| priority | text | urgent/high/medium/low/none |
-| due_date | text | YYYY-MM-DD |
-| column | relation → columns | |
-| order | number | |
-| labels | relation[] → labels | maxSelect: 999 |
-| creation_date | text | ISO timestamp |
-| change_date | text | ISO timestamp |
-| done_date | text | ISO timestamp; only when in Done column |
-| column_history | json | array of `{ column, at }` |
-| sub_tasks | json | array of SubTask objects |
-| swimlane_label_id | text | swim lane label UUID |
-| deleted | bool | tombstone/deleted-record flag |
+- **`events`** — the event-sourced domain-event log (immutable; no update rule). Fields:
+  `owner`, `hlc` (json), `scope`, `entity_id`, `board` (**text** local UUID, not a relation),
+  `event_type`, `at`, `actor_type`, `actor_id`, `payload` (json), `local_id` (dedup). Full table in
+  `data-models.md`.
+- **`snapshots`** — client-computed projection snapshots (immutable inserts). Fields: `owner`,
+  `board_id` (text; null for global), `hlc` (json), `payload` (gzipped **file**), `local_id`.
+- **`boards`** — board metadata; still writable. (Boards are referenced from events by their text local
+  UUID, not by relation.)
+- **`users`** — built-in auth collection.
 
-**task_relationships**
+### Legacy collections (deprecated, write-locked)
 
-Stores directed relationship edges. Both directions are stored as separate records (mirrors the bidirectional JS model). `local_id` is a composite key `"${taskLocalId}::${targetTaskLocalId}"` used for sync deduplication.
-
-| field | type | notes |
-|---|---|---|
-| owner | relation → users | required |
-| board | relation → boards | required; cascade delete |
-| task | relation → tasks | required; cascade delete on task delete |
-| target_task | relation → tasks | no cascade; orphans cleaned up on next sync push |
-| relationship_type | text | prerequisite/dependent/related; required |
-| local_id | text | composite dedup key |
-
-**events**
-
-Unified event log for both task-level `activityLog` entries and board-level `boardEvents`. `task` is absent for board-level events. `local_id` is the `ActivityLogEntry.id` UUID; entries without a `local_id` are not synced.
-
-| field | type | notes |
-|---|---|---|
-| owner | relation → users | required |
-| board | relation → boards | required; cascade delete |
-| task | relation → tasks | optional; no cascade — history survives task deletion |
-| event_type | text | required |
-| at | text | ISO timestamp; required |
-| actor_type | text | human/agent/user; required |
-| actor_id | text | null for human; non-empty for agent/user |
-| details | json | event-specific payload |
-| local_id | text | ActivityLogEntry UUID for dedup |
-
-### Orphan Cleanup (replaces deleteOrphans fetch approach)
-
-No full-fetch diff. Tombstones/deleted records drive remote cleanup:
-
-1. Deleted entities have `deleted: true` in IDB
-2. On push, sync sends targeted PocketBase deletes for each `deleted: true` entity
-3. After confirmed PocketBase delete, `purgeDeleted()` hard-removes from IDB
-
-Zero extra round trips per board.
+`tasks`, `columns`, `labels`, and `task_relationships` are the old whole-record LWW mirrors. The
+event-sourced migration (`1746100010`) sets their `createRule`/`updateRule`/`deleteRule` to `null`
+(reads kept), and they are scheduled for removal after a 30-day quiet period — **issue #116**. Do not
+write to them. Their schemas remain in `data-models.md` for reference.
 
 ## UI
 
-- "Go Online" button in header (standalone, not in settings dropdown)
-- Once logged in: collapse to user name chip + sync icon in header
-- When auto-sync enabled: hide manual Sync button
-- "Go Online" button disabled with tooltip if PocketBase unreachable
-
-### Success/Error Feedback
-
-Use `alertDialog` from `dialog.js`. No `alert()` or `window.confirm()`.
+- "Go Online" button in the header opens the login modal (when the health probe succeeded).
+- Once logged in: header shows the user-name chip + logout.
+- The header **sync-state indicator** (`event-sourcing/sync-indicator.js`) replaces the old manual Sync
+  button: `Live ●` / `Syncing… (N)` / `⚠ N unsynced` / `Offline` (#115).
+- Feedback uses `alertDialog` from `dialog.js` — never `alert()` / `window.confirm()`.
 
 ## Module Map
 
 | file | purpose |
 |---|---|
-| `src/modules/sync.js` | PocketBase SDK init, auth fns, `pushBoardFull`, `pullAllBoards` |
-| `src/modules/autosync.js` | `kanban-local-change` listener, debounced push, in-flight guard |
-| `src/modules/authsync.js` | Auth/sync UI orchestration, login modal handlers |
-| `src/styles/components/auth.css` | Auth modal + sync button styles |
-| `backend/pb_migrations/` | PocketBase collection schema + access rules (JS migration files) |
+| `src/modules/sync.js` | PocketBase SDK init (`getPb`) + auth fns (`isAuthenticated`, `loginUser`, `registerUser`, `logoutUser`, `loginWithProvider`, `ensureAuthenticated`) |
+| `src/modules/authsync.js` | Auth/sync UI orchestration, login modal, backend health probe |
+| `src/modules/autosync.js` | Debounced auto-push trigger for the event queue |
+| `src/modules/event-sourcing/emitter.js` | `emitDomainEvent` / `scheduleDomainEvent` — stamp, persist, emit |
+| `src/modules/event-sourcing/dispatcher.js` | `reduceEventAndNotify` — fold events into the projection (sole writer) |
+| `src/modules/event-sourcing/hlc.js` | Hybrid Logical Clock + `compareHlc` |
+| `src/modules/event-sourcing/sync-queue.js` | Outbound push queue; `getSyncStatus` |
+| `src/modules/event-sourcing/realtime.js` | Inbound SSE subscription + catch-up pull; `isRealtimeActive` |
+| `src/modules/event-sourcing/snapshot.js` | Snapshot scheduling, serialize, local GC, hydrate |
+| `src/modules/event-sourcing/snapshot-sync.js` | Snapshot upload + server-side GC |
+| `src/modules/event-sourcing/sync-indicator.js` | Header sync-state indicator (#115) |
+| `backend/pb_migrations/` | Collection schema + access rules (JS migrations) |
 | `backend/Dockerfile` | PocketBase binary Docker image |
 
 ## Storage Keys
 
 | key | storage | purpose |
 |---|---|---|
-| `kanbanSyncMap` | localStorage | local_id → PocketBase ID mapping |
-| `kanbanAutoSyncEnabled` | localStorage | auto-sync opt-in flag |
-| `pocketbase_auth` | localStorage | PocketBase SDK auth (managed by SDK) |
+| IDB `events` store | IndexedDB | local event log (`synced` flag drives the outbound queue) |
+| IDB `snapshots` store | IndexedDB | local projection snapshots |
+| IDB projection stores | IndexedDB | reducer read model (tasks/columns/labels per board) |
+| `kanvana:hlc:node` | localStorage | persisted HLC node id |
+| `kanvana:sync:lastSeenHlc:<scope>` | IDB KV | per-scope catch-up watermark |
+| `pocketbase_auth` | localStorage | PocketBase SDK auth (SDK-managed) |
 
 ## Docker / Deployment
 
-- Backend: PocketBase binary in `backend/Dockerfile`
-- Collections defined in `backend/pb_migrations/` — no manual admin UI setup
-- Nginx proxies `/api/*` and `/_/*` → PocketBase at internal port 8090
-- `docker compose up` starts nginx + PocketBase stack
+- Backend: PocketBase binary built by `backend/Dockerfile`; migrations are `COPY`'d in (rebuild the
+  image when adding migrations).
+- Nginx proxies `/api/*` and `/_/*` → PocketBase at internal port 8090.
+- `docker compose up -d` starts the nginx + PocketBase stack. The live e2e suite
+  (`npm run test:e2e:live`) requires PB healthy at `:8090` — see `testing.md`.

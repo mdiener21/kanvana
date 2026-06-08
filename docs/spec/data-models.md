@@ -149,7 +149,13 @@ Key persisted fields include:
 
 ## PocketBase Collections
 
-When cloud sync is enabled, local models are mirrored to PocketBase. All collections share `owner` (relation → users) and `local_id` (text) fields. Access rules on all operations: `owner = @request.auth.id`.
+Access rules on all operations: `owner = @request.auth.id`. Most collections share `owner` (relation → users) and `local_id` (text) fields.
+
+> **Active sync collections are `events` and `snapshots`** (event sourcing — see
+> [ADR-0004](../adr/0004-event-sourced-sync.md) and `backend-storage-pb.md`). The per-entity
+> collections below — **`tasks`, `columns`, `labels`, `task_relationships`** — are the legacy
+> whole-record LWW mirrors; they are **write-locked and deprecated** (removal tracked in issue #116).
+> `boards` and `users` remain active. The legacy schemas are kept here for reference.
 
 **boards**
 | field | type | notes |

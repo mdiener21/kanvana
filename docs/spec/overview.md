@@ -15,7 +15,7 @@ All canonical specs live under `docs/spec/`. Start here when adding, changing, o
 | `docs/spec/data-models.md` | Canonical shapes for board, task, column, label, subtask, relationship, and all PocketBase collection schemas |
 | `docs/spec/storage.md` | IDB persistence model, in-memory state pattern, storage key layout, migration logic |
 | `docs/adr/0004-event-sourced-sync.md` | **Architecture decision (current sync)** — pure event sourcing + HLC replaces whole-record LWW; PocketBase as a dumb event store; offline-first. Read this first for sync. |
-| `docs/spec/backend-storage-pb.md` | PocketBase auth / health-probe / login flow. ⚠️ Sync-mechanics sections still describe the legacy LWW design (rewrite pending) — see ADR-0004 |
+| `docs/spec/backend-storage-pb.md` | Event-sourced sync mechanics: local emission → projection, outbound push queue, SSE realtime + catch-up, HLC, snapshots/GC, auth, PocketBase `events`/`snapshots` schema |
 
 ### Features
 
