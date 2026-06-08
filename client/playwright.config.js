@@ -34,5 +34,9 @@ export default defineConfig({
     url: e2eBaseUrl,
     reuseExistingServer: false,
     timeout: 120 * 1000,
+    // Force same-origin base. envDir now loads client/.env.local (absolute
+    // localhost:8090) for real dev, but the sandboxed test browser can only
+    // reach its own origin — pin '/' so the mocked suite stays same-origin.
+    env: { VITE_PB_URL: '/' },
   },
 });

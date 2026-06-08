@@ -4,6 +4,11 @@ const appVersion = process.env.npm_package_version ?? '0.0.0';
 
 export default defineConfig({
   root: 'src',
+  // root is 'src', so envDir would default to client/src/ — but the .env files
+  // live one level up in client/. Point envDir at client/ so .env.local (dev)
+  // and .env.production (build) actually load. The playwright configs pin
+  // VITE_PB_URL='/' to keep the sandboxed test browser same-origin (proxy path).
+  envDir: '..',
   define: {
     __APP_VERSION__: JSON.stringify(appVersion)
   },

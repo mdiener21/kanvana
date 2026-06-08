@@ -37,6 +37,9 @@ export default defineConfig({
     url: e2eBaseUrl,
     reuseExistingServer: false,
     timeout: 120 * 1000,
-    env: { PB_PROXY_TARGET: pbTarget },
+    // PB_PROXY_TARGET routes /api → PB. VITE_PB_URL='/' keeps the app
+    // same-origin so it calls /api (proxied) instead of PB cross-origin —
+    // required now that envDir loads client/.env.local's absolute URL.
+    env: { PB_PROXY_TARGET: pbTarget, VITE_PB_URL: '/' },
   },
 });
