@@ -49,7 +49,8 @@ The storage layer is split into three modules:
 |---|---|
 | `idb-store.js` | IDB connection singleton, key helpers, fire-and-forget `schedulePersist()` / `scheduleReadModelPersist()` / `scheduleDelete()`, plus event helpers (`persistEvent`, `getUnsyncedEvents`, `markEventSynced`) |
 | `board-serializer.js` | Board import normalizer — remaps non-UUID IDs, coerces fields on import or IDB migration |
-| `storage.js` | In-memory `state` + all public CRUD functions; also hosts `projectDomainEvent()` which folds domain events into `state` via the reducer. Imports from both above. |
+| `storage.js` | In-memory `state` + all public CRUD functions. Imports from both above. Owns `state`/schedulers; wires them into the read-model projector. |
+| `event-sourcing/read-model-projector.js` | `createReadModelProjector()` — the read-model projection host, extracted from `storage.js` ([#119](docs/adr/0005-reducer-sole-read-model-writer.md)). Subscribes to `EVENT_EMITTED` and folds domain events into the injected `state` via the pure reducer (the sole writer). |
 
 **Main `kv` keys:**
 
@@ -66,8 +67,8 @@ in-memory `state` → fire-and-forget IDB writes via `scheduleReadModelPersist()
 
 **Single write path into the read model** ([ADR-0005](docs/adr/0005-reducer-sole-read-model-writer.md)):
 a local mutation in `tasks.js`/`columns.js`/`labels.js` emits domain events and does **not** write the
-read model directly. `projectDomainEvent()` (the reducer projection) is the sole writer of `state`/
-`read_model`, for **both** local and remote (SSE/catch-up) events. Local events are emitted
+read model directly. The read-model projector (`read-model-projector.js`, the reducer projection) is
+the sole writer of `state`/`read_model`, for **both** local and remote (SSE/catch-up) events. Local events are emitted
 **synchronously** by `scheduleDomainEvent()`, so the in-memory projection is updated before the
 mutation returns / `renderBoard()` runs (instant UI); only the IDB event persist and the PocketBase
 push are async. Each mutation's events are self-complete — they encode every read-model effect
@@ -221,7 +222,7 @@ inspectImportPayload → buildImportConfirmationMessage → importTasks
 [local mutation] → scheduleDomainEvent() (stamp UUID + sync HLC)
                  → emit(EVENT_EMITTED)  [synchronous]
    │             → persistEvent (synced=false)  [async, fire-and-forget]
-   ├─ reducer: projectDomainEvent() folds event into state (sole writer) → emit(DATA_CHANGED) → renderBoard()
+   ├─ reducer: read-model-projector folds event into state (sole writer) → emit(DATA_CHANGED) → renderBoard()
    └─ outbound: sync-queue drains unsynced events to PB `events` (HLC order)
 
 [remote event] → realtime.js SSE / catchUp() → persist (synced=true) → emit(EVENT_EMITTED)

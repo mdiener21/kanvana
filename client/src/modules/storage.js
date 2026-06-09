@@ -6,9 +6,8 @@ import { openStore, KV_STORE, READ_MODEL_STORE, schedulePersist, scheduleDelete,
 import { normalizeBoardModelIds } from './board-serializer.js';
 import { initHlc } from './event-sourcing/hlc.js';
 import { _flushDomainEventsForTesting, scheduleDomainEvent } from './event-sourcing/emitter.js';
-import { checkAndScheduleSnapshot, GLOBAL_SNAPSHOT_KEY, _resetSnapshotSchedulerForTesting } from './event-sourcing/snapshot.js';
-import { DATA_CHANGED, EVENT_EMITTED, emit, off, on } from './events.js';
-import { applyEvent, createProjectionState } from './reducer.js';
+import { checkAndScheduleSnapshot, _resetSnapshotSchedulerForTesting } from './event-sourcing/snapshot.js';
+import { createReadModelProjector } from './event-sourcing/read-model-projector.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -46,9 +45,21 @@ const state = {
 
 // Per-board default-task cache (keeps defaults stable within a session).
 const taskCacheByBoard = new Map();
-const appliedDomainEventIds = new Set();
-let domainEventProjectionRegistered = false;
-let domainEventProjectionHandler = null;
+
+// Sole writer of the read model (ADR-0005), extracted from this module (#119).
+// Wired with the closure `state` + schedulers; the reducer stays pure.
+const readModelProjector = createReadModelProjector({
+  state,
+  taskCacheByBoard,
+  loadGlobalSettings,
+  safeParseArray,
+  safeParseObject,
+  schedulePersist,
+  scheduleReadModelPersist,
+  checkAndScheduleSnapshot,
+  boardsKey: BOARDS_KEY,
+  globalSettingsKey: GLOBAL_SETTINGS_KEY
+});
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -414,7 +425,7 @@ async function migrateFromLocalStorage(db) {
 export async function initStorage() {
   const db = await openStore();
   await initHlc();
-  registerDomainEventProjection();
+  readModelProjector.register();
 
   // Migrate from localStorage if IDB is empty but localStorage has data.
   const idbBoards = await db.get(KV_STORE, BOARDS_KEY);
@@ -460,54 +471,6 @@ export async function _flushPersistsForTesting() {
   await _flushIdbPersistsForTesting();
 }
 
-function registerDomainEventProjection() {
-  if (domainEventProjectionRegistered) return;
-  domainEventProjectionRegistered = true;
-  domainEventProjectionHandler = (event) => {
-    projectDomainEvent(event.detail);
-  };
-  on(EVENT_EMITTED, domainEventProjectionHandler);
-}
-
-function projectDomainEvent(event) {
-  if (!event?.id || appliedDomainEventIds.has(event.id)) return;
-  appliedDomainEventIds.add(event.id);
-
-  if (event.scope === 'global') {
-    const projected = applyEvent(createProjectionState({ globalSettings: loadGlobalSettings() }), event);
-    state.globalSettings = projected.globalSettings;
-    schedulePersist(GLOBAL_SETTINGS_KEY, state.globalSettings);
-    checkAndScheduleSnapshot(GLOBAL_SNAPSHOT_KEY, projected, event.hlc);
-    emit(DATA_CHANGED, { event });
-    return;
-  }
-
-  const boardId = event.board_id;
-  if (typeof boardId !== 'string' || !boardId) return;
-
-  const projected = applyEvent(createProjectionState({
-    boards: state.boards,
-    tasks: safeParseArray(state.tasks[boardId]) || [],
-    columns: safeParseArray(state.columns[boardId]) || [],
-    labels: safeParseArray(state.labels[boardId]) || [],
-    settings: safeParseObject(state.settings[boardId]) || {}
-  }), event);
-
-  state.boards = projected.boards;
-  state.tasks[boardId] = projected.tasks;
-  state.columns[boardId] = projected.columns;
-  state.labels[boardId] = projected.labels;
-  state.settings[boardId] = projected.settings;
-  taskCacheByBoard.set(boardId, projected.tasks);
-  schedulePersist(BOARDS_KEY, state.boards);
-  scheduleReadModelPersist(boardId, 'tasks', projected.tasks);
-  scheduleReadModelPersist(boardId, 'columns', projected.columns);
-  scheduleReadModelPersist(boardId, 'labels', projected.labels);
-  schedulePersist(keyFor(boardId, 'settings'), projected.settings);
-  checkAndScheduleSnapshot(boardId, projected, event.hlc);
-  emit(DATA_CHANGED, { event });
-}
-
 /**
  * Resets the in-memory state and IDB connection.
  * Call this in unit test beforeEach hooks to get a clean slate.
@@ -523,10 +486,7 @@ export function _resetStorageForTesting() {
   for (const k in state.settings) delete state.settings[k];
   state.globalSettings = null;
   taskCacheByBoard.clear();
-  appliedDomainEventIds.clear();
-  if (domainEventProjectionHandler) off(EVENT_EMITTED, domainEventProjectionHandler);
-  domainEventProjectionHandler = null;
-  domainEventProjectionRegistered = false;
+  readModelProjector.reset();
   _resetSnapshotSchedulerForTesting();
 }
 
@@ -583,7 +543,7 @@ export function ensureBoardsInitialized() {
   // synchronously (ADR-0005). Register here so every storage entry point — not
   // just initStorage() — has the sole writer subscribed (e.g. unit tests that
   // never call initStorage). Idempotent.
-  registerDomainEventProjection();
+  readModelProjector.register();
   const boards = listBoards();
   if (boards.length > 0) {
     if (!getActiveBoardId()) setActiveBoardId(boards[0].id);

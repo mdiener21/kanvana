@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Reducer is now the sole writer of the read model (issue #118, ADR-0005): local mutations emit domain events only — the direct `save*()` read-model writes were removed. Events are projected synchronously on the local path so the UI stays instant, while remaining HLC-ordered for sync. Domain events were made self-complete so the read model reproduces from events alone: relationship inverses now emit for the target task, task creation/reorder emit the sibling-order change, `doneDate` is derived in the move reducer, swimlane drag reassignments emit their field changes, and subtask title edits propagate. This also fixes latent cross-device gaps where relationship inverses and column order never synced. Deletes are hard removals via `task.deleted` (no read-model tombstone).
+- Read-model projection extracted from the `storage.js` god module into a dedicated `event-sourcing/read-model-projector.js` (issue #119, ADR-0005): `createReadModelProjector()` receives the in-memory `state` + schedulers by injection and owns `EVENT_EMITTED` subscription and projection. Behavior-preserving — the reducer stays pure and remains the sole read-model writer; no change to projection semantics, dedup, or snapshot scheduling.
 
 ### Fixed
 
