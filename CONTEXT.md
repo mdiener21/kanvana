@@ -64,12 +64,16 @@ The storage layer is split into three modules:
 **Pattern:** `initStorage()` (async, called once at startup) → synchronous CRUD functions read/write
 in-memory `state` → fire-and-forget IDB writes via `scheduleReadModelPersist()` → `renderBoard()`.
 
-**Two write paths into `state`** (be aware): a local mutation in `tasks.js`/`columns.js`/`labels.js`
-both (a) writes the read model directly via a storage `save*()` call **and** (b) emits a domain event;
-`projectDomainEvent()` then folds events back into the same `state`/`read_model` (deduped by event id).
-For **remote** events (arriving via SSE/catch-up) the reducer projection is the *only* path that updates
-`state`. ADR-0004 frames the reducer as the projection's writer; the direct `save*()` writes on the
-local path are the current pragmatic reality, not a separate source of truth.
+**Single write path into the read model** ([ADR-0005](docs/adr/0005-reducer-sole-read-model-writer.md)):
+a local mutation in `tasks.js`/`columns.js`/`labels.js` emits domain events and does **not** write the
+read model directly. `projectDomainEvent()` (the reducer projection) is the sole writer of `state`/
+`read_model`, for **both** local and remote (SSE/catch-up) events. Local events are emitted
+**synchronously** by `scheduleDomainEvent()`, so the in-memory projection is updated before the
+mutation returns / `renderBoard()` runs (instant UI); only the IDB event persist and the PocketBase
+push are async. Each mutation's events are self-complete — they encode every read-model effect
+(relationship inverses on target tasks, sibling reordering, derived `doneDate`, swimlane reassignment)
+so the projection reproduces the change from events alone. Deletes are hard removals via `task.deleted`
+(no read-model tombstone).
 
 **Key public functions:**
 
@@ -214,10 +218,10 @@ inspectImportPayload → buildImportConfirmationMessage → importTasks
 
 ### Sync Flow (event-sourced)
 ```
-[local mutation] → save*() writes read model
-                 → scheduleDomainEvent() → emitDomainEvent (stamp UUID + HLC, persist synced=false)
-                 → emit(EVENT_EMITTED)
-   ├─ reducer: projectDomainEvent() folds event into state → emit(DATA_CHANGED) → renderBoard()
+[local mutation] → scheduleDomainEvent() (stamp UUID + sync HLC)
+                 → emit(EVENT_EMITTED)  [synchronous]
+   │             → persistEvent (synced=false)  [async, fire-and-forget]
+   ├─ reducer: projectDomainEvent() folds event into state (sole writer) → emit(DATA_CHANGED) → renderBoard()
    └─ outbound: sync-queue drains unsynced events to PB `events` (HLC order)
 
 [remote event] → realtime.js SSE / catchUp() → persist (synced=true) → emit(EVENT_EMITTED)

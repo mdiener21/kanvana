@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings UI now separates App-level settings from Board-level settings, making global preferences distinct from per-board configuration.
 - Sync branching on `softDeleteEnabled` and `pendingHardDeletes`; deletion propagation now follows the domain-event stream/tombstone model.
 
+### Changed
+
+- Reducer is now the sole writer of the read model (issue #118, ADR-0005): local mutations emit domain events only — the direct `save*()` read-model writes were removed. Events are projected synchronously on the local path so the UI stays instant, while remaining HLC-ordered for sync. Domain events were made self-complete so the read model reproduces from events alone: relationship inverses now emit for the target task, task creation/reorder emit the sibling-order change, `doneDate` is derived in the move reducer, swimlane drag reassignments emit their field changes, and subtask title edits propagate. This also fixes latent cross-device gaps where relationship inverses and column order never synced. Deletes are hard removals via `task.deleted` (no read-model tombstone).
+
 ### Fixed
 
 - Sync documentation now matches current Online Mode behavior: failed PocketBase health probes disable "Go Online" and show the probed health URL.

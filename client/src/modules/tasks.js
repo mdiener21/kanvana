@@ -1,5 +1,5 @@
 import { generateUUID } from './utils.js';
-import { getActiveBoardId, isDoneColumnId, loadColumns, loadDeletedTasksForBoard, loadLabels, loadSettings, loadTasks, saveLiveTasks, saveTasks } from './storage.js';
+import { getActiveBoardId, isDoneColumnId, loadColumns, loadLabels, loadSettings, loadTasks } from './storage.js';
 import { applySwimLaneAssignment } from './swimlanes.js';
 import { normalizePriority, normalizeRelationships, normalizeSubTasks } from './normalize.js';
 import { scheduleDomainEvent } from './event-sourcing/emitter.js';
@@ -142,13 +142,29 @@ export function addTask(title, description, priority, dueDate, columnName, label
 
   updatedTasks.push(newTask);
   syncRelationshipInverses(updatedTasks, newTask.id, [], normalizedRelationships, nowIso);
-  saveLiveTasks(updatedTasks);
+  const activeBoardId = getActiveBoardId();
   scheduleDomainEvent({
     type: 'task.created',
-    boardId: getActiveBoardId(),
+    boardId: activeBoardId,
     entityId: newTask.id,
     payload: { task: newTask }
   });
+  // Inserting at the top renumbers the column's existing tasks; emit that reorder
+  // so the read model replays from events alone (ADR-0005).
+  if (columnTasks.length > 0) {
+    scheduleDomainEvent({
+      type: 'task.moved',
+      boardId: activeBoardId,
+      entityId: newTask.id,
+      payload: {
+        from_column: columnName,
+        to_column: columnName,
+        order: updatedTasks
+          .filter((task) => task.column === columnName)
+          .map((task) => ({ id: task.id, column: task.column, order: task.order }))
+      }
+    });
+  }
 }
 
 // Update an existing task
@@ -222,7 +238,6 @@ export function updateTask(taskId, title, description, priority, dueDate, column
     }
 
     tasks[taskIndex].changeDate = nowIso;
-    saveLiveTasks(tasks);
     const boardId = getActiveBoardId();
     if (Object.keys(changedFields).length > 0) {
       scheduleDomainEvent({
@@ -258,6 +273,17 @@ export function updateTask(taskId, title, description, priority, dueDate, column
       .filter((relationship) => !previousRelationshipKeys.has(relationshipKey(relationship)))
       .forEach((relationship) => {
         scheduleDomainEvent({ type: 'relationship.added', boardId, entityId: taskId, payload: { relationship } });
+        // Emit the inverse on the target task so the bidirectional link replays
+        // from events alone (the reducer is the sole read-model writer — ADR-0005).
+        const inverseType = RELATIONSHIP_INVERSE[relationship.type];
+        if (inverseType) {
+          scheduleDomainEvent({
+            type: 'relationship.added',
+            boardId,
+            entityId: relationship.targetTaskId,
+            payload: { relationship: { type: inverseType, targetTaskId: taskId } }
+          });
+        }
       });
     oldRelationships
       .filter((relationship) => !nextRelationshipKeys.has(relationshipKey(relationship)))
@@ -268,6 +294,15 @@ export function updateTask(taskId, title, description, priority, dueDate, column
           entityId: taskId,
           payload: { targetTaskId: relationship.targetTaskId, relationship_type: relationship.type }
         });
+        const inverseType = RELATIONSHIP_INVERSE[relationship.type];
+        if (inverseType) {
+          scheduleDomainEvent({
+            type: 'relationship.removed',
+            boardId,
+            entityId: relationship.targetTaskId,
+            payload: { targetTaskId: taskId, relationship_type: inverseType }
+          });
+        }
       });
     const previousSubTasks = normalizeSubTasks(previousTask.subTasks);
     const previousSubTasksById = new Map(previousSubTasks.map((subtask) => [subtask.id, subtask]));
@@ -281,8 +316,8 @@ export function updateTask(taskId, title, description, priority, dueDate, column
       if (previous.completed !== subtask.completed) {
         scheduleDomainEvent({ type: 'subtask.toggled', boardId, entityId: taskId, payload: { subtask_id: subtask.id, completed: subtask.completed === true } });
       }
-      if ((previous.text || '') !== (subtask.text || '')) {
-        scheduleDomainEvent({ type: 'subtask.text_changed', boardId, entityId: taskId, payload: { subtask_id: subtask.id, text: subtask.text || '' } });
+      if ((previous.title || '') !== (subtask.title || '')) {
+        scheduleDomainEvent({ type: 'subtask.text_changed', boardId, entityId: taskId, payload: { subtask_id: subtask.id, title: subtask.title || '' } });
       }
     });
     previousSubTasks
@@ -300,8 +335,7 @@ export function deleteTask(taskId) {
   const task = liveTasks.find(t => t.id === taskId);
   if (!task) return false;
 
-  const allTasks = [...liveTasks, ...loadDeletedTasksForBoard(boardId)];
-  saveTasks(allTasks.filter(t => t.id !== taskId));
+  // task.deleted removes the task; the projection is the sole writer (ADR-0005).
   scheduleDomainEvent({
     type: 'task.deleted',
     boardId,
@@ -434,16 +468,6 @@ export function updateTaskPositionsFromDrop(evt) {
         nextTask.order = orderEntry.order;
       }
 
-      const previousPriority = normalizePriority(task.priority);
-      const nextPriority = normalizePriority(nextTask.priority);
-
-      const previousLabels = Array.isArray(task.labels) ? task.labels : [];
-      const nextLabels = Array.isArray(nextTask.labels) ? nextTask.labels : [];
-      nextLabels
-        .filter((labelId) => !previousLabels.includes(labelId));
-      previousLabels
-        .filter((labelId) => !nextLabels.includes(labelId));
-
       // Only update history/dates if column changed
       if (didChangeColumn || (isSwimlaneView && didChangeLane)) {
         nextTask.changeDate = nowIso;
@@ -484,10 +508,10 @@ export function updateTaskPositionsFromDrop(evt) {
     ? reorderColumnTasks(updatedTasks, toColumn, movedTaskId)
     : updatedTasks;
 
-  saveLiveTasks(finalTasks);
+  const dropBoardId = getActiveBoardId();
   scheduleDomainEvent({
     type: 'task.moved',
-    boardId: getActiveBoardId(),
+    boardId: dropBoardId,
     entityId: movedTaskId,
     payload: {
       from_column: fromColumn,
@@ -495,6 +519,29 @@ export function updateTaskPositionsFromDrop(evt) {
       order: finalTasks.map((task) => ({ id: task.id, column: task.column, order: task.order }))
     }
   });
+
+  // A swimlane drag reassigns the moved task's lane-defining fields (labels,
+  // priority, swimlane markers). task.moved only carries column/order, so emit
+  // the field changes too — otherwise they would not replay from events (ADR-0005).
+  if (isSwimlaneView) {
+    const movedFinal = finalTasks.find((task) => task.id === movedTaskId);
+    const fields = {};
+    if (JSON.stringify(movedTask.labels || []) !== JSON.stringify(movedFinal.labels || [])) {
+      fields.labels = movedFinal.labels;
+    }
+    if (normalizePriority(movedTask.priority) !== normalizePriority(movedFinal.priority)) {
+      fields.priority = movedFinal.priority;
+    }
+    if ((movedTask.swimlaneLabelId || '') !== (movedFinal.swimlaneLabelId || '')) {
+      fields.swimlaneLabelId = movedFinal.swimlaneLabelId || '';
+    }
+    if ((movedTask.swimlaneLabelGroup || '') !== (movedFinal.swimlaneLabelGroup || '')) {
+      fields.swimlaneLabelGroup = movedFinal.swimlaneLabelGroup || '';
+    }
+    if (Object.keys(fields).length > 0) {
+      scheduleDomainEvent({ type: 'task.updated', boardId: dropBoardId, entityId: movedTaskId, payload: { fields } });
+    }
+  }
 
   return {
     movedTaskId,
@@ -516,7 +563,6 @@ export function moveTaskToTopInColumn(taskId, columnId, tasksCache) {
   const didUpdate = updatedTasks.some((task, index) => task !== tasks[index]);
 
   if (didUpdate) {
-    saveLiveTasks(updatedTasks);
     scheduleDomainEvent({
       type: 'task.moved',
       boardId: getActiveBoardId(),

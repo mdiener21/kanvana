@@ -1,3 +1,5 @@
+import { isDoneColumn } from './constants.js';
+
 export function createProjectionState(seed = {}) {
   return {
     boards: Array.isArray(seed.boards) ? seed.boards : [],
@@ -73,6 +75,16 @@ function applyTaskMoved(state, event) {
           : [{ column: task.column, at: task.creationDate || task.changeDate || event.at }];
         history.push({ column: nextTask.column, at: event.at });
         nextTask.columnHistory = history;
+
+        // Derive doneDate from the move so it replays from events alone (ADR-0005):
+        // entering the done column stamps it, leaving clears it.
+        const wasDone = isDoneColumn(state.columns.find((column) => column.id === task.column));
+        const isDone = isDoneColumn(state.columns.find((column) => column.id === nextTask.column));
+        if (isDone && !wasDone) {
+          nextTask.doneDate = event.at;
+        } else if (wasDone && !isDone) {
+          delete nextTask.doneDate;
+        }
       }
 
       return nextTask;
@@ -128,11 +140,11 @@ function applySubtaskToggled(state, event) {
 
 function applySubtaskTextChanged(state, event) {
   const subtaskId = event.payload?.subtask_id;
-  const text = typeof event.payload?.text === 'string' ? event.payload.text : '';
+  const title = typeof event.payload?.title === 'string' ? event.payload.title : '';
   return updateTaskById(state, event.entity_id, (task) => ({
     ...task,
     subTasks: (Array.isArray(task.subTasks) ? task.subTasks : []).map((subtask) => (
-      subtask.id === subtaskId ? { ...subtask, text } : subtask
+      subtask.id === subtaskId ? { ...subtask, title } : subtask
     ))
   }));
 }

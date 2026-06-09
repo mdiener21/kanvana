@@ -1,5 +1,5 @@
 import { generateUUID } from './utils.js';
-import { getActiveBoardId, isDoneColumnId, loadColumns, loadDeletedColumnsForBoard, loadDeletedTasksForBoard, saveColumns, loadTasks, saveTasks } from './storage.js';
+import { getActiveBoardId, isDoneColumnId, loadColumns, loadTasks } from './storage.js';
 import { normalizeHexColor } from './normalize.js';
 import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 
@@ -12,7 +12,6 @@ export function addColumn(name, color) {
   const id = generateUUID();
   const newColumn = { id, name: name.trim(), color: normalizeHexColor(color), order: maxOrder - 1, collapsed: false };
   columns.push(newColumn);
-  saveColumns(columns);
   scheduleDomainEvent({
     type: 'column.created',
     boardId: getActiveBoardId(),
@@ -30,7 +29,12 @@ export function toggleColumnCollapsed(columnId) {
   if (!column) return false;
 
   column.collapsed = column.collapsed !== true;
-  saveColumns(columns);
+  scheduleDomainEvent({
+    type: 'column.updated',
+    boardId: getActiveBoardId(),
+    entityId: column.id,
+    payload: { fields: { collapsed: column.collapsed } }
+  });
   return true;
 }
 
@@ -44,9 +48,6 @@ export function updateColumn(columnId, name, color) {
     const previousName = columns[columnIndex].name;
     columns[columnIndex].name = name.trim();
     columns[columnIndex].color = normalizeHexColor(color);
-    if (previousName !== columns[columnIndex].name) {
-    }
-    saveColumns(columns);
     scheduleDomainEvent({
       type: 'column.updated',
       boardId: getActiveBoardId(),
@@ -72,24 +73,11 @@ export function deleteColumn(columnId) {
     return false;
   }
 
-  const columnName = column.name;
   const liveTasks = loadTasks();
   const tasksInColumn = liveTasks.filter(t => t.column === columnId);
 
-  // Mark tasks in the column as deleted, preserving existing tombstones
-  const allTasks = [...liveTasks, ...loadDeletedTasksForBoard(boardId)];
-  const updatedTasks = allTasks.map(t =>
-    t.column === columnId ? { ...t, deleted: true } : t
-  );
-  saveTasks(updatedTasks);
-
-  // Mark the column as deleted, preserving existing tombstones
-  const allColumns = [...columns, ...loadDeletedColumnsForBoard(boardId)];
-  const updatedColumns = allColumns.map(c =>
-    c.id === columnId ? { ...c, deleted: true } : c
-  );
-  saveColumns(updatedColumns);
-
+  // task.deleted removes each task and column.deleted soft-deletes the column;
+  // the projection is the sole writer of the read model (ADR-0005).
   tasksInColumn.forEach((task) => {
     scheduleDomainEvent({
       type: 'task.deleted',
@@ -126,8 +114,6 @@ export function updateColumnPositions() {
       column.order = nextOrder;
     }
   });
-  
-  saveColumns(columns);
 
   // Emit a single event only when at least one column moved; details {} kept
   // minimal as the PRD does not specify a bulk payload shape.

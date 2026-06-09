@@ -579,6 +579,11 @@ export function setActiveBoardId(boardId) {
 }
 
 export function ensureBoardsInitialized() {
+  // Local mutations emit events that the projection folds into the read model
+  // synchronously (ADR-0005). Register here so every storage entry point — not
+  // just initStorage() — has the sole writer subscribed (e.g. unit tests that
+  // never call initStorage). Idempotent.
+  registerDomainEventProjection();
   const boards = listBoards();
   if (boards.length > 0) {
     if (!getActiveBoardId()) setActiveBoardId(boards[0].id);
@@ -809,6 +814,15 @@ export function loadTasks() {
     const normalized = parsed.map((t) => {
       const task = t && typeof t === 'object' ? { ...t } : t;
       if (!task || typeof task !== 'object') return task;
+
+      // Detach the mutable nested fields from the stored read model. Feature
+      // modules mutate the loaded task in place (e.g. columnHistory.push); since
+      // the projection is now the sole writer of state (ADR-0005), those edits
+      // must not leak back into the read model and double-apply with events.
+      if (Array.isArray(task.columnHistory)) task.columnHistory = task.columnHistory.map((e) => ({ ...e }));
+      if (Array.isArray(task.subTasks)) task.subTasks = task.subTasks.map((s) => ({ ...s }));
+      if (Array.isArray(task.labels)) task.labels = [...task.labels];
+      if (Array.isArray(task.relationships)) task.relationships = task.relationships.map((r) => ({ ...r }));
 
       const nextPriority = normalizePriority(task.priority);
       if (task.priority !== nextPriority) {

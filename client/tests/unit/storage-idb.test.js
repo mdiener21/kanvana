@@ -40,7 +40,7 @@ import {
   loadSettingsForBoard,
 } from '../../src/modules/storage.js';
 import { openStore } from '../../src/modules/idb-store.js';
-import { emitDomainEvent } from '../../src/modules/event-sourcing/emitter.js';
+import { scheduleDomainEvent } from '../../src/modules/event-sourcing/emitter.js';
 
 const DB_NAME = 'kanvana-db';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -99,7 +99,7 @@ test('emitted task.updated events project into task read model', async () => {
   const boardId = getActiveBoardId();
   saveTasks([{ id: 'task-a', title: 'Before', column: 'todo', priority: 'none', order: 1 }]);
 
-  await emitDomainEvent({
+  scheduleDomainEvent({
     type: 'task.updated',
     boardId,
     entityId: 'task-a',

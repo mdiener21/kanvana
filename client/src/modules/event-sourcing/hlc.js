@@ -50,6 +50,30 @@ export async function emitLocal() {
   return { wallTime: current.wallTime, counter: current.counter, nodeId };
 }
 
+// Synchronous local stamp. Requires the node id to already be in memory, which
+// initHlc() guarantees at startup; if it is missing (e.g. a unit test that never
+// ran initStorage) a transient id is generated so local projection still works.
+// Persistence of the node id remains initHlc()'s job.
+export function emitLocalSync() {
+  if (!current.nodeId) {
+    current.nodeId = crypto.randomUUID();
+  }
+  const now = Date.now();
+
+  if (now - current.wallTime > MAX_DRIFT_MS && current.wallTime > 0) {
+    console.warn('[Kanvana] HLC drift exceeded 60000ms; accepting local wall time.');
+  }
+
+  if (now > current.wallTime) {
+    current.wallTime = now;
+    current.counter = 0;
+  } else {
+    current.counter += 1;
+  }
+
+  return { wallTime: current.wallTime, counter: current.counter, nodeId: current.nodeId };
+}
+
 export async function observeRemote(remoteHlc) {
   const nodeId = await ensureNodeId();
   const now = Date.now();

@@ -115,8 +115,14 @@ test('updateTask emits collection-op and move events for non-scalar changes', as
     'task.moved',
     'label.added_to_task',
     'relationship.added',
+    'relationship.added',
     'subtask.added'
   ]);
+  // The forward link is emitted for task-a and its inverse for task-b, so the
+  // bidirectional relationship replays from events alone (ADR-0005).
+  const relationshipEvents = events.filter((event) => event.type === 'relationship.added');
+  expect(relationshipEvents.map((event) => event.entity_id)).toEqual(['task-a', 'task-b']);
+  expect(relationshipEvents[1].payload.relationship).toEqual({ type: 'related', targetTaskId: 'task-a' });
 });
 
 test('deleteTask emits task.deleted', async () => {

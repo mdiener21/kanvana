@@ -130,7 +130,7 @@ test('deleteColumn soft-deletes: column hidden from loadColumns but present in l
   expect(deleted.some(c => c.id === col.id)).toBe(true);
 });
 
-test('deleteColumn soft-deletes tasks in the column', () => {
+test('deleteColumn deletes tasks in the column', () => {
   addColumn('Sprint 1', '#fff');
   const [col] = loadColumns().filter(c => c.id !== 'done');
   saveTasks([{ id: 't1', title: 'Task', column: col.id, order: 1, priority: 'none', labels: [] }]);
@@ -138,6 +138,8 @@ test('deleteColumn soft-deletes tasks in the column', () => {
   deleteColumn(col.id);
 
   expect(loadTasks().find(t => t.id === 't1')).toBeUndefined();
+  // Event-sourced delete (ADR-0005): task.deleted removes the task entirely;
+  // there is no read-model tombstone to retain.
   const deletedTasks = loadDeletedTasksForBoard(getActiveBoardId());
-  expect(deletedTasks.some(t => t.id === 't1')).toBe(true);
+  expect(deletedTasks.some(t => t.id === 't1')).toBe(false);
 });
