@@ -29,7 +29,7 @@
     "vitest": "^4.1.0"
   },
   "dependencies": {
-    "echarts": "^6.0.0",
+    "echarts": "^6.1.0",
     "idb": "^8.0.3",
     "lucide": "^0.469.0",
     "pocketbase": "^0.26.9",
