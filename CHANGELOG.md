@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-07-16
+
 ### Added
 
 - Event-sourced sync foundation: HLC module with persisted node IDs and IndexedDB v2 stores for events, snapshots, and reducer read models.
@@ -17,6 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Board scaffolding now emits domain events with a stable default board id (issue #114): a new device and an existing one converge on the same default board without a board-sharing handshake.
 - Header sync-state indicator (issue #115): a single live indicator replaces the manual Sync button — `Live ●` (green) when online and synced, `Syncing… (N)` (yellow) while events drain, `⚠ N unsynced` (orange) when retrying or paused, and `Offline` (gray) when offline or signed out; updates without a page reload.
 
+### Changed
+
+- Reducer is now the sole writer of the read model (issue #118, ADR-0005): local mutations emit domain events only — the direct `save*()` read-model writes were removed. Events are projected synchronously on the local path so the UI stays instant, while remaining HLC-ordered for sync. Domain events were made self-complete so the read model reproduces from events alone: relationship inverses now emit for the target task, task creation/reorder emit the sibling-order change, `doneDate` is derived in the move reducer, swimlane drag reassignments emit their field changes, and subtask title edits propagate. This also fixes latent cross-device gaps where relationship inverses and column order never synced. Deletes are hard removals via `task.deleted` (no read-model tombstone).
+- Read-model projection extracted from the `storage.js` god module into a dedicated `event-sourcing/read-model-projector.js` (issue #119, ADR-0005): `createReadModelProjector()` receives the in-memory `state` + schedulers by injection and owns `EVENT_EMITTED` subscription and projection. Behavior-preserving — the reducer stays pure and remains the sole read-model writer; no change to projection semantics, dedup, or snapshot scheduling.
+
 ### Removed
 
 - Activity log feature retired: `activity.html`, `activity-log.js`, `activity-log-ui.js`, and `activity.js` removed; navigation links and all write-paths cleaned from tasks, columns, labels, storage, import/export, and sync modules.
@@ -26,11 +33,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - "Purge deleted tasks" settings action and `runPurge` flow.
 - Settings UI now separates App-level settings from Board-level settings, making global preferences distinct from per-board configuration.
 - Sync branching on `softDeleteEnabled` and `pendingHardDeletes`; deletion propagation now follows the domain-event stream/tombstone model.
-
-### Changed
-
-- Reducer is now the sole writer of the read model (issue #118, ADR-0005): local mutations emit domain events only — the direct `save*()` read-model writes were removed. Events are projected synchronously on the local path so the UI stays instant, while remaining HLC-ordered for sync. Domain events were made self-complete so the read model reproduces from events alone: relationship inverses now emit for the target task, task creation/reorder emit the sibling-order change, `doneDate` is derived in the move reducer, swimlane drag reassignments emit their field changes, and subtask title edits propagate. This also fixes latent cross-device gaps where relationship inverses and column order never synced. Deletes are hard removals via `task.deleted` (no read-model tombstone).
-- Read-model projection extracted from the `storage.js` god module into a dedicated `event-sourcing/read-model-projector.js` (issue #119, ADR-0005): `createReadModelProjector()` receives the in-memory `state` + schedulers by injection and owns `EVENT_EMITTED` subscription and projection. Behavior-preserving — the reducer stays pure and remains the sole read-model writer; no change to projection semantics, dedup, or snapshot scheduling.
 
 ### Fixed
 
