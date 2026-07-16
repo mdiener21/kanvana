@@ -17,10 +17,7 @@ import {
   loadSettings,
   saveSettings,
   loadGlobalSettings,
-  saveGlobalSettings,
-  getPendingHardDeletes,
-  addPendingHardDelete,
-  clearPendingHardDeleteEntry
+  saveGlobalSettings
 } from '../../src/modules/storage.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -233,12 +230,12 @@ test('loadSettings clamps countdownWarningThreshold to be >= urgentThreshold', (
 });
 
 test('loadGlobalSettings returns defaults on first run', () => {
-  expect(loadGlobalSettings()).toEqual({ softDeleteEnabled: false });
+  expect(loadGlobalSettings()).toEqual({});
 });
 
-test('saveGlobalSettings round-trips soft-delete mode', () => {
+test('saveGlobalSettings drops removed settings', () => {
   saveGlobalSettings({ softDeleteEnabled: true });
-  expect(loadGlobalSettings()).toEqual({ softDeleteEnabled: true });
+  expect(loadGlobalSettings()).toEqual({});
 });
 
 test('global settings and board settings are isolated', () => {
@@ -247,35 +244,12 @@ test('global settings and board settings are isolated', () => {
   saveGlobalSettings({ softDeleteEnabled: true });
   saveSettings({ swimLanesEnabled: true, swimLaneGroupBy: 'priority' });
 
-  expect(loadGlobalSettings()).toEqual({ softDeleteEnabled: true });
+  expect(loadGlobalSettings()).toEqual({});
   expect(loadSettings()).toMatchObject({
     swimLanesEnabled: true,
     swimLaneGroupBy: 'priority'
   });
   expect(loadSettings().softDeleteEnabled).toBeUndefined();
-});
-
-test('getPendingHardDeletes returns an empty queue before any hard deletes are queued', () => {
-  expect(getPendingHardDeletes()).toEqual([]);
-});
-
-test('addPendingHardDelete appends a task hard-delete intent to the queue', () => {
-  addPendingHardDelete({ localTaskId: 'task-1', boardId: 'board-1' });
-
-  expect(getPendingHardDeletes()).toEqual([
-    { localTaskId: 'task-1', boardId: 'board-1' }
-  ]);
-});
-
-test('clearPendingHardDeleteEntry removes queued entries by local task ID', () => {
-  addPendingHardDelete({ localTaskId: 'task-1', boardId: 'board-1' });
-  addPendingHardDelete({ localTaskId: 'task-2', boardId: 'board-1' });
-
-  clearPendingHardDeleteEntry('task-1');
-
-  expect(getPendingHardDeletes()).toEqual([
-    { localTaskId: 'task-2', boardId: 'board-1' }
-  ]);
 });
 
 // ── kanban-local-change events ──────────────────────────────────────

@@ -1,5 +1,10 @@
 # Permanent delete as default; soft-delete as opt-in setting
 
+> **Status: superseded by ADR-0004**
+> `softDeleteEnabled` toggle and `pendingHardDeletes` queue removed in issue #111.
+> Under event sourcing (ADR-0004), task deletion emits a `task.deleted` domain event
+> (D1 hard tombstone); the reducer handles propagation. No soft-delete mode exists.
+
 Task deletion defaults to immediate, irreversible removal from local storage. Soft-delete
 (`deleted: true`, retained until purge) is an opt-in mode controlled by a global setting.
 This is the reverse of the previous behaviour where every deletion was a soft-delete.

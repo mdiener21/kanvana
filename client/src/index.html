@@ -81,12 +81,6 @@
         </a></span>
         </button>
 
-        <button id="show-activity-btn" class="control-btn" type="button" aria-pressed="false" aria-label="Show Activity">
-          <span data-lucide="history" aria-hidden="true"></span>
-          <span><a class="control-btn" href="./activity.html" style="text-decoration:none;">
-          View Activity
-        </a></span>
-        </button>
         <button id="help-btn" class="control-btn" type="button" aria-haspopup="dialog">
           <span data-lucide="help-circle" aria-hidden="true"></span>
           <span>Help</span>
@@ -109,10 +103,7 @@
         </button>
       </div>
 
-      <button id="sync-btn" class="control-btn" type="button" aria-label="Sync data">
-        <span data-lucide="refresh-cw" aria-hidden="true"></span>
-        <span>Sync</span>
-      </button>
+      <span id="sync-indicator" class="sync-indicator sync-indicator--offline" role="status" aria-live="polite" aria-label="Sync state">Offline</span>
 
       <button id="notifications-quick-btn" class="control-btn icon-only" type="button" aria-haspopup="dialog" aria-label="Notifications">
         <span data-lucide="bell" aria-hidden="true"></span>
@@ -246,7 +237,6 @@
             </fieldset>
           </div>
         </div>
-        <div id="task-activity-section"></div>
         <div class="form-actions">
           <button type="button" id="cancel-task-btn" class="btn btn-secondary">Cancel</button>
           <button type="submit" id="task-submit-btn" class="btn btn-primary">Add Task</button>
@@ -344,23 +334,6 @@
         </button>
       </header>
       <form id="settings-form" novalidate>
-        <section class="settings-section settings-section-app" aria-labelledby="settings-app-title">
-          <div class="settings-section-header">
-            <h4 id="settings-app-title">App settings</h4>
-            <p class="form-help">These settings apply across all boards on this device.</p>
-          </div>
-          <div class="form-group checkbox-group">
-            <label>
-              <input id="settings-soft-delete-enabled" type="checkbox">
-              Soft-delete tasks
-            </label>
-          </div>
-          <div class="form-group">
-            <button type="button" id="settings-purge-btn" disabled>
-              Purge deleted tasks (<span id="settings-purge-count">0</span>)
-            </button>
-          </div>
-        </section>
         <section class="settings-section settings-section-board" aria-labelledby="settings-board-title">
           <div class="settings-section-header">
             <h4 id="settings-board-title">Board settings</h4>

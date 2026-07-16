@@ -92,18 +92,18 @@ test.describe('Swim lane toggle', () => {
   test('keeps swim lane column headers visible while vertically scrolling', async ({ page }) => {
     await page.evaluate(async ({ boardId, colTodoId }) => {
       const db = await new Promise((resolve, reject) => {
-        const req = indexedDB.open('kanvana-db', 1);
+        const req = indexedDB.open('kanvana-db', 2);
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
       });
-      const read = (key) => new Promise((resolve, reject) => {
-        const tx = db.transaction('kv', 'readonly');
-        const req = tx.objectStore('kv').get(key);
+      const readModel = (key) => new Promise((resolve, reject) => {
+        const tx = db.transaction('read_model', 'readonly');
+        const req = tx.objectStore('read_model').get(key);
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
       });
-      const labels = (await read(`kanbanBoard:${boardId}:labels`)) || [];
-      const tasks = (await read(`kanbanBoard:${boardId}:tasks`)) || [];
+      const labels = (await readModel(`${boardId}:labels`)) || [];
+      const tasks = (await readModel(`${boardId}:tasks`)) || [];
       for (let index = 0; index < 18; index += 1) {
         const labelId = `label-extra-${index}`;
         labels.push({
@@ -126,10 +126,10 @@ test.describe('Swim lane toggle', () => {
           columnHistory: [{ column: colTodoId, at: '2026-03-01T09:30:00.000Z' }]
         });
       }
-      const tx = db.transaction('kv', 'readwrite');
-      const store = tx.objectStore('kv');
-      store.put(labels, `kanbanBoard:${boardId}:labels`);
-      store.put(tasks, `kanbanBoard:${boardId}:tasks`);
+      const tx = db.transaction('read_model', 'readwrite');
+      const store = tx.objectStore('read_model');
+      store.put(labels, `${boardId}:labels`);
+      store.put(tasks, `${boardId}:tasks`);
       await new Promise((resolve, reject) => {
         tx.oncomplete = resolve;
         tx.onerror = () => reject(tx.error);

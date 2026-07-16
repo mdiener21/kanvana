@@ -73,15 +73,14 @@ Organize your board into horizontal swim lanes for a powerful two-dimensional vi
 
 Configure swim lanes in **Settings** or use the quick-access toggle in the board controls menu. Lane order is customizable via drag-and-drop in Settings.
 
-### Audit Trail
+### 🔄 Real-Time Multi-Device Sync (New!)
 
-Track every change on your board with a built-in two-log audit system:
+Edit on your phone, see it on your laptop — within seconds. Kanvana uses **event-sourced sync**: every change is a domain event ordered by a Hybrid Logical Clock (HLC), so independent edits across devices converge without overwriting each other. Tasks, columns, and labels in your browser are projections rebuilt from the event stream.
 
-- **Per-task activity log** — each task carries a full history of mutations: title/description/priority/due date changes, column moves, label changes, and relationship changes
-- **Board event store** — a separate log records board-level events: column creation, renaming, deletion, reordering, and task deletion
-- **Activity accordion** — collapse/expand the full task history directly in the task edit modal (newest event first)
-- **Board Activity page** — a dedicated page listing all board-level events in reverse chronological order; accessible via the Activity button in the board header
-- **Export/import** — activity logs round-trip in board JSON exports; malformed entries are silently dropped on import
+- **Opt-in, never required** — stays 100% local until you choose to sign in. No account, no cloud, no problem.
+- **Live across devices** — an optional PocketBase backend streams remote changes over Server-Sent Events in real time; a catch-up pull on launch means a just-opened device is immediately up to date.
+- **At-a-glance sync indicator** — the header shows `Live ●` (synced), `Syncing… (N)` (events draining), `⚠ N unsynced` (retrying), or `Offline` (no network / signed out).
+- **Offline-first, always** — the fully-offline experience is never compromised; the cloud is just an optional fan-out, not a dependency.
 
 ### Core Features
 
@@ -92,7 +91,7 @@ Track every change on your board with a built-in two-log audit system:
 - **📊 Productivity Reports**: Visualize your progress with Cumulative Flow Diagrams, weekly lead time, completion stats, same-day completions tracking, and an activity heatmap covering the last 365 days
 - **📅 Calendar View**: See tasks by due date on a monthly calendar with overdue highlighting
 - **🔔 Smart Notifications**: Get reminded of due dates with customizable advance notices and color-coded countdown timers (urgent/warning thresholds)
-- **💻 100% Local-First**: No servers, no backend, no cloud. Your data never leaves your device
+- **💻 Local-First**: Works fully offline with no backend required — your data lives in your browser and never leaves your device unless you opt into **Real-Time Multi-Device Sync**
 - **🎨 Drag & Drop**: Effortlessly move tasks and columns with optimized performance (handles 300+ tasks)
 - **🏷️ Custom Labels & Colors**: Organize with personalized labels, groups, and column colors — label text automatically switches between black and white for readability
 - **📋 Multiple Boards**: Create and manage multiple boards with board templates
@@ -120,6 +119,8 @@ Track every change on your board with a built-in two-log audit system:
 ## 🛡️ Data Security & Persistence
 
 Your data is stored securely in your browser's IndexedDB. It persists across sessions and page reloads. For extra safety, use the built-in export feature to save backups to your preferred cloud storage.
+
+If you opt into **Real-Time Multi-Device Sync**, your event stream is also synced to a PocketBase backend so the same boards stay in step across your devices. Sync is entirely optional — without an account, nothing leaves your browser.
 
 ## 🚀 Quick Start
 

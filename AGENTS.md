@@ -40,12 +40,13 @@ client/             Frontend app (the main product)
     e2e/            Playwright end-to-end tests
 backend/            PocketBase Dockerfile + migrations (optional cloud sync)
 cli/                Go CLI tooling (TODO)
+agents/             AI-agent configuration (issue tracker, labels, domain)
 docs/
   adr/              Architecture Decision Records
-  agents/           AI-agent configuration (issue tracker, labels, domain)
   spec/             Feature specifications
   user/             User-facing documentation (guides, FAQs, etc.)
-
+  plans/            Plans for all work to be done
+  prd/              Result from plans and are now ready to create issues from PRD  issues live under prd/prd-name/issues
 CONTEXT.md          Domain model — read before working on any feature
 CHANGELOG.md        Keep updated under [Unreleased] as you work
 ```
@@ -117,13 +118,13 @@ due-date countdown, validation, normalization, subtasks.
 
 ### Issue tracker
 
-Issues live in GitHub Issues (`github.com/mdiener21/kanvana`). See [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md).
+Issues live in GitHub Issues (`github.com/mdiener21/kanvana`). See [`agents/issue-tracker.md`](agents/issue-tracker.md).
 
 ### Triage labels
 
-Five canonical roles mapped to label strings. See [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md).
+Five canonical roles mapped to label strings. See [`agents/triage-labels.md`](agents/triage-labels.md).
 
 ### Domain docs
 
 Single-context repo — one `CONTEXT.md` at the repo root, one `docs/adr/` directory.
-See [`docs/agents/domain.md`](docs/agents/domain.md).
+See [`agents/domain.md`](agents/domain.md).

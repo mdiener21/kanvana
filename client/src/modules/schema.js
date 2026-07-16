@@ -13,8 +13,6 @@ function nowIso() {
 
 export const RELATIONSHIP_TYPES = ['prerequisite', 'dependent', 'related'];
 
-export const ACTIVITY_ACTOR_TYPES = ['human', 'agent', 'user'];
-
 // ── Task ───────────────────────────────────────────────────────────────────────
 
 /**
@@ -22,7 +20,6 @@ export const ACTIVITY_ACTOR_TYPES = ['human', 'agent', 'user'];
  *
  * Stored flat per-board in IndexedDB; synced to PocketBase tasks collection.
  * `relationships` syncs to the task_relationships collection.
- * `activityLog` syncs to the events collection (task-scoped entries).
  *
  * @param {object} overrides
  * @returns {Task}
@@ -45,7 +42,6 @@ export function createTask(overrides = {}) {
     columnHistory: [{ column: '', at: now }],
     relationships: [],
     subTasks: [],
-    activityLog: [],
     swimlaneLabelId: '',
     deleted: false,
     ...overrides,
@@ -138,53 +134,6 @@ export function createRelationship(overrides = {}) {
     // One of RELATIONSHIP_TYPES.
     type: 'related',
     targetTaskId: '',
-    ...overrides,
-  };
-}
-
-// ── Pending hard-delete ────────────────────────────────────────────────────────
-
-/**
- * Queued when a task is permanently deleted locally before PocketBase is
- * reachable. The sync resolves localTaskId → PocketBase ID via syncMap and
- * hard-deletes the record, then clears the entry. If no PocketBase ID exists
- * (task was never synced), the entry is silently dropped.
- *
- * Stored as a global array (not per-board) under the `pendingHardDeletes` key.
- *
- * @param {object} overrides
- * @returns {{ localTaskId: string, boardId: string }}
- */
-export function createPendingHardDelete(overrides = {}) {
-  return {
-    localTaskId: '',
-    boardId: '',
-    ...overrides,
-  };
-}
-
-// ── Activity log entry ─────────────────────────────────────────────────────────
-
-/**
- * Stored in `task.activityLog[]` locally; synced to the events PocketBase
- * collection (task-scoped). Board-level events (`boardEvents` in storage) use
- * the same shape and sync to the same collection without a task reference.
- *
- * `id` is required for deduplication during sync. Entries created before this
- * field was introduced will lack an id and will not be synced.
- *
- * @param {object} overrides
- * @returns {ActivityLogEntry}
- */
-export function createActivityLogEntry(overrides = {}) {
-  return {
-    id: generateUUID(),
-    type: '',
-    at: nowIso(),
-    // actor.type: one of ACTIVITY_ACTOR_TYPES.
-    // actor.id: null for human, non-empty string for agent/user.
-    actor: { type: 'human', id: null },
-    details: {},
     ...overrides,
   };
 }

@@ -1,8 +1,8 @@
 import { generateUUID } from './utils.js';
-import { addPendingHardDelete, appendBoardEvent, getActiveBoardId, isDoneColumnId, loadColumns, loadDeletedTasksForBoard, loadGlobalSettings, loadLabels, loadSettings, loadTasks, saveLiveTasks, saveTasks } from './storage.js';
+import { getActiveBoardId, isDoneColumnId, loadColumns, loadLabels, loadSettings, loadTasks } from './storage.js';
 import { applySwimLaneAssignment } from './swimlanes.js';
 import { normalizePriority, normalizeRelationships, normalizeSubTasks } from './normalize.js';
-import { DEFAULT_HUMAN_ACTOR, appendTaskActivity, createActivityEvent } from './activity-log.js';
+import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 
 const RELATIONSHIP_INVERSE = { prerequisite: 'dependent', dependent: 'prerequisite', related: 'related' };
 
@@ -52,10 +52,6 @@ function relationshipKey(relationship) {
   return `${relationship.targetTaskId}:${relationship.type}`;
 }
 
-function appendTaskEvent(task, type, details, at) {
-  return appendTaskActivity(task, createActivityEvent(type, details, DEFAULT_HUMAN_ACTOR, at));
-}
-
 /**
  * Apply bidirectional relationship sync on a tasks array.
  * Diffs oldRelationships vs newRelationships for a given taskId and mutates
@@ -83,18 +79,8 @@ function syncRelationshipInverses(tasks, taskId, oldRelationships, newRelationsh
     };
 
     if (oldType && oldType !== newType) {
-      nextTarget = appendTaskEvent(nextTarget, 'task.relationship_removed', {
-        targetTaskId: taskId,
-        targetTaskTitle: sourceTask?.title || '',
-        type: RELATIONSHIP_INVERSE[oldType]
-      }, at);
     }
     if (!oldType || oldType !== newType) {
-      nextTarget = appendTaskEvent(nextTarget, 'task.relationship_added', {
-        targetTaskId: taskId,
-        targetTaskTitle: sourceTask?.title || '',
-        type: inverseType
-      }, at);
     }
     tasks[targetIndex] = nextTarget;
   }
@@ -105,14 +91,10 @@ function syncRelationshipInverses(tasks, taskId, oldRelationships, newRelationsh
     if (!target || !Array.isArray(target.relationships)) continue;
     const inverseType = RELATIONSHIP_INVERSE[oldType];
     const targetIndex = tasks.findIndex((t) => t.id === targetId);
-    tasks[targetIndex] = appendTaskEvent({
+    tasks[targetIndex] = {
       ...target,
       relationships: target.relationships.filter((r) => r.targetTaskId !== taskId)
-    }, 'task.relationship_removed', {
-      targetTaskId: taskId,
-      targetTaskTitle: sourceTask?.title || '',
-      type: inverseType
-    }, at);
+    };
   }
 }
 
@@ -158,14 +140,31 @@ export function addTask(title, description, priority, dueDate, columnName, label
     ...(isDoneColumnId(columnName) ? { doneDate: nowIso } : {})
   };
 
-  newTask = appendTaskActivity(newTask, createActivityEvent('task.created', {
-    column: columnName,
-    columnName: getColumnName(columnName)
-  }, DEFAULT_HUMAN_ACTOR, nowIso));
-
   updatedTasks.push(newTask);
   syncRelationshipInverses(updatedTasks, newTask.id, [], normalizedRelationships, nowIso);
-  saveLiveTasks(updatedTasks);
+  const activeBoardId = getActiveBoardId();
+  scheduleDomainEvent({
+    type: 'task.created',
+    boardId: activeBoardId,
+    entityId: newTask.id,
+    payload: { task: newTask }
+  });
+  // Inserting at the top renumbers the column's existing tasks; emit that reorder
+  // so the read model replays from events alone (ADR-0005).
+  if (columnTasks.length > 0) {
+    scheduleDomainEvent({
+      type: 'task.moved',
+      boardId: activeBoardId,
+      entityId: newTask.id,
+      payload: {
+        from_column: columnName,
+        to_column: columnName,
+        order: updatedTasks
+          .filter((task) => task.column === columnName)
+          .map((task) => ({ id: task.id, column: task.column, order: task.order }))
+      }
+    });
+  }
 }
 
 // Update an existing task
@@ -194,6 +193,8 @@ export function updateTask(taskId, title, description, priority, dueDate, column
     const nextDescription = (description || '').toString().trim();
     const nextPriority = normalizePriority(priority);
     const nextDueDate = normalizeDueDate(dueDate);
+    const nextSubTasks = normalizeSubTasks(subTasks);
+    const changedFields = {};
 
     tasks[taskIndex].title = nextTitle;
     tasks[taskIndex].description = nextDescription;
@@ -202,7 +203,7 @@ export function updateTask(taskId, title, description, priority, dueDate, column
     tasks[taskIndex].column = nextColumn;
     tasks[taskIndex].labels = [...labels];
     tasks[taskIndex].relationships = newRelationships;
-    tasks[taskIndex].subTasks = normalizeSubTasks(subTasks);
+    tasks[taskIndex].subTasks = nextSubTasks;
 
     syncRelationshipInverses(tasks, taskId, oldRelationships, newRelationships, nowIso);
 
@@ -211,59 +212,24 @@ export function updateTask(taskId, title, description, priority, dueDate, column
     }
 
     if (previousTask.title !== nextTitle) {
-      tasks[taskIndex] = appendTaskEvent(tasks[taskIndex], 'task.title_changed', { from: previousTask.title, to: nextTitle }, nowIso);
+      changedFields.title = nextTitle;
     }
     if ((previousTask.description || '') !== nextDescription) {
-      tasks[taskIndex] = appendTaskEvent(tasks[taskIndex], 'task.description_changed', { changed: true }, nowIso);
+      changedFields.description = nextDescription;
     }
     if (normalizePriority(previousTask.priority) !== nextPriority) {
-      tasks[taskIndex] = appendTaskEvent(tasks[taskIndex], 'task.priority_changed', { from: normalizePriority(previousTask.priority), to: nextPriority }, nowIso);
+      changedFields.priority = nextPriority;
     }
     if (normalizeDueDate(previousTask.dueDate) !== nextDueDate) {
-      tasks[taskIndex] = appendTaskEvent(tasks[taskIndex], 'task.due_date_changed', { from: normalizeDueDate(previousTask.dueDate), to: nextDueDate }, nowIso);
+      changedFields.dueDate = nextDueDate;
     }
     if (prevColumn !== nextColumn) {
-      tasks[taskIndex] = appendTaskEvent(tasks[taskIndex], 'task.column_moved', { from: prevColumn, to: nextColumn }, nowIso);
     }
     const previousLabels = Array.isArray(previousTask.labels) ? previousTask.labels : [];
     const nextLabels = Array.isArray(labels) ? labels : [];
     const labelRecords = loadLabels();
-    nextLabels
-      .filter((labelId) => !previousLabels.includes(labelId))
-      .forEach((labelId) => {
-        tasks[taskIndex] = appendTaskEvent(tasks[taskIndex], 'task.label_added', {
-          labelId,
-          labelName: getLabelName(labelRecords, labelId)
-        }, nowIso);
-      });
-    previousLabels
-      .filter((labelId) => !nextLabels.includes(labelId))
-      .forEach((labelId) => {
-        tasks[taskIndex] = appendTaskEvent(tasks[taskIndex], 'task.label_removed', {
-          labelId,
-          labelName: getLabelName(labelRecords, labelId)
-        }, nowIso);
-      });
     const previousRelationshipKeys = new Set(oldRelationships.map(relationshipKey));
     const nextRelationshipKeys = new Set(newRelationships.map(relationshipKey));
-    newRelationships
-      .filter((relationship) => !previousRelationshipKeys.has(relationshipKey(relationship)))
-      .forEach((relationship) => {
-        tasks[taskIndex] = appendTaskEvent(tasks[taskIndex], 'task.relationship_added', {
-          targetTaskId: relationship.targetTaskId,
-          targetTaskTitle: getTaskTitle(tasks, relationship.targetTaskId),
-          type: relationship.type
-        }, nowIso);
-      });
-    oldRelationships
-      .filter((relationship) => !nextRelationshipKeys.has(relationshipKey(relationship)))
-      .forEach((relationship) => {
-        tasks[taskIndex] = appendTaskEvent(tasks[taskIndex], 'task.relationship_removed', {
-          targetTaskId: relationship.targetTaskId,
-          targetTaskTitle: getTaskTitle(tasks, relationship.targetTaskId),
-          type: relationship.type
-        }, nowIso);
-      });
 
     if (!isDoneColumnId(prevColumn) && isDoneColumnId(nextColumn)) {
       tasks[taskIndex].doneDate = nowIso;
@@ -272,7 +238,93 @@ export function updateTask(taskId, title, description, priority, dueDate, column
     }
 
     tasks[taskIndex].changeDate = nowIso;
-    saveLiveTasks(tasks);
+    const boardId = getActiveBoardId();
+    if (Object.keys(changedFields).length > 0) {
+      scheduleDomainEvent({
+        type: 'task.updated',
+        boardId,
+        entityId: taskId,
+        payload: { fields: changedFields }
+      });
+    }
+    if (prevColumn !== nextColumn) {
+      scheduleDomainEvent({
+        type: 'task.moved',
+        boardId,
+        entityId: taskId,
+        payload: {
+          from_column: prevColumn,
+          to_column: nextColumn,
+          order: tasks.map((task) => ({ id: task.id, column: task.column, order: task.order }))
+        }
+      });
+    }
+    nextLabels
+      .filter((labelId) => !previousLabels.includes(labelId))
+      .forEach((labelId) => {
+        scheduleDomainEvent({ type: 'label.added_to_task', boardId, entityId: taskId, payload: { label_id: labelId } });
+      });
+    previousLabels
+      .filter((labelId) => !nextLabels.includes(labelId))
+      .forEach((labelId) => {
+        scheduleDomainEvent({ type: 'label.removed_from_task', boardId, entityId: taskId, payload: { label_id: labelId } });
+      });
+    newRelationships
+      .filter((relationship) => !previousRelationshipKeys.has(relationshipKey(relationship)))
+      .forEach((relationship) => {
+        scheduleDomainEvent({ type: 'relationship.added', boardId, entityId: taskId, payload: { relationship } });
+        // Emit the inverse on the target task so the bidirectional link replays
+        // from events alone (the reducer is the sole read-model writer — ADR-0005).
+        const inverseType = RELATIONSHIP_INVERSE[relationship.type];
+        if (inverseType) {
+          scheduleDomainEvent({
+            type: 'relationship.added',
+            boardId,
+            entityId: relationship.targetTaskId,
+            payload: { relationship: { type: inverseType, targetTaskId: taskId } }
+          });
+        }
+      });
+    oldRelationships
+      .filter((relationship) => !nextRelationshipKeys.has(relationshipKey(relationship)))
+      .forEach((relationship) => {
+        scheduleDomainEvent({
+          type: 'relationship.removed',
+          boardId,
+          entityId: taskId,
+          payload: { targetTaskId: relationship.targetTaskId, relationship_type: relationship.type }
+        });
+        const inverseType = RELATIONSHIP_INVERSE[relationship.type];
+        if (inverseType) {
+          scheduleDomainEvent({
+            type: 'relationship.removed',
+            boardId,
+            entityId: relationship.targetTaskId,
+            payload: { targetTaskId: taskId, relationship_type: inverseType }
+          });
+        }
+      });
+    const previousSubTasks = normalizeSubTasks(previousTask.subTasks);
+    const previousSubTasksById = new Map(previousSubTasks.map((subtask) => [subtask.id, subtask]));
+    const nextSubTasksById = new Map(nextSubTasks.map((subtask) => [subtask.id, subtask]));
+    nextSubTasks.forEach((subtask) => {
+      const previous = previousSubTasksById.get(subtask.id);
+      if (!previous) {
+        scheduleDomainEvent({ type: 'subtask.added', boardId, entityId: taskId, payload: { subtask } });
+        return;
+      }
+      if (previous.completed !== subtask.completed) {
+        scheduleDomainEvent({ type: 'subtask.toggled', boardId, entityId: taskId, payload: { subtask_id: subtask.id, completed: subtask.completed === true } });
+      }
+      if ((previous.title || '') !== (subtask.title || '')) {
+        scheduleDomainEvent({ type: 'subtask.text_changed', boardId, entityId: taskId, payload: { subtask_id: subtask.id, title: subtask.title || '' } });
+      }
+    });
+    previousSubTasks
+      .filter((subtask) => !nextSubTasksById.has(subtask.id))
+      .forEach((subtask) => {
+        scheduleDomainEvent({ type: 'subtask.removed', boardId, entityId: taskId, payload: { subtask_id: subtask.id } });
+      });
   }
 }
 
@@ -283,20 +335,13 @@ export function deleteTask(taskId) {
   const task = liveTasks.find(t => t.id === taskId);
   if (!task) return false;
 
-  appendBoardEvent(boardId, createActivityEvent('task.deleted', {
-    taskId: task.id,
-    taskTitle: task.title,
-    column: task.column,
-    columnName: getColumnName(task.column)
-  }, DEFAULT_HUMAN_ACTOR));
-
-  const allTasks = [...liveTasks, ...loadDeletedTasksForBoard(boardId)];
-  const softDeleteEnabled = loadGlobalSettings().softDeleteEnabled === true;
-  const updated = softDeleteEnabled
-    ? allTasks.map(t => t.id === taskId ? { ...t, deleted: true } : t)
-    : allTasks.filter(t => t.id !== taskId);
-  saveTasks(updated);
-  if (!softDeleteEnabled) addPendingHardDelete({ localTaskId: task.id, boardId });
+  // task.deleted removes the task; the projection is the sole writer (ADR-0005).
+  scheduleDomainEvent({
+    type: 'task.deleted',
+    boardId,
+    entityId: task.id,
+    payload: { column: task.column }
+  });
   return true;
 }
 
@@ -423,31 +468,6 @@ export function updateTaskPositionsFromDrop(evt) {
         nextTask.order = orderEntry.order;
       }
 
-      const previousPriority = normalizePriority(task.priority);
-      const nextPriority = normalizePriority(nextTask.priority);
-      if (previousPriority !== nextPriority) {
-        nextTask = appendTaskEvent(nextTask, 'task.priority_changed', { from: previousPriority, to: nextPriority }, nowIso);
-      }
-
-      const previousLabels = Array.isArray(task.labels) ? task.labels : [];
-      const nextLabels = Array.isArray(nextTask.labels) ? nextTask.labels : [];
-      nextLabels
-        .filter((labelId) => !previousLabels.includes(labelId))
-        .forEach((labelId) => {
-          nextTask = appendTaskEvent(nextTask, 'task.label_added', {
-            labelId,
-            labelName: getLabelName(labels, labelId)
-          }, nowIso);
-        });
-      previousLabels
-        .filter((labelId) => !nextLabels.includes(labelId))
-        .forEach((labelId) => {
-          nextTask = appendTaskEvent(nextTask, 'task.label_removed', {
-            labelId,
-            labelName: getLabelName(labels, labelId)
-          }, nowIso);
-        });
-
       // Only update history/dates if column changed
       if (didChangeColumn || (isSwimlaneView && didChangeLane)) {
         nextTask.changeDate = nowIso;
@@ -461,7 +481,6 @@ export function updateTaskPositionsFromDrop(evt) {
           : [{ column: task.column, at: task.creationDate || task.changeDate || nowIso }];
         history.push({ column: toColumn, at: nowIso });
         nextTask.columnHistory = history;
-        nextTask = appendTaskEvent(nextTask, 'task.column_moved', { from: task.column, to: toColumn }, nowIso);
 
         if (!isDoneColumnId(task.column) && isDoneColumnId(toColumn)) {
           nextTask.doneDate = nowIso;
@@ -489,7 +508,40 @@ export function updateTaskPositionsFromDrop(evt) {
     ? reorderColumnTasks(updatedTasks, toColumn, movedTaskId)
     : updatedTasks;
 
-  saveLiveTasks(finalTasks);
+  const dropBoardId = getActiveBoardId();
+  scheduleDomainEvent({
+    type: 'task.moved',
+    boardId: dropBoardId,
+    entityId: movedTaskId,
+    payload: {
+      from_column: fromColumn,
+      to_column: toColumn,
+      order: finalTasks.map((task) => ({ id: task.id, column: task.column, order: task.order }))
+    }
+  });
+
+  // A swimlane drag reassigns the moved task's lane-defining fields (labels,
+  // priority, swimlane markers). task.moved only carries column/order, so emit
+  // the field changes too — otherwise they would not replay from events (ADR-0005).
+  if (isSwimlaneView) {
+    const movedFinal = finalTasks.find((task) => task.id === movedTaskId);
+    const fields = {};
+    if (JSON.stringify(movedTask.labels || []) !== JSON.stringify(movedFinal.labels || [])) {
+      fields.labels = movedFinal.labels;
+    }
+    if (normalizePriority(movedTask.priority) !== normalizePriority(movedFinal.priority)) {
+      fields.priority = movedFinal.priority;
+    }
+    if ((movedTask.swimlaneLabelId || '') !== (movedFinal.swimlaneLabelId || '')) {
+      fields.swimlaneLabelId = movedFinal.swimlaneLabelId || '';
+    }
+    if ((movedTask.swimlaneLabelGroup || '') !== (movedFinal.swimlaneLabelGroup || '')) {
+      fields.swimlaneLabelGroup = movedFinal.swimlaneLabelGroup || '';
+    }
+    if (Object.keys(fields).length > 0) {
+      scheduleDomainEvent({ type: 'task.updated', boardId: dropBoardId, entityId: movedTaskId, payload: { fields } });
+    }
+  }
 
   return {
     movedTaskId,
@@ -511,7 +563,16 @@ export function moveTaskToTopInColumn(taskId, columnId, tasksCache) {
   const didUpdate = updatedTasks.some((task, index) => task !== tasks[index]);
 
   if (didUpdate) {
-    saveLiveTasks(updatedTasks);
+    scheduleDomainEvent({
+      type: 'task.moved',
+      boardId: getActiveBoardId(),
+      entityId: taskId,
+      payload: {
+        from_column: columnId,
+        to_column: columnId,
+        order: updatedTasks.map((task) => ({ id: task.id, column: task.column, order: task.order }))
+      }
+    });
     return updatedTasks;
   }
   return tasks;

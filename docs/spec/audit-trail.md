@@ -1,5 +1,11 @@
 # Audit Trail
 
+> **Status: RETIRED — feature removed in v1 (issue #110), superseded by [ADR-0004](../adr/0004-event-sourced-sync.md).**
+> The two-log audit trail (per-task `activityLog` + board `boardEvents`), the activity page, and the
+> `activity-log*.js` / `activity.js` modules no longer exist. Under event sourcing the full mutation
+> history lives implicitly in the domain-event stream, available to a future audit UI without a separate
+> write path. This document is kept only for historical context — it does **not** describe current behaviour.
+
 ## Feature Summary
 
 Audit trail uses a two-log design:

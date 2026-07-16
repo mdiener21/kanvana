@@ -13,6 +13,10 @@ import { initStorage, ensureBoardsInitialized, setActiveBoardId } from './module
 import { initializeSwimLaneControls } from './modules/swimlanes.js';
 import { initializeAuthSyncUI } from './modules/authsync.js';
 import { initializeAutoSync } from './modules/autosync.js';
+import { initSyncQueue } from './modules/event-sourcing/sync-queue.js';
+import { initSnapshotSync } from './modules/event-sourcing/snapshot-sync.js';
+import { initRealtime } from './modules/event-sourcing/realtime.js';
+import { initSyncIndicator } from './modules/event-sourcing/sync-indicator.js';
 
 // Add task button listeners
 document.addEventListener('DOMContentLoaded', async () => {
@@ -56,6 +60,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Auth/sync UI and auto-sync listener
   initializeAuthSyncUI();
   initializeAutoSync();
+
+  // Event-sourced outbound push queue (drains unsynced events to PocketBase)
+  initSyncQueue();
+
+  // Snapshot upload: push locally-saved snapshots to PB (pre-flight + GC)
+  initSnapshotSync();
+
+  // Inbound sync: SSE realtime subscription + launch/reconnect catch-up pull
+  initRealtime();
+
+  // Header sync-state indicator (Live / Syncing / unsynced / Offline)
+  initSyncIndicator();
 
   // Initialize modal handlers
   initializeModalHandlers();

@@ -1,7 +1,7 @@
 import { generateUUID } from './utils.js';
-import { appendBoardEvent, getActiveBoardId, isDoneColumnId, loadColumns, loadDeletedColumnsForBoard, loadDeletedTasksForBoard, saveColumns, loadTasks, saveTasks } from './storage.js';
+import { getActiveBoardId, isDoneColumnId, loadColumns, loadTasks } from './storage.js';
 import { normalizeHexColor } from './normalize.js';
-import { DEFAULT_HUMAN_ACTOR, createActivityEvent } from './activity-log.js';
+import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 
 // Add a new column
 export function addColumn(name, color) {
@@ -12,11 +12,12 @@ export function addColumn(name, color) {
   const id = generateUUID();
   const newColumn = { id, name: name.trim(), color: normalizeHexColor(color), order: maxOrder - 1, collapsed: false };
   columns.push(newColumn);
-  appendBoardEvent(getActiveBoardId(), createActivityEvent('column.created', {
-    columnId: newColumn.id,
-    columnName: newColumn.name
-  }, DEFAULT_HUMAN_ACTOR));
-  saveColumns(columns);
+  scheduleDomainEvent({
+    type: 'column.created',
+    boardId: getActiveBoardId(),
+    entityId: newColumn.id,
+    payload: { column: newColumn }
+  });
 }
 
 export function toggleColumnCollapsed(columnId) {
@@ -28,7 +29,12 @@ export function toggleColumnCollapsed(columnId) {
   if (!column) return false;
 
   column.collapsed = column.collapsed !== true;
-  saveColumns(columns);
+  scheduleDomainEvent({
+    type: 'column.updated',
+    boardId: getActiveBoardId(),
+    entityId: column.id,
+    payload: { fields: { collapsed: column.collapsed } }
+  });
   return true;
 }
 
@@ -42,14 +48,12 @@ export function updateColumn(columnId, name, color) {
     const previousName = columns[columnIndex].name;
     columns[columnIndex].name = name.trim();
     columns[columnIndex].color = normalizeHexColor(color);
-    if (previousName !== columns[columnIndex].name) {
-      appendBoardEvent(getActiveBoardId(), createActivityEvent('column.renamed', {
-        columnId,
-        from: previousName,
-        to: columns[columnIndex].name
-      }, DEFAULT_HUMAN_ACTOR));
-    }
-    saveColumns(columns);
+    scheduleDomainEvent({
+      type: 'column.updated',
+      boardId: getActiveBoardId(),
+      entityId: columnId,
+      payload: { fields: { name: columns[columnIndex].name, color: columns[columnIndex].color } }
+    });
   }
 }
 
@@ -69,38 +73,26 @@ export function deleteColumn(columnId) {
     return false;
   }
 
-  const columnName = column.name;
   const liveTasks = loadTasks();
   const tasksInColumn = liveTasks.filter(t => t.column === columnId);
 
-  // Soft-delete tasks in the column, preserving already-deleted tasks
-  const allTasks = [...liveTasks, ...loadDeletedTasksForBoard(boardId)];
-  const updatedTasks = allTasks.map(t =>
-    t.column === columnId ? { ...t, deleted: true } : t
-  );
-  saveTasks(updatedTasks);
-
-  // Soft-delete the column, preserving already-deleted columns
-  const allColumns = [...columns, ...loadDeletedColumnsForBoard(boardId)];
-  const updatedColumns = allColumns.map(c =>
-    c.id === columnId ? { ...c, deleted: true } : c
-  );
-  saveColumns(updatedColumns);
-
-  appendBoardEvent(boardId, createActivityEvent('column.deleted', {
-    columnName,
-    tasksDestroyed: tasksInColumn.length
-  }, DEFAULT_HUMAN_ACTOR));
-
+  // task.deleted removes each task and column.deleted soft-deletes the column;
+  // the projection is the sole writer of the read model (ADR-0005).
   tasksInColumn.forEach((task) => {
-    appendBoardEvent(boardId, createActivityEvent('task.deleted', {
-      taskId: task.id,
-      taskTitle: task.title,
-      column: task.column,
-      columnName
-    }, DEFAULT_HUMAN_ACTOR));
+    scheduleDomainEvent({
+      type: 'task.deleted',
+      boardId,
+      entityId: task.id,
+      payload: { column: task.column }
+    });
   });
 
+  scheduleDomainEvent({
+    type: 'column.deleted',
+    boardId,
+    entityId: columnId,
+    payload: { tasksDestroyed: tasksInColumn.length }
+  });
   return true;
 }
 
@@ -122,12 +114,15 @@ export function updateColumnPositions() {
       column.order = nextOrder;
     }
   });
-  
-  saveColumns(columns);
 
   // Emit a single event only when at least one column moved; details {} kept
   // minimal as the PRD does not specify a bulk payload shape.
   if (anyMoved) {
-    appendBoardEvent(getActiveBoardId(), createActivityEvent('column.reordered', {}, DEFAULT_HUMAN_ACTOR));
+    scheduleDomainEvent({
+      type: 'column.reordered',
+      boardId: getActiveBoardId(),
+      entityId: '',
+      payload: { order: columns.map((column) => ({ id: column.id, order: column.order })) }
+    });
   }
 }

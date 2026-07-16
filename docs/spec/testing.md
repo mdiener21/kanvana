@@ -14,10 +14,29 @@ The canonical folder and naming conventions live in `docs/testing-strategy.md`.
 - `npm test` - run unit, DOM, and E2E suites in sequence
 - `npm run test:unit` - run unit tests only
 - `npm run test:dom` - run DOM integration tests only
-- `npm run test:e2e` - run Playwright only
+- `npm run test:e2e` - run Playwright (mocked suite; ignores `tests/e2e/event-sourcing/`)
+- `npm run test:e2e:live` - run the event-sourcing convergence specs against a **live** PocketBase
 - `npm run test:ui` - open Playwright UI mode
 - `npm run test:debug` - run Playwright debug mode
 - `npm run test:overview` - regenerate `tests/TEST-OVERVIEW.md` from test source
+
+### Live e2e prerequisite — Docker stack must be running
+
+`npm run test:e2e:live` talks to a **real** PocketBase. Bring the Docker stack up first, from the repo root:
+
+```bash
+docker compose up -d        # starts pocketbase (:8090) + nginx; wait for pb healthy
+curl -s -o /dev/null -w '%{http_code}' http://localhost:8090/api/health   # expect 200
+```
+
+If PocketBase is unreachable the live specs **self-skip** (they do not fail), so a green
+`test:e2e:live` with PB down means *nothing ran*. Verify PB health before trusting the result.
+
+The unit, DOM, and mocked `test:e2e` suites need **no** Docker.
+
+> The sandboxed Playwright browser can only reach its own origin, so the live config serves
+> a same-origin `/api` proxy to PB (`PB_PROXY_TARGET`) and pins `VITE_PB_URL=/`. `client/.env.local`
+> (`http://localhost:8090`) is for real `npm run dev` only — it is intentionally overridden in e2e.
 
 ## IDB Unit Test Setup
 
@@ -59,7 +78,7 @@ expect(loadTasks().some(t => t.title === 'Persisted task')).toBe(true);
 - The overview also includes filename-based gap heuristics for source modules and spec files without obvious named coverage. These heuristics are a fast triage aid, not a coverage guarantee.
 - Board management flows
 - Task creation and validation
-- Task deletion flows: permanent delete (confirm removes card, counter decrements), cancel (card survives), soft-delete mode (correct dialog message, card hidden, purge counter increments) — `tests/e2e/task-delete.spec.ts`
+- Task deletion flows: permanent delete confirmation removes the card and decrements the counter; cancel leaves the card and counter unchanged — `tests/e2e/task-delete.spec.ts`
 - Drag-and-drop performance into Done with large fixture boards
 - Done-column virtualization behavior
 - Swim lane rendering, settings persistence, and lane-aware moves

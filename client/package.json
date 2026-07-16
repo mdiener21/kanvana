@@ -14,6 +14,7 @@
     "test:unit": "vitest run --config vitest.config.js",
     "test:dom": "vitest run --config vitest.dom.config.js",
     "test:e2e": "playwright test",
+    "test:e2e:live": "playwright test --config playwright.live.config.js",
     "test:ui": "playwright test --ui",
     "test:debug": "playwright test --debug",
     "test:overview": "node scripts/generate-test-overview.mjs",

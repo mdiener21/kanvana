@@ -139,18 +139,24 @@ test.describe('Sub-tasks', () => {
 
     const storedSubTasks = await page.evaluate(async () => {
       const db = await new Promise<IDBDatabase>((resolve, reject) => {
-        const req = indexedDB.open('kanvana-db', 1);
+        const req = indexedDB.open('kanvana-db', 2);
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
       });
-      const read = <T>(key: string): Promise<T> => new Promise((resolve, reject) => {
+      const readKv = <T>(key: string): Promise<T> => new Promise((resolve, reject) => {
         const tx = db.transaction('kv', 'readonly');
         const req = tx.objectStore('kv').get(key);
         req.onsuccess = () => resolve(req.result as T);
         req.onerror = () => reject(req.error);
       });
-      const activeBoardId = await read<string>('kanbanActiveBoardId');
-      const tasks = await read<Array<{ title?: string; subTasks?: Array<{ title: string; completed: boolean }> }>>(`kanbanBoard:${activeBoardId}:tasks`);
+      const readModel = <T>(key: string): Promise<T> => new Promise((resolve, reject) => {
+        const tx = db.transaction('read_model', 'readonly');
+        const req = tx.objectStore('read_model').get(key);
+        req.onsuccess = () => resolve(req.result as T);
+        req.onerror = () => reject(req.error);
+      });
+      const activeBoardId = await readKv<string>('kanbanActiveBoardId');
+      const tasks = await readModel<Array<{ title?: string; subTasks?: Array<{ title: string; completed: boolean }> }>>(`${activeBoardId}:tasks`);
       db.close();
       return (tasks || []).find((t) => t.title === 'Persisted sub-task task')?.subTasks ?? [];
     });

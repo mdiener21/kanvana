@@ -9,11 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Event-sourced sync foundation: HLC module with persisted node IDs and IndexedDB v2 stores for events, snapshots, and reducer read models.
+- Event-sourced reducer foundation with idempotent handlers for task, label, column, board, settings, subtask, and relationship events; feature modules now emit persisted domain events while keeping offline behavior intact.
+- Snapshot module with local GC: periodic board snapshots written to IndexedDB; old events pruned after each snapshot; configurable snapshot interval.
+- Event-sourced sync backend schema and outbound push queue (issue #112): PocketBase `events` collection extended with `hlc`/`scope`/`entity_id`, nullable `board`, `details`→`payload`, immutable updates; new `snapshots` collection; legacy collections locked read-only. Client `sync-queue` drains unsynced events to PocketBase in HLC order with a 5-deep in-flight cap, 500 ms debounce, three-tier retry (network backoff, auth-pause, permanent 4xx), online-event resume, and no-rollback semantics.
+- Inbound realtime sync (issue #114): a PocketBase SSE subscription applies remote events live across devices, plus a launch/reconnect catch-up pull so a just-opened device converges without manual sync.
+- Board scaffolding now emits domain events with a stable default board id (issue #114): a new device and an existing one converge on the same default board without a board-sharing handshake.
+- Header sync-state indicator (issue #115): a single live indicator replaces the manual Sync button — `Live ●` (green) when online and synced, `Syncing… (N)` (yellow) while events drain, `⚠ N unsynced` (orange) when retrying or paused, and `Offline` (gray) when offline or signed out; updates without a page reload.
+
+### Removed
+
+- Activity log feature retired: `activity.html`, `activity-log.js`, `activity-log-ui.js`, and `activity.js` removed; navigation links and all write-paths cleaned from tasks, columns, labels, storage, import/export, and sync modules.
+- ADR-0001 (dual-log audit trail) superseded by ADR-0004 (domain-event stream).
 - Online Mode PocketBase sync PRD documenting the current Go Online, auth, manual sync, auto-sync, and no-merge V1 contract.
-- Global "Soft-delete tasks" toggle in App Settings — choose between permanent deletion (default) and soft-delete mode where deleted tasks are hidden until explicitly purged.
-- "Purge deleted tasks" button in App Settings — hard-removes all soft-deleted tasks from local storage and syncs deletions to PocketBase when online.
+- Global `softDeleteEnabled` setting and "Soft-delete tasks" toggle in App Settings.
+- "Purge deleted tasks" settings action and `runPurge` flow.
 - Settings UI now separates App-level settings from Board-level settings, making global preferences distinct from per-board configuration.
-- Sync: `pushBoardFull()` now branches on `softDeleteEnabled` — in soft-delete mode it enqueues PocketBase cleanup intents via a pending hard-delete queue; in permanent mode it removes tasks immediately.
+- Sync branching on `softDeleteEnabled` and `pendingHardDeletes`; deletion propagation now follows the domain-event stream/tombstone model.
+
+### Changed
+
+- Reducer is now the sole writer of the read model (issue #118, ADR-0005): local mutations emit domain events only — the direct `save*()` read-model writes were removed. Events are projected synchronously on the local path so the UI stays instant, while remaining HLC-ordered for sync. Domain events were made self-complete so the read model reproduces from events alone: relationship inverses now emit for the target task, task creation/reorder emit the sibling-order change, `doneDate` is derived in the move reducer, swimlane drag reassignments emit their field changes, and subtask title edits propagate. This also fixes latent cross-device gaps where relationship inverses and column order never synced. Deletes are hard removals via `task.deleted` (no read-model tombstone).
+- Read-model projection extracted from the `storage.js` god module into a dedicated `event-sourcing/read-model-projector.js` (issue #119, ADR-0005): `createReadModelProjector()` receives the in-memory `state` + schedulers by injection and owns `EVENT_EMITTED` subscription and projection. Behavior-preserving — the reducer stays pure and remains the sole read-model writer; no change to projection semantics, dedup, or snapshot scheduling.
 
 ### Fixed
 
@@ -25,13 +42,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed Impressum page overflow so the legal content can scroll vertically on desktop and mobile.
 - Fixed sub-task font size.
 - Fixed missing scale icon for the legal/impressum page.
-- Soft-deleted tasks were silently lost when adding, editing, moving, or reordering other tasks, causing the Settings purge count and button to no longer reflect them; soft-deleted tasks are now retained until an explicit purge.
-- Soft-deleted tasks were also removed from local storage on every background sync, so the Settings purge count could drop to zero while the tasks still existed in PocketBase; sync now keeps soft-deleted tasks locally until you purge.
 - Deleting a board while signed in now also deletes the mapped PocketBase board and its board-scoped columns, labels, tasks, relationships, and events before removing the local board.
-- Fixed desktop task drag autoscroll so long task lists scroll vertically while dragging a card near the list edge
-- Fixed Impressum page overflow so the legal content can scroll vertically on desktop and mobile
-- Fixed font size sub-task
-- Fixed missing scale icon for impressum
+- Board changes from another device now refresh the board selector live (issue #114): remotely created or renamed boards appear in the dropdown without a reload.
+- Event-sourced PocketBase migration fixed for PocketBase v0.38.1 (issue #114): `events.board` is stored as TEXT (a client-side local UUID, not a `kanvana_boards` relation), so board-scoped events no longer fail validation; uses the v0.38.1 field API (`removeByName`/`add`).
+- Corrected the frontend reverse-proxy URL in the Nginx configuration.
+- Vite now loads the `client/.env.local` (dev) and `client/.env.production` (build) files: `envDir` was previously resolving to `client/src/`, so `VITE_PB_URL` was silently ignored and the app fell back to the same origin; the production build now correctly targets `https://pb.kanvana.com`. The Playwright e2e configs pin `VITE_PB_URL=/` so the sandboxed browser stays same-origin via the `/api` proxy.
 
 ## [2.0.0] - 2026-05-16
 
