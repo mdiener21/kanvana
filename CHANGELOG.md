@@ -7,7 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.3] - 2026-07-30
+
 ### Fixed
+
 - Fixed Online Mode sync getting stuck at `Syncing… (N)` after login: `auth-changed` now starts an outbound event drain for pre-existing offline events, and the sync indicator rerenders on queue status changes when events finish, retry, or pause.
 
 ## [3.0.2] - 2026-07-30
