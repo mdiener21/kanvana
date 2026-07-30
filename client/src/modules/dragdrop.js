@@ -264,13 +264,21 @@ function initTaskSortables() {
         document.removeEventListener('mousemove', trackPointer);
         document.removeEventListener('dragover', trackPointer);
 
-        // Defer all state mutations until the next animation frame.
-        // scheduleDomainEvent() → emit(DATA_CHANGED) → renderBoard() → container.innerHTML=''
-        // fires synchronously, which detaches evt.item/evt.to while Chrome's DnD engine
-        // still holds internal renderer state for those nodes. Re-parenting a detached
-        // drag-source node during dragend crashes the Chrome renderer on the second drop.
-        // Yielding to RAF lets dragend fully complete before we touch the DOM.
-        await new Promise((resolve) => requestAnimationFrame(resolve));
+        // Defer all DOM/state mutations until Chrome's DnD engine has fully released
+        // its internal references to the dragged nodes.
+        //
+        // The crash path: scheduleDomainEvent() → emit(DATA_CHANGED) → renderBoard() →
+        // container.innerHTML='' detaches evt.item/evt.to. If Chrome's renderer still
+        // holds references to those nodes when they're detached, it crashes.
+        //
+        // Chrome's DnD uses an IPC roundtrip between the renderer and browser processes
+        // to finalise the drag. This IPC response arrives as a new browser task, which
+        // the event-loop schedules AFTER the current frame paints. A single RAF fires
+        // during the rendering step — before that IPC task — so it isn't enough on
+        // Windows Chrome. We wait for the RAF (to yield past dragend's synchronous
+        // event-dispatch) and then for a setTimeout(0) inside it (to yield past the
+        // frame paint and into the next task queue slot, after the IPC has settled).
+        await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
 
         const dropResult = updateTaskPositionsFromDrop(evt);
 
