@@ -9,8 +9,8 @@ import { test, expect } from '@playwright/test';
  * renderer state for those nodes. The subsequent evt.to.prepend(evt.item) re-parented
  * the detached drag source into another detached tree, crashing Chrome on the second drop.
  *
- * Fix: dragdrop.js onEnd now yields to requestAnimationFrame before touching state,
- * letting dragend fully complete before any DOM mutation occurs.
+ * Fix: dragdrop.js onEnd now yields to requestAnimationFrame and one timer
+ * before touching state, letting Chrome's drag finalization settle first.
  */
 
 const BOARD_ID = 'crash-regression-board';

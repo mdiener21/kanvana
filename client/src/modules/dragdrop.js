@@ -56,7 +56,30 @@ function destroySortables() {
     columnSortable = null;
   }
   
+  cleanupTaskDragState({ restoreCollapsedDropZones: true });
+  cleanupColumnDragState();
+}
+
+function removePointerTracking() {
+  document.removeEventListener('touchmove', trackPointer);
+  document.removeEventListener('mousemove', trackPointer);
+  document.removeEventListener('dragover', trackPointer);
+}
+
+function cleanupTaskDragState({ restoreCollapsedDropZones = false } = {}) {
+  document.body.classList.remove('dragging');
+  isDraggingTask = false;
+  activeTaskList = null;
   stopAutoScroll();
+  removePointerTracking();
+  clearCollapsedDropHover();
+  if (restoreCollapsedDropZones) {
+    hideCollapsedDropZones();
+  }
+}
+
+function cleanupColumnDragState() {
+  document.body.classList.remove('dragging-column');
 }
 
 // Auto-scroll logic for board and task-list scrolling during drag
@@ -256,13 +279,8 @@ function initTaskSortables() {
       },
       
       onEnd: async function(evt) {
-        document.body.classList.remove('dragging');
-        isDraggingTask = false;
-        activeTaskList = null;
-        stopAutoScroll();
-        document.removeEventListener('touchmove', trackPointer);
-        document.removeEventListener('mousemove', trackPointer);
-        document.removeEventListener('dragover', trackPointer);
+        const restoreCollapsedDropZones = !isSwimlaneViewEnabled();
+        cleanupTaskDragState({ restoreCollapsedDropZones });
 
         // Defer all DOM/state mutations until Chrome's DnD engine has fully released
         // its internal references to the dragged nodes.
@@ -284,17 +302,11 @@ function initTaskSortables() {
 
         const isSwimlaneView = isSwimlaneViewEnabled();
         const toColumnEl = getTaskContainerElement(evt.to);
-        const isDropIntoDone = !isSwimlaneView && isDoneColumnId(dropResult?.toColumn);
 
-        if (dropResult && !isSwimlaneView && (toColumnEl?.classList.contains('is-collapsed') || isDropIntoDone)) {
-          // renderBoard() (triggered by scheduleDomainEvent above) already positions
-          // the task at the top of done/collapsed columns from state — no DOM prepend needed.
+        if (dropResult && !isSwimlaneView && toColumnEl?.classList.contains('is-collapsed')) {
+          // renderBoard() already replaces the board from state; keep collapsed drops
+          // state-only so Sortable's detached drag node is never re-parented here.
           moveTaskToTopInColumn(dropResult.movedTaskId, dropResult.toColumn);
-        }
-
-        clearCollapsedDropHover();
-        if (!isSwimlaneView) {
-          hideCollapsedDropZones();
         }
 
         if (dropResult) {
@@ -355,7 +367,7 @@ function initColumnSortable() {
     },
     
     onEnd: function(evt) {
-      document.body.classList.remove('dragging-column');
+      cleanupColumnDragState();
       
       // Update column positions in storage
       updateColumnPositions();
