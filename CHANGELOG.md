@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fixed Chrome renderer crash on first drag-to-Done: the single `requestAnimationFrame` barrier was insufficient on Windows Chrome because Chrome's DnD browser-process IPC response arrives as a new task after the frame paints, not during the RAF. The barrier is now `requestAnimationFrame(() => setTimeout(resolve, 0))` — the RAF yields past `dragend`'s synchronous dispatch, and the nested `setTimeout(0)` yields past the frame paint into the next task-queue slot, after the IPC has settled and Chrome has released its references to the dragged nodes.
 - Fixed drag/drop teardown leaks when the board re-renders or reinitializes during an active drag: Sortable cleanup now clears task and column drag body classes, pointer listeners, autoscroll state, collapsed drop-zone state, and hover classes. Done-column drops also avoid a redundant top-pin event because the primary drop handler already orders Done tasks through state.
+- Fixed Online Mode sync getting stuck at `Syncing… (N)` after login: `auth-changed` now starts an outbound event drain for pre-existing offline events, and the sync indicator rerenders on queue status changes when events finish, retry, or pause.
 
 ## [3.0.1] - 2026-07-30
 

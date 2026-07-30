@@ -10,6 +10,7 @@ const fake = vi.hoisted(() => ({
 
 vi.mock('../../../src/modules/event-sourcing/sync-queue.js', () => ({
   getSyncStatus: vi.fn(async () => fake.status),
+  SYNC_STATUS_CHANGED: 'sync:status-changed',
 }));
 
 vi.mock('../../../src/modules/sync.js', () => ({
@@ -133,6 +134,20 @@ describe('sync state indicator', () => {
     window.dispatchEvent(new CustomEvent('auth-changed'));
     await waitFor(() => {
       expect(el().textContent).toContain('Live');
+    });
+  });
+
+  it('updates live when the sync queue status changes', async () => {
+    fake.status = { depth: 69, retrying: false, paused: false };
+    initSyncIndicator();
+    await waitFor(() => expect(el().textContent).toContain('69'));
+
+    fake.status = { depth: 0, retrying: false, paused: false };
+    window.dispatchEvent(new CustomEvent('sync:status-changed'));
+
+    await waitFor(() => {
+      expect(el().textContent).toContain('Live');
+      expect(el().classList.contains('sync-indicator--live')).toBe(true);
     });
   });
 });

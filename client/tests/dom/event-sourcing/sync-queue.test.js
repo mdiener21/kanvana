@@ -21,6 +21,7 @@ import {
   _setTimingForTesting,
   _isPausedForTesting,
   _settleForTesting,
+  getSyncStatus,
 } from '../../../src/modules/event-sourcing/sync-queue.js';
 
 const EVENTS_URL = '*/api/collections/events/records';
@@ -171,6 +172,29 @@ describe('sync-queue push', () => {
     expect(attempts).toBe(2);
   });
 
+  it('drains pre-existing unsynced events when auth changes after login', async () => {
+    let attempts = 0;
+    server.use(http.post(EVENTS_URL, async () => {
+      attempts += 1;
+      return HttpResponse.json({ id: 'rec-ok' });
+    }));
+    _setTimingForTesting({ debounceMs: 1 });
+
+    const event = makeEvent({ counter: 0 });
+    await persistEvent(event);
+
+    initSyncQueue();
+    await new Promise(r => setTimeout(r, 20));
+    expect(attempts).toBe(0);
+    expect(await getUnsyncedEvents()).toHaveLength(1);
+
+    setAuth();
+    window.dispatchEvent(new Event('auth-changed'));
+
+    await waitFor(async () => expect((await getUnsyncedEvents()).length).toBe(0));
+    expect(attempts).toBe(1);
+  });
+
   it('AC-007: pauses on auth failure and resumes on auth-changed', async () => {
     let attempts = 0;
     server.use(http.post(EVENTS_URL, async () => {
@@ -239,5 +263,6 @@ describe('sync-queue push', () => {
 
     await waitFor(() => expect(calls).toEqual([60 * 60 * 1000]));
     expect(await getUnsyncedEvents()).toHaveLength(1);
+    await expect(getSyncStatus()).resolves.toMatchObject({ depth: 1, retrying: true, paused: false });
   });
 });

@@ -12,6 +12,7 @@ const DEFAULT_DEBOUNCE_MS = 500;
 const DEFAULT_MAX_IN_FLIGHT = 5;
 const DEFAULT_BACKOFF_MS = [5000, 30000, 120000, 300000];
 const PERMANENT_RETRY_MS = 60 * 60 * 1000;
+export const SYNC_STATUS_CHANGED = 'sync:status-changed';
 
 let _debounceMs = DEFAULT_DEBOUNCE_MS;
 let _maxInFlight = DEFAULT_MAX_IN_FLIGHT;
@@ -26,6 +27,13 @@ let _retryIndex = 0;
 let _initialized = false;
 let _handlers = null;
 let _inFlightDrain = null;
+let _retrying = false;
+
+function notifySyncStatusChanged() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(SYNC_STATUS_CHANGED));
+  }
+}
 
 export function initSyncQueue() {
   if (_initialized || typeof window === 'undefined') return;
@@ -33,7 +41,10 @@ export function initSyncQueue() {
   _handlers = {
     emitted: () => scheduleDrain(),
     online: () => drainNow(),
-    auth: () => { if (_paused) { _paused = false; drainNow(); } },
+    auth: () => {
+      if (_paused) _paused = false;
+      drainNow();
+    },
   };
   on(EVENT_EMITTED, _handlers.emitted);
   window.addEventListener('online', _handlers.online);
@@ -84,13 +95,19 @@ function nextBackoff() {
 
 function scheduleRetry(ms) {
   if (_retryTimer) clearTimeout(_retryTimer);
+  _retrying = true;
+  notifySyncStatusChanged();
   _retryTimer = _schedule(ms, () => { _retryTimer = null; drain(); });
 }
 
 function drain() {
   if (_draining || _paused || !isAuthenticated()) return _inFlightDrain || Promise.resolve();
   _draining = true;
-  _inFlightDrain = runDrain().finally(() => { _draining = false; });
+  notifySyncStatusChanged();
+  _inFlightDrain = runDrain().finally(() => {
+    _draining = false;
+    notifySyncStatusChanged();
+  });
   return _inFlightDrain;
 }
 
@@ -98,7 +115,8 @@ async function runDrain() {
   const pb = getPb();
   const ownerId = getUser()?.id;
   const events = (await getUnsyncedEvents()).sort((a, b) => compareHlc(a.hlc, b.hlc));
-  if (events.length === 0) { _retryIndex = 0; return; }
+  if (events.length === 0) { _retryIndex = 0; _retrying = false; return; }
+  _retrying = false;
 
   let cursor = 0;
   let authFailure = false;
@@ -125,7 +143,7 @@ async function runDrain() {
   if (authFailure) { _paused = true; return; }
   if (failure === 'network') scheduleRetry(nextBackoff());
   else if (failure === 'permanent') scheduleRetry(PERMANENT_RETRY_MS);
-  else _retryIndex = 0;
+  else { _retryIndex = 0; _retrying = false; }
 }
 
 export function _resetSyncQueueForTesting() {
@@ -140,6 +158,7 @@ export function _resetSyncQueueForTesting() {
   _draining = false;
   _paused = false;
   _retryIndex = 0;
+  _retrying = false;
   _initialized = false;
   _handlers = null;
   _debounceMs = DEFAULT_DEBOUNCE_MS;
@@ -164,7 +183,7 @@ export function _isPausedForTesting() {
 // paused = drain halted on auth failure.
 export async function getSyncStatus() {
   const depth = (await getUnsyncedEvents()).length;
-  return { depth, retrying: _retryIndex > 0, paused: _paused };
+  return { depth, retrying: _retrying, paused: _paused };
 }
 
 export async function _settleForTesting() {

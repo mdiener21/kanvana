@@ -8,7 +8,7 @@
 
 import { on, off, DATA_CHANGED } from '../events.js';
 import { isAuthenticated } from '../sync.js';
-import { getSyncStatus } from './sync-queue.js';
+import { getSyncStatus, SYNC_STATUS_CHANGED } from './sync-queue.js';
 
 const ELEMENT_ID = 'sync-indicator';
 
@@ -54,6 +54,7 @@ export function initSyncIndicator() {
   window.addEventListener('auth-changed', rerender);
   window.addEventListener('online', rerender);
   window.addEventListener('offline', rerender);
+  window.addEventListener(SYNC_STATUS_CHANGED, rerender);
 
   rerender();
 }
@@ -64,6 +65,7 @@ export function _resetSyncIndicatorForTesting() {
     window.removeEventListener('auth-changed', _handlers.rerender);
     window.removeEventListener('online', _handlers.rerender);
     window.removeEventListener('offline', _handlers.rerender);
+    window.removeEventListener(SYNC_STATUS_CHANGED, _handlers.rerender);
   }
   _handlers = null;
   _el = null;
