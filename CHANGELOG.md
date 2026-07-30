@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed Chrome renderer crash on second consecutive drag-to-Done: `onEnd` now defers all state mutations to the next animation frame (`requestAnimationFrame`) before calling `scheduleDomainEvent`, preventing `renderBoard()`'s synchronous `innerHTML` reset from detaching nodes that Chrome's DnD engine still holds references to.
+- Fixed `dragdrop.spec.js` `should drag task from In Progress to Done` test with the 300-task performance fixture: replaced `dragTo` with `page.mouse` events and a 50 ms yield. Playwright's `dragTo` fires `dragstart` and `dragover` via CDP in rapid succession; SortableJS defers setting `Sortable.active` to the next event-loop tick (`setTimeout(0)` in `_dragStarted`), so `_onDragOver` saw a null `Sortable.active` and reverted every drop into a non-empty Done column. The `page.mouse` approach gives the timer time to fire between moves.
+
 ## [3.0.0] - 2026-07-16
 
 ### Added
