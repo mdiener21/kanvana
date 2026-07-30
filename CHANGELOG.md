@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed Chrome renderer crash on first drag-to-Done: the single `requestAnimationFrame` barrier was insufficient on Windows Chrome because Chrome's DnD browser-process IPC response arrives as a new task after the frame paints, not during the RAF. The barrier is now `requestAnimationFrame(() => setTimeout(resolve, 0))` — the RAF yields past `dragend`'s synchronous dispatch, and the nested `setTimeout(0)` yields past the frame paint into the next task-queue slot, after the IPC has settled and Chrome has released its references to the dragged nodes.
+
 ## [3.0.1] - 2026-07-30
 
 ### Fixed
