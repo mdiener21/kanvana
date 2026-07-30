@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-07-30
+
 ### Fixed
 
 - Fixed Chrome renderer crash on second consecutive drag-to-Done: `onEnd` now defers all state mutations to the next animation frame (`requestAnimationFrame`) before calling `scheduleDomainEvent`, preventing `renderBoard()`'s synchronous `innerHTML` reset from detaching nodes that Chrome's DnD engine still holds references to.
