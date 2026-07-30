@@ -2,7 +2,7 @@ import Sortable from 'sortablejs';
 import { moveTaskToTopInColumn, updateTaskPositionsFromDrop } from './tasks.js';
 import { updateColumnPositions } from './columns.js';
 import { emit, DATA_CHANGED } from './events.js';
-import { isDoneColumnId } from './storage.js';
+import { isDoneColumnId, loadTasks } from './storage.js';
 
 // Store Sortable instances for cleanup
 let taskSortables = [];
@@ -263,22 +263,25 @@ function initTaskSortables() {
         document.removeEventListener('touchmove', trackPointer);
         document.removeEventListener('mousemove', trackPointer);
         document.removeEventListener('dragover', trackPointer);
-        
-        // Update task positions in storage (optimized - no full re-render)
+
+        // Defer all state mutations until the next animation frame.
+        // scheduleDomainEvent() → emit(DATA_CHANGED) → renderBoard() → container.innerHTML=''
+        // fires synchronously, which detaches evt.item/evt.to while Chrome's DnD engine
+        // still holds internal renderer state for those nodes. Re-parenting a detached
+        // drag-source node during dragend crashes the Chrome renderer on the second drop.
+        // Yielding to RAF lets dragend fully complete before we touch the DOM.
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+
         const dropResult = updateTaskPositionsFromDrop(evt);
-        let cachedTasks = dropResult?.tasks || null;
 
         const isSwimlaneView = isSwimlaneViewEnabled();
         const toColumnEl = getTaskContainerElement(evt.to);
         const isDropIntoDone = !isSwimlaneView && isDoneColumnId(dropResult?.toColumn);
 
         if (dropResult && !isSwimlaneView && (toColumnEl?.classList.contains('is-collapsed') || isDropIntoDone)) {
-          cachedTasks = moveTaskToTopInColumn(dropResult.movedTaskId, dropResult.toColumn, cachedTasks);
-
-          // Move the DOM element to the top of the list so the user sees it snap there
-          if (isDropIntoDone && evt.item && evt.to) {
-            evt.to.prepend(evt.item);
-          }
+          // renderBoard() (triggered by scheduleDomainEvent above) already positions
+          // the task at the top of done/collapsed columns from state — no DOM prepend needed.
+          moveTaskToTopInColumn(dropResult.movedTaskId, dropResult.toColumn);
         }
 
         clearCollapsedDropHover();
@@ -298,13 +301,14 @@ function initTaskSortables() {
           const { syncTaskCounters, syncCollapsedTitles, syncMovedTaskDueDate } = await import('./render.js');
           const { refreshNotifications } = await import('./notifications.js');
 
-          // Update UI elements that depend on task positions without full re-render
-          syncTaskCounters(cachedTasks);
+          // Read fresh tasks from state — projection has already run by this point.
+          const freshTasks = loadTasks();
 
-          // If column changed, update collapsed titles and notifications
+          syncTaskCounters(freshTasks);
+
           if (dropResult.didChangeColumn) {
-            syncCollapsedTitles(cachedTasks);
-            syncMovedTaskDueDate(dropResult.movedTaskId, dropResult.toColumn, cachedTasks);
+            syncCollapsedTitles(freshTasks);
+            syncMovedTaskDueDate(dropResult.movedTaskId, dropResult.toColumn, freshTasks);
             refreshNotifications();
           }
         }
