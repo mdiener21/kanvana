@@ -7,13 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-
-- Fixed the Chrome renderer crash on drag-to-Done at its root cause instead of racing its timing. The `requestAnimationFrame`/`setTimeout` barriers of 3.0.1–3.0.3 only moved *when* the teardown fired; the crash returned because the barrier was racing Chrome's drag-finalize IPC, which is unobservable from JS. The mechanism itself is now removed: a drop opens a **drag-reconcile window** (`beginDragReconcile()`/`endDragReconcile()` in `render.js`), so the `DATA_CHANGED` the move emits is routed through the new `reconcileBoard()` adapter — a keyed, in-place DOM patch — instead of `renderBoard()`'s `innerHTML` reset. The just-dragged node Chrome still references is never detached, and Sortable is never re-initialised mid-`onEnd`. `reconcileBoard()` mirrors the full render (card moves/reorder, counters, collapsed titles, due dates, Done virtualization, board filter, notifications) and falls back to a full rebuild for swimlane mode or a structural column-set change.
+## [3.0.4] - 2026-07-31
 
 ### Changed
 
 - `render.js` now exposes two render adapters behind one read model — `renderBoard()` (full rebuild) and `reconcileBoard()` (in-place patch). The drop path's manual `syncTaskCounters`/`syncCollapsedTitles`/`syncMovedTaskDueDate` pass is gone; those helpers are now `reconcileBoard()`'s implementation, and the dead `syncTaskCounters` export was removed. Covered by `tests/dom/reconcile.test.js` (10 behaviors) plus the existing real-Chrome `dragdrop-done-crash.spec.js`.
+
+### Fixed
+
+- Fixed the Chrome renderer crash on drag-to-Done at its root cause instead of racing its timing. The `requestAnimationFrame`/`setTimeout` barriers of 3.0.1–3.0.3 only moved *when* the teardown fired; the crash returned because the barrier was racing Chrome's drag-finalize IPC, which is unobservable from JS. The mechanism itself is now removed: a drop opens a **drag-reconcile window** (`beginDragReconcile()`/`endDragReconcile()` in `render.js`), so the `DATA_CHANGED` the move emits is routed through the new `reconcileBoard()` adapter — a keyed, in-place DOM patch — instead of `renderBoard()`'s `innerHTML` reset. The just-dragged node Chrome still references is never detached, and Sortable is never re-initialised mid-`onEnd`. `reconcileBoard()` mirrors the full render (card moves/reorder, counters, collapsed titles, due dates, Done virtualization, board filter, notifications) and falls back to a full rebuild for swimlane mode or a structural column-set change.
 
 ## [3.0.3] - 2026-07-30
 
