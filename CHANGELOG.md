@@ -7,10 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.5] - 2026-07-31
+
 ### Changed
 
 - Made `dragdrop-done-crash.spec.js` deterministic on headless CI: it now drags via stepped `page.mouse` events instead of `locator.dragTo()`, which fired `dragstart`/`dragover` faster than SortableJS promotes `Sortable.active` and intermittently reverted the drop before `onEnd` ran. Same fix the 300-task perf spec already used.
-
 
 ## [3.0.4] - 2026-07-31
 
