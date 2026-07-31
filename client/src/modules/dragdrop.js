@@ -2,7 +2,7 @@ import Sortable from 'sortablejs';
 import { moveTaskToTopInColumn, updateTaskPositionsFromDrop } from './tasks.js';
 import { updateColumnPositions } from './columns.js';
 import { emit, DATA_CHANGED } from './events.js';
-import { isDoneColumnId, loadTasks } from './storage.js';
+import { isDoneColumnId } from './storage.js';
 
 // Store Sortable instances for cleanup
 let taskSortables = [];
@@ -282,55 +282,42 @@ function initTaskSortables() {
         const restoreCollapsedDropZones = !isSwimlaneViewEnabled();
         cleanupTaskDragState({ restoreCollapsedDropZones });
 
-        // Defer all DOM/state mutations until Chrome's DnD engine has fully released
-        // its internal references to the dragged nodes.
-        //
-        // The crash path: scheduleDomainEvent() → emit(DATA_CHANGED) → renderBoard() →
-        // container.innerHTML='' detaches evt.item/evt.to. If Chrome's renderer still
-        // holds references to those nodes when they're detached, it crashes.
-        //
-        // Chrome's DnD uses an IPC roundtrip between the renderer and browser processes
-        // to finalise the drag. This IPC response arrives as a new browser task, which
-        // the event-loop schedules AFTER the current frame paints. A single RAF fires
-        // during the rendering step — before that IPC task — so it isn't enough on
-        // Windows Chrome. We wait for the RAF (to yield past dragend's synchronous
-        // event-dispatch) and then for a setTimeout(0) inside it (to yield past the
-        // frame paint and into the next task queue slot, after the IPC has settled).
+        // Wait past dragend's synchronous dispatch (the RAF) and past the frame
+        // paint into the next task-queue slot (the nested setTimeout), so a
+        // browser that finalises its native drag on a post-paint task has done so
+        // before we touch the DOM. This alone did not stop the crash — the real
+        // fix is the reconcile window below, which patches the board in place
+        // rather than tearing it down with renderBoard()'s innerHTML reset.
         await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
 
-        const dropResult = updateTaskPositionsFromDrop(evt);
+        // Open a reconcile window for the whole mutation. Every DATA_CHANGED that
+        // updateTaskPositionsFromDrop()/moveTaskToTopInColumn() emit synchronously
+        // is routed through reconcileBoard() (patch in place) instead of
+        // renderBoard() (full teardown), so the just-dragged node is never
+        // detached. Counters, collapsed titles, due dates, and notifications are
+        // reconcile's responsibility now — no manual sync pass here.
+        const { beginDragReconcile, endDragReconcile } = await import('./render.js');
+        beginDragReconcile();
+        try {
+          const dropResult = updateTaskPositionsFromDrop(evt);
+          if (!dropResult) return;
 
-        const isSwimlaneView = isSwimlaneViewEnabled();
-        const toColumnEl = getTaskContainerElement(evt.to);
+          const isSwimlaneView = isSwimlaneViewEnabled();
+          const toColumnEl = getTaskContainerElement(evt.to);
 
-        if (dropResult && !isSwimlaneView && toColumnEl?.classList.contains('is-collapsed')) {
-          // renderBoard() already replaces the board from state; keep collapsed drops
-          // state-only so Sortable's detached drag node is never re-parented here.
-          moveTaskToTopInColumn(dropResult.movedTaskId, dropResult.toColumn);
-        }
-
-        if (dropResult) {
+          if (!isSwimlaneView && toColumnEl?.classList.contains('is-collapsed')) {
+            // Keep collapsed drops state-only so Sortable's detached drag node is
+            // never re-parented here; reconcile repaints from state.
+            moveTaskToTopInColumn(dropResult.movedTaskId, dropResult.toColumn);
+          }
 
           if (isSwimlaneView && (dropResult.didChangeColumn || dropResult.didChangeLane)) {
+            // Swimlane boards fall outside reconcile's scope; the emitted
+            // DATA_CHANGED falls back to a full renderBoard() rebuild.
             emit(DATA_CHANGED);
-            return;
           }
-
-          // Import helpers dynamically — these are sync helpers that don't
-          // cause circular deps when loaded lazily at call-time.
-          const { syncTaskCounters, syncCollapsedTitles, syncMovedTaskDueDate } = await import('./render.js');
-          const { refreshNotifications } = await import('./notifications.js');
-
-          // Read fresh tasks from state — projection has already run by this point.
-          const freshTasks = loadTasks();
-
-          syncTaskCounters(freshTasks);
-
-          if (dropResult.didChangeColumn) {
-            syncCollapsedTitles(freshTasks);
-            syncMovedTaskDueDate(dropResult.movedTaskId, dropResult.toColumn, freshTasks);
-            refreshNotifications();
-          }
+        } finally {
+          endDragReconcile();
         }
       }
     });

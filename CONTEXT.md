@@ -160,7 +160,7 @@ all subscribe.
 | `task-modal.js` | Task edit modal (labels, subtasks, relationships) |
 | `labels.js` | Label CRUD |
 | `labels-modal.js` | Label management modal |
-| `render.js` | `renderBoard()` and incremental sync helpers |
+| `render.js` | Two render adapters behind one read model: `renderBoard()` (full rebuild — `innerHTML` reset + `initDragDrop()`) and `reconcileBoard()` (in-place patch — moves cards by id, reorders, counters, collapsed titles, due dates, Done virtualization). Plus the **drag-reconcile window** (`beginDragReconcile()`/`endDragReconcile()`) that routes a drop's `DATA_CHANGED` through reconcile so the just-dragged node is never detached. See §7 "Board Render Flow". |
 | `swimlanes.js` | Swimlane grouping logic (`groupTasksBySwimLane`, etc.) |
 | `swimlane-renderer.js` | Swimlane board DOM builder |
 | `dragdrop.js` | SortableJS initialization/teardown; swimlane-aware drop handling |
@@ -196,6 +196,17 @@ all subscribe.
 initStorage() → ensureBoardsInitialized() → renderBoard()
   → renderSwimlaneBoard() [if swimlane mode]
   → groupTasksBySwimLane → buildBoardGrid → applySwimLaneAssignment
+```
+
+A projected `DATA_CHANGED` normally drives a full `renderBoard()` rebuild. A
+**drag-drop** opens the drag-reconcile window first (`dragdrop.js` `onEnd`), so the
+same `DATA_CHANGED` is routed through `reconcileBoard()` — a keyed in-place patch —
+instead of the `innerHTML` teardown. This is why a drag-to-Done no longer detaches
+the node Chrome's DnD engine still holds. `reconcileBoard()` returns `false` (→ full
+rebuild) for swimlane mode or a structural column-set change.
+```
+drop onEnd → beginDragReconcile() → updateTaskPositionsFromDrop() → …DATA_CHANGED…
+           → reconcileBoard() [patch in place]  → endDragReconcile()
 ```
 
 ### Task Due Date Rendering

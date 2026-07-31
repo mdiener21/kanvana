@@ -7,10 +7,8 @@ const mocks = vi.hoisted(() => ({
   moveTaskToTopInColumn: vi.fn(),
   isDoneColumnId: vi.fn((columnId) => columnId === 'done'),
   loadTasks: vi.fn(() => []),
-  syncTaskCounters: vi.fn(),
-  syncCollapsedTitles: vi.fn(),
-  syncMovedTaskDueDate: vi.fn(),
-  refreshNotifications: vi.fn(),
+  beginDragReconcile: vi.fn(),
+  endDragReconcile: vi.fn(),
 }));
 
 vi.mock('sortablejs', () => ({
@@ -40,13 +38,8 @@ vi.mock('../../src/modules/storage.js', () => ({
 }));
 
 vi.mock('../../src/modules/render.js', () => ({
-  syncTaskCounters: mocks.syncTaskCounters,
-  syncCollapsedTitles: mocks.syncCollapsedTitles,
-  syncMovedTaskDueDate: mocks.syncMovedTaskDueDate,
-}));
-
-vi.mock('../../src/modules/notifications.js', () => ({
-  refreshNotifications: mocks.refreshNotifications,
+  beginDragReconcile: mocks.beginDragReconcile,
+  endDragReconcile: mocks.endDragReconcile,
 }));
 
 function mountBoard({ targetColumn = 'done', collapsed = false } = {}) {
@@ -92,10 +85,8 @@ beforeEach(() => {
   mocks.moveTaskToTopInColumn.mockReset();
   mocks.isDoneColumnId.mockClear();
   mocks.loadTasks.mockClear();
-  mocks.syncTaskCounters.mockClear();
-  mocks.syncCollapsedTitles.mockClear();
-  mocks.syncMovedTaskDueDate.mockClear();
-  mocks.refreshNotifications.mockClear();
+  mocks.beginDragReconcile.mockClear();
+  mocks.endDragReconcile.mockClear();
 });
 
 afterEach(() => {
@@ -132,6 +123,38 @@ test('task drop waits for a frame and timer before mutating state', async () => 
 
   expect(mocks.updateTaskPositionsFromDrop).toHaveBeenCalledWith(evt);
   expect(mocks.moveTaskToTopInColumn).not.toHaveBeenCalled();
+});
+
+test('task drop wraps its state mutation in a reconcile window', async () => {
+  const evt = mountBoard();
+  globalThis.requestAnimationFrame = vi.fn((callback) => {
+    callback();
+    return 1;
+  });
+
+  mocks.updateTaskPositionsFromDrop.mockReturnValue({
+    movedTaskId: 'task-1',
+    fromColumn: 'todo',
+    toColumn: 'done',
+    didChangeColumn: true,
+  });
+
+  const { initDragDrop } = await import('../../src/modules/dragdrop.js');
+  initDragDrop();
+
+  const endPromise = getTaskEndHandler()(evt);
+  await vi.advanceTimersByTimeAsync(0);
+  await endPromise;
+
+  // The window opens before the mutation and closes after it, so the
+  // synchronous DATA_CHANGED the mutation emits reconciles in place.
+  expect(mocks.beginDragReconcile).toHaveBeenCalledTimes(1);
+  expect(mocks.endDragReconcile).toHaveBeenCalledTimes(1);
+  const begin = mocks.beginDragReconcile.mock.invocationCallOrder[0];
+  const mutate = mocks.updateTaskPositionsFromDrop.mock.invocationCallOrder[0];
+  const end = mocks.endDragReconcile.mock.invocationCallOrder[0];
+  expect(begin).toBeLessThan(mutate);
+  expect(mutate).toBeLessThan(end);
 });
 
 test('collapsed non-done drops still pin the moved task through state', async () => {
