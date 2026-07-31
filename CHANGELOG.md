@@ -13,7 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `render.js` now exposes two render adapters behind one read model — `renderBoard()` (full rebuild) and `reconcileBoard()` (in-place patch). The drop path's manual `syncTaskCounters`/`syncCollapsedTitles`/`syncMovedTaskDueDate` pass is gone; those helpers are now `reconcileBoard()`'s implementation, and the dead `syncTaskCounters` export was removed. Covered by `tests/dom/reconcile.test.js` (10 behaviors) plus the existing real-Chrome `dragdrop-done-crash.spec.js`.
+- `render.js` now exposes two render adapters behind one read model — `renderBoard()` (full rebuild) and `reconcileBoard()` (in-place patch). The drop path's manual `syncTaskCounters`/`syncCollapsedTitles`/`syncMovedTaskDueDate` pass is gone; those helpers are now `reconcileBoard()`'s implementation, and the dead `syncTaskCounters` export was removed. Covered by `tests/dom/reconcile.test.js` (10 behaviors) plus the real-Chrome `dragdrop-done-crash.spec.js`.
+- Made `dragdrop-done-crash.spec.js` deterministic on headless CI: it now drags via stepped `page.mouse` events instead of `locator.dragTo()`, which fired `dragstart`/`dragover` faster than SortableJS promotes `Sortable.active` and intermittently reverted the drop before `onEnd` ran. Same fix the 300-task perf spec already used.
 
 ## [3.0.3] - 2026-07-30
 

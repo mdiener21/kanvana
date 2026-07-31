@@ -1,16 +1,18 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * Regression test for: Chrome renderer crash on second drag-to-Done.
+ * Regression test for: Chrome renderer crash on consecutive drag-to-Done.
  *
  * Root cause: scheduleDomainEvent() inside updateTaskPositionsFromDrop() triggered
  * a synchronous chain → emit(DATA_CHANGED) → renderBoard() → container.innerHTML=''
  * which detached evt.item/evt.to while Chrome's DnD engine still held internal
- * renderer state for those nodes. The subsequent evt.to.prepend(evt.item) re-parented
- * the detached drag source into another detached tree, crashing Chrome on the second drop.
+ * renderer state for those nodes, crashing Chrome on the next drop.
  *
- * Fix: dragdrop.js onEnd now yields to requestAnimationFrame and one timer
- * before touching state, letting Chrome's drag finalization settle first.
+ * Fix: a drop opens a drag-reconcile window (render.js beginDragReconcile/
+ * endDragReconcile), so the DATA_CHANGED the move emits is routed through
+ * reconcileBoard() — an in-place DOM patch — instead of renderBoard()'s innerHTML
+ * teardown. The just-dragged node is never detached, so there is nothing for
+ * Chrome's DnD engine to lose.
  */
 
 const BOARD_ID = 'crash-regression-board';
@@ -32,6 +34,31 @@ const TASKS = [
 
 function columnByName(page, name) {
   return page.locator('article.task-column').filter({ has: page.locator('h2', { hasText: name }) });
+}
+
+// Drag a task into Done with real browser mouse events rather than locator.dragTo().
+// dragTo() dispatches dragstart + dragover via CDP faster than SortableJS promotes
+// Sortable.active (a setTimeout(0) in _dragStarted), so _onDragOver sees a null
+// Sortable.active and reverts the drop — flaky on headless CI. A small initial move
+// plus a 50 ms yield lets that timer fire before we move into Done. See dragdrop.spec.js.
+async function dragTaskToDone(page, task, doneColumn) {
+  const taskBB = await task.boundingBox();
+  const doneBB = await doneColumn.locator('.tasks').boundingBox();
+  const startX = taskBB.x + taskBB.width / 2;
+  const startY = taskBB.y + taskBB.height / 2;
+  const endX = doneBB.x + doneBB.width / 2;
+  const endY = doneBB.y + Math.min(10, Math.max(2, doneBB.height / 2)); // near top; within emptyInsertThreshold
+
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX + 5, startY + 2); // cross the native dragstart threshold
+  await page.waitForTimeout(50); // let SortableJS _dragStarted's setTimeout(0) set Sortable.active
+  // Move to Done in stepped increments so a stream of dragover events reaches
+  // _onDragOver and SortableJS settles the placeholder into Done before release.
+  await page.mouse.move((startX + endX) / 2, (startY + endY) / 2, { steps: 5 });
+  await page.mouse.move(endX, endY, { steps: 5 });
+  await page.waitForTimeout(30); // let the placeholder settle in Done
+  await page.mouse.up();
 }
 
 test.describe('Done-column drag crash regression', () => {
@@ -78,19 +105,18 @@ test.describe('Done-column drag crash regression', () => {
 
     const inProgress = columnByName(page, 'In Progress');
     const done       = columnByName(page, 'Done');
-    const doneList   = done.locator('.tasks');
 
     // ── First drag ──────────────────────────────────────────────────────────
     const firstTask = inProgress.locator('.task').first();
     await expect(firstTask).toBeVisible();
     const firstId = await firstTask.getAttribute('data-task-id');
 
-    await firstTask.dragTo(doneList);
+    await dragTaskToDone(page, firstTask, done);
 
     if (crashError) throw crashError;
     // Page must still be alive and the card must appear in Done.
-    await expect(page.locator('#board-container')).toBeVisible({ timeout: 3000 });
-    await expect(done.locator(`.task[data-task-id="${firstId}"]`)).toBeVisible({ timeout: 3000 });
+    await expect(page.locator('#board-container')).toBeVisible({ timeout: 5000 });
+    await expect(done.locator(`.task[data-task-id="${firstId}"]`)).toBeVisible({ timeout: 5000 });
 
     // ── Second drag (was the crash point before the fix) ────────────────────
     const secondTask = inProgress.locator('.task').first();
@@ -98,11 +124,11 @@ test.describe('Done-column drag crash regression', () => {
     const secondId = await secondTask.getAttribute('data-task-id');
     expect(secondId).not.toBe(firstId); // sanity: genuinely a different task
 
-    await secondTask.dragTo(doneList);
+    await dragTaskToDone(page, secondTask, done);
 
     if (crashError) throw crashError;
-    await expect(page.locator('#board-container')).toBeVisible({ timeout: 3000 });
-    await expect(done.locator(`.task[data-task-id="${secondId}"]`)).toBeVisible({ timeout: 3000 });
+    await expect(page.locator('#board-container')).toBeVisible({ timeout: 5000 });
+    await expect(done.locator(`.task[data-task-id="${secondId}"]`)).toBeVisible({ timeout: 5000 });
 
     // ── Counter accuracy ────────────────────────────────────────────────────
     // Started with 3 in In Progress, moved 2 → 1 remaining; Done went from 0 → 2.
@@ -116,17 +142,16 @@ test.describe('Done-column drag crash regression', () => {
   test('both dragged tasks land at the top of Done', async ({ page }) => {
     const inProgress = columnByName(page, 'In Progress');
     const done       = columnByName(page, 'Done');
-    const doneList   = done.locator('.tasks');
 
     const firstTask = inProgress.locator('.task').first();
     const firstId   = await firstTask.getAttribute('data-task-id');
-    await firstTask.dragTo(doneList);
-    await expect(done.locator(`.task[data-task-id="${firstId}"]`)).toBeVisible({ timeout: 3000 });
+    await dragTaskToDone(page, firstTask, done);
+    await expect(done.locator(`.task[data-task-id="${firstId}"]`)).toBeVisible({ timeout: 5000 });
 
     const secondTask = inProgress.locator('.task').first();
     const secondId   = await secondTask.getAttribute('data-task-id');
-    await secondTask.dragTo(doneList);
-    await expect(done.locator(`.task[data-task-id="${secondId}"]`)).toBeVisible({ timeout: 3000 });
+    await dragTaskToDone(page, secondTask, done);
+    await expect(done.locator(`.task[data-task-id="${secondId}"]`)).toBeVisible({ timeout: 5000 });
 
     // The most-recently dropped task should be pinned to order=1 (top of Done).
     const topTask = done.locator('.task').first();
