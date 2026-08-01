@@ -8,6 +8,7 @@
 import { getPb, isAuthenticated, getUser } from '../sync.js';
 import { compareHlc } from './hlc.js';
 import { serializeState, GLOBAL_SNAPSHOT_KEY, setAfterSnapshotSaved } from './snapshot.js';
+import { createProjectionState } from '../reducer.js';
 
 function boardIdFor(key) {
   return key === GLOBAL_SNAPSHOT_KEY ? '' : key;
@@ -30,6 +31,18 @@ export function buildSnapshotForm(ownerId, boardId, hlc, payloadBytes) {
   form.set('hlc', JSON.stringify(hlc));
   form.set('payload', new File([payloadBytes], 'snapshot.json.gz', { type: 'application/gzip' }));
   return form;
+}
+
+async function gunzipJson(buffer) {
+  try {
+    const ds = new DecompressionStream('gzip');
+    const writer = ds.writable.getWriter();
+    writer.write(new Uint8Array(buffer));
+    writer.close();
+    return JSON.parse(await new Response(ds.readable).text());
+  } catch {
+    return null; // corrupt or truncated snapshot — fall back to event replay
+  }
 }
 
 async function gzipJson(obj) {
@@ -84,6 +97,69 @@ async function gcServerEvents(pb, ownerId, key, snapshotHlc) {
       await pb.collection('events').delete(e.id, { requestKey: null });
     }
   }
+}
+
+// Newest snapshot the server holds for a scope, or null. The counterpart to
+// uploadSnapshot: without this, a snapshot's event GC is one-way data loss for
+// any device that had not already replayed the events it deleted.
+export async function downloadSnapshot(key) {
+  if (!isAuthenticated()) return null;
+
+  const pb = getPb();
+  const ownerId = getUser()?.id;
+  const records = await pb.collection('snapshots').getFullList({
+    filter: snapshotFilter(ownerId, boardIdFor(key)),
+    requestKey: null,
+  });
+
+  const winner = records
+    .filter(r => r.hlc)
+    .sort((a, b) => compareHlc(a.hlc, b.hlc))
+    .pop();
+  return inflate(pb, winner);
+}
+
+// Every scope the server holds a snapshot for, newest per board. Catch-up needs
+// the enumeration because a joining device doesn't yet know the board ids.
+export async function downloadAllSnapshots() {
+  if (!isAuthenticated()) return [];
+
+  const pb = getPb();
+  const ownerId = getUser()?.id;
+  const records = await pb.collection('snapshots').getFullList({
+    filter: `owner = "${ownerId}"`,
+    requestKey: null,
+  });
+
+  const winners = new Map();
+  for (const record of records) {
+    if (!record.hlc) continue;
+    const key = record.board_id || GLOBAL_SNAPSHOT_KEY;
+    const current = winners.get(key);
+    if (!current || compareHlc(record.hlc, current.hlc) > 0) winners.set(key, record);
+  }
+
+  const out = [];
+  for (const [key, record] of winners) {
+    const snapshot = await inflate(pb, record);
+    if (snapshot) out.push({ key, ...snapshot });
+  }
+  return out;
+}
+
+async function inflate(pb, record) {
+  if (!record || !record.payload) return null;
+
+  const response = await fetch(pb.files.getURL(record, record.payload));
+  if (!response.ok) return null;
+  const body = await gunzipJson(await response.arrayBuffer());
+  if (!body) return null;
+
+  return { hlc: record.hlc, state: createProjectionState({
+    ...body,
+    appliedEventIds: new Set(Array.isArray(body.appliedEventIds) ? body.appliedEventIds : []),
+    taskTombstones: new Set(Array.isArray(body.taskTombstones) ? body.taskTombstones : [])
+  }) };
 }
 
 export function initSnapshotSync() {

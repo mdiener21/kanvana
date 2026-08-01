@@ -33,6 +33,7 @@ import {
 } from '../../../src/modules/event-sourcing/realtime.js';
 
 const EVT_LIST = '*/api/collections/events/records';
+const SNAP_LIST = '*/api/collections/snapshots/records';
 
 function setAuth(id = 'user1') {
   getPb().authStore.save('test-token', { id, email: 't@e.st' });
@@ -136,6 +137,12 @@ describe('applyRemoteEvent', () => {
 });
 
 describe('catch-up pull', () => {
+  // Catch-up hydrates from server snapshots before replaying events; these cases
+  // cover the event path, so the snapshot scope is empty.
+  beforeEach(() => {
+    server.use(http.get(SNAP_LIST, () => listResponse([])));
+  });
+
   it('AC-005: pulls events > lastSeenHlc, applies in order, advances lastSeenHlc atomically', async () => {
     server.use(http.get(EVT_LIST, () => listResponse([
       record({ local_id: 'c2', h: hlc(2), payload: { board: { name: 'B' } } }),

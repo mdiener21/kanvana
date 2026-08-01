@@ -49,6 +49,9 @@ export function initSyncQueue() {
   on(EVENT_EMITTED, _handlers.emitted);
   window.addEventListener('online', _handlers.online);
   window.addEventListener('auth-changed', _handlers.auth);
+  // Events left unsynced when the tab closed have no emit/auth/online trigger to
+  // ride in on; without this they sit until the user happens to make an edit.
+  if (isAuthenticated()) scheduleDrain();
 }
 
 export function scheduleDrain() {

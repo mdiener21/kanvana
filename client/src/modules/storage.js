@@ -8,6 +8,7 @@ import { initHlc } from './event-sourcing/hlc.js';
 import { _flushDomainEventsForTesting, scheduleDomainEvent } from './event-sourcing/emitter.js';
 import { checkAndScheduleSnapshot, _resetSnapshotSchedulerForTesting } from './event-sourcing/snapshot.js';
 import { createReadModelProjector } from './event-sourcing/read-model-projector.js';
+import { backfillEventLog } from './event-sourcing/backfill.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -454,6 +455,15 @@ export async function initStorage() {
     state.settings[board.id] = (await db.get(KV_STORE, keyFor(board.id, 'settings'))) ?? null;
   }
 
+  // One-shot: give pre-event-sourcing state an event log so it can sync at all.
+  await backfillEventLog({
+    boards: listBoards(),
+    columnsFor: loadColumnsForBoard,
+    labelsFor: loadLabelsForBoard,
+    tasksFor: loadTasksForBoard,
+    settingsFor: loadSettingsForBoard
+  });
+
   // Non-blocking quota warning at 80%.
   if (typeof navigator !== 'undefined' && navigator.storage?.estimate) {
     navigator.storage.estimate().then(({ usage, quota }) => {
@@ -464,6 +474,11 @@ export async function initStorage() {
       }
     }).catch(() => {});
   }
+}
+
+// Adopt a downloaded snapshot as the read model (inbound catch-up, bug #4).
+export function hydrateFromSnapshotState(key, snapshotState) {
+  readModelProjector.hydrate(key, snapshotState);
 }
 
 export async function _flushPersistsForTesting() {
@@ -496,7 +511,10 @@ export function listBoards() {
   const boards = state.boards;
   if (!Array.isArray(boards)) return [];
   return boards
-    .filter((b) => b && typeof b.id === 'string')
+    // `deleted` is the reducer's soft-delete tombstone (applyBoardDeleted). Local
+    // deleteBoard() hard-removes, but a device replaying board.deleted from the
+    // event log only gets the flag — without this filter the board resurrects.
+    .filter((b) => b && typeof b.id === 'string' && !b.deleted)
     .map((b) => ({
       id: b.id,
       name: typeof b.name === 'string' ? b.name : 'Untitled board',

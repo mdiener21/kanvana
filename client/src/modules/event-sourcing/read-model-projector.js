@@ -49,6 +49,12 @@ export function createReadModelProjector(ctx) {
       settings: safeParseObject(state.settings[boardId]) || {}
     }), event);
 
+    writeBoard(boardId, projected);
+    checkAndScheduleSnapshot(boardId, projected, event.hlc);
+    emit(DATA_CHANGED, { event });
+  }
+
+  function writeBoard(boardId, projected) {
     state.boards = projected.boards;
     state.tasks[boardId] = projected.tasks;
     state.columns[boardId] = projected.columns;
@@ -60,8 +66,33 @@ export function createReadModelProjector(ctx) {
     scheduleReadModelPersist(boardId, 'columns', projected.columns);
     scheduleReadModelPersist(boardId, 'labels', projected.labels);
     schedulePersist(keyFor(boardId, 'settings'), projected.settings);
-    checkAndScheduleSnapshot(boardId, projected, event.hlc);
-    emit(DATA_CHANGED, { event });
+  }
+
+  // Adopt a snapshot's projected state as the read model. Kept here rather than
+  // in the sync layer so the projector stays the sole writer (ADR-0005). Boards
+  // merge by id: a board-scoped snapshot carries the whole board list as of the
+  // snapshotting device, which must not clobber boards only this device knows.
+  function hydrate(key, snapshotState) {
+    if (key === GLOBAL_SNAPSHOT_KEY) {
+      state.globalSettings = snapshotState.globalSettings || {};
+      schedulePersist(globalSettingsKey, state.globalSettings);
+      emit(DATA_CHANGED, { hydrated: key });
+      return;
+    }
+
+    const known = new Map((state.boards || []).map((board) => [board.id, board]));
+    for (const board of snapshotState.boards || []) {
+      if (!known.has(board.id)) known.set(board.id, board);
+    }
+
+    writeBoard(key, {
+      boards: [...known.values()],
+      tasks: snapshotState.tasks || [],
+      columns: snapshotState.columns || [],
+      labels: snapshotState.labels || [],
+      settings: snapshotState.settings || {}
+    });
+    emit(DATA_CHANGED, { hydrated: key });
   }
 
   function register() {
@@ -78,5 +109,5 @@ export function createReadModelProjector(ctx) {
     registered = false;
   }
 
-  return { register, reset, project };
+  return { register, reset, project, hydrate };
 }

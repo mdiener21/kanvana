@@ -9,7 +9,9 @@ import { emit, EVENT_EMITTED } from '../events.js';
 import { persistEvent, openStore, KV_STORE } from '../idb-store.js';
 import { getPb, isAuthenticated, getUser } from '../sync.js';
 import { observeRemote, compareHlc } from './hlc.js';
-import { GLOBAL_SNAPSHOT_KEY } from './snapshot.js';
+import { GLOBAL_SNAPSHOT_KEY, saveSnapshot } from './snapshot.js';
+import { downloadAllSnapshots } from './snapshot-sync.js';
+import { hydrateFromSnapshotState } from '../storage.js';
 
 const LAST_SEEN_PREFIX = 'kanvana:sync:lastSeenHlc:';
 
@@ -76,8 +78,24 @@ export async function stopRealtime() {
 // order; lastSeenHlc advances per scope once the batch is drained. PB can't
 // range-filter the JSON hlc field, so we fetch owner-scoped and filter by HLC
 // client-side (the reducer re-sorts anyway; server order is irrelevant).
+// Adopt any server snapshot newer than what this device has already seen, before
+// replaying events. uploadSnapshot() deletes the events a snapshot covers, so for
+// a device that joined afterwards the snapshot is the only surviving history.
+// lastSeenHlc advances to the snapshot's HLC, which makes the event pass below
+// skip anything the snapshot already accounts for.
+async function hydrateFromRemoteSnapshots() {
+  for (const snapshot of await downloadAllSnapshots()) {
+    const seen = await getLastSeen(snapshot.key);
+    if (seen && compareHlc(snapshot.hlc, seen) <= 0) continue;
+    await saveSnapshot(snapshot.key, snapshot.state, snapshot.hlc);
+    hydrateFromSnapshotState(snapshot.key, snapshot.state);
+    await setLastSeen(snapshot.key, snapshot.hlc);
+  }
+}
+
 export async function catchUp() {
   if (!isAuthenticated()) return;
+  await hydrateFromRemoteSnapshots();
   const pb = getPb();
   const ownerId = getUser()?.id;
   const records = await pb.collection('events').getFullList({

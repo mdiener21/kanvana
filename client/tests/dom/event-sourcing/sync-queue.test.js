@@ -61,6 +61,41 @@ beforeEach(async () => {
   _setTimingForTesting({ debounceMs: 1 });
 });
 
+describe('sync-queue startup', () => {
+  // Events left unsynced when a tab closed have no emit/auth/online trigger to
+  // ride in on, so they sat in IDB until the user happened to make an edit —
+  // while the header read "Live ●", because queue depth is only counted, never
+  // acted on. initRealtime() already catches up on load; the outbound half must too.
+  it('drains events left over from a previous session, with no new activity', async () => {
+    const received = [];
+    server.use(http.post(EVENTS_URL, async ({ request }) => {
+      received.push(await request.json());
+      return HttpResponse.json({ id: 'rec-1' });
+    }));
+
+    setAuth();
+    await persistEvent(makeEvent({ counter: 0, id: 'evt-leftover' }));
+
+    initSyncQueue();
+
+    await waitFor(async () => expect((await getUnsyncedEvents()).length).toBe(0));
+    expect(received.map((r) => r.local_id)).toEqual(['evt-leftover']);
+  });
+
+  it('does not push on startup when signed out', async () => {
+    let posted = 0;
+    server.use(http.post(EVENTS_URL, () => { posted += 1; return HttpResponse.json({ id: 'r' }); }));
+
+    await persistEvent(makeEvent({ counter: 0, id: 'evt-offline' }));
+
+    initSyncQueue();
+    await _settleForTesting();
+
+    expect(posted).toBe(0);
+    expect(await getUnsyncedEvents()).toHaveLength(1);
+  });
+});
+
 describe('sync-queue push', () => {
   it('AC-004: pushes a queued event and flips synced after debounce', async () => {
     const received = [];
