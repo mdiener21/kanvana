@@ -7,16 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.6] - 2026-08-01
+
+### Removed
+
+- Purged pre-event-sourcing rows from the PocketBase `events` collection (migration `1746100012`). They carried no `hlc` and no `scope` and used the old activity-log vocabulary (`task.column_moved`, `task.label_added`, …), so catch-up dropped them, the projector dropped them, and the reducer logged `Unknown event type` for every one on each device that pulled.
+
 ### Fixed
 
 - Fixed local boards and tasks never reaching PocketBase. Events are only emitted going forward, so anything already in IndexedDB when event sourcing landed had no event log at all — it was invisible to sync while the header still read `Live ●` (queue depth 0 means "nothing queued", which a device with zero events also satisfies). A one-shot backfill (`event-sourcing/backfill.js`, run from `initStorage()`) now emits `board.created` / `column.created` / `label.created` / `task.created` for every pre-existing entity that has no `*.created` event yet, in an order a replaying device can rebuild from. Dedup is board-scoped, since column ids like `done` repeat across boards.
 - Fixed boards deleted on one device reappearing on another. `applyBoardDeleted` records a soft-delete tombstone, but `listBoards()` returned every board regardless — unlike `loadTasksForBoard` / `loadColumnsForBoard` / `loadLabelsForBoard`, which all filter `deleted`. A device replaying `board.deleted` resurrected the board.
 - Fixed snapshots being upload-only. `uploadSnapshot()` deletes the server events a snapshot covers, but nothing ever read one back, so a device joining after that GC pulled a log with the board's history already deleted and reconstructed nothing. Catch-up now hydrates from the newest server snapshot per scope (`downloadSnapshot()` / `downloadAllSnapshots()`) before replaying newer events, advancing `lastSeenHlc` to the snapshot's HLC. The read model is written through the projector (`hydrate()`), which stays its sole writer per ADR-0005.
 - Fixed events left unsynced when a tab closes sitting in IndexedDB until the user happened to make an edit. `initSyncQueue()` now drains on startup when authenticated, matching `initRealtime()`, which already caught up on load.
-
-### Removed
-
-- Purged pre-event-sourcing rows from the PocketBase `events` collection (migration `1746100012`). They carried no `hlc` and no `scope` and used the old activity-log vocabulary (`task.column_moved`, `task.label_added`, …), so catch-up dropped them, the projector dropped them, and the reducer logged `Unknown event type` for every one on each device that pulled.
 
 ## [3.0.5] - 2026-07-31
 
