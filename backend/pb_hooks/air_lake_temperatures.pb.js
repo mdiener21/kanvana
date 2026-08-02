@@ -1,4 +1,46 @@
 cronAdd("fetch-air-lake-temperatures", "0 */2 * * *", () => {
+  // JSVM hook callbacks execute in an isolated VM — file-level helpers are not in scope here.
+  function pad2(value) {
+    return value < 10 ? "0" + value : String(value);
+  }
+
+  function lastSundayUtc(year, month, hour) {
+    const date = new Date(Date.UTC(year, month + 1, 0, hour, 0, 0));
+    date.setUTCDate(date.getUTCDate() - date.getUTCDay());
+
+    return date;
+  }
+
+  function getViennaOffsetMinutes(date) {
+    const year = date.getUTCFullYear();
+    const dstStart = lastSundayUtc(year, 2, 1);
+    const dstEnd = lastSundayUtc(year, 9, 1);
+
+    return date >= dstStart && date < dstEnd ? 120 : 60;
+  }
+
+  function formatViennaTimestamp(date) {
+    const offsetMinutes = getViennaOffsetMinutes(date);
+    const viennaTime = new Date(date.getTime() + offsetMinutes * 60 * 1000);
+    const sign = offsetMinutes >= 0 ? "+" : "-";
+    const absOffset = Math.abs(offsetMinutes);
+
+    return [
+      viennaTime.getUTCFullYear(),
+      pad2(viennaTime.getUTCMonth() + 1),
+      pad2(viennaTime.getUTCDate()),
+    ].join("-") + "T" +
+      [
+        pad2(viennaTime.getUTCHours()),
+        pad2(viennaTime.getUTCMinutes()),
+        pad2(viennaTime.getUTCSeconds()),
+      ].join(":") +
+      sign +
+      pad2(Math.floor(absOffset / 60)) +
+      ":" +
+      pad2(absOffset % 60);
+  }
+
   const collectionName = "air_lake_temperatures";
   const hydroUrl = "https://hydrographie.ktn.gv.at/DE/repos/evoscripts/hydrografischer/getSeeWassertemperatur.es";
   const weatherUrl = "https://api.open-meteo.com/v1/forecast?latitude=46.5923722&longitude=14.2705537&current=temperature_2m&timezone=Europe%2FVienna";
@@ -106,44 +148,3 @@ cronAdd("fetch-air-lake-temperatures", "0 */2 * * *", () => {
 
   console.log("Saved air temperature: " + airTemperature + "C on " + recordedDate);
 });
-
-function formatViennaTimestamp(date) {
-  const offsetMinutes = getViennaOffsetMinutes(date);
-  const viennaTime = new Date(date.getTime() + offsetMinutes * 60 * 1000);
-  const sign = offsetMinutes >= 0 ? "+" : "-";
-  const absOffset = Math.abs(offsetMinutes);
-
-  return [
-    viennaTime.getUTCFullYear(),
-    pad2(viennaTime.getUTCMonth() + 1),
-    pad2(viennaTime.getUTCDate()),
-  ].join("-") + "T" +
-    [
-      pad2(viennaTime.getUTCHours()),
-      pad2(viennaTime.getUTCMinutes()),
-      pad2(viennaTime.getUTCSeconds()),
-    ].join(":") +
-    sign +
-    pad2(Math.floor(absOffset / 60)) +
-    ":" +
-    pad2(absOffset % 60);
-}
-
-function getViennaOffsetMinutes(date) {
-  const year = date.getUTCFullYear();
-  const dstStart = lastSundayUtc(year, 2, 1);
-  const dstEnd = lastSundayUtc(year, 9, 1);
-
-  return date >= dstStart && date < dstEnd ? 120 : 60;
-}
-
-function lastSundayUtc(year, month, hour) {
-  const date = new Date(Date.UTC(year, month + 1, 0, hour, 0, 0));
-  date.setUTCDate(date.getUTCDate() - date.getUTCDay());
-
-  return date;
-}
-
-function pad2(value) {
-  return value < 10 ? "0" + value : String(value);
-}
