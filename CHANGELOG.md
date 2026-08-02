@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.7] - 2026-08-02
+
 ### Fixed
 
 - Fixed the `fetch-air-lake-temperatures` cron aborting with `ReferenceError: formatViennaTimestamp is not defined`. PocketBase's JSVM re-executes each hook callback in a fresh, isolated VM, so the date helpers declared at file scope in `backend/pb_hooks/air_lake_temperatures.pb.js` were never in scope at run time. They now live inside the `cronAdd` callback.
