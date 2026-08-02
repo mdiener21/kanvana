@@ -1,4 +1,4 @@
-cronAdd("fetch-lake-temperatures", "0 8,20 * * *", () => {
+cronAdd("fetch-lake-temperatures", "0 */2 * * *", () => {
   const collectionName = "lake_temperatures";
   const hydroUrl = "https://hydrographie.ktn.gv.at/DE/repos/evoscripts/hydrografischer/getSeeWassertemperatur.es";
   const lakes = ["Wörthersee", "Faaker See"];
