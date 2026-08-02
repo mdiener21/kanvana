@@ -44,7 +44,7 @@ cronAdd("fetch-air-lake-temperatures", "0 */2 * * *", () => {
   const collectionName = "air_lake_temperatures";
   const hydroUrl = "https://hydrographie.ktn.gv.at/DE/repos/evoscripts/hydrografischer/getSeeWassertemperatur.es";
   const weatherUrl = "https://api.open-meteo.com/v1/forecast?latitude=46.5923722&longitude=14.2705537&current=temperature_2m&timezone=Europe%2FVienna";
-  const lakes = ["Wörthersee", "Faaker See"];
+  const lakes = ["Wörthersee"];
   const airName = "Viktring";
   const recordedDate = formatViennaTimestamp(new Date());
 

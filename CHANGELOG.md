@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The `fetch-air-lake-temperatures` cron no longer records Faaker See; it now tracks Wörthersee water temperature and Viktring air temperature only. Existing `air_lake_temperatures` rows for Faaker See are left in place.
+
 ## [3.0.7] - 2026-08-02
 
 ### Fixed
