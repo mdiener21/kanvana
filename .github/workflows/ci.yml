@@ -40,6 +40,10 @@ jobs:
         run: npm run test:e2e
         working-directory: client
 
+      - name: Large-board performance budgets
+        run: npm run test:perf
+        working-directory: client
+
   build:
     name: Build
     runs-on: ubuntu-latest

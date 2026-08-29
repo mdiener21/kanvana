@@ -293,6 +293,7 @@ export function reconcileBoard() {
 
   syncCollapsedTitles(tasks);
   refreshNotifications();
+  performance.mark('kanvana:board-render:reconcile');
 
   return true;
 }
@@ -334,4 +335,5 @@ export function renderBoard() {
     columnMenuCloseHandlerAttached = true;
     initColumnMenuCloseHandler();
   }
+  performance.mark('kanvana:board-render:full');
 }

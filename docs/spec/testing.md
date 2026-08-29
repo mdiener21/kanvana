@@ -15,6 +15,7 @@ The canonical folder and naming conventions live in `docs/testing-strategy.md`.
 - `npm run test:unit` - run unit tests only
 - `npm run test:dom` - run DOM integration tests only
 - `npm run test:e2e` - run Playwright (mocked suite; ignores `tests/e2e/event-sourcing/`)
+- `npm run test:perf` - run the deterministic large-board Chromium performance budgets
 - `npm run test:e2e:live` - run the event-sourcing convergence specs against a **live** PocketBase
 - `npm run test:ui` - open Playwright UI mode
 - `npm run test:debug` - run Playwright debug mode
@@ -86,6 +87,44 @@ expect(loadTasks().some(t => t.title === 'Persisted task')).toBe(true);
 
 ## Performance Coverage
 
-- Dragging into Done with 300+ completed tasks targets sub-second drops
-- Multiple consecutive drops target an average below 800ms
-- Fixture data lives under `tests/fixtures/`
+`npm run test:perf` is a dedicated serial Chromium suite, separate from the functional E2E suite. It
+generates fixed synthetic 400-task and 1,000-task boards in standard and swimlane views. Each scenario
+runs three cold starts and five real `page.mouse` SortableJS drops per start. It prints one
+`KANVANA_PERFORMANCE` JSON record and attaches the same JSON to the Playwright result.
+
+The harness reports fixture IndexedDB backfill and first-render startup separately from steady-state
+drop latency. After the moves, it forces garbage collection through the Chromium DevTools Protocol,
+then records live `.task` card count, retained DOM nodes (live plus any detached nodes still retained),
+JavaScript heap, completed full/reconcile board renders, and page crash events. Fixtures contain only
+fixed generated titles, IDs, dates, labels, and descriptions; no application, production, or personal
+data is read.
+
+Timing, heap, and retained-node results use the median of three repetitions. Live-card/render limits
+use the largest repetition, and crash events are summed. The checked-in baseline was captured on
+2026-08-29 with Playwright 1.58.2 headless Chromium on Linux. Budgets include CI variance while
+remaining close enough to catch a lost virtualization boundary, duplicated render path, retained
+board-sized DOM, or material interaction slowdown.
+
+| Scenario | Fixture backfill baseline / budget (ms) | Startup baseline / budget (ms) | Drop baseline / budget (ms) | Heap baseline / budget (MB) | Retained nodes baseline / budget |
+|---|---:|---:|---:|---:|---:|
+| 400 standard | 16.9 / 100 | 1053.5 / 2500 | 2322.53 / 4000 | 9.52 / 18 | 17,413 / 19,200 |
+| 1,000 standard | 32.4 / 200 | 1112.4 / 3000 | 4958.17 / 8000 | 9.89 / 20 | 32,953 / 36,300 |
+| 400 swimlane | 15.3 / 100 | 734.4 / 2000 | 1227.46 / 2500 | 9.72 / 20 | 25,524 / 28,100 |
+| 1,000 swimlane | 32.3 / 200 | 1078.8 / 3000 | 1983.11 / 4000 | 12.33 / 24 | 55,824 / 61,400 |
+
+| Scenario | Live cards max | Startup renders max | Renders for five moves max | Crash events max |
+|---|---:|---:|---:|---:|
+| 400 standard | 210 | 1 | 5 | 0 |
+| 1,000 standard | 450 | 1 | 5 | 0 |
+| 400 swimlane | 160 | 1 | 10 | 0 |
+| 1,000 swimlane | 400 | 1 | 10 | 0 |
+
+To collect a candidate baseline without enforcing the existing thresholds:
+
+```bash
+KANVANA_PERF_CALIBRATE=1 npm run test:perf
+```
+
+Set `KANVANA_PERF_RUNS` to a positive integer for additional repetitions. Update
+`tests/performance/performance-budgets.js` and this table together only after repeated runs on a stable
+runner explain why a changed baseline is expected.

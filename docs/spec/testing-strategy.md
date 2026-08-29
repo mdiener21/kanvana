@@ -21,6 +21,7 @@ tests/
   unit/
   dom/
   e2e/
+  performance/
   mocks/
 ```
 
@@ -86,6 +87,7 @@ Examples:
 - `npm run test:unit` — run only unit tests
 - `npm run test:dom` — run only DOM integration tests
 - `npm run test:e2e` — run only Playwright E2E tests
+- `npm run test:perf` — run real-Chromium large-board performance and memory budgets
 - `npm run test:ui` — open Playwright UI mode
 - `npm run test:debug` — run Playwright in debug mode
 - `npm run test:overview` — regenerate `tests/TEST-OVERVIEW.md` from the test source
@@ -114,6 +116,12 @@ Examples:
 - The behavior spans multiple modules or requires a real browser.
 - Drag-drop, routing, import/export flows, or persistent browser storage must be exercised together.
 - You need screenshots or accessibility smoke checks on stable views.
+
+### Put a test in `tests/performance/` when:
+
+- It needs real Chromium timing, heap, retained-DOM, garbage-collection, or crash measurements.
+- It uses deterministic synthetic data and enforces a documented repeated-run baseline.
+- It is too expensive or environment-sensitive for the functional E2E suite.
 
 ## Recommended Growth Pattern
 
