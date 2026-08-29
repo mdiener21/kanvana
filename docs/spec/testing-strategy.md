@@ -81,6 +81,17 @@ Examples:
 - `tests/e2e/create-task.spec.ts`
 - `tests/e2e/validation-missing-title.spec.ts`
 
+### Performance tests
+
+- Location: `tests/performance/`
+- File name: `<scenario>.spec.js`
+- Shared budgets: `performance-budgets.js`
+- Scope: real-Chromium timing, heap, DOM-retention, and crash budgets on deterministic synthetic boards
+
+Examples:
+
+- `tests/performance/large-board.spec.js`
+
 ## Scripts
 
 - `npm test` — run unit, DOM, and E2E suites in sequence

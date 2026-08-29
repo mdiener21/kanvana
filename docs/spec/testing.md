@@ -80,7 +80,7 @@ expect(loadTasks().some(t => t.title === 'Persisted task')).toBe(true);
 - Board management flows
 - Task creation and validation
 - Task deletion flows: permanent delete confirmation removes the card and decrements the counter; cancel leaves the card and counter unchanged — `tests/e2e/task-delete.spec.ts`
-- Drag-and-drop performance into Done with large fixture boards
+- Drag-and-drop correctness into Done with large fixture boards — `tests/e2e/dragdrop.spec.js`. Its loose timing assertions are smoke checks; the enforceable budgets live in `tests/performance/` (see below).
 - Done-column virtualization behavior
 - Swim lane rendering, settings persistence, and lane-aware moves
 - IDB storage: cross-session persistence, migration, and data integrity
@@ -88,19 +88,37 @@ expect(loadTasks().some(t => t.title === 'Persisted task')).toBe(true);
 ## Performance Coverage
 
 `npm run test:perf` is a dedicated serial Chromium suite, separate from the functional E2E suite. It
-builds the app and serves the production bundle — the dev server's on-demand transform makes cold
-startup swing several hundred percent between runs, which no stable budget survives. It generates
-fixed synthetic 400-task and 1,000-task boards in standard and swimlane views, seeded straight into
-IndexedDB. Each scenario runs three cold starts and five real `page.mouse` SortableJS drops per start.
-It prints one `KANVANA_PERFORMANCE` JSON record and attaches the same JSON to the Playwright result.
+builds the app and serves the production bundle from `dist-perf/` — the dev server's on-demand
+transform makes cold startup swing several hundred percent between runs, which no stable budget
+survives. It generates fixed synthetic 400-task and 1,000-task boards in standard and swimlane views.
+Each scenario runs three cold starts and five real `page.mouse` SortableJS drops per start. It prints
+one `KANVANA_PERFORMANCE` JSON record and attaches the same JSON to the Playwright result.
 
-The harness reports fixture IndexedDB backfill and first-render startup separately from steady-state
-drop latency. After the moves it forces garbage collection through the Chromium DevTools Protocol,
-then records live `.task` card count, live DOM nodes (walked from `document`), detached DOM nodes
-(the post-GC renderer total minus the walked document — a subtree Blink still retains), JavaScript
-heap, completed full/reconcile board renders, and page crash events. Fixtures contain only fixed
-generated titles, IDs, dates, labels, and descriptions; no application, production, or personal data
-is read.
+### What each metric measures
+
+- `fixtureSeedMs` — the harness writing its own read model into IndexedDB. This is setup cost, **not**
+  the app's event-backfill migration: the fixture pre-sets `kanvana:migrations:eventBackfill:v1` and
+  leaves the `events` store empty, so startup takes the returning-user path `initStorage()` actually
+  takes — hydrate from `read_model`, no event replay. Event-replay cost is not covered here.
+- `startupMs` — navigation to the board rendered with every expected card present.
+- `taskDropLatencyMs` — measured **in-page**, from pointer-up to the last board render the drop
+  triggers. Wall-clock around the gesture would be mostly CDP round trips and `expect()` poll
+  granularity, which buried real app time roughly 10:1.
+- `liveTaskCards` / `liveDomNodes` — `.task` cards and all nodes reachable by walking `document`.
+- `detachedDomNodes` — what the post-GC renderer still counts beyond that walk: detached subtrees
+  awaiting collection, but also UA shadow trees and engine internals. It is a tripwire on *growth*,
+  not an absolute leak count.
+- `retainedDomNodes` — the renderer total after a forced CDP `HeapProfiler.collectGarbage`.
+- `startupBoardRenders` / `steadyStateBoardRenders` — completed full and reconcile renders. The app
+  only emits these marks when the harness sets `globalThis.__kanvanaPerfMarks`, so production sessions
+  never accumulate an unbounded mark buffer.
+- `browserCrashEvents` — page crashes. A crash aborts the repetition, and the sample is still recorded
+  so the budget fails on the crash rather than on whichever call threw first.
+
+Fixtures contain only fixed generated titles, IDs, dates, labels, and descriptions; no application,
+production, or personal data is read.
+
+### Budgets
 
 Timing, heap, live-node, and retained-node results use the median of three repetitions. Live-card,
 render, and detached-node limits use the largest repetition, and crash events are summed. The
@@ -109,15 +127,16 @@ two consecutive full runs.
 
 Structural metrics reproduced exactly across those runs (retained nodes varied by under 0.05%), so
 their budgets sit just above baseline: they fail on a lost virtualization boundary, a duplicated
-render path, or a board-sized DOM left detached. Wall-clock and heap metrics swing with runner load,
-so those budgets are set to trip only on a material — roughly 2x — regression.
+render path, or a board-sized DOM left retained. Render counts are budgeted at exactly their baseline
+on purpose — they depend on code, not on runner speed, so any extra render is a real regression.
+Wall-clock and heap budgets carry roughly 2-3x headroom because they do move with runner load.
 
-| Scenario | Fixture backfill baseline / budget (ms) | Startup baseline / budget (ms) | Drop baseline / budget (ms) | Heap baseline / budget (MB) |
+| Scenario | Fixture seed baseline / budget (ms) | Startup baseline / budget (ms) | Drop baseline / budget (ms) | Heap baseline / budget (MB) |
 |---|---:|---:|---:|---:|
-| 400 standard | 43.2 / 200 | 1099.2 / 3000 | 2340.86 / 6000 | 5.96 / 14 |
-| 1,000 standard | 48.0 / 250 | 1080.6 / 3200 | 5870.15 / 12000 | 7.49 / 16 |
-| 400 swimlane | 20.2 / 200 | 839.2 / 2500 | 1432.20 / 3600 | 6.45 / 14 |
-| 1,000 swimlane | 45.9 / 250 | 1350.5 / 3600 | 2405.22 / 6000 | 8.80 / 18 |
+| 400 standard | 22.4 / 200 | 957.4 / 3000 | 283.3 / 700 | 5.98 / 14 |
+| 1,000 standard | 48.0 / 250 | 1849.4 / 4000 | 537.0 / 1300 | 7.27 / 16 |
+| 400 swimlane | 21.1 / 200 | 708.7 / 2500 | 334.1 / 850 | 6.27 / 14 |
+| 1,000 swimlane | 40.4 / 250 | 1320.8 / 3600 | 400.2 / 1000 | 8.75 / 18 |
 
 | Scenario | Live cards baseline / budget | Live nodes baseline / budget | Detached nodes baseline / budget | Retained nodes baseline / budget | Startup renders | Renders for five moves | Crash events |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -125,6 +144,13 @@ so those budgets are set to trip only on a material — roughly 2x — regressio
 | 1,000 standard | 445 / 450 | 10,043 / 10,600 | 22,929 / 24,100 | 32,972 / 34,700 | 1 | 5 | 0 |
 | 400 swimlane | 160 / 165 | 4,696 / 5,000 | 20,847 / 21,900 | 25,543 / 26,900 | 1 | 10 | 0 |
 | 1,000 swimlane | 400 / 405 | 9,256 / 9,800 | 46,587 / 49,000 | 55,843 / 58,700 | 1 | 10 | 0 |
+
+### Known limits
+
+- The baseline is local, not GitHub-runner calibrated. The timing headroom is sized for a slower
+  shared runner, but the first CI runs should be watched before the numbers are trusted as final.
+- Swimlane view hides Done, so drops into a large Done column are exercised by the two standard
+  scenarios only; the swimlane scenarios move To Do to In Progress across a populated lane instead.
 
 To collect a candidate baseline without enforcing the existing thresholds:
 

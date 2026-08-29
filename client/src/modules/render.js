@@ -197,6 +197,15 @@ export function syncMovedTaskDueDate(taskId, toColumn, tasksCache) {
   }
 }
 
+// Opt-in: the performance harness sets this flag before navigating. Marks are never
+// cleared, so leaving them on in production would grow the buffer for the life of
+// the session for the sole benefit of a test.
+function markRender(name) {
+  if (globalThis.__kanvanaPerfMarks) {
+    performance.mark(name);
+  }
+}
+
 /**
  * reconcile adapter — patch the standard board DOM in place to match the
  * projected read model, reusing existing card nodes instead of tearing the
@@ -293,7 +302,7 @@ export function reconcileBoard() {
 
   syncCollapsedTitles(tasks);
   refreshNotifications();
-  performance.mark('kanvana:board-render:reconcile');
+  markRender('kanvana:board-render:reconcile');
 
   return true;
 }
@@ -335,5 +344,5 @@ export function renderBoard() {
     columnMenuCloseHandlerAttached = true;
     initColumnMenuCloseHandler();
   }
-  performance.mark('kanvana:board-render:full');
+  markRender('kanvana:board-render:full');
 }

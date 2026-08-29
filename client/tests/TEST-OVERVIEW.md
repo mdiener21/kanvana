@@ -911,4 +911,4 @@ These lists compare source/spec filenames against test file names and test title
 - Type: Performance
 - Test count: 1
 
-- `tests/performance/large-board.spec.js:256` ${scenario.taskCount} tasks in ${scenario.view} view stay within performance budgets
+- `tests/performance/large-board.spec.js:295` ${scenario.taskCount} tasks in ${scenario.view} view stay within performance budgets

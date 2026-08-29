@@ -82,7 +82,13 @@ function createSyntheticBoard(taskCount, view) {
   };
 }
 
+// Writes the read model straight to IndexedDB and pre-sets the event-backfill flag,
+// so startup measures the returning-user path initStorage() actually takes: hydrate
+// from read_model, no event replay. The returned time is the harness's own seeding
+// cost, not any production code path.
 async function seedSyntheticBoard(page, fixture) {
+  // impressum.html is the one built page that never boots the board app, so the
+  // fixture can own kanvana-db outright instead of racing initStorage() for it.
   await page.goto('/impressum.html', { waitUntil: 'domcontentloaded' });
   return page.evaluate(async ({ data, backfillFlagKey }) => {
     const startedAt = performance.now();
@@ -153,7 +159,21 @@ async function dragWithPointer(page, source, destination) {
   await page.mouse.move((startX + endX) / 2, (startY + endY) / 2, { steps: 5 });
   await page.mouse.move(endX, endY, { steps: 5 });
   await page.waitForTimeout(30);
+  const droppedAt = await page.evaluate(() => performance.now());
   await page.mouse.up();
+  return droppedAt;
+}
+
+// Wall-clock around the whole gesture would be mostly Playwright: CDP round trips,
+// the settle timeouts above, and expect() poll granularity. Timing the drop in-page,
+// from pointer-up to the last render it triggers, leaves only the app's own work.
+async function renderLatencySince(page, droppedAt) {
+  return page.evaluate(({ full, reconcile, since }) => {
+    const marks = [...performance.getEntriesByName(full), ...performance.getEntriesByName(reconcile)]
+      .map((mark) => mark.startTime)
+      .filter((startTime) => startTime >= since);
+    return marks.length === 0 ? -1 : Math.max(...marks) - since;
+  }, { full: FULL_RENDER_MARK, reconcile: RECONCILE_RENDER_MARK, since: droppedAt });
 }
 
 async function performMeasuredMoves(page, fixture, view) {
@@ -185,11 +205,12 @@ async function performMeasuredMoves(page, fixture, view) {
     await expect(source).toBeVisible();
     const sourceBefore = Number(await sourceCounter.textContent());
     const destinationBefore = Number(await destinationCounter.textContent());
-    const startedAt = performance.now();
-    await dragWithPointer(page, source, destination);
+    const droppedAt = await dragWithPointer(page, source, destination);
     await expect(sourceCounter).toHaveText(String(sourceBefore - 1), { timeout: 10_000 });
     await expect(destinationCounter).toHaveText(String(destinationBefore + 1), { timeout: 10_000 });
-    latencies.push(performance.now() - startedAt);
+    const latency = await renderLatencySince(page, droppedAt);
+    expect(latency, 'drop landed without a board render').toBeGreaterThanOrEqual(0);
+    latencies.push(latency);
   }
 
   const afterRenders = await readRenderCounts(page);
@@ -216,8 +237,10 @@ async function collectMemoryMetrics(page, cdp) {
   return {
     liveTaskCards: live.liveTaskCards,
     liveDomNodes: live.liveDomNodes,
-    // Blink still counts a detached subtree until it is collected, so anything the
-    // post-GC renderer total holds beyond the walked document is a retained leak.
+    // Everything the post-GC renderer still counts beyond the walked main document:
+    // detached subtrees awaiting collection, but also UA shadow trees and engine
+    // internals. Reproducible run to run, so it is a tripwire on growth rather than
+    // an absolute leak count.
     detachedDomNodes: Math.max(0, counters.nodes - live.liveDomNodes),
     retainedDomNodes: counters.nodes,
     jsHeapUsedMb: heap / (1024 * 1024),
@@ -234,7 +257,7 @@ function median(values) {
 
 function summarize(samples) {
   return {
-    fixtureBackfillMs: median(samples.map((sample) => sample.fixtureBackfillMs)),
+    fixtureSeedMs: median(samples.map((sample) => sample.fixtureSeedMs)),
     startupMs: median(samples.map((sample) => sample.startupMs)),
     taskDropLatencyMs: median(samples.flatMap((sample) => sample.taskDropLatencies)),
     jsHeapUsedMb: median(samples.map((sample) => sample.jsHeapUsedMb)),
@@ -245,6 +268,22 @@ function summarize(samples) {
     startupBoardRenders: Math.max(...samples.map((sample) => sample.startupBoardRenders)),
     steadyStateBoardRenders: Math.max(...samples.map((sample) => sample.steadyStateBoardRenders)),
     browserCrashEvents: samples.reduce((total, sample) => total + sample.browserCrashEvents, 0),
+  };
+}
+
+function crashedSample(browserCrashEvents) {
+  return {
+    fixtureSeedMs: 0,
+    startupMs: 0,
+    taskDropLatencies: [0],
+    jsHeapUsedMb: 0,
+    retainedDomNodes: 0,
+    liveDomNodes: 0,
+    detachedDomNodes: 0,
+    liveTaskCards: 0,
+    startupBoardRenders: 0,
+    steadyStateBoardRenders: 0,
+    browserCrashEvents,
   };
 }
 
@@ -260,40 +299,51 @@ for (const scenario of PERFORMANCE_SCENARIOS) {
 
     for (let repetition = 0; repetition < PERFORMANCE_REPETITIONS; repetition += 1) {
       const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-      const page = await context.newPage();
-      const cdp = await context.newCDPSession(page);
-      await cdp.send('Performance.enable');
       let browserCrashEvents = 0;
-      page.on('crash', () => { browserCrashEvents += 1; });
+      try {
+        const page = await context.newPage();
+        const cdp = await context.newCDPSession(page);
+        await cdp.send('Performance.enable');
+        page.on('crash', () => { browserCrashEvents += 1; });
 
-      const fixtureBackfillMs = await seedSyntheticBoard(page, fixture);
-      await page.addInitScript(({ full, reconcile }) => {
-        globalThis.__kanvanaStartupStartedAt = performance.now();
-        performance.clearMarks(full);
-        performance.clearMarks(reconcile);
-      }, { full: FULL_RENDER_MARK, reconcile: RECONCILE_RENDER_MARK });
+        const fixtureSeedMs = await seedSyntheticBoard(page, fixture);
+        await page.addInitScript(() => {
+          globalThis.__kanvanaPerfMarks = true;
+          globalThis.__kanvanaStartupStartedAt = performance.now();
+        });
 
-      await page.goto('/');
-      const expectedLiveCards = scenario.view === 'standard'
-        ? Math.floor(scenario.taskCount * 0.4) + 50
-        : Math.floor(scenario.taskCount * 0.4);
-      await expect(page.locator('.task')).toHaveCount(expectedLiveCards, { timeout: 30_000 });
-      await expect.poll(async () => renderCount(await readRenderCounts(page))).toBeGreaterThan(0);
-      const startupMs = await page.evaluate(() => performance.now() - globalThis.__kanvanaStartupStartedAt);
-      const startupBoardRenders = renderCount(await readRenderCounts(page));
-      const moveMetrics = await performMeasuredMoves(page, fixture, scenario.view);
-      const memoryMetrics = await collectMemoryMetrics(page, cdp);
+        await page.goto('/');
+        // 40% of the fixture sits outside Done; standard view adds the 50 Done cards
+        // rendered before the "Show more" cut-off, swimlane view hides Done entirely.
+        const expectedLiveCards = scenario.view === 'standard'
+          ? Math.floor(scenario.taskCount * 0.4) + 50
+          : Math.floor(scenario.taskCount * 0.4);
+        await expect(page.locator('.task')).toHaveCount(expectedLiveCards, { timeout: 30_000 });
+        await expect.poll(async () => renderCount(await readRenderCounts(page))).toBeGreaterThan(0);
+        const startupMs = await page.evaluate(() => performance.now() - globalThis.__kanvanaStartupStartedAt);
+        const startupBoardRenders = renderCount(await readRenderCounts(page));
+        const moveMetrics = await performMeasuredMoves(page, fixture, scenario.view);
+        const memoryMetrics = await collectMemoryMetrics(page, cdp);
 
-      samples.push({
-        fixtureBackfillMs,
-        startupMs,
-        taskDropLatencies: moveMetrics.latencies,
-        startupBoardRenders,
-        steadyStateBoardRenders: moveMetrics.boardRenders,
-        browserCrashEvents,
-        ...memoryMetrics,
-      });
-      await context.close();
+        samples.push({
+          fixtureSeedMs,
+          startupMs,
+          taskDropLatencies: moveMetrics.latencies,
+          startupBoardRenders,
+          steadyStateBoardRenders: moveMetrics.boardRenders,
+          browserCrashEvents,
+          ...memoryMetrics,
+        });
+      } catch (error) {
+        // A crash kills the page, so every later call in the repetition throws before
+        // the crash count can be reported. Keep the sample so the budget fails on the
+        // crash itself rather than on whichever call happened to throw first.
+        if (browserCrashEvents === 0) throw error;
+        samples.push(crashedSample(browserCrashEvents));
+        break;
+      } finally {
+        await context.close();
+      }
     }
 
     const metrics = summarize(samples);

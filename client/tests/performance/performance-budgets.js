@@ -1,4 +1,11 @@
-export const PERFORMANCE_REPETITIONS = Number(process.env.KANVANA_PERF_RUNS || 3);
+function positiveInteger(value, fallback) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+// A non-numeric override must not silently reduce the suite to zero repetitions,
+// which would make every budget pass vacuously.
+export const PERFORMANCE_REPETITIONS = positiveInteger(process.env.KANVANA_PERF_RUNS, 3);
 export const MOVES_PER_REPETITION = 5;
 export const PERFORMANCE_CALIBRATION = process.env.KANVANA_PERF_CALIBRATE === '1';
 
@@ -11,10 +18,10 @@ export const PERFORMANCE_SCENARIOS = [
     taskCount: 400,
     view: 'standard',
     baseline: {
-      fixtureBackfillMs: 43.2,
-      startupMs: 1099.2,
-      taskDropLatencyMs: 2340.86,
-      jsHeapUsedMb: 5.96,
+      fixtureSeedMs: 22.4,
+      startupMs: 957.4,
+      taskDropLatencyMs: 283.3,
+      jsHeapUsedMb: 5.98,
       retainedDomNodes: 17432,
       liveDomNodes: 5483,
       detachedDomNodes: 11949,
@@ -24,9 +31,9 @@ export const PERFORMANCE_SCENARIOS = [
       browserCrashEvents: 0,
     },
     budget: {
-      fixtureBackfillMs: 200,
+      fixtureSeedMs: 200,
       startupMs: 3000,
-      taskDropLatencyMs: 6000,
+      taskDropLatencyMs: 700,
       jsHeapUsedMb: 14,
       retainedDomNodes: 18300,
       liveDomNodes: 5800,
@@ -41,10 +48,10 @@ export const PERFORMANCE_SCENARIOS = [
     taskCount: 1000,
     view: 'standard',
     baseline: {
-      fixtureBackfillMs: 48,
-      startupMs: 1080.6,
-      taskDropLatencyMs: 5870.15,
-      jsHeapUsedMb: 7.49,
+      fixtureSeedMs: 48,
+      startupMs: 1849.4,
+      taskDropLatencyMs: 537,
+      jsHeapUsedMb: 7.27,
       retainedDomNodes: 32972,
       liveDomNodes: 10043,
       detachedDomNodes: 22929,
@@ -54,9 +61,9 @@ export const PERFORMANCE_SCENARIOS = [
       browserCrashEvents: 0,
     },
     budget: {
-      fixtureBackfillMs: 250,
-      startupMs: 3200,
-      taskDropLatencyMs: 12000,
+      fixtureSeedMs: 250,
+      startupMs: 4000,
+      taskDropLatencyMs: 1300,
       jsHeapUsedMb: 16,
       retainedDomNodes: 34700,
       liveDomNodes: 10600,
@@ -71,10 +78,10 @@ export const PERFORMANCE_SCENARIOS = [
     taskCount: 400,
     view: 'swimlane',
     baseline: {
-      fixtureBackfillMs: 20.2,
-      startupMs: 839.2,
-      taskDropLatencyMs: 1432.2,
-      jsHeapUsedMb: 6.45,
+      fixtureSeedMs: 21.1,
+      startupMs: 708.7,
+      taskDropLatencyMs: 334.1,
+      jsHeapUsedMb: 6.27,
       retainedDomNodes: 25543,
       liveDomNodes: 4696,
       detachedDomNodes: 20847,
@@ -84,9 +91,9 @@ export const PERFORMANCE_SCENARIOS = [
       browserCrashEvents: 0,
     },
     budget: {
-      fixtureBackfillMs: 200,
+      fixtureSeedMs: 200,
       startupMs: 2500,
-      taskDropLatencyMs: 3600,
+      taskDropLatencyMs: 850,
       jsHeapUsedMb: 14,
       retainedDomNodes: 26900,
       liveDomNodes: 5000,
@@ -101,10 +108,10 @@ export const PERFORMANCE_SCENARIOS = [
     taskCount: 1000,
     view: 'swimlane',
     baseline: {
-      fixtureBackfillMs: 45.9,
-      startupMs: 1350.5,
-      taskDropLatencyMs: 2405.22,
-      jsHeapUsedMb: 8.8,
+      fixtureSeedMs: 40.4,
+      startupMs: 1320.8,
+      taskDropLatencyMs: 400.2,
+      jsHeapUsedMb: 8.75,
       retainedDomNodes: 55843,
       liveDomNodes: 9256,
       detachedDomNodes: 46587,
@@ -114,9 +121,9 @@ export const PERFORMANCE_SCENARIOS = [
       browserCrashEvents: 0,
     },
     budget: {
-      fixtureBackfillMs: 250,
+      fixtureSeedMs: 250,
       startupMs: 3600,
-      taskDropLatencyMs: 6000,
+      taskDropLatencyMs: 1000,
       jsHeapUsedMb: 18,
       retainedDomNodes: 58700,
       liveDomNodes: 9800,
