@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added a deterministic real-Chromium large-board performance harness for 400-task and 1,000-task standard and swimlane boards. It separately budgets synthetic IndexedDB fixture backfill, startup, real SortableJS pointer-drop latency, live cards, post-GC retained DOM nodes, JavaScript heap, render counts, and browser crashes locally and in CI.
+- Added a deterministic real-Chromium large-board performance harness (`npm run test:perf`) for 400-task and 1,000-task standard and swimlane boards. It runs against a production build and separately budgets synthetic IndexedDB fixture backfill, startup, real SortableJS pointer-drop latency, live cards, live DOM nodes, post-GC detached and retained DOM nodes, JavaScript heap, render counts, and browser crashes locally and in CI.
 
 ### Changed
 

@@ -16,7 +16,8 @@ const SPEC_COMMENT_RE = /^\s*\/\/\s*spec:\s*(.+?)\s*$/;
 const TEST_TYPE_LABELS = {
   unit: 'Unit',
   dom: 'DOM Integration',
-  e2e: 'End-to-End'
+  e2e: 'End-to-End',
+  performance: 'Performance'
 };
 
 async function pathExists(filePath) {
@@ -84,7 +85,9 @@ function parseTestFile(filePath, source) {
       ? 'dom'
       : relativePath.includes('/e2e/')
         ? 'e2e'
-        : 'other';
+        : relativePath.includes('/performance/')
+          ? 'performance'
+          : 'other';
   const lines = source.split(/\r?\n/);
   const suites = [];
   const tests = [];
@@ -235,6 +238,7 @@ function renderOverview(testFiles, sourceModules, specFiles) {
   lines.push(`- Unit files: ${(byType.get('unit') || []).length}`);
   lines.push(`- DOM integration files: ${(byType.get('dom') || []).length}`);
   lines.push(`- E2E files: ${(byType.get('e2e') || []).length}`);
+  lines.push(`- Performance files: ${(byType.get('performance') || []).length}`);
   lines.push('');
   lines.push('## How To Use This');
   lines.push('');
@@ -266,7 +270,7 @@ function renderOverview(testFiles, sourceModules, specFiles) {
   lines.push('## Test Files');
   lines.push('');
 
-  ['unit', 'dom', 'e2e', 'other'].forEach((type) => {
+  ['unit', 'dom', 'e2e', 'performance', 'other'].forEach((type) => {
     const files = byType.get(type) || [];
     if (files.length === 0) {
       return;

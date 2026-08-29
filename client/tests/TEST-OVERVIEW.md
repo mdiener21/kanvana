@@ -4,11 +4,12 @@ Generated from test source. Do not edit by hand; run `npm run test:overview` fro
 
 ## Fast Scan
 
-- Test files: 40
-- Test cases: 370
-- Unit files: 22
-- DOM integration files: 9
-- E2E files: 9
+- Test files: 58
+- Test cases: 454
+- Unit files: 27
+- DOM integration files: 19
+- E2E files: 11
+- Performance files: 1
 
 ## How To Use This
 
@@ -32,7 +33,6 @@ These lists compare source/spec filenames against test file names and test title
 - `src/modules/idb-store.js`
 - `src/modules/impressum.js`
 - `src/modules/labels-modal.js`
-- `src/modules/notifications.js`
 - `src/modules/reports.js`
 - `src/modules/swimlane-renderer.js`
 - `src/modules/theme.js`
@@ -68,6 +68,14 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/unit/autosync.test.js:204` initializeAutoSync > does not schedule catch-up when auto-sync is disabled
 - `tests/unit/autosync.test.js:214` initializeAutoSync > does not register duplicate listeners on repeated calls
 
+### Backend Event Schema
+
+- Path: `tests/unit/backend-event-schema.test.js`
+- Type: Unit
+- Test count: 1
+
+- `tests/unit/backend-event-schema.test.js:7` latest backend migrations defensively keep events.board as text
+
 ### Columns
 
 - Path: `tests/unit/columns.test.js`
@@ -87,7 +95,7 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/unit/columns.test.js:97` deleteColumn returns false for missing column
 - `tests/unit/columns.test.js:101` deleteColumn deletes column and its tasks
 - `tests/unit/columns.test.js:122` deleteColumn soft-deletes: column hidden from loadColumns but present in loadDeletedColumnsForBoard
-- `tests/unit/columns.test.js:133` deleteColumn soft-deletes tasks in the column
+- `tests/unit/columns.test.js:133` deleteColumn deletes tasks in the column
 
 ### Constants
 
@@ -130,6 +138,39 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/unit/dateutils.test.js:94` getCountdownClassName returns countdown-normal beyond thresholds
 - `tests/unit/dateutils.test.js:99` getCountdownClassName respects custom thresholds
 
+### Backfill
+
+- Path: `tests/unit/event-sourcing/backfill.test.js`
+- Type: Unit
+- Test count: 5
+
+- `tests/unit/event-sourcing/backfill.test.js:51` event log backfill > emits a created event for every pre-existing entity
+- `tests/unit/event-sourcing/backfill.test.js:65` event log backfill > a replaying device reconstructs each board and its tasks
+- `tests/unit/event-sourcing/backfill.test.js:90` event log backfill > runs once and is a no-op on the next startup
+- `tests/unit/event-sourcing/backfill.test.js:102` event log backfill > skips entities that already have a created event
+- `tests/unit/event-sourcing/backfill.test.js:116` event log backfill > records the flag so a later run is skipped
+
+### Board Delete Replay
+
+- Path: `tests/unit/event-sourcing/board-delete-replay.test.js`
+- Type: Unit
+- Test count: 2
+
+- `tests/unit/event-sourcing/board-delete-replay.test.js:43` a board deleted elsewhere does not come back when its events replay
+- `tests/unit/event-sourcing/board-delete-replay.test.js:58` the tombstone survives a reload rather than resurrecting from IDB
+
+### Board Scaffold Convergence
+
+- Path: `tests/unit/event-sourcing/board-scaffold-convergence.test.js`
+- Type: Unit
+- Test count: 5
+
+- `tests/unit/event-sourcing/board-scaffold-convergence.test.js:39` createBoard emits a column.created per default column and a label.created per default label
+- `tests/unit/event-sourcing/board-scaffold-convergence.test.js:65` a fresh device reconstructs createBoard columns and labels from the event log alone
+- `tests/unit/event-sourcing/board-scaffold-convergence.test.js:86` the default board uses a stable id across independent device initialisations
+- `tests/unit/event-sourcing/board-scaffold-convergence.test.js:102` two devices seeding the default board converge to one board with no duplicate columns or labels
+- `tests/unit/event-sourcing/board-scaffold-convergence.test.js:127` createBoard does not double-apply its own scaffold events onto the local read-model
+
 ### Convergence
 
 - Path: `tests/unit/event-sourcing/convergence.test.js`
@@ -152,7 +193,7 @@ These lists compare source/spec filenames against test file names and test title
 - Type: Unit
 - Test count: 1
 
-- `tests/unit/event-sourcing/emitter.test.js:14` emitDomainEvent stores an unsynced immutable event row
+- `tests/unit/event-sourcing/emitter.test.js:15` scheduleDomainEvent persists an unsynced immutable event row
 
 ### Hlc
 
@@ -167,6 +208,18 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/unit/event-sourcing/hlc.test.js:56` compareHlc remains transitive across wallTime counter and nodeId
 - `tests/unit/event-sourcing/hlc.test.js:70` emitLocal warns when local wall clock drift exceeds the bound
 - `tests/unit/event-sourcing/hlc.test.js:80` observeRemote advances counter from the remote HLC when remote wallTime wins
+
+### Read Model Projector
+
+- Path: `tests/unit/event-sourcing/read-model-projector.test.js`
+- Type: Unit
+- Test count: 5
+
+- `tests/unit/event-sourcing/read-model-projector.test.js:61` createReadModelProjector > register() subscribes so an emitted board event projects into state and schedules read-model persist
+- `tests/unit/event-sourcing/read-model-projector.test.js:74` createReadModelProjector > project() is idempotent by event id (dedup)
+- `tests/unit/event-sourcing/read-model-projector.test.js:82` createReadModelProjector > global-scope event projects globalSettings and persists the global key only
+- `tests/unit/event-sourcing/read-model-projector.test.js:99` createReadModelProjector > register() is idempotent — a single emit projects once
+- `tests/unit/event-sourcing/read-model-projector.test.js:108` createReadModelProjector > reset() unsubscribes the handler and clears dedup state
 
 ### Reducer
 
@@ -493,20 +546,16 @@ These lists compare source/spec filenames against test file names and test title
 
 - Path: `tests/dom/authsync.test.js`
 - Type: DOM Integration
-- Test count: 12
+- Test count: 8
 
-- `tests/dom/authsync.test.js:113` initializeAuthSyncUI > returns without error when required DOM elements are missing
-- `tests/dom/authsync.test.js:118` initializeAuthSyncUI > sets up handlers when all required elements present
-- `tests/dom/authsync.test.js:126` health probe > disables login-btn when PocketBase is unreachable
-- `tests/dom/authsync.test.js:135` health probe > leaves login-btn enabled when PocketBase responds ok
-- `tests/dom/authsync.test.js:147` auth UI state > shows login-btn and hides user-info when not authenticated
-- `tests/dom/authsync.test.js:154` auth UI state > hides login-btn and shows user-info when authenticated
-- `tests/dom/authsync.test.js:163` auth UI state > hides sync-btn when authenticated and auto-sync enabled
-- `tests/dom/authsync.test.js:171` auth UI state > shows sync-btn when authenticated but auto-sync disabled
-- `tests/dom/authsync.test.js:183` register flow > shows confirm-email message after successful registration
-- `tests/dom/authsync.test.js:203` register flow > does not call loginUser after registerUser
-- `tests/dom/authsync.test.js:221` sync push > calls pushBoardFull(boardId) for each board — not old multi-arg signature
-- `tests/dom/authsync.test.js:246` sync pull > calls renderBoard and initializeBoardsUI after successful pull
+- `tests/dom/authsync.test.js:81` initializeAuthSyncUI > returns without error when required DOM elements are missing
+- `tests/dom/authsync.test.js:86` initializeAuthSyncUI > sets up handlers when all required elements present
+- `tests/dom/authsync.test.js:94` health probe > disables login-btn when PocketBase is unreachable
+- `tests/dom/authsync.test.js:103` health probe > leaves login-btn enabled when PocketBase responds ok
+- `tests/dom/authsync.test.js:115` auth UI state > shows login-btn and hides user-info when not authenticated
+- `tests/dom/authsync.test.js:122` auth UI state > hides login-btn and shows user-info when authenticated
+- `tests/dom/authsync.test.js:135` register flow > shows confirm-email message after successful registration
+- `tests/dom/authsync.test.js:154` register flow > does not call loginUser after registerUser
 
 ### Boards Quick Switch
 
@@ -526,6 +575,27 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/dom/boards-quick-switch.test.js:201` keyboard navigation in open boards modal > Enter on highlighted board activates it and closes the modal
 - `tests/dom/boards-quick-switch.test.js:213` keyboard navigation in open boards modal > Enter does nothing when no item is highlighted
 
+### Boards Select Refresh
+
+- Path: `tests/dom/boards-select-refresh.test.js`
+- Type: DOM Integration
+- Test count: 2
+
+- `tests/dom/boards-select-refresh.test.js:50` #board-select refresh on DATA_CHANGED > rebuilds the dropdown when a remote board.created adds a board
+- `tests/dom/boards-select-refresh.test.js:65` #board-select refresh on DATA_CHANGED > updates an option label when a board is renamed remotely
+
+### Dragdrop
+
+- Path: `tests/dom/dragdrop.test.js`
+- Type: DOM Integration
+- Test count: 5
+
+- `tests/dom/dragdrop.test.js:97` task drop waits for a frame and timer before mutating state
+- `tests/dom/dragdrop.test.js:128` task drop wraps its state mutation in a reconcile window
+- `tests/dom/dragdrop.test.js:160` collapsed non-done drops still pin the moved task through state
+- `tests/dom/dragdrop.test.js:184` reinitializing during an active task drag clears transient drag state
+- `tests/dom/dragdrop.test.js:204` reinitializing during an active column drag clears the column drag class
+
 ### Feature Modules Emit Events
 
 - Path: `tests/dom/event-sourcing/feature-modules-emit-events.test.js`
@@ -536,7 +606,21 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/dom/event-sourcing/feature-modules-emit-events.test.js:67` addColumn emits column.created with the created column payload
 - `tests/dom/event-sourcing/feature-modules-emit-events.test.js:79` label mutations emit label entity and task membership events
 - `tests/dom/event-sourcing/feature-modules-emit-events.test.js:98` updateTask emits collection-op and move events for non-scalar changes
-- `tests/dom/event-sourcing/feature-modules-emit-events.test.js:122` deleteTask emits task.deleted
+- `tests/dom/event-sourcing/feature-modules-emit-events.test.js:128` deleteTask emits task.deleted
+
+### Realtime
+
+- Path: `tests/dom/event-sourcing/realtime.test.js`
+- Type: DOM Integration
+- Test count: 7
+
+- `tests/dom/event-sourcing/realtime.test.js:85` realtime subscription > AC-001: opens exactly one owner-filtered subscription; second call is a no-op
+- `tests/dom/event-sourcing/realtime.test.js:95` realtime subscription > AC-002: stopRealtime closes the subscription
+- `tests/dom/event-sourcing/realtime.test.js:103` realtime subscription > does not subscribe when unauthenticated
+- `tests/dom/event-sourcing/realtime.test.js:111` applyRemoteEvent > AC-003/AC-007: projects, emits EVENT_EMITTED, advances HLC, stores as synced
+- `tests/dom/event-sourcing/realtime.test.js:130` applyRemoteEvent > AC-004: an echo of an already-applied event is a no-op in the projection
+- `tests/dom/event-sourcing/realtime.test.js:146` catch-up pull > AC-005: pulls events > lastSeenHlc, applies in order, advances lastSeenHlc atomically
+- `tests/dom/event-sourcing/realtime.test.js:166` catch-up pull > AC-005/AC-006: re-running catch-up applies nothing new (idempotent overlap)
 
 ### Render Triggers
 
@@ -546,6 +630,90 @@ These lists compare source/spec filenames against test file names and test title
 
 - `tests/dom/event-sourcing/render-triggers.test.js:6` reducer-applied events emit DATA_CHANGED from the outer dispatcher
 
+### Replay Fidelity
+
+- Path: `tests/dom/event-sourcing/replay-fidelity.test.js`
+- Type: DOM Integration
+- Test count: 4
+
+- `tests/dom/event-sourcing/replay-fidelity.test.js:68` updateTask relationship change replays the inverse on the target task
+- `tests/dom/event-sourcing/replay-fidelity.test.js:84` addTask replays the sibling reorder in the column
+- `tests/dom/event-sourcing/replay-fidelity.test.js:105` moving a task into and out of the done column replays its doneDate
+- `tests/dom/event-sourcing/replay-fidelity.test.js:129` swimlane drag across priority lanes replays the priority reassignment
+
+### Snapshot Catchup
+
+- Path: `tests/dom/event-sourcing/snapshot-catchup.test.js`
+- Type: DOM Integration
+- Test count: 4
+
+- `tests/dom/event-sourcing/snapshot-catchup.test.js:100` catch-up with a server snapshot > reconstructs a board whose events were GC-ed, from the snapshot alone
+- `tests/dom/event-sourcing/snapshot-catchup.test.js:118` catch-up with a server snapshot > replays events newer than the snapshot on top of it
+- `tests/dom/event-sourcing/snapshot-catchup.test.js:138` catch-up with a server snapshot > ignores events the snapshot already covers
+- `tests/dom/event-sourcing/snapshot-catchup.test.js:158` catch-up with a server snapshot > still replays events normally when the server has no snapshot
+
+### Snapshot Download
+
+- Path: `tests/dom/event-sourcing/snapshot-download.test.js`
+- Type: DOM Integration
+- Test count: 6
+
+- `tests/dom/event-sourcing/snapshot-download.test.js:69` snapshot download > returns null when the server holds no snapshot for the board
+- `tests/dom/event-sourcing/snapshot-download.test.js:76` snapshot download > returns null when unauthenticated
+- `tests/dom/event-sourcing/snapshot-download.test.js:80` snapshot download > queries the board it was asked for, and empty board_id for global scope
+- `tests/dom/event-sourcing/snapshot-download.test.js:95` snapshot download > inflates the payload into projected state
+- `tests/dom/event-sourcing/snapshot-download.test.js:112` snapshot download > rehydrates appliedEventIds and taskTombstones as Sets so replay dedups
+- `tests/dom/event-sourcing/snapshot-download.test.js:128` snapshot download > picks the highest HLC when the server holds several snapshots
+
+### Snapshot Sync
+
+- Path: `tests/dom/event-sourcing/snapshot-sync.test.js`
+- Type: DOM Integration
+- Test count: 7
+
+- `tests/dom/event-sourcing/snapshot-sync.test.js:40` snapshot upload > skips when unauthenticated
+- `tests/dom/event-sourcing/snapshot-sync.test.js:45` snapshot upload > AC-009: skips upload when server snapshot HLC >= local
+- `tests/dom/event-sourcing/snapshot-sync.test.js:59` snapshot upload > creates a snapshot record when the server is behind
+- `tests/dom/event-sourcing/snapshot-sync.test.js:73` snapshot upload > buildSnapshotForm carries owner, board_id, hlc, and a gz payload file
+- `tests/dom/event-sourcing/snapshot-sync.test.js:84` snapshot upload > AC-009 arbitration: deletes losing server snapshots after upload
+- `tests/dom/event-sourcing/snapshot-sync.test.js:100` snapshot upload > AC-010: deletes PB events with hlc <= snapshot.hlc, keeps newer
+- `tests/dom/event-sourcing/snapshot-sync.test.js:117` snapshot upload > global snapshot filters events by scope=global and uses empty board_id
+
+### Sync Indicator
+
+- Path: `tests/dom/event-sourcing/sync-indicator.test.js`
+- Type: DOM Integration
+- Test count: 10
+
+- `tests/dom/event-sourcing/sync-indicator.test.js:50` sync state indicator > AC-001: logged in, online, empty queue -> Live (green)
+- `tests/dom/event-sourcing/sync-indicator.test.js:58` sync state indicator > AC-002: N events draining -> Syncing… (N) (yellow)
+- `tests/dom/event-sourcing/sync-indicator.test.js:68` sync state indicator > AC-003: events stuck retrying -> ⚠ N unsynced (orange)
+- `tests/dom/event-sourcing/sync-indicator.test.js:78` sync state indicator > AC-003b: paused (auth failure) tier also shows unsynced
+- `tests/dom/event-sourcing/sync-indicator.test.js:86` sync state indicator > AC-004: offline -> Offline (gray)
+- `tests/dom/event-sourcing/sync-indicator.test.js:95` sync state indicator > AC-004b: not logged in -> Offline (gray)
+- `tests/dom/event-sourcing/sync-indicator.test.js:104` sync state indicator > AC-005: updates live on DATA_CHANGED (queue drains) without reload
+- `tests/dom/event-sourcing/sync-indicator.test.js:117` sync state indicator > AC-005b: updates live on offline window event
+- `tests/dom/event-sourcing/sync-indicator.test.js:128` sync state indicator > AC-005c: updates live on auth-changed window event
+- `tests/dom/event-sourcing/sync-indicator.test.js:140` sync state indicator > updates live when the sync queue status changes
+
+### Sync Queue
+
+- Path: `tests/dom/event-sourcing/sync-queue.test.js`
+- Type: DOM Integration
+- Test count: 11
+
+- `tests/dom/event-sourcing/sync-queue.test.js:69` sync-queue startup > drains events left over from a previous session, with no new activity
+- `tests/dom/event-sourcing/sync-queue.test.js:85` sync-queue startup > does not push on startup when signed out
+- `tests/dom/event-sourcing/sync-queue.test.js:100` sync-queue push > AC-004: pushes a queued event and flips synced after debounce
+- `tests/dom/event-sourcing/sync-queue.test.js:120` sync-queue push > AC-005: caps concurrent pushes at 5 and drains the whole queue
+- `tests/dom/event-sourcing/sync-queue.test.js:145` sync-queue push > AC-005: drains in HLC order (sequential)
+- `tests/dom/event-sourcing/sync-queue.test.js:163` sync-queue push > AC-008: a rejected event is left queued, never rolled back
+- `tests/dom/event-sourcing/sync-queue.test.js:184` sync-queue push > AC-006: resumes on the online event without waiting for backoff
+- `tests/dom/event-sourcing/sync-queue.test.js:210` sync-queue push > drains pre-existing unsynced events when auth changes after login
+- `tests/dom/event-sourcing/sync-queue.test.js:233` sync-queue push > AC-007: pauses on auth failure and resumes on auth-changed
+- `tests/dom/event-sourcing/sync-queue.test.js:265` sync-queue push > AC-011: network failures advance the backoff tiers, capped at 5min
+- `tests/dom/event-sourcing/sync-queue.test.js:289` sync-queue push > AC-011: a permanent 4xx schedules a ~1h retry
+
 ### Msw Example
 
 - Path: `tests/dom/msw-example.test.js`
@@ -554,6 +722,23 @@ These lists compare source/spec filenames against test file names and test title
 
 - `tests/dom/msw-example.test.js:37` MSW intercepts requests and DOM reflects successful response
 - `tests/dom/msw-example.test.js:45` MSW per-test handler override causes DOM to reflect error state
+
+### Reconcile
+
+- Path: `tests/dom/reconcile.test.js`
+- Type: DOM Integration
+- Test count: 10
+
+- `tests/dom/reconcile.test.js:67` reconcileBoard moves a dragged task card into its new column, preserving the node
+- `tests/dom/reconcile.test.js:87` reconcileBoard updates each column task counter to match state
+- `tests/dom/reconcile.test.js:98` reconcileBoard updates a collapsed column title count
+- `tests/dom/reconcile.test.js:121` a data change inside a drag-reconcile window patches in place instead of rebuilding
+- `tests/dom/reconcile.test.js:138` reconcileBoard refreshes notifications, matching a full render
+- `tests/dom/reconcile.test.js:148` reconcileBoard respects the active board filter, like a full render
+- `tests/dom/reconcile.test.js:170` reconcileBoard defers to a full rebuild when swimlane mode is on
+- `tests/dom/reconcile.test.js:183` reconcileBoard defers to a full rebuild when the column set changed
+- `tests/dom/reconcile.test.js:196` reconcileBoard virtualizes an overfull Done column instead of rendering every card
+- `tests/dom/reconcile.test.js:213` reconcileBoard patches a card due-date in place when it lands in Done
 
 ### Settings Ui
 
@@ -619,6 +804,15 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/e2e/create-task.spec.ts:77` Task Creation > Create task with due date, 2 labels, and medium priority
 - `tests/e2e/create-task.spec.ts:126` Task Creation > Create task with 2 new custom labels and medium priority
 
+### Dragdrop Done Crash
+
+- Path: `tests/e2e/dragdrop-done-crash.spec.js`
+- Type: End-to-End
+- Test count: 2
+
+- `tests/e2e/dragdrop-done-crash.spec.js:99` Done-column drag crash regression > second consecutive drag to Done must not crash or freeze the page
+- `tests/e2e/dragdrop-done-crash.spec.js:142` Done-column drag crash regression > both dragged tasks land at the top of Done
+
 ### Dragdrop
 
 - Path: `tests/e2e/dragdrop.spec.js`
@@ -626,8 +820,16 @@ These lists compare source/spec filenames against test file names and test title
 - Test count: 3
 
 - `tests/e2e/dragdrop.spec.js:53` Drag and Drop Performance > should drag task from In Progress to Done
-- `tests/e2e/dragdrop.spec.js:84` Drag and Drop Performance > should handle multiple consecutive drops
-- `tests/e2e/dragdrop.spec.js:101` Drag and Drop Performance > should show "Show more" button when Done column has many tasks
+- `tests/e2e/dragdrop.spec.js:102` Drag and Drop Performance > should handle multiple consecutive drops
+- `tests/e2e/dragdrop.spec.js:119` Drag and Drop Performance > should show "Show more" button when Done column has many tasks
+
+### Two Context Convergence
+
+- Path: `tests/e2e/event-sourcing/two-context-convergence.spec.ts`
+- Type: End-to-End
+- Test count: 1
+
+- `tests/e2e/event-sourcing/two-context-convergence.spec.ts:73` AC-009 two-context realtime convergence (live PocketBase) > a task created and moved on device A appears on device B within ~3s
 
 ### Subtasks
 
@@ -700,3 +902,13 @@ These lists compare source/spec filenames against test file names and test title
 - Source plan/spec: `task-creation-with-labels.plan.md`
 
 - `tests/e2e/validation-missing-title.spec.ts:7` Task Creation - Edge Cases and Error Handling > Attempt to create task without required title
+
+## Performance Tests
+
+### Large Board
+
+- Path: `tests/performance/large-board.spec.js`
+- Type: Performance
+- Test count: 1
+
+- `tests/performance/large-board.spec.js:256` ${scenario.taskCount} tasks in ${scenario.view} view stay within performance budgets
