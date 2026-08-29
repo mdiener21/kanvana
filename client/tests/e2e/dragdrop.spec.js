@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { dragWithPointer, nearTopOf, waitForBoardReady } from './board.helpers.js';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
@@ -45,7 +46,7 @@ test.describe('Drag and Drop Performance', () => {
     }, fixture);
 
     await page.goto('/');
-    await expect(page.locator('#board-container')).toBeVisible();
+    await waitForBoardReady(page);
     await expect(columnByName(page, 'In Progress')).toBeVisible();
     await expect(columnByName(page, 'Done')).toBeVisible();
   });
@@ -69,29 +70,7 @@ test.describe('Drag and Drop Performance', () => {
     const doneCounterBefore = parseInt((await doneColumn.locator('.task-counter').textContent()) || '0');
     expect(doneCounterBefore).toBeGreaterThanOrEqual(300);
 
-    // Use page.mouse instead of dragTo. Playwright's dragTo fires dragstart + dragover
-    // via CDP in rapid succession. SortableJS defers setting Sortable.active to the next
-    // event-loop tick (setTimeout(0) inside _dragStarted). dragover reaches _onDragOver
-    // before that tick fires → Sortable.active is null → _onDragOver returns false →
-    // placeholder never moves to Done → SortableJS reverts to in-progress.
-    // page.mouse fires real browser mouse events; the CDP round-trip between the small
-    // initial move and the final move to Done gives setTimeout(0) time to fire.
-    const taskBB = await firstTask.boundingBox();
-    const doneBB = await doneColumn.locator('.tasks').boundingBox();
-    const startX = taskBB.x + taskBB.width / 2;
-    const startY = taskBB.y + taskBB.height / 2;
-    const endX = doneBB.x + doneBB.width / 2;
-    const endY = doneBB.y + 10; // Near top so SortableJS inserts at front
-
-    await page.mouse.move(startX, startY);
-    await page.mouse.down();
-    // Small move to trigger native dragstart (browser requires a threshold)
-    await page.mouse.move(startX + 5, startY + 2);
-    // Yield so setTimeout(0) in SortableJS's _dragStarted fires and sets Sortable.active
-    await page.waitForTimeout(50);
-    // Move to Done column — dragover events now reach a Sortable.active-aware _onDragOver
-    await page.mouse.move(endX, endY);
-    await page.mouse.up();
+    await dragWithPointer(page, firstTask, doneColumn.locator('.tasks'), nearTopOf);
 
     // Counter-based assertions: virtualization means the moved task may not be in the
     // first 50 rendered done-column items, but the counter always reflects the true total.
@@ -105,15 +84,14 @@ test.describe('Drag and Drop Performance', () => {
     const doneTasksList = doneColumn.locator('.tasks');
 
     for (let i = 0; i < 3; i++) {
+      const doneBefore = parseInt((await doneColumn.locator('.task-counter').textContent()) || '0');
+      const inProgressBefore = parseInt((await inProgressColumn.locator('.task-counter').textContent()) || '0');
       const task = inProgressColumn.locator('.task').first();
       await expect(task).toBeVisible();
-      await task.dragTo(doneTasksList);
-      await expect(doneColumn.locator('.task').first()).toBeVisible({ timeout: 5000 });
+      await dragWithPointer(page, task, doneTasksList, nearTopOf);
+      await expect(doneColumn.locator('.task-counter')).toHaveText(String(doneBefore + 1), { timeout: 10_000 });
+      await expect(inProgressColumn.locator('.task-counter')).toHaveText(String(inProgressBefore - 1), { timeout: 10_000 });
     }
-
-    // All 3 drops completed — verify counter reflects moves
-    const inProgressCounter = parseInt((await inProgressColumn.locator('.task-counter').textContent()) || '0');
-    expect(inProgressCounter).toBeGreaterThanOrEqual(0);
   });
 
   test('should show "Show more" button when Done column has many tasks', async ({ page }) => {

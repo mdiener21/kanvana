@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { waitForBoardReady } from './board.helpers.js';
 
 const PERMANENT_DELETE_MSG = 'This will permanently delete the task. There is no undo.';
 
@@ -30,7 +31,7 @@ test.describe('Task Deletion', () => {
 
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('#board-container')).toBeVisible();
+    await waitForBoardReady(page);
   });
 
   test('permanent delete — confirm removes task and decrements counter', async ({ page }) => {

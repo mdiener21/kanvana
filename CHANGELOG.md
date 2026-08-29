@@ -11,7 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added a deterministic real-Chromium large-board performance harness (`npm run test:perf`) for 400-task and 1,000-task standard and swimlane boards. It runs against a production build and separately budgets synthetic IndexedDB fixture seeding, startup, real SortableJS pointer-drop latency, live cards, live DOM nodes, post-GC detached and retained DOM nodes, JavaScript heap, render counts, and browser crashes locally and in CI. Board-render marks are emitted only when the harness opts in, so production sessions do not accumulate them.
 
+### Fixed
+
+- Fixed the board controls menu (the toolbar's ellipsis button) ignoring clicks during app start-up. Its click handler was wired after `initStorage()` and the first render, leaving a window in which the button was on screen but inert; it is now wired before anything is awaited.
+
 ### Changed
+
+- Made the E2E suite deterministic. Specs waited on `#board-container` being visible, which is static markup in `index.html` and proves nothing about the app, then ran against a board that had not rendered. Readiness is now `data-view-mode`, set by `renderBoard()`. Drag specs share one SortableJS-safe pointer-drag helper instead of three divergent copies plus `locator.dragTo()`, which races SortableJS's deferred `Sortable.active` and silently reverts the drop, and box measurement retries through the re-renders that fire while the board boots. The dev server now warms its module graph at start-up, so the first navigation no longer costs ~21s.
 
 - The `fetch-air-lake-temperatures` cron no longer records Faaker See; it now tracks Wörthersee water temperature and Viktring air temperature only. Existing `air_lake_temperatures` rows for Faaker See are left in place.
 

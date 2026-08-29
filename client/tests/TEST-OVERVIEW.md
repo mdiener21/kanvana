@@ -788,9 +788,9 @@ These lists compare source/spec filenames against test file names and test title
 - Type: End-to-End
 - Test count: 3
 
-- `tests/e2e/boards.spec.js:33` Boards Management > should open a board when clicking the Open button in manage-boards modal
-- `tests/e2e/boards.spec.js:78` Boards Management > should display multiple boards in the manage-boards modal
-- `tests/e2e/boards.spec.js:117` Boards Management > should mark the active board in the boards list
+- `tests/e2e/boards.spec.js:34` Boards Management > should open a board when clicking the Open button in manage-boards modal
+- `tests/e2e/boards.spec.js:79` Boards Management > should display multiple boards in the manage-boards modal
+- `tests/e2e/boards.spec.js:118` Boards Management > should mark the active board in the boards list
 
 ### Create Task
 
@@ -799,10 +799,10 @@ These lists compare source/spec filenames against test file names and test title
 - Test count: 4
 - Source plan/spec: `task-creation-with-labels.plan.md`
 
-- `tests/e2e/create-task.spec.ts:24` Task Creation > Create task with 2 existing labels and medium priority in To Do column
-- `tests/e2e/create-task.spec.ts:51` Task Creation > Create task with 2 existing labels and medium priority in In Progress column
-- `tests/e2e/create-task.spec.ts:77` Task Creation > Create task with due date, 2 labels, and medium priority
-- `tests/e2e/create-task.spec.ts:126` Task Creation > Create task with 2 new custom labels and medium priority
+- `tests/e2e/create-task.spec.ts:25` Task Creation > Create task with 2 existing labels and medium priority in To Do column
+- `tests/e2e/create-task.spec.ts:53` Task Creation > Create task with 2 existing labels and medium priority in In Progress column
+- `tests/e2e/create-task.spec.ts:80` Task Creation > Create task with due date, 2 labels, and medium priority
+- `tests/e2e/create-task.spec.ts:130` Task Creation > Create task with 2 new custom labels and medium priority
 
 ### Dragdrop Done Crash
 
@@ -810,8 +810,8 @@ These lists compare source/spec filenames against test file names and test title
 - Type: End-to-End
 - Test count: 2
 
-- `tests/e2e/dragdrop-done-crash.spec.js:99` Done-column drag crash regression > second consecutive drag to Done must not crash or freeze the page
-- `tests/e2e/dragdrop-done-crash.spec.js:142` Done-column drag crash regression > both dragged tasks land at the top of Done
+- `tests/e2e/dragdrop-done-crash.spec.js:84` Done-column drag crash regression > second consecutive drag to Done must not crash or freeze the page
+- `tests/e2e/dragdrop-done-crash.spec.js:127` Done-column drag crash regression > both dragged tasks land at the top of Done
 
 ### Dragdrop
 
@@ -819,9 +819,9 @@ These lists compare source/spec filenames against test file names and test title
 - Type: End-to-End
 - Test count: 3
 
-- `tests/e2e/dragdrop.spec.js:53` Drag and Drop Performance > should drag task from In Progress to Done
-- `tests/e2e/dragdrop.spec.js:102` Drag and Drop Performance > should handle multiple consecutive drops
-- `tests/e2e/dragdrop.spec.js:119` Drag and Drop Performance > should show "Show more" button when Done column has many tasks
+- `tests/e2e/dragdrop.spec.js:54` Drag and Drop Performance > should drag task from In Progress to Done
+- `tests/e2e/dragdrop.spec.js:81` Drag and Drop Performance > should handle multiple consecutive drops
+- `tests/e2e/dragdrop.spec.js:97` Drag and Drop Performance > should show "Show more" button when Done column has many tasks
 
 ### Two Context Convergence
 
@@ -837,20 +837,20 @@ These lists compare source/spec filenames against test file names and test title
 - Type: End-to-End
 - Test count: 14
 
-- `tests/e2e/subtasks.spec.ts:34` Sub-tasks > Sub-tasks fieldset is visible in the task modal
-- `tests/e2e/subtasks.spec.ts:41` Sub-tasks > Add sub-tasks via quick-add input and press Enter
-- `tests/e2e/subtasks.spec.ts:57` Sub-tasks > Empty sub-task input is ignored on Enter
-- `tests/e2e/subtasks.spec.ts:69` Sub-tasks > Progress legend shows X / Y in fieldset legend
-- `tests/e2e/subtasks.spec.ts:85` Sub-tasks > Checking a sub-task updates the progress legend
-- `tests/e2e/subtasks.spec.ts:100` Sub-tasks > Completed sub-tasks have strikethrough style
-- `tests/e2e/subtasks.spec.ts:114` Sub-tasks > Delete button removes a sub-task from the list
-- `tests/e2e/subtasks.spec.ts:130` Sub-tasks > Sub-tasks are saved and persisted when task is created
-- `tests/e2e/subtasks.spec.ts:170` Sub-tasks > Sub-task progress indicator appears on task card when sub-tasks exist
-- `tests/e2e/subtasks.spec.ts:188` Sub-tasks > No progress indicator on card when task has no sub-tasks
-- `tests/e2e/subtasks.spec.ts:199` Sub-tasks > Sub-tasks survive edit modal round-trip with completion state
-- `tests/e2e/subtasks.spec.ts:226` Sub-tasks > Card donut turns green when all sub-tasks are completed
-- `tests/e2e/subtasks.spec.ts:245` Sub-tasks > Inline edit: click sub-task title to edit and commit with Enter
-- `tests/e2e/subtasks.spec.ts:263` Sub-tasks > Inline edit: Escape cancels edit and restores original title
+- `tests/e2e/subtasks.spec.ts:35` Sub-tasks > Sub-tasks fieldset is visible in the task modal
+- `tests/e2e/subtasks.spec.ts:43` Sub-tasks > Add sub-tasks via quick-add input and press Enter
+- `tests/e2e/subtasks.spec.ts:60` Sub-tasks > Empty sub-task input is ignored on Enter
+- `tests/e2e/subtasks.spec.ts:73` Sub-tasks > Progress legend shows X / Y in fieldset legend
+- `tests/e2e/subtasks.spec.ts:90` Sub-tasks > Checking a sub-task updates the progress legend
+- `tests/e2e/subtasks.spec.ts:106` Sub-tasks > Completed sub-tasks have strikethrough style
+- `tests/e2e/subtasks.spec.ts:121` Sub-tasks > Delete button removes a sub-task from the list
+- `tests/e2e/subtasks.spec.ts:138` Sub-tasks > Sub-tasks are saved and persisted when task is created
+- `tests/e2e/subtasks.spec.ts:179` Sub-tasks > Sub-task progress indicator appears on task card when sub-tasks exist
+- `tests/e2e/subtasks.spec.ts:198` Sub-tasks > No progress indicator on card when task has no sub-tasks
+- `tests/e2e/subtasks.spec.ts:210` Sub-tasks > Sub-tasks survive edit modal round-trip with completion state
+- `tests/e2e/subtasks.spec.ts:238` Sub-tasks > Card donut turns green when all sub-tasks are completed
+- `tests/e2e/subtasks.spec.ts:258` Sub-tasks > Inline edit: click sub-task title to edit and commit with Enter
+- `tests/e2e/subtasks.spec.ts:277` Sub-tasks > Inline edit: Escape cancels edit and restores original title
 
 ### Swimlanes Dnd
 
@@ -858,10 +858,10 @@ These lists compare source/spec filenames against test file names and test title
 - Type: End-to-End
 - Test count: 4
 
-- `tests/e2e/swimlanes-dnd.spec.js:57` Swim lane drag and drop > moves a task between swim lanes and columns
-- `tests/e2e/swimlanes-dnd.spec.js:69` Swim lane drag and drop > moves a task into Done while done cards remain hidden
-- `tests/e2e/swimlanes-dnd.spec.js:79` Swim lane drag and drop > moves a task between priority swim lanes and updates task priority
-- `tests/e2e/swimlanes-dnd.spec.js:100` Swim lane drag and drop > moves a task between rows from the selected label group
+- `tests/e2e/swimlanes-dnd.spec.js:50` Swim lane drag and drop > moves a task between swim lanes and columns
+- `tests/e2e/swimlanes-dnd.spec.js:62` Swim lane drag and drop > moves a task into Done while done cards remain hidden
+- `tests/e2e/swimlanes-dnd.spec.js:72` Swim lane drag and drop > moves a task between priority swim lanes and updates task priority
+- `tests/e2e/swimlanes-dnd.spec.js:93` Swim lane drag and drop > moves a task between rows from the selected label group
 
 ### Swimlanes Persistence
 
@@ -869,9 +869,9 @@ These lists compare source/spec filenames against test file names and test title
 - Type: End-to-End
 - Test count: 3
 
-- `tests/e2e/swimlanes-persistence.spec.js:11` Swim lane persistence > persists enabled state and grouping mode across reloads
-- `tests/e2e/swimlanes-persistence.spec.js:42` Swim lane persistence > persists priority grouping mode across reloads
-- `tests/e2e/swimlanes-persistence.spec.js:68` Swim lane persistence > persists collapsed swim lane state across reloads
+- `tests/e2e/swimlanes-persistence.spec.js:12` Swim lane persistence > persists enabled state and grouping mode across reloads
+- `tests/e2e/swimlanes-persistence.spec.js:43` Swim lane persistence > persists priority grouping mode across reloads
+- `tests/e2e/swimlanes-persistence.spec.js:69` Swim lane persistence > persists collapsed swim lane state across reloads
 
 ### Swimlanes Toggle
 
@@ -879,11 +879,11 @@ These lists compare source/spec filenames against test file names and test title
 - Type: End-to-End
 - Test count: 5
 
-- `tests/e2e/swimlanes-toggle.spec.js:24` Swim lane toggle > enables and disables swim lanes without losing task data
-- `tests/e2e/swimlanes-toggle.spec.js:55` Swim lane toggle > collapses and expands a swim lane from its header
-- `tests/e2e/swimlanes-toggle.spec.js:71` Swim lane toggle > collapses and expands a workflow column while swim lanes are enabled
-- `tests/e2e/swimlanes-toggle.spec.js:92` Swim lane toggle > keeps swim lane column headers visible while vertically scrolling
-- `tests/e2e/swimlanes-toggle.spec.js:169` Swim lane toggle > shows one row per label inside the selected label group
+- `tests/e2e/swimlanes-toggle.spec.js:25` Swim lane toggle > enables and disables swim lanes without losing task data
+- `tests/e2e/swimlanes-toggle.spec.js:56` Swim lane toggle > collapses and expands a swim lane from its header
+- `tests/e2e/swimlanes-toggle.spec.js:72` Swim lane toggle > collapses and expands a workflow column while swim lanes are enabled
+- `tests/e2e/swimlanes-toggle.spec.js:93` Swim lane toggle > keeps swim lane column headers visible while vertically scrolling
+- `tests/e2e/swimlanes-toggle.spec.js:170` Swim lane toggle > shows one row per label inside the selected label group
 
 ### Task Delete
 
@@ -891,8 +891,8 @@ These lists compare source/spec filenames against test file names and test title
 - Type: End-to-End
 - Test count: 2
 
-- `tests/e2e/task-delete.spec.ts:36` Task Deletion > permanent delete — confirm removes task and decrements counter
-- `tests/e2e/task-delete.spec.ts:54` Task Deletion > cancel delete — task survives and counter is unchanged
+- `tests/e2e/task-delete.spec.ts:37` Task Deletion > permanent delete — confirm removes task and decrements counter
+- `tests/e2e/task-delete.spec.ts:55` Task Deletion > cancel delete — task survives and counter is unchanged
 
 ### Validation Missing Title
 
@@ -901,7 +901,7 @@ These lists compare source/spec filenames against test file names and test title
 - Test count: 1
 - Source plan/spec: `task-creation-with-labels.plan.md`
 
-- `tests/e2e/validation-missing-title.spec.ts:7` Task Creation - Edge Cases and Error Handling > Attempt to create task without required title
+- `tests/e2e/validation-missing-title.spec.ts:8` Task Creation - Edge Cases and Error Handling > Attempt to create task without required title
 
 ## Performance Tests
 

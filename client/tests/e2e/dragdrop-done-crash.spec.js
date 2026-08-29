@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { dragWithPointer, nearTopOf, waitForBoardReady } from './board.helpers.js';
 
 /**
  * Regression test for: Chrome renderer crash on consecutive drag-to-Done.
@@ -42,23 +43,7 @@ function columnByName(page, name) {
 // Sortable.active and reverts the drop — flaky on headless CI. A small initial move
 // plus a 50 ms yield lets that timer fire before we move into Done. See dragdrop.spec.js.
 async function dragTaskToDone(page, task, doneColumn) {
-  const taskBB = await task.boundingBox();
-  const doneBB = await doneColumn.locator('.tasks').boundingBox();
-  const startX = taskBB.x + taskBB.width / 2;
-  const startY = taskBB.y + taskBB.height / 2;
-  const endX = doneBB.x + doneBB.width / 2;
-  const endY = doneBB.y + Math.min(10, Math.max(2, doneBB.height / 2)); // near top; within emptyInsertThreshold
-
-  await page.mouse.move(startX, startY);
-  await page.mouse.down();
-  await page.mouse.move(startX + 5, startY + 2); // cross the native dragstart threshold
-  await page.waitForTimeout(50); // let SortableJS _dragStarted's setTimeout(0) set Sortable.active
-  // Move to Done in stepped increments so a stream of dragover events reaches
-  // _onDragOver and SortableJS settles the placeholder into Done before release.
-  await page.mouse.move((startX + endX) / 2, (startY + endY) / 2, { steps: 5 });
-  await page.mouse.move(endX, endY, { steps: 5 });
-  await page.waitForTimeout(30); // let the placeholder settle in Done
-  await page.mouse.up();
+  await dragWithPointer(page, task, doneColumn.locator('.tasks'), nearTopOf);
 }
 
 test.describe('Done-column drag crash regression', () => {
@@ -91,7 +76,7 @@ test.describe('Done-column drag crash regression', () => {
     }, { boardId: BOARD_ID, columns: COLUMNS, tasks: TASKS });
 
     await page.goto('/');
-    await expect(page.locator('#board-container')).toBeVisible();
+    await waitForBoardReady(page);
     await expect(columnByName(page, 'In Progress')).toBeVisible();
     await expect(columnByName(page, 'Done')).toBeVisible();
   });

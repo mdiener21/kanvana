@@ -39,6 +39,12 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    // Without this the first navigation transforms the whole module graph on
+    // demand — measured at ~21s, which no per-assertion timeout in the E2E suite
+    // can absorb. Warming at startup moves that cost into server boot.
+    warmup: {
+      clientFiles: ['./kanban.js', './index.html']
+    },
     open: !process.env.CI && !process.env.DOCKER,
     // Opt-in same-origin proxy to PocketBase for live e2e: the sandboxed test
     // browser can only reach its own origin, so a cross-origin call to PB :8090
