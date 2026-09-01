@@ -91,12 +91,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   const menuBtn = document.getElementById('desktop-menu-btn');
   const controlsActions = document.getElementById('board-controls-menu');
   const controls = document.querySelector('.controls');
+  const mobileMenuCloseBtn = document.getElementById('mobile-menu-close-btn');
 
   if (menuBtn && controlsActions) {
     const closeMenu = () => {
       controlsActions.classList.remove('show');
       menuBtn.setAttribute('aria-expanded', 'false');
       controls?.classList.remove('mobile-menu-open');
+      document.body.classList.remove('mobile-menu-open');
     };
 
     menuBtn.addEventListener('click', (e) => {
@@ -107,6 +109,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       controlsActions.classList.toggle('show');
       menuBtn.setAttribute('aria-expanded', String(!isExpanded));
       controls?.classList.toggle('mobile-menu-open', !isExpanded);
+      document.body.classList.toggle('mobile-menu-open', !isExpanded);
       
       // Close other menus if open (optional, but good practice)
       document.querySelectorAll('.column-menu').forEach(m => m.classList.add('hidden'));
@@ -133,6 +136,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (!controlsActions.contains(e.target) && !menuBtn.contains(e.target)) {
         closeMenu();
       }
+    });
+
+    mobileMenuCloseBtn?.addEventListener('click', () => {
+      closeMenu();
+      menuBtn.focus();
     });
 
     boardSearchInput?.addEventListener('keydown', (e) => {

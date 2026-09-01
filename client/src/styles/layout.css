@@ -139,6 +139,10 @@
   display: flex;
 }
 
+.controls-menu-mobile-header {
+  display: none;
+}
+
 /* Menu items style in dropdown */
 .controls-actions .control-btn {
   width: 100%;

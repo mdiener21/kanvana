@@ -23,6 +23,10 @@
     overflow: hidden;
   }
 
+  body.mobile-menu-open {
+    overflow: hidden;
+  }
+
   /* Mobile header: keep one row and open search as an overlay */
   .controls {
     display: grid;
@@ -58,11 +62,11 @@
   }
 
   .board-search {
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 10px;
-    right: 10px;
-    z-index: 260;
+    position: fixed;
+    top: calc(env(safe-area-inset-top) + 78px);
+    left: 16px;
+    right: 16px;
+    z-index: 361;
     flex: none;
     opacity: 0;
     pointer-events: none;
@@ -72,11 +76,11 @@
   }
 
   .session-status {
-    position: absolute;
-    top: calc(100% + 52px);
-    left: 10px;
-    right: 10px;
-    z-index: 259;
+    position: fixed;
+    top: calc(env(safe-area-inset-top) + 130px);
+    left: 16px;
+    right: 16px;
+    z-index: 361;
     justify-content: space-between;
     padding: 8px 10px;
     border: 1px solid var(--border);
@@ -139,10 +143,74 @@
   }
 
   .controls-actions {
-    top: calc(100% + 100px);
-    left: 10px;
-    right: 10px;
+    position: fixed;
+    inset: 0;
+    z-index: 360;
     max-width: none;
+    min-width: 0;
+    padding: calc(env(safe-area-inset-top) + 18px) 16px calc(env(safe-area-inset-bottom) + 24px);
+    padding-top: calc(env(safe-area-inset-top) + 190px);
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background:
+      radial-gradient(circle at top left, rgba(59, 130, 246, 0.18), transparent 36%),
+      linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, #0f172a 6%) 0%, var(--surface) 100%);
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    gap: 10px;
+  }
+
+  .controls-menu-mobile-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 362;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: calc(env(safe-area-inset-top) + 18px) 16px 14px;
+    background: linear-gradient(180deg, var(--surface) 0%, color-mix(in srgb, var(--surface) 82%, transparent) 100%);
+    border-bottom: 1px solid var(--border-subtle);
+    backdrop-filter: blur(14px);
+  }
+
+  .controls-menu-mobile-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: 0.01em;
+  }
+
+  .controls-menu-close-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    opacity: 1;
+    background: var(--surface-muted);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .controls-menu-close-btn:hover {
+    background: var(--surface-alt);
+  }
+
+  .controls-actions .control-btn,
+  .controls-actions .control-select {
+    min-height: 48px;
+    border-radius: 12px;
+  }
+
+  .controls-actions .control-btn {
+    font-size: 15px;
+  }
+
+  .controls-actions .legal-menu-link {
+    min-height: 48px;
+    border-radius: 12px;
   }
 
   /* Scrollable columns horizontally with snap */
@@ -249,7 +317,7 @@
 
   /* Keep the mobile overlay search compact in landscape */
   .board-search {
-    max-width: 220px;
+    max-width: none;
   }
 
   .brand {
