@@ -90,8 +90,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Mobile Menu Logic
   const menuBtn = document.getElementById('desktop-menu-btn');
   const controlsActions = document.getElementById('board-controls-menu');
+  const controls = document.querySelector('.controls');
 
   if (menuBtn && controlsActions) {
+    const closeMenu = () => {
+      controlsActions.classList.remove('show');
+      menuBtn.setAttribute('aria-expanded', 'false');
+      controls?.classList.remove('mobile-menu-open');
+    };
+
     menuBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       const isExpanded = menuBtn.getAttribute('aria-expanded') === 'true';
@@ -99,9 +106,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Toggle menu
       controlsActions.classList.toggle('show');
       menuBtn.setAttribute('aria-expanded', String(!isExpanded));
+      controls?.classList.toggle('mobile-menu-open', !isExpanded);
       
       // Close other menus if open (optional, but good practice)
       document.querySelectorAll('.column-menu').forEach(m => m.classList.add('hidden'));
+
+      if (!isExpanded) {
+        boardSearchInput?.focus();
+        boardSearchInput?.select();
+      }
     });
 
     // Close menu when clicking action buttons inside it.
@@ -112,15 +125,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       const isAction = e.target.closest('button, a, [role="menuitem"]');
       if (!isAction) return;
 
-      controlsActions.classList.remove('show');
-      menuBtn.setAttribute('aria-expanded', 'false');
+      closeMenu();
     });
 
     // Close menu when clicking outside
     document.addEventListener('click', (e) => {
       if (!controlsActions.contains(e.target) && !menuBtn.contains(e.target)) {
-        controlsActions.classList.remove('show');
-        menuBtn.setAttribute('aria-expanded', 'false');
+        closeMenu();
+      }
+    });
+
+    boardSearchInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeMenu();
+        menuBtn.focus();
       }
     });
   }

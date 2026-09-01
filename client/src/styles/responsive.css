@@ -23,21 +23,22 @@
     overflow: hidden;
   }
 
-  /* Mobile header: brand left, menu button right, search below */
+  /* Mobile header: keep one row and open search as an overlay */
   .controls {
     display: grid;
-    grid-template-columns: 1fr auto auto;
-    grid-template-rows: auto auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
-    padding: 8px;
+    padding: 8px 10px;
     flex-wrap: nowrap;
+    align-items: center;
   }
 
   .brand {
     grid-column: 1;
-    grid-row: 1;
     margin-right: 0;
-    font-size: 16px;
+    min-width: 0;
+    gap: 8px;
+    font-size: 14px;
     overflow: hidden;
   }
 
@@ -45,24 +46,103 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: 200px;
+    max-width: none;
+    font-size: 13px;
+    line-height: 1.15;
   }
 
-  #notifications-quick-btn {
+  .toolbar-quick-actions {
     grid-column: 2;
-    grid-row: 1;
+    gap: 6px;
     margin-left: auto;
   }
 
-  #desktop-menu-btn {
-    grid-column: 3;
-    grid-row: 1;
+  .board-search {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 10px;
+    right: 10px;
+    z-index: 260;
+    flex: none;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-8px);
+    transition: opacity var(--transition-fast), transform var(--transition-fast);
+    box-shadow: 0 14px 36px rgba(15, 23, 42, 0.18);
   }
 
-  .board-search {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    flex: none;
+  .session-status {
+    position: absolute;
+    top: calc(100% + 52px);
+    left: 10px;
+    right: 10px;
+    z-index: 259;
+    justify-content: space-between;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--surface) 94%, transparent);
+    backdrop-filter: blur(10px);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-8px);
+    transition: opacity var(--transition-fast), transform var(--transition-fast);
+  }
+
+  .controls.mobile-menu-open .board-search,
+  .controls.mobile-menu-open .session-status,
+  .board-search:focus-within {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+
+  #notifications-quick-btn,
+  #desktop-menu-btn {
+    padding: 8px;
+    min-width: 38px;
+    min-height: 38px;
+    justify-content: center;
+  }
+
+  #notifications-quick-btn {
+    margin-left: 0;
+  }
+
+  .session-status #login-btn {
+    padding: 6px 8px;
+    font-size: 12px;
+    gap: 4px;
+    white-space: nowrap;
+  }
+
+  .session-status .user-info {
+    gap: 6px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    min-width: 0;
+  }
+
+  .session-status .user-name {
+    max-width: 72px;
+    font-size: 12px;
+  }
+
+  .session-status #logout-btn {
+    padding: 6px;
+  }
+
+  .session-status .sync-indicator {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+
+  .controls-actions {
+    top: calc(100% + 100px);
+    left: 10px;
+    right: 10px;
+    max-width: none;
   }
 
   /* Scrollable columns horizontally with snap */
@@ -167,10 +247,8 @@
     gap: 6px;
   }
 
-  /* Hide the search row in landscape to save vertical space */
+  /* Keep the mobile overlay search compact in landscape */
   .board-search {
-    grid-row: 1;
-    grid-column: 1;
     max-width: 220px;
   }
 
