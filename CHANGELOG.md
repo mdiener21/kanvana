@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added per-column WIP limits. Each column carries a `wipLimit` (0 = unlimited) set in the Add Column and Edit Column modals. The column header counter shows `count/limit`, turning amber at the limit and red above it, and the column itself takes a coloured top edge so the state stays readable when the header is collapsed or squeezed on mobile. Limits are advisory and never block adding, dragging, importing, or syncing a task: under event-sourced sync a remote event cannot be rejected without breaking convergence, so a hard block would be a guarantee the sync model cannot keep. The Done column is exempt, counts are measured board-wide across swimlanes, and limits ride the existing `column.updated` event with no new event type.
+
 ### Changed
 
 - Simplified the mobile board header into a single top row. On Samsung S23-sized screens the visible header now stays to logo or board name plus notifications and menu, while search and account or sync controls open in the mobile menu overlay instead of stacking across three persistent rows.
