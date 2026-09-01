@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Simplified the mobile board header into a single top row. On Samsung S23-sized screens the visible header now stays to logo or board name plus notifications and menu, while search and account or sync controls open in the mobile menu overlay instead of stacking across three persistent rows.
+
 ### Fixed
 
 - ci fix
