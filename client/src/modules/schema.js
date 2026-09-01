@@ -61,6 +61,8 @@ export function createColumn(overrides = {}) {
     color: DEFAULT_COLUMN_COLOR,
     order: 0,
     collapsed: false,
+    // 0 = unlimited. Advisory only — never blocks a task entering the column.
+    wipLimit: 0,
     // role: 'done' marks the terminal Done column; absent for regular columns.
     role: '',
     deleted: false,

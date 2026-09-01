@@ -11,6 +11,12 @@ const _pendingSnapshots = new Map();
 let _getJitter = () => Math.floor(Math.random() * (MAX_JITTER_MS + 1));
 let _afterSnapshotSaved = null;
 
+function eventMatchesSnapshotScope(key, event) {
+  if (!event || typeof event !== 'object') return false;
+  if (key === GLOBAL_SNAPSHOT_KEY) return event.scope === 'global';
+  return (event.scope ?? 'board') === 'board' && event.board_id === key;
+}
+
 export function serializeState(state) {
   return {
     boards: Array.isArray(state.boards) ? state.boards : [],
@@ -46,12 +52,12 @@ export async function loadSnapshot(key) {
   return { state, hlc, at };
 }
 
-export async function gcEvents(snapshotHlc) {
+export async function gcEvents(key, snapshotHlc) {
   const db = await openStore();
   const all = await db.getAll(EVENTS_STORE);
   const tx = db.transaction(EVENTS_STORE, 'readwrite');
   for (const event of all) {
-    if (compareHlc(event.hlc, snapshotHlc) <= 0) tx.store.delete(event.id);
+    if (eventMatchesSnapshotScope(key, event) && compareHlc(event.hlc, snapshotHlc) <= 0) tx.store.delete(event.id);
   }
   await tx.done;
 }
@@ -68,18 +74,17 @@ export async function hydrateFromSnapshot(key, events) {
 async function shouldTakeSnapshot(key) {
   const db = await openStore();
   const snapshot = await loadSnapshot(key);
+  const scopedEvents = (await db.getAll(EVENTS_STORE)).filter((event) => eventMatchesSnapshotScope(key, event));
 
   if (snapshot) {
     const age = Date.now() - new Date(snapshot.at).getTime();
     if (age >= SNAPSHOT_AGE_MS) return { should: true, reason: 'age' };
-    const all = await db.getAll(EVENTS_STORE);
-    const since = all.filter(e => compareHlc(e.hlc, snapshot.hlc) > 0).length;
+    const since = scopedEvents.filter(e => compareHlc(e.hlc, snapshot.hlc) > 0).length;
     if (since >= SNAPSHOT_EVENT_THRESHOLD) return { should: true, reason: 'count' };
     return { should: false };
   }
 
-  const all = await db.getAll(EVENTS_STORE);
-  if (all.length >= SNAPSHOT_EVENT_THRESHOLD) return { should: true, reason: 'count' };
+  if (scopedEvents.length >= SNAPSHOT_EVENT_THRESHOLD) return { should: true, reason: 'count' };
   return { should: false };
 }
 
@@ -92,7 +97,7 @@ export function checkAndScheduleSnapshot(key, state, hlc) {
       const { should } = await shouldTakeSnapshot(key);
       if (!should) return;
       await saveSnapshot(key, state, hlc);
-      await gcEvents(hlc);
+      await gcEvents(key, hlc);
       if (_afterSnapshotSaved) await _afterSnapshotSaved(key, state, hlc);
     } catch (err) {
       if (err?.code !== 11) console.error('[Kanvana] Snapshot failed', err);

@@ -1,16 +1,17 @@
 import { generateUUID } from './utils.js';
 import { getActiveBoardId, isDoneColumnId, loadColumns, loadTasks } from './storage.js';
 import { normalizeHexColor } from './normalize.js';
+import { normalizeWipLimit } from './wip-limit.js';
 import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 
 // Add a new column
-export function addColumn(name, color) {
+export function addColumn(name, color, wipLimit = 0) {
   if (!name || name.trim() === '') return;
   
   const columns = loadColumns();
   const maxOrder = columns.reduce((max, c) => Math.max(max, c.order ?? 0), 0);
   const id = generateUUID();
-  const newColumn = { id, name: name.trim(), color: normalizeHexColor(color), order: maxOrder - 1, collapsed: false };
+  const newColumn = { id, name: name.trim(), color: normalizeHexColor(color), order: maxOrder - 1, collapsed: false, wipLimit: normalizeWipLimit(wipLimit) };
   columns.push(newColumn);
   scheduleDomainEvent({
     type: 'column.created',
@@ -39,7 +40,7 @@ export function toggleColumnCollapsed(columnId) {
 }
 
 // Update an existing column
-export function updateColumn(columnId, name, color) {
+export function updateColumn(columnId, name, color, wipLimit) {
   if (!name || name.trim() === '') return;
   
   const columns = loadColumns();
@@ -48,11 +49,20 @@ export function updateColumn(columnId, name, color) {
     const previousName = columns[columnIndex].name;
     columns[columnIndex].name = name.trim();
     columns[columnIndex].color = normalizeHexColor(color);
+    columns[columnIndex].wipLimit = normalizeWipLimit(
+      wipLimit === undefined ? columns[columnIndex].wipLimit : wipLimit
+    );
     scheduleDomainEvent({
       type: 'column.updated',
       boardId: getActiveBoardId(),
       entityId: columnId,
-      payload: { fields: { name: columns[columnIndex].name, color: columns[columnIndex].color } }
+      payload: {
+        fields: {
+          name: columns[columnIndex].name,
+          color: columns[columnIndex].color,
+          wipLimit: columns[columnIndex].wipLimit
+        }
+      }
     });
   }
 }

@@ -36,6 +36,12 @@
       </div>
 
       <div id="board-controls-menu" class="controls-actions">
+        <div class="controls-menu-mobile-header">
+          <span class="controls-menu-mobile-title">Board controls</span>
+          <button id="mobile-menu-close-btn" class="icon-btn controls-menu-close-btn" type="button" aria-label="Close controls">
+            <span data-lucide="x" aria-hidden="true"></span>
+          </button>
+        </div>
         <label class="sr-only" for="board-select">Select board</label>
         <select id="board-select" class="control-select" aria-label="Select board"></select>
         <label class="control-btn swimlane-toggle-label" for="swimlane-quick-toggle">
@@ -91,28 +97,32 @@
         </a>
       </div>
       
-      <button id="login-btn" class="control-btn" type="button" aria-haspopup="dialog" aria-label="Sign in to sync">
-        <span data-lucide="cloud" aria-hidden="true"></span>
-        <span>Go Online</span>
-      </button>
-
-      <div id="user-info" class="user-info hidden" aria-label="Signed-in user">
-        <span id="user-name" class="user-name" aria-live="polite"></span>
-        <button id="logout-btn" class="control-btn icon-only" type="button" aria-label="Sign out">
-          <span data-lucide="log-out" aria-hidden="true"></span>
+      <div class="session-status" aria-label="Session status">
+        <button id="login-btn" class="control-btn" type="button" aria-haspopup="dialog" aria-label="Sign in to sync">
+          <span data-lucide="cloud" aria-hidden="true"></span>
+          <span>Go Online</span>
         </button>
+
+        <div id="user-info" class="user-info hidden" aria-label="Signed-in user">
+          <span id="user-name" class="user-name" aria-live="polite"></span>
+          <button id="logout-btn" class="control-btn icon-only" type="button" aria-label="Sign out">
+            <span data-lucide="log-out" aria-hidden="true"></span>
+          </button>
+        </div>
+
+        <span id="sync-indicator" class="sync-indicator sync-indicator--offline" role="status" aria-live="polite" aria-label="Sync state">Offline</span>
       </div>
 
-      <span id="sync-indicator" class="sync-indicator sync-indicator--offline" role="status" aria-live="polite" aria-label="Sync state">Offline</span>
+      <div class="toolbar-quick-actions">
+        <button id="notifications-quick-btn" class="control-btn icon-only" type="button" aria-haspopup="dialog" aria-label="Notifications">
+          <span data-lucide="bell" aria-hidden="true"></span>
+          <span id="notification-quick-badge" class="notification-badge hidden" aria-label="notifications count"></span>
+        </button>
 
-      <button id="notifications-quick-btn" class="control-btn icon-only" type="button" aria-haspopup="dialog" aria-label="Notifications">
-        <span data-lucide="bell" aria-hidden="true"></span>
-        <span id="notification-quick-badge" class="notification-badge hidden" aria-label="notifications count"></span>
-      </button>
-
-      <button id="desktop-menu-btn" class="control-btn icon-only" type="button" aria-label="Menu" aria-expanded="false" aria-controls="board-controls-menu">
-        <span data-lucide="ellipsis-vertical" aria-hidden="true"></span>
-      </button>
+        <button id="desktop-menu-btn" class="control-btn icon-only" type="button" aria-label="Menu" aria-expanded="false" aria-controls="board-controls-menu">
+          <span data-lucide="ellipsis-vertical" aria-hidden="true"></span>
+        </button>
+      </div>
       
       <input type="file" id="import-file" accept="application/json" class="sr-only" aria-label="Import board file">
     </nav>
@@ -266,6 +276,11 @@
             <input type="color" id="column-color" value="#3b82f6">
             <input type="text" id="column-color-hex" class="color-hex-display" value="#3b82f6" maxlength="7" spellcheck="false" aria-label="Hex color code">
           </div>
+        </div>
+        <div class="form-group" id="column-wip-limit-group">
+          <label for="column-wip-limit">WIP Limit</label>
+          <input type="number" id="column-wip-limit" min="0" max="999" step="1" value="0" inputmode="numeric" placeholder="0" aria-describedby="column-wip-limit-hint">
+          <small id="column-wip-limit-hint" class="form-hint">0 = unlimited. The board shows a warning at the limit and a breach above it &mdash; tasks are never blocked.</small>
         </div>
         <div class="form-actions">
           <button type="button" id="cancel-column-btn" class="btn btn-secondary">Cancel</button>

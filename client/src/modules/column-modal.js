@@ -2,6 +2,8 @@
 
 import { loadColumns } from './storage.js';
 import { addColumn, updateColumn } from './columns.js';
+import { isDoneColumn } from './constants.js';
+import { normalizeWipLimit } from './wip-limit.js';
 import { alertDialog } from './dialog.js';
 import { validateAndShowColumnNameError, clearFieldError } from './validation.js';
 import { emit, DATA_CHANGED } from './events.js';
@@ -13,6 +15,17 @@ const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 
 function isValidHexColor(value) {
   return HEX_COLOR_RE.test(value);
+}
+
+function setWipLimitField(column) {
+  const group = $id('column-wip-limit-group');
+  const input = $id('column-wip-limit');
+  if (!group || !input) return;
+
+  const exempt = column ? isDoneColumn(column) : false;
+  group.classList.toggle('hidden', exempt);
+  input.disabled = exempt;
+  input.value = String(exempt ? 0 : normalizeWipLimit(column?.wipLimit));
 }
 
 function updateColumnColorHex(color) {
@@ -39,6 +52,7 @@ export function showColumnModal() {
     columnColor.value = '#3b82f6';
     updateColumnColorHex('#3b82f6');
   }
+  setWipLimitField(null);
   modal.classList.remove('hidden');
   columnName.focus();
 }
@@ -65,6 +79,7 @@ export function showEditColumnModal(columnId) {
     columnColor.value = color;
     updateColumnColorHex(color);
   }
+  setWipLimitField(column);
   modal.classList.remove('hidden');
   columnName.focus();
 }
@@ -104,10 +119,12 @@ export function initializeColumnModalHandlers(setupModalCloseHandlers) {
       color = $id('column-color')?.value;
     }
 
+    const wipLimit = normalizeWipLimit($id('column-wip-limit')?.value);
+
     if (editingColumnId) {
-      updateColumn(editingColumnId, name, color);
+      updateColumn(editingColumnId, name, color, wipLimit);
     } else {
-      addColumn(name, color);
+      addColumn(name, color, wipLimit);
     }
     hideColumnModal();
     emit(DATA_CHANGED);

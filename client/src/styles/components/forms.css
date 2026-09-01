@@ -53,6 +53,14 @@ fieldset.form-group legend {
   min-height: 60px;
 }
 
+.form-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
 /* Live link preview strip below description textarea */
 .description-links {
   display: flex;
