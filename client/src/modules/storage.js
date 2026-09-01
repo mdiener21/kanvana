@@ -540,6 +540,25 @@ function saveBoards(boards) {
   schedulePersist(BOARDS_KEY, boards);
 }
 
+export function mergeBoardsFromRemote(remoteBoards) {
+  const incoming = Array.isArray(remoteBoards) ? remoteBoards : [];
+  if (incoming.length === 0) return listBoards();
+
+  const merged = new Map((state.boards || []).map((board) => [board.id, board]));
+  for (const board of incoming) {
+    if (!board || typeof board.id !== 'string') continue;
+    merged.set(board.id, {
+      ...merged.get(board.id),
+      ...board,
+      name: typeof board.name === 'string' ? board.name : merged.get(board.id)?.name || 'Untitled board'
+    });
+  }
+
+  const nextBoards = [...merged.values()];
+  saveBoards(nextBoards);
+  return listBoards();
+}
+
 export function getActiveBoardId() {
   const boards = listBoards();
   const stored = state.activeBoardId;

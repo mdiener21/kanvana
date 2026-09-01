@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - ci fix
+- Fixed Online Mode losing some boards across devices after local snapshots. Board snapshots now only consider and garbage-collect events from their own board scope, so one board's snapshot cannot erase unsynced history for other boards before it reaches PocketBase.
+- Fixed the legacy full-pull sync helper leaving pulled boards invisible locally by merging remote board rows into the local board list before returning.
 
 ## [3.0.8] - 2026-08-31
 

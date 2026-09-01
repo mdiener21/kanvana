@@ -43,6 +43,7 @@ vi.mock('../../src/modules/storage.js', () => ({
   saveTasksForBoard: vi.fn(),
   saveLabelsForBoard: vi.fn(),
   saveSettingsForBoard: vi.fn(),
+  mergeBoardsFromRemote: vi.fn((boards) => boards),
   getBoardById: vi.fn(() => null),
   setActiveBoardId: vi.fn(),
   getActiveBoardId: vi.fn(() => null),
@@ -72,6 +73,7 @@ import {
   saveTasksForBoard,
   saveLabelsForBoard,
   saveSettingsForBoard,
+  mergeBoardsFromRemote,
   getBoardById,
   setActiveBoardId,
   getActiveBoardId,
@@ -341,6 +343,27 @@ describe('pullAllBoards', () => {
     expect(saveTasksForBoard).toHaveBeenCalledWith('b1', []);
     expect(saveLabelsForBoard).toHaveBeenCalledWith('b1', []);
     expect(saveSettingsForBoard).toHaveBeenCalledWith('b1', {});
+  });
+
+  it('merges pulled boards into the local board list so all remote boards become visible', async () => {
+    mockAuthStore.token = 'tok';
+    mockAuthStore.record = { id: 'user1' };
+    mockAuthStore.isValid = true;
+
+    mockCollection.getFullList
+      .mockResolvedValueOnce([
+        { id: 'pb-b1', local_id: 'b1', name: 'Board 1', settings: {} },
+        { id: 'pb-b2', local_id: 'b2', name: 'Board 2', settings: {} },
+      ])
+      .mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+
+    await pullAllBoards();
+
+    expect(mergeBoardsFromRemote).toHaveBeenCalledWith([
+      { id: 'b1', name: 'Board 1' },
+      { id: 'b2', name: 'Board 2' },
+    ]);
   });
 
   it('maps PocketBase column IDs back to local IDs in tasks', async () => {
