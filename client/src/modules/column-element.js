@@ -7,6 +7,7 @@ import { confirmDialog, alertDialog } from './dialog.js';
 import { PRIORITY_ORDER } from './constants.js';
 import { emit, DATA_CHANGED } from './events.js';
 import { h, cx } from './dom.js';
+import { formatWipCount, getWipState, wipCounterLabel, applyWipCounter } from './wip-limit.js';
 
 function getTaskCountInColumn(columnId) {
   const tasks = loadTasks();
@@ -86,16 +87,18 @@ export function createColumnElement(column) {
     h('span', { 'data-lucide': 'grip-vertical', 'aria-hidden': 'true' })
   );
 
+  const taskCount = getTaskCountInColumn(column.id);
   const titleText = isCollapsed
-    ? `${column.name} (${getTaskCountInColumn(column.id)})`
+    ? `${column.name} (${formatWipCount(taskCount, column)})`
     : column.name;
   const columnTitle = h('h2', { id: `column-title-${column.id}` }, titleText);
 
   const taskCounter = h('span', {
     class: cx('task-counter', isCollapsed && 'hidden'),
     'data-column-id': column.id,
-    'aria-label': 'Task count'
-  }, '0');
+    'aria-label': wipCounterLabel(taskCount, column)
+  });
+  applyWipCounter(taskCounter, taskCount, column);
 
   const addBtn = h('button', {
     class: 'add-task-btn-icon',
@@ -258,6 +261,7 @@ export function createColumnElement(column) {
   return h('article', {
     class: cx('task-column', isCollapsed && 'is-collapsed'),
     'data-column': column.id,
+    'data-wip': getWipState(taskCount, column),
     draggable: 'false',
     'aria-labelledby': `column-title-${column.id}`,
     style: column?.color ? { '--column-accent': column.color } : {}

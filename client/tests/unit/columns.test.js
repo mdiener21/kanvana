@@ -143,3 +143,51 @@ test('deleteColumn deletes tasks in the column', () => {
   const deletedTasks = loadDeletedTasksForBoard(getActiveBoardId());
   expect(deletedTasks.some(t => t.id === 't1')).toBe(false);
 });
+
+// ── WIP limits ──────────────────────────────────────────────────────
+
+test('addColumn defaults to an unlimited WIP limit', () => {
+  addColumn('No Limit', '#ff0000');
+  const col = loadColumns().find(c => c.name === 'No Limit');
+  expect(col.wipLimit).toBe(0);
+});
+
+test('addColumn stores and normalizes a WIP limit', () => {
+  addColumn('Limited', '#ff0000', '5');
+  expect(loadColumns().find(c => c.name === 'Limited').wipLimit).toBe(5);
+
+  addColumn('Junk', '#ff0000', -4);
+  expect(loadColumns().find(c => c.name === 'Junk').wipLimit).toBe(0);
+});
+
+test('updateColumn persists a WIP limit change', () => {
+  addColumn('Doing', '#ff0000', 3);
+  const id = loadColumns().find(c => c.name === 'Doing').id;
+
+  updateColumn(id, 'Doing', '#ff0000', 8);
+  expect(loadColumns().find(c => c.id === id).wipLimit).toBe(8);
+});
+
+test('updateColumn accepts a limit below the current task count', () => {
+  addColumn('Doing', '#ff0000', 10);
+  const id = loadColumns().find(c => c.name === 'Doing').id;
+  saveTasks([
+    { id: 'a', title: 'a', column: id, order: 1 },
+    { id: 'b', title: 'b', column: id, order: 2 },
+    { id: 'c', title: 'c', column: id, order: 3 }
+  ]);
+
+  updateColumn(id, 'Doing', '#ff0000', 1);
+  expect(loadColumns().find(c => c.id === id).wipLimit).toBe(1);
+  expect(loadTasks().filter(t => t.column === id)).toHaveLength(3);
+});
+
+test('omitting the WIP limit on updateColumn preserves the existing one', () => {
+  addColumn('Doing', '#ff0000', 3);
+  const id = loadColumns().find(c => c.name === 'Doing').id;
+
+  updateColumn(id, 'Doing', '#00ff00');
+  const col = loadColumns().find(c => c.id === id);
+  expect(col.wipLimit).toBe(3);
+  expect(col.color).toBe('#00ff00');
+});

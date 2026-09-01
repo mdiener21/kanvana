@@ -277,6 +277,11 @@
             <input type="text" id="column-color-hex" class="color-hex-display" value="#3b82f6" maxlength="7" spellcheck="false" aria-label="Hex color code">
           </div>
         </div>
+        <div class="form-group" id="column-wip-limit-group">
+          <label for="column-wip-limit">WIP Limit</label>
+          <input type="number" id="column-wip-limit" min="0" max="999" step="1" value="0" inputmode="numeric" placeholder="0" aria-describedby="column-wip-limit-hint">
+          <small id="column-wip-limit-hint" class="form-hint">0 = unlimited. The board shows a warning at the limit and a breach above it &mdash; tasks are never blocked.</small>
+        </div>
         <div class="form-actions">
           <button type="button" id="cancel-column-btn" class="btn btn-secondary">Cancel</button>
           <button type="submit" id="column-submit-btn" class="btn btn-primary">Add Column</button>

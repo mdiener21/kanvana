@@ -102,12 +102,70 @@ body.dragging-column .column-header * {
   justify-content: center;
   background-color: var(--surface-muted);
   color: var(--text-muted);
-  border-radius: 50%;
-  width: 26px;
+  /* Pill, not circle: min-width keeps an unlimited column's bare count a circle
+     while "6/5" is free to grow. */
+  border-radius: 999px;
+  min-width: 26px;
+  width: auto;
+  padding: 0 7px;
   height: 26px;
+  box-sizing: border-box;
   font-size: 12px;
   font-weight: 700;
   flex-shrink: 0;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+/* The count is the number you act on; the limit is a denominator you read once. */
+.task-counter .wip-limit {
+  font-weight: 500;
+  opacity: 0.55;
+}
+
+/* ── WIP limit states ──────────────────────────────────────────────────────
+   At limit is healthy operation, so it colours the counter and draws a top
+   edge but never tints the column. Only a breach earns the tint — the two
+   states differ in kind, not just hue, so they survive greyscale. */
+
+[data-wip="at"] .task-counter {
+  background-color: var(--color-warning-bg);
+  color: var(--color-warning-fg);
+}
+
+[data-wip="over"] .task-counter {
+  background-color: var(--color-danger);
+  color: #ffffff;
+}
+
+[data-wip="over"] .task-counter .wip-limit {
+  opacity: 0.7;
+}
+
+.task-column[data-wip="at"],
+.swimlane-column-header[data-wip="at"] {
+  box-shadow: inset 0 2px 0 0 var(--color-warning);
+}
+
+.task-column[data-wip="over"],
+.swimlane-column-header[data-wip="over"] {
+  box-shadow: inset 0 2px 0 0 var(--color-danger);
+}
+
+.task-column[data-wip="over"] .column-header,
+.swimlane-column-header[data-wip="over"] {
+  background-color: var(--color-danger-bg);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .task-counter.wip-pulse {
+    animation: wip-pulse 180ms ease-out;
+  }
+}
+
+@keyframes wip-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+  100% { transform: scale(1); }
 }
 
 /* Column actions */

@@ -10,6 +10,7 @@ import { on, DATA_CHANGED } from './events.js';
 import { createTaskElement, formatDisplayDate } from './task-card.js';
 import { createColumnElement, closeAllColumnMenus, initColumnMenuCloseHandler } from './column-element.js';
 import { renderSwimlaneBoard } from './swimlane-renderer.js';
+import { formatWipCount, syncColumnWip } from './wip-limit.js';
 
 // Depth of the current drag-reconcile window. While open (> 0), a projected
 // DATA_CHANGED patches the board in place via reconcileBoard() instead of the
@@ -123,7 +124,7 @@ function renderStandardBoard(container, sortedColumns, visibleTasks, settings, l
       tasksList.appendChild(buildShowMoreButton(columnTasks.length - doneVisibleCount));
     }
 
-    taskCounter.textContent = columnTasks.length;
+    syncColumnWip(columnEl, columnTasks.length, column);
   });
 }
 
@@ -145,14 +146,16 @@ function updateColumnSelect() {
  */
 export function syncCollapsedTitles(tasksCache) {
   const tasks = tasksCache || loadTasks();
+  const columns = loadColumns();
   document.querySelectorAll('.task-column.is-collapsed').forEach(columnEl => {
     const columnId = columnEl.dataset.column;
     const h2 = columnEl.querySelector('h2');
     if (!columnId || !h2) return;
 
+    const column = columns.find((c) => c.id === columnId);
     const taskCount = tasks.filter(t => t.column === columnId).length;
-    const columnName = h2.textContent.replace(/\s*\(\d+\)$/, '');
-    h2.textContent = `${columnName} (${taskCount})`;
+    const columnName = h2.textContent.replace(/\s*\(\d+(?:\/\d+)?\)$/, '');
+    h2.textContent = `${columnName} (${formatWipCount(taskCount, column)})`;
   });
 }
 
@@ -283,8 +286,7 @@ export function reconcileBoard() {
       tasksList.appendChild(buildShowMoreButton(columnTasks.length - doneVisibleCount));
     }
 
-    const taskCounter = columnEl.querySelector('.task-counter');
-    if (taskCounter) taskCounter.textContent = columnTasks.length;
+    syncColumnWip(columnEl, columnTasks.length, column);
   });
 
   existingCards.forEach((el, id) => {
