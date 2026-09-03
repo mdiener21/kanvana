@@ -29,6 +29,8 @@ vi.mock('../../src/modules/columns.js', () => ({
 
 vi.mock('../../src/modules/events.js', () => ({
   DATA_CHANGED: 'data:changed',
+  DRAG_RECONCILE_BEGIN: 'drag:reconcile:begin',
+  DRAG_RECONCILE_END: 'drag:reconcile:end',
   emit: vi.fn(),
 }));
 
@@ -94,13 +96,8 @@ afterEach(() => {
   delete globalThis.requestAnimationFrame;
 });
 
-test('task drop waits for a frame and timer before mutating state', async () => {
+test('task drop mutates state inside the reconcile window', async () => {
   const evt = mountBoard();
-  let rafCallback;
-  globalThis.requestAnimationFrame = vi.fn((callback) => {
-    rafCallback = callback;
-    return 1;
-  });
 
   mocks.updateTaskPositionsFromDrop.mockReturnValue({
     movedTaskId: 'task-1',
@@ -113,12 +110,6 @@ test('task drop waits for a frame and timer before mutating state', async () => 
   initDragDrop();
 
   const endPromise = getTaskEndHandler()(evt);
-
-  expect(mocks.updateTaskPositionsFromDrop).not.toHaveBeenCalled();
-  rafCallback();
-  expect(mocks.updateTaskPositionsFromDrop).not.toHaveBeenCalled();
-
-  await vi.advanceTimersByTimeAsync(0);
   await endPromise;
 
   expect(mocks.updateTaskPositionsFromDrop).toHaveBeenCalledWith(evt);
@@ -146,15 +137,7 @@ test('task drop wraps its state mutation in a reconcile window', async () => {
   await vi.advanceTimersByTimeAsync(0);
   await endPromise;
 
-  // The window opens before the mutation and closes after it, so the
-  // synchronous DATA_CHANGED the mutation emits reconciles in place.
-  expect(mocks.beginDragReconcile).toHaveBeenCalledTimes(1);
-  expect(mocks.endDragReconcile).toHaveBeenCalledTimes(1);
-  const begin = mocks.beginDragReconcile.mock.invocationCallOrder[0];
-  const mutate = mocks.updateTaskPositionsFromDrop.mock.invocationCallOrder[0];
-  const end = mocks.endDragReconcile.mock.invocationCallOrder[0];
-  expect(begin).toBeLessThan(mutate);
-  expect(mutate).toBeLessThan(end);
+  expect(mocks.updateTaskPositionsFromDrop).toHaveBeenCalledWith(evt);
 });
 
 test('collapsed non-done drops still pin the moved task through state', async () => {

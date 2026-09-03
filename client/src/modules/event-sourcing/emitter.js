@@ -1,5 +1,5 @@
 import { emit, EVENT_EMITTED } from '../events.js';
-import { getDbRef, persistEvent } from '../idb-store.js';
+import { flushPendingPersists, getDbRef, persistEvent } from '../idb-store.js';
 import { generateUUID } from '../utils.js';
 import { emitLocalSync } from './hlc.js';
 
@@ -27,12 +27,13 @@ export function scheduleDomainEvent(input) {
   // renderBoard() runs (instant UI). The reducer/projection remains the sole
   // writer of the read model (ADR-0005); persistence to IDB is deferred and async.
   emit(EVENT_EMITTED, event);
-  if (!getDbRef()) return;
+  if (!getDbRef()) return Promise.resolve();
   const pending = persistEvent(event).catch((err) => {
     console.error('[Kanvana] Event persistence failed', err);
   });
   pendingDomainEvents.add(pending);
   pending.finally(() => pendingDomainEvents.delete(pending));
+  return pending.then(() => flushPendingPersists());
 }
 
 export async function _flushDomainEventsForTesting() {

@@ -122,7 +122,7 @@ export function initializeColumnModalHandlers(setupModalCloseHandlers) {
     const wipLimit = normalizeWipLimit($id('column-wip-limit')?.value);
 
     if (editingColumnId) {
-      updateColumn(editingColumnId, name, color, wipLimit);
+      await updateColumn(editingColumnId, name, color, wipLimit);
     } else {
       addColumn(name, color, wipLimit);
     }

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - remove top column edge wip color from the column's accent colour
+- Prevent CI-only startup render storms from event-log backfill, persist column edits before reload, and serialize consecutive drag-drop reconciliation.
 
 ## [3.1.0] - 2026-09-01
 

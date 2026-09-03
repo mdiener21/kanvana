@@ -1,7 +1,7 @@
 import Sortable from 'sortablejs';
 import { moveTaskToTopInColumn, updateTaskPositionsFromDrop } from './tasks.js';
 import { updateColumnPositions } from './columns.js';
-import { emit, DATA_CHANGED } from './events.js';
+import { emit, DATA_CHANGED, DRAG_RECONCILE_BEGIN, DRAG_RECONCILE_END } from './events.js';
 import { isDoneColumnId } from './storage.js';
 
 // Store Sortable instances for cleanup
@@ -282,13 +282,14 @@ function initTaskSortables() {
         const restoreCollapsedDropZones = !isSwimlaneViewEnabled();
         cleanupTaskDragState({ restoreCollapsedDropZones });
 
-        // Wait past dragend's synchronous dispatch (the RAF) and past the frame
-        // paint into the next task-queue slot (the nested setTimeout), so a
-        // browser that finalises its native drag on a post-paint task has done so
-        // before we touch the DOM. This alone did not stop the crash — the real
-        // fix is the reconcile window below, which patches the board in place
-        // rather than tearing it down with renderBoard()'s innerHTML reset.
-        await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+        const isSwimlaneView = isSwimlaneViewEnabled();
+
+        // Swimlane drops need a full rebuild, so wait until the browser has
+        // finished finalising native drag state before touching their DOM. The
+        // standard board uses the in-place reconcile path immediately.
+        if (isSwimlaneView) {
+          await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+        }
 
         // Open a reconcile window for the whole mutation. Every DATA_CHANGED that
         // updateTaskPositionsFromDrop()/moveTaskToTopInColumn() emit synchronously
@@ -296,13 +297,13 @@ function initTaskSortables() {
         // renderBoard() (full teardown), so the just-dragged node is never
         // detached. Counters, collapsed titles, due dates, and notifications are
         // reconcile's responsibility now — no manual sync pass here.
-        const { beginDragReconcile, endDragReconcile } = await import('./render.js');
-        beginDragReconcile();
+        const renderModule = isSwimlaneView ? await import('./render.js') : null;
+        if (renderModule) renderModule.beginDragReconcile();
+        else emit(DRAG_RECONCILE_BEGIN);
         try {
           const dropResult = updateTaskPositionsFromDrop(evt);
           if (!dropResult) return;
 
-          const isSwimlaneView = isSwimlaneViewEnabled();
           const toColumnEl = getTaskContainerElement(evt.to);
 
           if (!isSwimlaneView && toColumnEl?.classList.contains('is-collapsed')) {
@@ -317,7 +318,8 @@ function initTaskSortables() {
             emit(DATA_CHANGED);
           }
         } finally {
-          endDragReconcile();
+          if (renderModule) renderModule.endDragReconcile();
+          else emit(DRAG_RECONCILE_END);
         }
       }
     });

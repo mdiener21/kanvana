@@ -6,7 +6,7 @@ import { renderIcons } from './icons.js';
 import { refreshNotifications } from './notifications.js';
 import { calculateDaysUntilDue, formatCountdown, getCountdownClassName } from './dateutils.js';
 import { syncSwimLaneControls } from './swimlanes.js';
-import { on, DATA_CHANGED } from './events.js';
+import { on, DATA_CHANGED, DRAG_RECONCILE_BEGIN, DRAG_RECONCILE_END } from './events.js';
 import { createTaskElement, formatDisplayDate } from './task-card.js';
 import { createColumnElement, closeAllColumnMenus, initColumnMenuCloseHandler } from './column-element.js';
 import { renderSwimlaneBoard } from './swimlane-renderer.js';
@@ -26,6 +26,9 @@ export function beginDragReconcile() {
 export function endDragReconcile() {
   dragReconcileDepth = Math.max(0, dragReconcileDepth - 1);
 }
+
+on(DRAG_RECONCILE_BEGIN, beginDragReconcile);
+on(DRAG_RECONCILE_END, endDragReconcile);
 
 // Subscribe to the event bus so any module can trigger a re-render
 // without importing render.js directly (eliminates circular deps).

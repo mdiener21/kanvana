@@ -52,7 +52,7 @@ export function updateColumn(columnId, name, color, wipLimit) {
     columns[columnIndex].wipLimit = normalizeWipLimit(
       wipLimit === undefined ? columns[columnIndex].wipLimit : wipLimit
     );
-    scheduleDomainEvent({
+    return scheduleDomainEvent({
       type: 'column.updated',
       boardId: getActiveBoardId(),
       entityId: columnId,
@@ -65,6 +65,8 @@ export function updateColumn(columnId, name, color, wipLimit) {
       }
     });
   }
+
+  return Promise.resolve();
 }
 
 // Delete a column
