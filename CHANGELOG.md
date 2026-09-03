@@ -7,13 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## Fixed
+
+- WIP colors now apply only to counter badges.
+
 ## [3.1.1] - 2026-09-03
 
 ### Fixed
 
 - remove top column edge wip color from the column's accent colour
 - Prevent CI-only startup render storms from event-log backfill, persist column edits before reload, and serialize consecutive drag-drop reconciliation.
-- Limit WIP-limit colors to the counter badge; columns and headers retain their normal styling.
 
 ## [3.1.0] - 2026-09-01
 
