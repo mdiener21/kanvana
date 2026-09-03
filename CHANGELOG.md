@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- remove top column edge wip color from the column's accent colour
+
 ## [3.1.0] - 2026-09-01
 
 ### Added
