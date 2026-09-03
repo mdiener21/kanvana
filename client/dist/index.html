@@ -9,12 +9,12 @@
   <!-- Kanban favicon (inline SVG data URI) -->
   <link rel="icon" href="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='2' y='3' width='6' height='18' rx='1.5' fill='%233b82f6'/%3E%3Crect x='9' y='3' width='6' height='12' rx='1.5' fill='%2360a5fa'/%3E%3Crect x='16' y='3' width='6' height='8' rx='1.5' fill='%2393c5fd'/%3E%3C/svg%3E">
   <script defer src="https://analytics.gomogi.com/script.js" data-website-id="4ebd005d-0f3f-4956-8100-a78c3d89dda8"></script>
-  <script type="module" crossorigin src="./assets/index-DA206XFl.js"></script>
-  <link rel="modulepreload" crossorigin href="./assets/index-CE52pzdr.js">
+  <script type="module" crossorigin src="./assets/index-BWwButZV.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/index-CNYd1bRD.js">
   <link rel="modulepreload" crossorigin href="./assets/vendor-BXaazkjX.js">
-  <link rel="modulepreload" crossorigin href="./assets/theme-CMeJzJjv.js">
+  <link rel="modulepreload" crossorigin href="./assets/theme-CnH7CyNt.js">
   <link rel="modulepreload" crossorigin href="./assets/security-BNSenY0L.js">
-  <link rel="stylesheet" crossorigin href="./assets/index-S1FqoU7O.css">
+  <link rel="stylesheet" crossorigin href="./assets/index-DhwK6kSj.css">
 </head>
 <body>
   <!-- Skip link for accessibility -->
@@ -41,6 +41,12 @@
       </div>
 
       <div id="board-controls-menu" class="controls-actions">
+        <div class="controls-menu-mobile-header">
+          <span class="controls-menu-mobile-title">Board controls</span>
+          <button id="mobile-menu-close-btn" class="icon-btn controls-menu-close-btn" type="button" aria-label="Close controls">
+            <span data-lucide="x" aria-hidden="true"></span>
+          </button>
+        </div>
         <label class="sr-only" for="board-select">Select board</label>
         <select id="board-select" class="control-select" aria-label="Select board"></select>
         <label class="control-btn swimlane-toggle-label" for="swimlane-quick-toggle">
@@ -96,28 +102,32 @@
         </a>
       </div>
       
-      <button id="login-btn" class="control-btn" type="button" aria-haspopup="dialog" aria-label="Sign in to sync">
-        <span data-lucide="cloud" aria-hidden="true"></span>
-        <span>Go Online</span>
-      </button>
-
-      <div id="user-info" class="user-info hidden" aria-label="Signed-in user">
-        <span id="user-name" class="user-name" aria-live="polite"></span>
-        <button id="logout-btn" class="control-btn icon-only" type="button" aria-label="Sign out">
-          <span data-lucide="log-out" aria-hidden="true"></span>
+      <div class="session-status" aria-label="Session status">
+        <button id="login-btn" class="control-btn" type="button" aria-haspopup="dialog" aria-label="Sign in to sync">
+          <span data-lucide="cloud" aria-hidden="true"></span>
+          <span>Go Online</span>
         </button>
+
+        <div id="user-info" class="user-info hidden" aria-label="Signed-in user">
+          <span id="user-name" class="user-name" aria-live="polite"></span>
+          <button id="logout-btn" class="control-btn icon-only" type="button" aria-label="Sign out">
+            <span data-lucide="log-out" aria-hidden="true"></span>
+          </button>
+        </div>
+
+        <span id="sync-indicator" class="sync-indicator sync-indicator--offline" role="status" aria-live="polite" aria-label="Sync state">Offline</span>
       </div>
 
-      <span id="sync-indicator" class="sync-indicator sync-indicator--offline" role="status" aria-live="polite" aria-label="Sync state">Offline</span>
+      <div class="toolbar-quick-actions">
+        <button id="notifications-quick-btn" class="control-btn icon-only" type="button" aria-haspopup="dialog" aria-label="Notifications">
+          <span data-lucide="bell" aria-hidden="true"></span>
+          <span id="notification-quick-badge" class="notification-badge hidden" aria-label="notifications count"></span>
+        </button>
 
-      <button id="notifications-quick-btn" class="control-btn icon-only" type="button" aria-haspopup="dialog" aria-label="Notifications">
-        <span data-lucide="bell" aria-hidden="true"></span>
-        <span id="notification-quick-badge" class="notification-badge hidden" aria-label="notifications count"></span>
-      </button>
-
-      <button id="desktop-menu-btn" class="control-btn icon-only" type="button" aria-label="Menu" aria-expanded="false" aria-controls="board-controls-menu">
-        <span data-lucide="ellipsis-vertical" aria-hidden="true"></span>
-      </button>
+        <button id="desktop-menu-btn" class="control-btn icon-only" type="button" aria-label="Menu" aria-expanded="false" aria-controls="board-controls-menu">
+          <span data-lucide="ellipsis-vertical" aria-hidden="true"></span>
+        </button>
+      </div>
       
       <input type="file" id="import-file" accept="application/json" class="sr-only" aria-label="Import board file">
     </nav>
@@ -271,6 +281,11 @@
             <input type="color" id="column-color" value="#3b82f6">
             <input type="text" id="column-color-hex" class="color-hex-display" value="#3b82f6" maxlength="7" spellcheck="false" aria-label="Hex color code">
           </div>
+        </div>
+        <div class="form-group" id="column-wip-limit-group">
+          <label for="column-wip-limit">WIP Limit</label>
+          <input type="number" id="column-wip-limit" min="0" max="999" step="1" value="0" inputmode="numeric" placeholder="0" aria-describedby="column-wip-limit-hint">
+          <small id="column-wip-limit-hint" class="form-hint">0 = unlimited. The board shows a warning at the limit and a breach above it &mdash; tasks are never blocked.</small>
         </div>
         <div class="form-actions">
           <button type="button" id="cancel-column-btn" class="btn btn-secondary">Cancel</button>
