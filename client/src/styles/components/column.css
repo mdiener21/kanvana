@@ -123,9 +123,10 @@ body.dragging-column .column-header * {
 }
 
 /* ── WIP limit states ──────────────────────────────────────────────────────
-   At limit is healthy operation, so it colours the counter and draws a top
-   edge but never tints the column. Only a breach earns the tint — the two
-   states differ in kind, not just hue, so they survive greyscale. */
+   At limit is healthy operation, so it only colours the counter — a top edge
+   there would repeat the pill and clash with the column accent. Only a breach
+   earns an edge and a tint — the two states differ in kind, not just hue, so
+   they survive greyscale. */
 
 [data-wip="at"] .task-counter {
   background-color: var(--color-warning-bg);
@@ -141,14 +142,15 @@ body.dragging-column .column-header * {
   opacity: 0.7;
 }
 
-.task-column[data-wip="at"],
-.swimlane-column-header[data-wip="at"] {
-  box-shadow: inset 0 2px 0 0 var(--color-warning);
-}
-
 .task-column[data-wip="over"],
 .swimlane-column-header[data-wip="over"] {
   box-shadow: inset 0 2px 0 0 var(--color-danger);
+}
+
+/* Same specificity as .task-column:hover, so the breach edge has to re-state
+   the hover elevation or it silently swallows it. */
+.task-column[data-wip="over"]:hover {
+  box-shadow: inset 0 2px 0 0 var(--color-danger), var(--shadow-lg);
 }
 
 .task-column[data-wip="over"] .column-header,
