@@ -122,12 +122,18 @@ production, or personal data is read.
 
 Timing, heap, live-node, and retained-node results use the median of three repetitions. Live-card,
 render, and detached-node limits use the largest repetition, and crash events are summed. The
-checked-in baseline was captured on 2026-08-29 with Playwright 1.58.2 headless Chromium on Linux over
-two consecutive full runs.
+checked-in timing and heap baseline was captured on 2026-08-29 with Playwright 1.58.2 headless
+Chromium on Linux over two consecutive full runs. The structural baseline in the second table was
+re-recorded on 2026-09-16 over three consecutive runs, after the `forceFallback` drag fix cut
+swimlane DOM retention roughly in half (1,000 swimlane: 55,843 retained nodes down to 30,155). The
+old structural limits then carried about 2x headroom, which is too loose to catch a regression.
+Timing and heap numbers were deliberately not re-recorded: they belong to the reference runner, and
+re-recording them on a developer machine would bake in that machine's speed. One consequence is that
+the 1,000 swimlane heap budget (18 MB) now sits well above what the board actually uses.
 
-Structural metrics reproduced exactly across those runs (retained nodes varied by under 0.05%), so
-their budgets sit just above baseline: they fail on a lost virtualization boundary, a duplicated
-render path, or a board-sized DOM left retained. Render counts are budgeted at exactly their baseline
+Structural metrics reproduce almost exactly across runs (standard view is bit-identical; swimlane
+retained and detached nodes vary by 28, under 0.1%), so their budgets sit just above baseline: they
+fail on a lost virtualization boundary, a duplicated render path, or a board-sized DOM left retained. Render counts are budgeted at exactly their baseline
 on purpose — they depend on code, not on runner speed, so any extra render is a real regression.
 Wall-clock and heap budgets carry roughly 2-3x headroom because they do move with runner load.
 
@@ -140,10 +146,10 @@ Wall-clock and heap budgets carry roughly 2-3x headroom because they do move wit
 
 | Scenario | Live cards baseline / budget | Live nodes baseline / budget | Detached nodes baseline / budget | Retained nodes baseline / budget | Startup renders | Renders for five moves | Crash events |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| 400 standard | 205 / 210 | 5,483 / 5,800 | 11,949 / 12,600 | 17,432 / 18,300 | 1 | 5 | 0 |
-| 1,000 standard | 445 / 450 | 10,043 / 10,600 | 22,929 / 24,100 | 32,972 / 34,700 | 1 | 5 | 0 |
-| 400 swimlane | 160 / 165 | 4,696 / 5,000 | 20,847 / 21,900 | 25,543 / 26,900 | 1 | 10 | 0 |
-| 1,000 swimlane | 400 / 405 | 9,256 / 9,800 | 46,587 / 49,000 | 55,843 / 58,700 | 1 | 10 | 0 |
+| 400 standard | 205 / 210 | 5,513 / 5,800 | 11,832 / 12,500 | 17,345 / 18,300 | 1 | 5 | 0 |
+| 1,000 standard | 445 / 450 | 10,073 / 10,600 | 22,632 / 23,800 | 32,705 / 34,400 | 1 | 5 | 0 |
+| 400 swimlane | 160 / 165 | 4,726 / 5,000 | 10,069 / 10,600 | 14,795 / 15,600 | 1 | 10 | 0 |
+| 1,000 swimlane | 400 / 405 | 9,286 / 9,800 | 20,869 / 22,000 | 30,155 / 31,700 | 1 | 10 | 0 |
 
 ### Known limits
 
