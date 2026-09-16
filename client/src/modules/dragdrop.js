@@ -22,23 +22,6 @@ function getTaskContainerElement(node) {
   return node?.closest?.('.task-column, .swimlane-cell, [data-column]') || null;
 }
 
-function shouldForceFallbackForTasks() {
-  // Sortable's JS fallback is required on most mobile/touch environments
-  // (native HTML5 drag/drop is unreliable or unavailable), but it also
-  // makes Playwright's locator.dragTo() ineffective. Prefer native DnD
-  // on fine pointers (mouse/trackpad).
-  const hasTouchPoints =
-    typeof navigator !== 'undefined' &&
-    (navigator.maxTouchPoints > 0 || navigator.msMaxTouchPoints > 0);
-
-  const isCoarsePointer =
-    typeof window !== 'undefined' &&
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia('(pointer: coarse)').matches;
-
-  return hasTouchPoints || isCoarsePointer;
-}
-
 // Initialize all drag and drop functionality
 export function initDragDrop() {
   destroySortables();
@@ -208,7 +191,6 @@ function updateCollapsedHoverFromPoint(x, y) {
 // Initialize sortable for tasks within columns
 function initTaskSortables() {
   const taskLists = document.querySelectorAll('.tasks');
-  const forceFallback = shouldForceFallbackForTasks();
 
   taskLists.forEach(taskList => {
     // Disable sorting within the Done column for performance.
@@ -224,7 +206,7 @@ function initTaskSortables() {
         put: true
       },
       sort: !isDoneColumn, // Skip position calculations for Done column
-      animation: 150,
+      animation: 0,
       delay: 150, // Delay before drag starts (allows scrolling on mobile)
       delayOnTouchOnly: true, // Only apply delay on touch devices
       touchStartThreshold: 5, // Pixels to move before canceling delayed drag
@@ -232,10 +214,11 @@ function initTaskSortables() {
       chosenClass: 'task-chosen',
       dragClass: 'task-drag',
       draggable: '.task',
-      forceFallback, // Fallback on touch; native HTML5 DnD on desktop
+      // Keep in-board moves out of native OS drag/DataTransfer and endpoint drag hooks.
+      forceFallback: true,
       fallbackClass: 'task-fallback',
       fallbackOnBody: true,
-      fallbackTolerance: 0,
+      fallbackTolerance: 3,
       swapThreshold: 0.65,
       emptyInsertThreshold: 20, // Pixels around empty list where items can be dropped
       direction: 'vertical',
@@ -284,9 +267,8 @@ function initTaskSortables() {
 
         const isSwimlaneView = isSwimlaneViewEnabled();
 
-        // Swimlane drops need a full rebuild, so wait until the browser has
-        // finished finalising native drag state before touching their DOM. The
-        // standard board uses the in-place reconcile path immediately.
+        // Let Sortable finish its drop cleanup before a swimlane rebuild
+        // destroys its instances. Standard boards reconcile in place.
         if (isSwimlaneView) {
           await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
         }
@@ -348,7 +330,8 @@ function initColumnSortable() {
     draggable: '.task-column',
     scrollSensitivity: 80,
     scrollSpeed: 15,
-    forceFallback: false,
+    forceFallback: true,
+    fallbackTolerance: 3,
     fallbackOnBody: true,
     
     onStart: function(evt) {
