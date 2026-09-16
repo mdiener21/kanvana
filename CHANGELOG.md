@@ -7,17 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- Added a deterministic real-Chromium large-board performance harness (`npm run test:perf`) for 400-task and 1,000-task standard and swimlane boards. It runs against a production build and separately budgets synthetic IndexedDB fixture seeding, startup, real SortableJS pointer-drop latency, live cards, live DOM nodes, post-GC detached and retained DOM nodes, JavaScript heap, render counts, and browser crashes locally and in CI. Board-render marks are emitted only when the harness opts in, so production sessions do not accumulate them.
-
 ### Fixed
 
 - Fixed the board controls menu (the toolbar's ellipsis button) ignoring clicks during app start-up. Its click handler was wired after `initStorage()` and the first render, leaving a window in which the button was on screen but inert; it is now wired before anything is awaited.
 
 ### Changed
 
-- Made the E2E suite deterministic. Specs waited on `#board-container` being visible, which is static markup in `index.html` and proves nothing about the app, then ran against a board that had not rendered. Readiness is now `data-view-mode`, set by `renderBoard()`. Drag specs share one SortableJS-safe pointer-drag helper instead of three divergent copies plus `locator.dragTo()`, which races SortableJS's deferred `Sortable.active` and silently reverts the drop, and box measurement retries through the re-renders that fire while the board boots. The dev server now warms its module graph at start-up, so the first navigation no longer costs ~21s.
+- Made the E2E suite deterministic. Specs waited on `#board-container` being visible, which is static markup in `index.html` and proves nothing about the app, then ran against a board that had not rendered. Readiness is now `data-view-mode`, set by `renderBoard()`. Drag specs share one SortableJS-safe pointer-drag helper instead of three divergent copies plus `locator.dragTo()`, which cannot drive a drag now that every Sortable runs with `forceFallback`, and box measurement retries through the re-renders that fire while the board boots. The dev server now warms its module graph at start-up, so the first navigation no longer costs ~21s.
+
+## [3.1.3] - 2026-09-16
+
+### Fixed
+
+- All drag interactions (task moves, column reordering, sub-task reordering, swim lane ordering) now use JavaScript dragging on desktop and touch devices, avoiding native browser drag sessions and card-text `DataTransfer` writes that may interact with workplace security software. Added browser coverage for 10- and 500-task boards, collapsed columns, swimlanes, repeated moves, and persistence after reload.
+
+## [3.1.2] - 2026-09-03
+
+### Fixed
+
+- WIP colors now apply only to counter badges.
+
+## [3.1.1] - 2026-09-03
+
+### Fixed
+
+- remove top column edge wip color from the column's accent colour
+- Prevent CI-only startup render storms from event-log backfill, persist column edits before reload, and serialize consecutive drag-drop reconciliation.
+
+## [3.1.0] - 2026-09-01
+
+### Added
+
+- Added per-column WIP limits. Each column carries a `wipLimit` (0 = unlimited) set in the Add Column and Edit Column modals. The column header counter shows `count/limit`, turning amber at the limit and red above it, and a column over its limit takes a red top edge so the breach stays readable when the header is collapsed or squeezed on mobile. Being at the limit is normal operation, so it is signalled by the counter alone — no top edge to compete with the column's accent colour. Limits are advisory and never block adding, dragging, importing, or syncing a task: under event-sourced sync a remote event cannot be rejected without breaking convergence, so a hard block would be a guarantee the sync model cannot keep. The Done column is exempt, counts are measured board-wide across swimlanes, and limits ride the existing `column.updated` event with no new event type.
+
+### Changed
+
+- Simplified the mobile board header into a single top row. On Samsung S23-sized screens the visible header now stays to logo or board name plus notifications and menu, while search and account or sync controls open in the mobile menu overlay instead of stacking across three persistent rows.
+- Expanded the mobile controls menu into a full-screen overlay with an explicit close button so the search field, sync or account status, and board actions open at the top of the viewport instead of starting far down the screen.
+
+### Fixed
+
+- ci fix
+- Fixed Online Mode losing some boards across devices after local snapshots. Board snapshots now only consider and garbage-collect events from their own board scope, so one board's snapshot cannot erase unsynced history for other boards before it reaches PocketBase.
+- Fixed the legacy full-pull sync helper leaving pulled boards invisible locally by merging remote board rows into the local board list before returning.
+
+## [3.0.8] - 2026-08-31
+
+### Added
+
+- Added a deterministic real-Chromium large-board performance harness (`npm run test:perf`) for 400-task and 1,000-task standard and swimlane boards. It runs against a production build and separately budgets synthetic IndexedDB fixture seeding, startup, real SortableJS pointer-drop latency, live cards, live DOM nodes, post-GC detached and retained DOM nodes, JavaScript heap, render counts, and browser crashes locally and in CI. Board-render marks are emitted only when the harness opts in, so production sessions do not accumulate them.
+
+### Changed
 
 - The `fetch-air-lake-temperatures` cron no longer records Faaker See; it now tracks Wörthersee water temperature and Viktring air temperature only. Existing `air_lake_temperatures` rows for Faaker See are left in place.
 

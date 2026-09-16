@@ -1,7 +1,7 @@
 import Sortable from 'sortablejs';
 import { moveTaskToTopInColumn, updateTaskPositionsFromDrop } from './tasks.js';
 import { updateColumnPositions } from './columns.js';
-import { emit, DATA_CHANGED } from './events.js';
+import { emit, DATA_CHANGED, DRAG_RECONCILE_BEGIN, DRAG_RECONCILE_END } from './events.js';
 import { isDoneColumnId } from './storage.js';
 
 // Store Sortable instances for cleanup
@@ -20,23 +20,6 @@ function isSwimlaneViewEnabled() {
 
 function getTaskContainerElement(node) {
   return node?.closest?.('.task-column, .swimlane-cell, [data-column]') || null;
-}
-
-function shouldForceFallbackForTasks() {
-  // Sortable's JS fallback is required on most mobile/touch environments
-  // (native HTML5 drag/drop is unreliable or unavailable), but it also
-  // makes Playwright's locator.dragTo() ineffective. Prefer native DnD
-  // on fine pointers (mouse/trackpad).
-  const hasTouchPoints =
-    typeof navigator !== 'undefined' &&
-    (navigator.maxTouchPoints > 0 || navigator.msMaxTouchPoints > 0);
-
-  const isCoarsePointer =
-    typeof window !== 'undefined' &&
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia('(pointer: coarse)').matches;
-
-  return hasTouchPoints || isCoarsePointer;
 }
 
 // Initialize all drag and drop functionality
@@ -208,7 +191,6 @@ function updateCollapsedHoverFromPoint(x, y) {
 // Initialize sortable for tasks within columns
 function initTaskSortables() {
   const taskLists = document.querySelectorAll('.tasks');
-  const forceFallback = shouldForceFallbackForTasks();
 
   taskLists.forEach(taskList => {
     // Disable sorting within the Done column for performance.
@@ -224,7 +206,7 @@ function initTaskSortables() {
         put: true
       },
       sort: !isDoneColumn, // Skip position calculations for Done column
-      animation: 150,
+      animation: 0,
       delay: 150, // Delay before drag starts (allows scrolling on mobile)
       delayOnTouchOnly: true, // Only apply delay on touch devices
       touchStartThreshold: 5, // Pixels to move before canceling delayed drag
@@ -232,10 +214,11 @@ function initTaskSortables() {
       chosenClass: 'task-chosen',
       dragClass: 'task-drag',
       draggable: '.task',
-      forceFallback, // Fallback on touch; native HTML5 DnD on desktop
+      // Keep in-board moves out of native OS drag/DataTransfer and endpoint drag hooks.
+      forceFallback: true,
       fallbackClass: 'task-fallback',
       fallbackOnBody: true,
-      fallbackTolerance: 0,
+      fallbackTolerance: 3,
       swapThreshold: 0.65,
       emptyInsertThreshold: 20, // Pixels around empty list where items can be dropped
       direction: 'vertical',
@@ -282,13 +265,13 @@ function initTaskSortables() {
         const restoreCollapsedDropZones = !isSwimlaneViewEnabled();
         cleanupTaskDragState({ restoreCollapsedDropZones });
 
-        // Wait past dragend's synchronous dispatch (the RAF) and past the frame
-        // paint into the next task-queue slot (the nested setTimeout), so a
-        // browser that finalises its native drag on a post-paint task has done so
-        // before we touch the DOM. This alone did not stop the crash — the real
-        // fix is the reconcile window below, which patches the board in place
-        // rather than tearing it down with renderBoard()'s innerHTML reset.
-        await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+        const isSwimlaneView = isSwimlaneViewEnabled();
+
+        // Let Sortable finish its drop cleanup before a swimlane rebuild
+        // destroys its instances. Standard boards reconcile in place.
+        if (isSwimlaneView) {
+          await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+        }
 
         // Open a reconcile window for the whole mutation. Every DATA_CHANGED that
         // updateTaskPositionsFromDrop()/moveTaskToTopInColumn() emit synchronously
@@ -296,13 +279,13 @@ function initTaskSortables() {
         // renderBoard() (full teardown), so the just-dragged node is never
         // detached. Counters, collapsed titles, due dates, and notifications are
         // reconcile's responsibility now — no manual sync pass here.
-        const { beginDragReconcile, endDragReconcile } = await import('./render.js');
-        beginDragReconcile();
+        const renderModule = isSwimlaneView ? await import('./render.js') : null;
+        if (renderModule) renderModule.beginDragReconcile();
+        else emit(DRAG_RECONCILE_BEGIN);
         try {
           const dropResult = updateTaskPositionsFromDrop(evt);
           if (!dropResult) return;
 
-          const isSwimlaneView = isSwimlaneViewEnabled();
           const toColumnEl = getTaskContainerElement(evt.to);
 
           if (!isSwimlaneView && toColumnEl?.classList.contains('is-collapsed')) {
@@ -317,7 +300,8 @@ function initTaskSortables() {
             emit(DATA_CHANGED);
           }
         } finally {
-          endDragReconcile();
+          if (renderModule) renderModule.endDragReconcile();
+          else emit(DRAG_RECONCILE_END);
         }
       }
     });
@@ -346,7 +330,8 @@ function initColumnSortable() {
     draggable: '.task-column',
     scrollSensitivity: 80,
     scrollSpeed: 15,
-    forceFallback: false,
+    forceFallback: true,
+    fallbackTolerance: 3,
     fallbackOnBody: true,
     
     onStart: function(evt) {

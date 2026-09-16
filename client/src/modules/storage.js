@@ -426,7 +426,6 @@ async function migrateFromLocalStorage(db) {
 export async function initStorage() {
   const db = await openStore();
   await initHlc();
-  readModelProjector.register();
 
   // Migrate from localStorage if IDB is empty but localStorage has data.
   const idbBoards = await db.get(KV_STORE, BOARDS_KEY);
@@ -463,6 +462,12 @@ export async function initStorage() {
     tasksFor: loadTasksForBoard,
     settingsFor: loadSettingsForBoard
   });
+
+  // Backfill emits synthetic create events only to populate the event log. The
+  // read model is already loaded above, so projecting those events during boot
+  // would trigger one DATA_CHANGED/full render per entity (hundreds for a
+  // large board) before the initial render is even allowed to run.
+  readModelProjector.register();
 
   // Non-blocking quota warning at 80%.
   if (typeof navigator !== 'undefined' && navigator.storage?.estimate) {
@@ -538,6 +543,25 @@ export function getActiveBoardName() {
 function saveBoards(boards) {
   state.boards = boards;
   schedulePersist(BOARDS_KEY, boards);
+}
+
+export function mergeBoardsFromRemote(remoteBoards) {
+  const incoming = Array.isArray(remoteBoards) ? remoteBoards : [];
+  if (incoming.length === 0) return listBoards();
+
+  const merged = new Map((state.boards || []).map((board) => [board.id, board]));
+  for (const board of incoming) {
+    if (!board || typeof board.id !== 'string') continue;
+    merged.set(board.id, {
+      ...merged.get(board.id),
+      ...board,
+      name: typeof board.name === 'string' ? board.name : merged.get(board.id)?.name || 'Untitled board'
+    });
+  }
+
+  const nextBoards = [...merged.values()];
+  saveBoards(nextBoards);
+  return listBoards();
 }
 
 export function getActiveBoardId() {

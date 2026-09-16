@@ -12,6 +12,8 @@
   --color-danger-bg: #fee2e2;
   --color-success: #16a34a;
   --color-warning: #f59e0b;
+  --color-warning-bg: #fef3c7;
+  --color-warning-fg: #78350f;
 
   /* Surface colors */
   --app-bg: #f3f4f6;
@@ -84,6 +86,8 @@
   --btn-small-bg: #111827;
   --btn-small-hover-bg: #1f2937;
   --color-danger-bg: rgba(220, 38, 38, 0.15);
+  --color-warning-bg: rgba(245, 158, 11, 0.18);
+  --color-warning-fg: #fcd34d;
 
   /* Priority badge colors – brighter for dark surfaces */
   --priority-high-fg: #f87171;

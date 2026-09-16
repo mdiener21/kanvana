@@ -89,6 +89,18 @@
   color: var(--color-primary);
 }
 
+.session-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.toolbar-quick-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .settings-section {
   margin-top: 20px;
   padding-top: 18px;
@@ -125,6 +137,10 @@
 
 .controls-actions.show {
   display: flex;
+}
+
+.controls-menu-mobile-header {
+  display: none;
 }
 
 /* Menu items style in dropdown */

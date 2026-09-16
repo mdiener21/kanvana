@@ -93,7 +93,7 @@ export function createTaskElement(task, settings, labelsMap = null, today = null
   let pointerDownPos = null;
   const li = h('li', {
     class: 'task',
-    draggable: 'true',
+    draggable: 'false',
     'data-task-id': task.id,
     role: 'listitem',
     'aria-label': `Task: ${task.title || task.text || 'Untitled'}`

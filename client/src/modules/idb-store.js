@@ -118,12 +118,14 @@ export async function markEventSynced(id) {
 }
 
 /**
- * Wait for all fire-and-forget IDB writes to settle.
- * Only intended for use in tests — do not call in application code.
+ * Wait for all fire-and-forget IDB writes to settle before a user-visible
+ * operation such as reload can interrupt them.
  */
-export async function _flushPersistsForTesting() {
+export async function flushPendingPersists() {
   await Promise.all([..._pendingPersists]);
 }
+
+export const _flushPersistsForTesting = flushPendingPersists;
 
 export function keyFor(boardId, kind) {
   return `kanbanBoard:${boardId}:${kind}`;

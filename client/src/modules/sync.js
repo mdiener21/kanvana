@@ -12,6 +12,7 @@ import {
   saveTasksForBoard,
   saveLabelsForBoard,
   saveSettingsForBoard,
+  mergeBoardsFromRemote,
   getBoardById,
   setActiveBoardId,
   getActiveBoardId,
@@ -420,11 +421,12 @@ export async function pullAllBoards() {
     localBoards.push({ id: boardLocalId, name: boardRec.name });
   }
 
-  const pulledIds = localBoards.map(b => b.id);
+  const mergedBoards = mergeBoardsFromRemote(localBoards);
+  const pulledIds = mergedBoards.map(b => b.id);
   if (!activeId || !pulledIds.includes(activeId)) {
-    setActiveBoardId(localBoards[0].id);
+    setActiveBoardId(mergedBoards[0].id);
   }
 
   saveSyncMap(syncMap);
-  return localBoards;
+  return mergedBoards;
 }

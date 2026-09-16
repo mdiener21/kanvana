@@ -10,6 +10,24 @@
 All canonical factory functions live in `client/src/modules/schema.js`. Every new entity must be
 constructed through those factories so all fields are always present.
 
+### Glossary
+
+**WIP limit** — the maximum number of Tasks a Column is *intended* to hold, stored as `wipLimit` on
+the Column. `0` means unlimited (the default; built-in templates ship unlimited). A WIP limit is
+**advisory, never enforced**: nothing blocks adding, dragging, importing, or syncing a Task into a
+Column that is at or over its limit. It is a pull-system signal — reaching the limit means *stop
+starting, start finishing* — surfaced only as a visual state on the board.
+
+> **Why advisory and not a hard block.** Under event-sourced sync ([ADR-0004](docs/adr/0004-event-sourced-sync.md))
+> a remote `task.created` / `task.moved` event arriving over SSE cannot be rejected without breaking
+> convergence. Two devices offline can each add the 5th Task to a limit-5 Column and legitimately
+> converge at 6. A limit enforced only on the local device would be a guarantee the sync model
+> cannot keep, so it is not offered as one.
+
+**At limit / over limit** — the two breach states. *At limit* is `taskCount === wipLimit`; *over
+limit* is `taskCount > wipLimit`. A Column's count is measured **board-wide across all swimlanes**,
+not per lane×column cell — a WIP limit constrains system capacity, not each lane's. The **Done**
+Column is exempt: it is terminal and unbounded, and limiting it would block finishing work.
 
 ---
 

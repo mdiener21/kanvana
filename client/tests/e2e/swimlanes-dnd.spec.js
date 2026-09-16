@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { dragByMouse } from './dragdrop.helpers.js';
 import {
   seedSwimlaneBoard,
   readIDBValue,
@@ -10,7 +11,6 @@ import {
   LABEL_A_ID,
   LABEL_B_ID
 } from './swimlanes.helpers.js';
-import { dragWithPointer, waitForBoardReady } from './board.helpers.js';
 
 const BOARD_ID = TEST_BOARD_ID;
 
@@ -32,18 +32,10 @@ async function writeIDBValue(page, key, value) {
   }, { k: key, v: value });
 }
 
-async function dragByMouse(page, source, target) {
-  await dragWithPointer(page, source, target, (box) => ({
-    x: box.x + box.width / 2,
-    y: box.y + box.height * 0.75,
-  }));
-}
-
 test.describe('Swim lane drag and drop', () => {
   test.beforeEach(async ({ page }) => {
     await seedSwimlaneBoard(page, { swimLanesEnabled: true, swimLaneGroupBy: 'label' });
     await page.goto('/');
-    await waitForBoardReady(page);
     await expect(page.locator('.swimlane-row')).toHaveCount(3);
   });
 

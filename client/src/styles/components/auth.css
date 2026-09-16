@@ -118,3 +118,8 @@
 .btn-text:hover {
   opacity: 0.8;
 }
+
+.session-status #login-btn,
+.session-status .user-info {
+  flex-shrink: 1;
+}

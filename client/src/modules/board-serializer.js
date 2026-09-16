@@ -9,6 +9,7 @@ import {
   normalizeRelationships,
   normalizeStringKeys,
 } from './normalize.js';
+import { normalizeWipLimit } from './wip-limit.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -78,6 +79,7 @@ export function normalizeBoardModelIds({ board = null, columns = [], tasks = [],
       name: typeof source.name === 'string' && source.name.trim() ? source.name.trim() : (done ? 'Done' : 'Untitled column'),
       color: isHexColor(source.color) ? source.color.trim() : defaultColumnColor(done ? DONE_COLUMN_ID : source.id),
       collapsed: source.collapsed === true,
+      wipLimit: normalizeWipLimit(source.wipLimit),
       ...(Number.isFinite(source.order) ? { order: source.order } : {}),
       ...(done ? { role: DONE_COLUMN_ROLE } : {})
     };
@@ -85,7 +87,7 @@ export function normalizeBoardModelIds({ board = null, columns = [], tasks = [],
 
   if (!normalizedColumns.some((column) => column.role === DONE_COLUMN_ROLE)) {
     const maxOrder = normalizedColumns.reduce((max, column) => Math.max(max, Number.isFinite(column?.order) ? column.order : 0), 0);
-    normalizedColumns.push({ id: generateUUID(), name: 'Done', color: '#16a34a', order: maxOrder + 1, collapsed: false, role: DONE_COLUMN_ROLE });
+    normalizedColumns.push({ id: generateUUID(), name: 'Done', color: '#16a34a', order: maxOrder + 1, collapsed: false, wipLimit: 0, role: DONE_COLUMN_ROLE });
   }
 
   const fallbackColumnId = normalizedColumns.find((column) => column.role !== DONE_COLUMN_ROLE)?.id || normalizedColumns[0]?.id || '';

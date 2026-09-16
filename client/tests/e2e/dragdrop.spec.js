@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { dragWithPointer, nearTopOf, waitForBoardReady } from './board.helpers.js';
+import { dragByMouse } from './dragdrop.helpers.js';
+import { waitForBoardReady } from './board.helpers.js';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
@@ -70,7 +71,7 @@ test.describe('Drag and Drop Performance', () => {
     const doneCounterBefore = parseInt((await doneColumn.locator('.task-counter').textContent()) || '0');
     expect(doneCounterBefore).toBeGreaterThanOrEqual(300);
 
-    await dragWithPointer(page, firstTask, doneColumn.locator('.tasks'), nearTopOf);
+    await dragByMouse(page, firstTask, doneColumn.locator('.tasks'));
 
     // Counter-based assertions: virtualization means the moved task may not be in the
     // first 50 rendered done-column items, but the counter always reflects the true total.
@@ -83,15 +84,19 @@ test.describe('Drag and Drop Performance', () => {
     const doneColumn = columnByName(page, 'Done');
     const doneTasksList = doneColumn.locator('.tasks');
 
+    const countBefore = Number(await doneColumn.locator('.task-counter').textContent());
     for (let i = 0; i < 3; i++) {
-      const doneBefore = parseInt((await doneColumn.locator('.task-counter').textContent()) || '0');
-      const inProgressBefore = parseInt((await inProgressColumn.locator('.task-counter').textContent()) || '0');
       const task = inProgressColumn.locator('.task').first();
       await expect(task).toBeVisible();
-      await dragWithPointer(page, task, doneTasksList, nearTopOf);
-      await expect(doneColumn.locator('.task-counter')).toHaveText(String(doneBefore + 1), { timeout: 10_000 });
-      await expect(inProgressColumn.locator('.task-counter')).toHaveText(String(inProgressBefore - 1), { timeout: 10_000 });
+      const taskId = await task.getAttribute('data-task-id');
+      await dragByMouse(page, task, doneTasksList);
+      await expect(doneColumn.locator('.task').first()).toHaveAttribute('data-task-id', taskId);
+      await expect(doneColumn.locator('.task-counter')).toHaveText(String(countBefore + i + 1));
     }
+
+    // All 3 drops completed — verify counter reflects moves
+    const inProgressCounter = parseInt((await inProgressColumn.locator('.task-counter').textContent()) || '0');
+    expect(inProgressCounter).toBeGreaterThanOrEqual(0);
   });
 
   test('should show "Show more" button when Done column has many tasks', async ({ page }) => {

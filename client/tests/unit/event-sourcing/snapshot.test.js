@@ -73,10 +73,26 @@ test('gcEvents removes events at or before snapshotHlc and leaves later ones', a
   ];
   for (const ev of eventsToWrite) await db.put('events', { ...ev, synced: false });
 
-  await gcEvents(makeHlc(200));
+  await gcEvents('board-a', makeHlc(200));
 
   const remaining = await db.getAll('events');
   expect(remaining.map(e => e.id)).toEqual(['e3']);
+});
+
+test('gcEvents for a board snapshot does not delete unrelated boards\' events', async () => {
+  const db = await openStore();
+  const eventsToWrite = [
+    makeEvent('a1', 'board.created', makeHlc(100), 'board-a', 'board-a'),
+    makeEvent('a2', 'task.updated', makeHlc(200), 'board-a', 'task-a'),
+    makeEvent('b1', 'board.created', makeHlc(150), 'board-b', 'board-b'),
+    makeEvent('b2', 'task.updated', makeHlc(180), 'board-b', 'task-b')
+  ];
+  for (const ev of eventsToWrite) await db.put('events', { ...ev, synced: false });
+
+  await gcEvents('board-a', makeHlc(200));
+
+  const remaining = await db.getAll('events');
+  expect(remaining.map(e => e.id)).toEqual(['b1', 'b2']);
 });
 
 // ── Hydration ──────────────────────────────────────────────────────────────────
@@ -148,6 +164,20 @@ test('checkAndScheduleSnapshot does not schedule when event count is below thres
   expect(await loadSnapshot('board-a')).toBeNull();
 });
 
+test('checkAndScheduleSnapshot ignores other boards when counting events', async () => {
+  _setJitterForTesting(() => 0);
+  const db = await openStore();
+  for (let i = 0; i < SNAPSHOT_EVENT_THRESHOLD; i++) {
+    await db.put('events', { ...makeEvent(`b${i}`, 'task.updated', makeHlc(i + 1), 'board-b', `task-${i}`), synced: false });
+  }
+
+  const state = createProjectionState({ tasks: [{ id: 'task-1', title: 'T', column: 'todo', columnHistory: [] }] });
+  checkAndScheduleSnapshot('board-a', state, makeHlc(SNAPSHOT_EVENT_THRESHOLD + 1));
+  await settle();
+
+  expect(await loadSnapshot('board-a')).toBeNull();
+});
+
 test('checkAndScheduleSnapshot schedules when snapshot age exceeds 14 days', async () => {
   _setJitterForTesting(() => 0);
   const oldAt = new Date(Date.now() - SNAPSHOT_AGE_MS - 1).toISOString();
@@ -196,7 +226,7 @@ test('rehydration after GC produces the same projection as before GC', async () 
   const preGcProjection = applyEvents(createProjectionState(), events);
   await saveSnapshot('board-a', preGcProjection, makeHlc(300));
 
-  await gcEvents(makeHlc(300));
+  await gcEvents('board-a', makeHlc(300));
 
   const remaining = await db.getAll('events');
   expect(remaining).toHaveLength(0);
