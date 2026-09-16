@@ -429,6 +429,9 @@ function renderSubTaskList() {
   if (subtaskSortable) subtaskSortable.destroy();
   subtaskSortable = new Sortable(listEl, {
     animation: 150,
+    // Same reason as dragdrop.js: no native OS drag session, no card text in DataTransfer.
+    forceFallback: true,
+    fallbackTolerance: 3,
     handle: '.subtask-drag-handle',
     onEnd: () => {
       const items = listEl.querySelectorAll('[data-subtask-id]');
