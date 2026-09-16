@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- All drag interactions (task moves, column reordering, sub-task reordering, swim lane ordering) now use JavaScript dragging on desktop and touch devices, avoiding native browser drag sessions and card-text `DataTransfer` writes that may interact with workplace security software. Added browser coverage for 10- and 500-task boards, collapsed columns, swimlanes, repeated moves, and persistence after reload.
+
+
 ## [3.1.2] - 2026-09-03
 
 ### Fixed

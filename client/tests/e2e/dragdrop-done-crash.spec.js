@@ -1,67 +1,31 @@
 import { test, expect } from '@playwright/test';
+import { randomUUID } from 'node:crypto';
 
-/**
- * Regression test for: Chrome renderer crash on consecutive drag-to-Done.
- *
- * Root cause: scheduleDomainEvent() inside updateTaskPositionsFromDrop() triggered
- * a synchronous chain → emit(DATA_CHANGED) → renderBoard() → container.innerHTML=''
- * which detached evt.item/evt.to while Chrome's DnD engine still held internal
- * renderer state for those nodes, crashing Chrome on the next drop.
- *
- * Fix: a drop opens a drag-reconcile window (render.js beginDragReconcile/
- * endDragReconcile), so the DATA_CHANGED the move emits is routed through
- * reconcileBoard() — an in-place DOM patch — instead of renderBoard()'s innerHTML
- * teardown. The just-dragged node is never detached, so there is nothing for
- * Chrome's DnD engine to lose.
- */
+import { dragByMouse } from './dragdrop.helpers.js';
 
-const BOARD_ID = 'crash-regression-board';
+const BOARD_ID = randomUUID();
 
-// Minimal fixture: 3 tasks in In Progress, Done column empty.
-// id:'done' satisfies isDoneColumnId() via the LEGACY_DONE_COLUMN_ID path in storage.js.
 const COLUMNS = [
-  { id: 'todo',         name: 'To Do',       order: 1 },
-  { id: 'in-progress',  name: 'In Progress', order: 2 },
-  { id: 'done',         name: 'Done',        order: 3, role: 'done' },
+  { id: randomUUID(),         name: 'To Do',       order: 1 },
+  { id: randomUUID(),  name: 'In Progress', order: 2 },
+  { id: randomUUID(),         name: 'Done',        order: 3, role: 'done' },
 ];
 
 const NOW = new Date().toISOString();
-const TASKS = [
-  { id: 'task-alpha', title: 'Alpha', column: 'in-progress', order: 1, description: '', labels: [], priority: 'none', createdAt: NOW },
-  { id: 'task-beta',  title: 'Beta',  column: 'in-progress', order: 2, description: '', labels: [], priority: 'none', createdAt: NOW },
-  { id: 'task-gamma', title: 'Gamma', column: 'in-progress', order: 3, description: '', labels: [], priority: 'none', createdAt: NOW },
-];
-
 function columnByName(page, name) {
   return page.locator('article.task-column').filter({ has: page.locator('h2', { hasText: name }) });
 }
 
-// Drag a task into Done with real browser mouse events rather than locator.dragTo().
-// dragTo() dispatches dragstart + dragover via CDP faster than SortableJS promotes
-// Sortable.active (a setTimeout(0) in _dragStarted), so _onDragOver sees a null
-// Sortable.active and reverts the drop — flaky on headless CI. A small initial move
-// plus a 50 ms yield lets that timer fire before we move into Done. See dragdrop.spec.js.
 async function dragTaskToDone(page, task, doneColumn) {
-  const taskBB = await task.boundingBox();
-  const doneBB = await doneColumn.locator('.tasks').boundingBox();
-  const startX = taskBB.x + taskBB.width / 2;
-  const startY = taskBB.y + taskBB.height / 2;
-  const endX = doneBB.x + doneBB.width / 2;
-  const endY = doneBB.y + Math.min(10, Math.max(2, doneBB.height / 2)); // near top; within emptyInsertThreshold
-
-  await page.mouse.move(startX, startY);
-  await page.mouse.down();
-  await page.mouse.move(startX + 5, startY + 2); // cross the native dragstart threshold
-  await page.waitForTimeout(50); // let SortableJS _dragStarted's setTimeout(0) set Sortable.active
-  // Move to Done in stepped increments so a stream of dragover events reaches
-  // _onDragOver and SortableJS settles the placeholder into Done before release.
-  await page.mouse.move((startX + endX) / 2, (startY + endY) / 2, { steps: 5 });
-  await page.mouse.move(endX, endY, { steps: 5 });
-  await page.waitForTimeout(30); // let the placeholder settle in Done
-  await page.mouse.up();
+  await dragByMouse(page, task, doneColumn.locator('.tasks'));
 }
 
-test.describe('Done-column drag crash regression', () => {
+for (const taskCount of [10, 500]) {
+test.describe(`Drag crash regression (${taskCount} tasks)`, () => {
+  const tasks = Array.from({ length: taskCount }, (_, i) => ({
+    id: randomUUID(), title: `Task ${i}`, column: COLUMNS[1].id, order: i + 1,
+    description: '', labels: [], priority: 'none', creationDate: NOW
+  }));
   test.describe.configure({ mode: 'serial', timeout: 30_000 });
 
   test.beforeEach(async ({ page }) => {
@@ -88,7 +52,7 @@ test.describe('Done-column drag crash regression', () => {
         readModel.put(data.tasks,   `${boardId}:tasks`);
         readModel.put([],           `${boardId}:labels`);
       };
-    }, { boardId: BOARD_ID, columns: COLUMNS, tasks: TASKS });
+    }, { boardId: BOARD_ID, columns: COLUMNS, tasks });
 
     await page.goto('/');
     await expect(page.locator('#board-container')).toBeVisible();
@@ -96,11 +60,64 @@ test.describe('Done-column drag crash regression', () => {
     await expect(columnByName(page, 'Done')).toBeVisible();
   });
 
+  test('task moves never enter native drag or export card text through DataTransfer', async ({ page }) => {
+    await page.evaluate(() => {
+      window.nativeDragStarts = 0;
+      window.dragDataWrites = 0;
+      document.addEventListener('dragstart', () => window.nativeDragStarts++, true);
+      const setData = DataTransfer.prototype.setData;
+      DataTransfer.prototype.setData = function (...args) {
+        window.dragDataWrites++;
+        return setData.apply(this, args);
+      };
+    });
+    const source = columnByName(page, 'In Progress');
+    const done = columnByName(page, 'Done');
+    const taskId = await source.locator('.task').first().getAttribute('data-task-id');
+    await dragTaskToDone(page, source.locator('.task').first(), done);
+    await expect(done.locator(`.task[data-task-id="${taskId}"]`)).toBeVisible();
+    expect(await page.evaluate(() => ({
+      starts: window.nativeDragStarts, writes: window.dragDataWrites
+    }))).toEqual({ starts: 0, writes: 0 });
+    await page.reload();
+    await expect(columnByName(page, 'Done').locator(`.task[data-task-id="${taskId}"]`)).toBeVisible();
+  });
+
+  test('drops into a collapsed column and back without leaving drag state behind', async ({ page }) => {
+    const source = columnByName(page, 'In Progress');
+    const target = columnByName(page, 'To Do');
+    const taskId = await source.locator('.task').first().getAttribute('data-task-id');
+    await target.getByRole('button', { name: 'Collapse To Do column', exact: true }).click();
+    await dragByMouse(page, source.locator('.task').first(), target.locator('.tasks'));
+    await expect(target.locator('.task-counter')).toHaveText('1');
+    await target.getByRole('button', { name: 'Expand To Do column', exact: true }).click();
+    const moved = target.locator(`.task[data-task-id="${taskId}"]`);
+    await expect(moved).toBeVisible();
+    await dragByMouse(page, moved, source.locator('.tasks'));
+    await expect(source.locator('.task-counter')).toHaveText(String(taskCount));
+    await expect(page.locator('.task-fallback, .task-chosen, .is-drop-hover')).toHaveCount(0);
+  });
+
+  test('column reordering avoids native drag and survives reload', async ({ page }) => {
+    await page.evaluate(() => {
+      window.nativeDragStarts = 0;
+      document.addEventListener('dragstart', () => window.nativeDragStarts++, true);
+    });
+    await dragByMouse(page,
+      columnByName(page, 'In Progress').locator('h2'),
+      columnByName(page, 'To Do').locator('h2'));
+    await expect(page.locator('article.task-column').first().locator('h2')).toHaveText('In Progress');
+    expect(await page.evaluate(() => window.nativeDragStarts)).toBe(0);
+    await page.reload();
+    await expect(page.locator('article.task-column').first().locator('h2')).toHaveText('In Progress');
+    await expect(page.locator('article.task-column').last().locator('h2')).toHaveText('Done');
+  });
+
   test('second consecutive drag to Done must not crash or freeze the page', async ({ page }) => {
     // Register before any interaction so we catch crashes that happen during dragend.
     let crashError = null;
     page.on('crash', () => {
-      crashError = new Error('Chrome renderer crashed — detached-node-during-dragend bug regressed');
+      crashError = new Error('Browser crashed during task dragging');
     });
 
     const inProgress = columnByName(page, 'In Progress');
@@ -131,9 +148,8 @@ test.describe('Done-column drag crash regression', () => {
     await expect(done.locator(`.task[data-task-id="${secondId}"]`)).toBeVisible({ timeout: 5000 });
 
     // ── Counter accuracy ────────────────────────────────────────────────────
-    // Started with 3 in In Progress, moved 2 → 1 remaining; Done went from 0 → 2.
     const inProgressCount = parseInt(await inProgress.locator('.task-counter').textContent() ?? '0');
-    expect(inProgressCount).toBe(1);
+    expect(inProgressCount).toBe(taskCount - 2);
 
     const doneCount = parseInt(await done.locator('.task-counter').textContent() ?? '0');
     expect(doneCount).toBe(2);
@@ -159,3 +175,4 @@ test.describe('Done-column drag crash regression', () => {
     expect(topId).toBe(secondId);
   });
 });
+}
