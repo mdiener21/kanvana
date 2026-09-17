@@ -28,7 +28,7 @@
     "jsdom": "^29.0.1",
     "msw": "^2.12.14",
     "vite": "^8.0.16",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.11"
   },
   "dependencies": {
     "echarts": "^6.1.0",
