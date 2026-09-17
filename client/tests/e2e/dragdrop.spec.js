@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { dragByMouse } from './dragdrop.helpers.js';
+import { waitForBoardReady } from './board.helpers.js';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
@@ -46,7 +47,7 @@ test.describe('Drag and Drop Performance', () => {
     }, fixture);
 
     await page.goto('/');
-    await expect(page.locator('#board-container')).toBeVisible();
+    await waitForBoardReady(page);
     await expect(columnByName(page, 'In Progress')).toBeVisible();
     await expect(columnByName(page, 'Done')).toBeVisible();
   });

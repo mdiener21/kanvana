@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed the board controls menu (the toolbar's ellipsis button) ignoring clicks during app start-up. Its click handler was wired after `initStorage()` and the first render, leaving a window in which the button was on screen but inert; it is now wired before anything is awaited.
+
+### Changed
+
+- Re-baselined the large-board performance harness's structural budgets. The drag fix in 3.1.3 cut swimlane DOM retention roughly in half — a 1,000-task swimlane board now retains 30,155 nodes where it retained 55,843 — so the recorded limits carried about 2x headroom and would no longer have caught a regression. Timing and heap baselines are unchanged; they belong to the reference runner.
+- Made the E2E suite deterministic. Specs waited on `#board-container` being visible, which is static markup in `index.html` and proves nothing about the app, then ran against a board that had not rendered. Readiness is now `data-view-mode`, set by `renderBoard()`. Drag specs share one SortableJS-safe pointer-drag helper instead of three divergent copies plus `locator.dragTo()`, which cannot drive a drag now that every Sortable runs with `forceFallback`, and box measurement retries through the re-renders that fire while the board boots. The dev server now warms its module graph at start-up, so the first navigation no longer costs ~21s.
+
 ## [3.1.3] - 2026-09-16
 
 ### Fixed
@@ -47,7 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added a deterministic real-Chromium large-board performance harness for 400-task and 1,000-task standard and swimlane boards. It separately budgets synthetic IndexedDB fixture backfill, startup, real SortableJS pointer-drop latency, live cards, post-GC retained DOM nodes, JavaScript heap, render counts, and browser crashes locally and in CI.
+- Added a deterministic real-Chromium large-board performance harness (`npm run test:perf`) for 400-task and 1,000-task standard and swimlane boards. It runs against a production build and separately budgets synthetic IndexedDB fixture seeding, startup, real SortableJS pointer-drop latency, live cards, live DOM nodes, post-GC detached and retained DOM nodes, JavaScript heap, render counts, and browser crashes locally and in CI. Board-render marks are emitted only when the harness opts in, so production sessions do not accumulate them.
 
 ### Changed
 

@@ -11,6 +11,7 @@ import {
   TASK_C_ID,
   LABEL_A_ID
 } from './swimlanes.helpers.js';
+import { waitForBoardReady } from './board.helpers.js';
 
 const BOARD_ID = TEST_BOARD_ID;
 
@@ -18,7 +19,7 @@ test.describe('Swim lane toggle', () => {
   test.beforeEach(async ({ page }) => {
     await seedSwimlaneBoard(page);
     await page.goto('/');
-    await expect(page.locator('#board-container')).toBeVisible();
+    await waitForBoardReady(page);
   });
 
   test('enables and disables swim lanes without losing task data', async ({ page }) => {
@@ -139,7 +140,7 @@ test.describe('Swim lane toggle', () => {
 
     // Reload so initStorage() picks up the IDB changes
     await page.reload();
-    await expect(page.locator('#board-container')).toBeVisible();
+    await waitForBoardReady(page);
 
     await openSwimlaneSettings(page);
     await page.locator('#settings-swimlane-enabled').check();

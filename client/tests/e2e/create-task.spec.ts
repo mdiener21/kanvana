@@ -1,6 +1,7 @@
 // spec: task-creation-with-labels.plan.md
 
 import { test, expect, type Page } from '@playwright/test';
+import { waitForBoardReady } from './board.helpers.js';
 
 async function getTaskCount(page: Page, columnName: string): Promise<number> {
   const column = page.locator('article.task-column').filter({ has: page.locator('h2', { hasText: columnName }) });
@@ -23,6 +24,7 @@ test.describe('Task Creation', () => {
 
   test('Create task with 2 existing labels and medium priority in To Do column', async ({ page }) => {
     await page.goto('/');
+    await waitForBoardReady(page);
 
     const beforeTodoCount = await getTaskCount(page, 'To Do');
     const modal = taskModal(page);
@@ -50,6 +52,7 @@ test.describe('Task Creation', () => {
 
   test('Create task with 2 existing labels and medium priority in In Progress column', async ({ page }) => {
     await page.goto('/');
+    await waitForBoardReady(page);
 
     const beforeInProgressCount = await getTaskCount(page, 'In Progress');
     const modal = taskModal(page);
@@ -76,6 +79,7 @@ test.describe('Task Creation', () => {
 
   test('Create task with due date, 2 labels, and medium priority', async ({ page }) => {
     await page.goto('/');
+    await waitForBoardReady(page);
     const modal = taskModal(page);
 
     await page.getByRole('button', { name: 'Add task to To Do' }).click();
@@ -125,6 +129,7 @@ test.describe('Task Creation', () => {
 
   test('Create task with 2 new custom labels and medium priority', async ({ page }) => {
     await page.goto('/');
+    await waitForBoardReady(page);
 
     const beforeTodoCount = await getTaskCount(page, 'To Do');
     const modal = taskModal(page);

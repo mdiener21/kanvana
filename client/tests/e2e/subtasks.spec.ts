@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { waitForBoardReady } from './board.helpers.js';
 
 function taskModal(page: Page) {
   return page.locator('#task-modal');
@@ -33,6 +34,7 @@ test.describe('Sub-tasks', () => {
 
   test('Sub-tasks fieldset is visible in the task modal', async ({ page }) => {
     await page.goto('/');
+    await waitForBoardReady(page);
     await openAddTaskModal(page);
     await expect(taskModal(page).locator('#task-subtasks-fieldset')).toBeVisible();
     await expect(subtaskInput(page)).toBeVisible();
@@ -40,6 +42,7 @@ test.describe('Sub-tasks', () => {
 
   test('Add sub-tasks via quick-add input and press Enter', async ({ page }) => {
     await page.goto('/');
+    await waitForBoardReady(page);
     await openAddTaskModal(page);
     await taskModal(page).locator('#task-title').fill('Task with sub-tasks');
 
@@ -56,6 +59,7 @@ test.describe('Sub-tasks', () => {
 
   test('Empty sub-task input is ignored on Enter', async ({ page }) => {
     await page.goto('/');
+    await waitForBoardReady(page);
     await openAddTaskModal(page);
     await taskModal(page).locator('#task-title').fill('Task no empty sub-tasks');
 
@@ -68,6 +72,7 @@ test.describe('Sub-tasks', () => {
 
   test('Progress legend shows X / Y in fieldset legend', async ({ page }) => {
     await page.goto('/');
+    await waitForBoardReady(page);
     await openAddTaskModal(page);
     await taskModal(page).locator('#task-title').fill('Progress legend task');
 
@@ -84,6 +89,7 @@ test.describe('Sub-tasks', () => {
 
   test('Checking a sub-task updates the progress legend', async ({ page }) => {
     await page.goto('/');
+    await waitForBoardReady(page);
     await openAddTaskModal(page);
     await taskModal(page).locator('#task-title').fill('Check progress task');
 
@@ -99,6 +105,7 @@ test.describe('Sub-tasks', () => {
 
   test('Completed sub-tasks have strikethrough style', async ({ page }) => {
     await page.goto('/');
+    await waitForBoardReady(page);
     await openAddTaskModal(page);
     await taskModal(page).locator('#task-title').fill('Strikethrough task');
 
@@ -113,6 +120,7 @@ test.describe('Sub-tasks', () => {
 
   test('Delete button removes a sub-task from the list', async ({ page }) => {
     await page.goto('/');
+    await waitForBoardReady(page);
     await openAddTaskModal(page);
     await taskModal(page).locator('#task-title').fill('Delete sub-task task');
 
@@ -129,6 +137,7 @@ test.describe('Sub-tasks', () => {
 
   test('Sub-tasks are saved and persisted when task is created', async ({ page }) => {
     await page.goto('/');
+    await waitForBoardReady(page);
     await openAddTaskModal(page);
     await taskModal(page).locator('#task-title').fill('Persisted sub-task task');
 
@@ -169,6 +178,7 @@ test.describe('Sub-tasks', () => {
 
   test('Sub-task progress indicator appears on task card when sub-tasks exist', async ({ page }) => {
     await page.goto('/');
+    await waitForBoardReady(page);
     await openAddTaskModal(page);
     await taskModal(page).locator('#task-title').fill('Card progress task');
 
@@ -187,6 +197,7 @@ test.describe('Sub-tasks', () => {
 
   test('No progress indicator on card when task has no sub-tasks', async ({ page }) => {
     await page.goto('/');
+    await waitForBoardReady(page);
     await openAddTaskModal(page);
     await taskModal(page).locator('#task-title').fill('No sub-task card');
     await taskModal(page).getByRole('button', { name: 'Add Task', exact: true }).click();
@@ -198,6 +209,7 @@ test.describe('Sub-tasks', () => {
 
   test('Sub-tasks survive edit modal round-trip with completion state', async ({ page }) => {
     await page.goto('/');
+    await waitForBoardReady(page);
 
     // Create task with sub-tasks
     await openAddTaskModal(page);
@@ -225,6 +237,7 @@ test.describe('Sub-tasks', () => {
 
   test('Card donut turns green when all sub-tasks are completed', async ({ page }) => {
     await page.goto('/');
+    await waitForBoardReady(page);
     await openAddTaskModal(page);
     await taskModal(page).locator('#task-title').fill('All done task');
 
@@ -244,6 +257,7 @@ test.describe('Sub-tasks', () => {
 
   test('Inline edit: click sub-task title to edit and commit with Enter', async ({ page }) => {
     await page.goto('/');
+    await waitForBoardReady(page);
     await openAddTaskModal(page);
     await taskModal(page).locator('#task-title').fill('Inline edit task');
 
@@ -262,6 +276,7 @@ test.describe('Sub-tasks', () => {
 
   test('Inline edit: Escape cancels edit and restores original title', async ({ page }) => {
     await page.goto('/');
+    await waitForBoardReady(page);
     await openAddTaskModal(page);
     await taskModal(page).locator('#task-title').fill('Escape edit task');
 

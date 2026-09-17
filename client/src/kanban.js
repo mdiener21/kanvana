@@ -20,72 +20,10 @@ import { initSyncIndicator } from './modules/event-sourcing/sync-indicator.js';
 
 // Add task button listeners
 document.addEventListener('DOMContentLoaded', async () => {
-  // Load all board data from IDB into memory before any rendering.
-  await initStorage();
-
-  // Deep-link support (e.g., from calendar.html): open a task modal by ID.
-  const urlParams = new URLSearchParams(window.location.search);
-  const openTaskId = (urlParams.get('openTaskId') || '').trim();
-  const openTaskBoardId = (urlParams.get('openTaskBoardId') || '').trim();
-
-  if (openTaskBoardId) {
-    ensureBoardsInitialized();
-    setActiveBoardId(openTaskBoardId);
-  }
-
-  const versionEl = document.getElementById('app-version');
-  if (versionEl && typeof __APP_VERSION__ !== 'undefined' && __APP_VERSION__) {
-    versionEl.textContent = `v${__APP_VERSION__}`;
-    versionEl.title = `Version ${__APP_VERSION__}`;
-  }
-
-  initializeThemeToggle();
-
-  // Settings (per-board)
-  initializeSettingsUI();
-  initializeSwimLaneControls(() => renderBoard());
-
-  // Board-level filter (labels, title, description)
+  // Wired before initStorage(): these controls are static markup in index.html, and
+  // anything awaited below leaves a window where the button is on screen but dead to
+  // clicks. The search listener stays below — it calls renderBoard().
   const boardSearchInput = document.getElementById('board-search-input');
-  if (boardSearchInput) {
-    boardSearchInput.addEventListener('input', () => {
-      setBoardFilterQuery(boardSearchInput.value);
-      renderBoard();
-    });
-  }
-
-  // Boards (create/select + restore last active)
-  initializeBoardsUI();
-
-  // Auth/sync UI and auto-sync listener
-  initializeAuthSyncUI();
-  initializeAutoSync();
-
-  // Event-sourced outbound push queue (drains unsynced events to PocketBase)
-  initSyncQueue();
-
-  // Snapshot upload: push locally-saved snapshots to PB (pre-flight + GC)
-  initSnapshotSync();
-
-  // Inbound sync: SSE realtime subscription + launch/reconnect catch-up pull
-  initRealtime();
-
-  // Header sync-state indicator (Live / Syncing / unsynced / Offline)
-  initSyncIndicator();
-
-  // Initialize modal handlers
-  initializeModalHandlers();
-
-  // Initialize notifications
-  initializeNotifications();
-
-  document.getElementById('import-file').addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      importTasks(file);
-    }
-    e.target.value = '';
-  });
 
   // Mobile Menu Logic
   const menuBtn = document.getElementById('desktop-menu-btn');
@@ -150,6 +88,72 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
   }
+
+  // Load all board data from IDB into memory before any rendering.
+  await initStorage();
+
+  // Deep-link support (e.g., from calendar.html): open a task modal by ID.
+  const urlParams = new URLSearchParams(window.location.search);
+  const openTaskId = (urlParams.get('openTaskId') || '').trim();
+  const openTaskBoardId = (urlParams.get('openTaskBoardId') || '').trim();
+
+  if (openTaskBoardId) {
+    ensureBoardsInitialized();
+    setActiveBoardId(openTaskBoardId);
+  }
+
+  const versionEl = document.getElementById('app-version');
+  if (versionEl && typeof __APP_VERSION__ !== 'undefined' && __APP_VERSION__) {
+    versionEl.textContent = `v${__APP_VERSION__}`;
+    versionEl.title = `Version ${__APP_VERSION__}`;
+  }
+
+  initializeThemeToggle();
+
+  // Settings (per-board)
+  initializeSettingsUI();
+  initializeSwimLaneControls(() => renderBoard());
+
+  // Board-level filter (labels, title, description)
+  if (boardSearchInput) {
+    boardSearchInput.addEventListener('input', () => {
+      setBoardFilterQuery(boardSearchInput.value);
+      renderBoard();
+    });
+  }
+
+  // Boards (create/select + restore last active)
+  initializeBoardsUI();
+
+  // Auth/sync UI and auto-sync listener
+  initializeAuthSyncUI();
+  initializeAutoSync();
+
+  // Event-sourced outbound push queue (drains unsynced events to PocketBase)
+  initSyncQueue();
+
+  // Snapshot upload: push locally-saved snapshots to PB (pre-flight + GC)
+  initSnapshotSync();
+
+  // Inbound sync: SSE realtime subscription + launch/reconnect catch-up pull
+  initRealtime();
+
+  // Header sync-state indicator (Live / Syncing / unsynced / Offline)
+  initSyncIndicator();
+
+  // Initialize modal handlers
+  initializeModalHandlers();
+
+  // Initialize notifications
+  initializeNotifications();
+
+  document.getElementById('import-file').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      importTasks(file);
+    }
+    e.target.value = '';
+  });
 
   // Initial render
   renderBoard();

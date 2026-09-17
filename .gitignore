@@ -22,4 +22,6 @@ graphify-out/cache/
 .graphify_python
 
 
+dist/
+dist-perf/
 build/

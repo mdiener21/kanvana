@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 
 import { dragByMouse } from './dragdrop.helpers.js';
+import { waitForBoardReady } from './board.helpers.js';
 
 const BOARD_ID = randomUUID();
 
@@ -55,7 +56,7 @@ test.describe(`Drag crash regression (${taskCount} tasks)`, () => {
     }, { boardId: BOARD_ID, columns: COLUMNS, tasks });
 
     await page.goto('/');
-    await expect(page.locator('#board-container')).toBeVisible();
+    await waitForBoardReady(page);
     await expect(columnByName(page, 'In Progress')).toBeVisible();
     await expect(columnByName(page, 'Done')).toBeVisible();
   });

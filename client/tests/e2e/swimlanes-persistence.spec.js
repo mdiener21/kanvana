@@ -1,11 +1,12 @@
 import { test, expect } from '@playwright/test';
 import { openSwimlaneSettings, seedSwimlaneBoard, readIDBSettings, TEST_BOARD_ID, COL_TODO_ID, COL_INPROGRESS_ID, COL_DONE_ID, TASK_A_ID, TASK_B_ID, LABEL_A_ID } from './swimlanes.helpers.js';
+import { waitForBoardReady } from './board.helpers.js';
 
 test.describe('Swim lane persistence', () => {
   test.beforeEach(async ({ page }) => {
     await seedSwimlaneBoard(page);
     await page.goto('/');
-    await expect(page.locator('#board-container')).toBeVisible();
+    await waitForBoardReady(page);
   });
 
   test('persists enabled state and grouping mode across reloads', async ({ page }) => {
