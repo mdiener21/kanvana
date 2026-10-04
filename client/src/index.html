@@ -7,8 +7,12 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://analytics.gomogi.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://analytics.gomogi.com https://pb.kanvana.com; object-src 'none'; base-uri 'self'; form-action 'self'">
   <title>Kanvana Personal + AI-Agent Kanban</title>
   <link rel="stylesheet" href="styles/index.css">
-  <!-- Kanban favicon (inline SVG data URI) -->
-  <link rel="icon" href="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='2' y='3' width='6' height='18' rx='1.5' fill='%233b82f6'/%3E%3Crect x='9' y='3' width='6' height='12' rx='1.5' fill='%2360a5fa'/%3E%3Crect x='16' y='3' width='6' height='8' rx='1.5' fill='%2393c5fd'/%3E%3C/svg%3E">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="./icons/icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
+  <meta name="theme-color" content="#3b82f6">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Kanvana">
   <script defer src="https://analytics.gomogi.com/script.js" data-website-id="4ebd005d-0f3f-4956-8100-a78c3d89dda8"></script>
 </head>
 <body>
@@ -87,6 +91,7 @@
         </a></span>
         </button>
 
+        <button id="install-app-btn" class="control-btn hidden" type="button">Install app</button>
         <button id="help-btn" class="control-btn" type="button" aria-haspopup="dialog">
           <span data-lucide="help-circle" aria-hidden="true"></span>
           <span>Help</span>
@@ -736,5 +741,6 @@
 </div>
 
 <script type="module" src="kanban.js"></script>
+<script type="module" src="./modules/pwa.js"></script>
 </body>
 </html>

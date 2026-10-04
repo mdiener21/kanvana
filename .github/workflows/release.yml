@@ -56,6 +56,10 @@ jobs:
         run: npm run test:e2e
         working-directory: client
 
+      - name: Run production PWA tests
+        run: npm run test:pwa
+        working-directory: client
+
   release-pr:
     name: Create release PR
     runs-on: ubuntu-latest

@@ -36,6 +36,8 @@ export function scheduleDomainEvent(input) {
   return pending.then(() => flushPendingPersists());
 }
 
-export async function _flushDomainEventsForTesting() {
+export async function flushDomainEvents() {
   await Promise.all([...pendingDomainEvents]);
 }
+
+export const _flushDomainEventsForTesting = flushDomainEvents;

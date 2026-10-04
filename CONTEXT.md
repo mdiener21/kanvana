@@ -147,6 +147,16 @@ all subscribe.
 
 ---
 
+### Installed app and offline app shell
+
+Production builds generate `sw.js` from `client/src/service-worker.js` through
+`client/scripts/pwa-build.mjs`. The worker precaches the build's HTML, hashed assets, manifest,
+and install icons. It never caches API responses or external requests. App-shell caches are
+scoped to the hosting path and build content; IndexedDB remains the source of board data.
+`modules/pwa.js` registers the worker on all app pages, provides mobile installation controls,
+and offers a reload for waiting updates. Local event and read-model writes finish before reload.
+Development runs without a service worker. Production lifecycle tests run with `npm run test:pwa`.
+
 ## 5. Event Bus
 
 `client/src/modules/events.js` — a lightweight `EventTarget`-based bus that replaced the
