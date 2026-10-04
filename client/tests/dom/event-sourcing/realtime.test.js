@@ -2,7 +2,7 @@
 // PB realtime is stubbed at pb.realtime.subscribe; catch-up runs over MSW.
 import { waitFor } from '@testing-library/dom';
 import { http, HttpResponse } from 'msw';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { deleteDB } from 'idb';
 import { server } from '../../mocks/server.js';
 import { EVENT_EMITTED, on, off } from '../../../src/modules/events.js';
@@ -28,6 +28,7 @@ import {
   startRealtime,
   stopRealtime,
   catchUp,
+  initRealtime,
   LAST_SEEN_PREFIX,
   _resetRealtimeForTesting,
 } from '../../../src/modules/event-sourcing/realtime.js';
@@ -85,11 +86,10 @@ describe('realtime subscription', () => {
   it('AC-001: opens exactly one owner-filtered subscription; second call is a no-op', async () => {
     const rt = stubRealtime();
     setAuth();
+    await Promise.all([startRealtime(), startRealtime()]);
     await startRealtime();
-    await startRealtime();
-    expect(rt.calls).toHaveLength(1);
-    expect(rt.calls[0].topic).toBe('events/*');
-    expect(rt.calls[0].opts.filter).toBe('owner = "user1"');
+    expect(rt.calls.map(call => call.topic)).toEqual(['PB_CONNECT', 'events/*']);
+    expect(rt.calls[1].opts.filter).toBe('owner = "user1"');
   });
 
   it('AC-002: stopRealtime closes the subscription', async () => {
@@ -97,7 +97,7 @@ describe('realtime subscription', () => {
     setAuth();
     await startRealtime();
     await stopRealtime();
-    expect(rt.unsubCount()).toBe(1);
+    expect(rt.unsubCount()).toBe(2);
   });
 
   it('does not subscribe when unauthenticated', async () => {
@@ -141,6 +141,72 @@ describe('catch-up pull', () => {
   // cover the event path, so the snapshot scope is empty.
   beforeEach(() => {
     server.use(http.get(SNAP_LIST, () => listResponse([])));
+  });
+
+  it('discovers all account boards even while the realtime connection is pending', async () => {
+    let release;
+    getPb().realtime.subscribe = async (topic) => {
+      if (topic === 'PB_CONNECT') return async () => {};
+      return new Promise(resolve => { release = () => resolve(async () => {}); });
+    };
+    server.use(http.get(EVT_LIST, ({ request }) => {
+      expect(new URL(request.url).searchParams.get('filter')).toBe('owner = "user1"');
+      return listResponse([
+        record({ local_id: 'device-a', board: 'board-a', h: hlc(1), payload: { board: { name: 'Device A' } } }),
+        record({ local_id: 'device-b', board: 'board-b', h: hlc(2), payload: { board: { name: 'Device B' } } }),
+      ]);
+    }));
+    initRealtime();
+    setAuth();
+    try {
+      await waitFor(() => expect(listBoards().map(b => b.name)).toEqual(['Device A', 'Device B']));
+    } finally {
+      release();
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+  });
+
+  it('downloads boards when realtime subscription fails', async () => {
+    getPb().realtime.subscribe = async () => { throw new Error('SSE unavailable'); };
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    server.use(http.get(EVT_LIST, () => listResponse([
+      record({ local_id: 'remote-board', h: hlc(1), payload: { board: { name: 'Remote' } } }),
+    ])));
+    initRealtime();
+    setAuth();
+    try {
+      await waitFor(() => expect(listBoards().map(b => b.name)).toContain('Remote'));
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it('fetches boards missed during an automatic SSE reconnect', async () => {
+    const rt = stubRealtime();
+    setAuth();
+    await startRealtime();
+    server.use(http.get(EVT_LIST, () => listResponse([
+      record({ local_id: 'missed', h: hlc(1), payload: { board: { name: 'Created while disconnected' } } }),
+    ])));
+    const connect = rt.calls.find(call => call.topic === 'PB_CONNECT');
+    expect(connect).toBeDefined();
+    await connect.cb({});
+    await waitFor(() => expect(listBoards().map(b => b.name)).toContain('Created while disconnected'));
+  });
+
+  it('does not skip a delayed board creation older than the catch-up watermark', async () => {
+    const newer = record({ local_id: 'task', type: 'task.created', h: hlc(2), payload: { task: { title: 'Already uploaded' } } });
+    server.use(http.get(EVT_LIST, () => listResponse([newer])));
+    setAuth();
+    await catchUp();
+    server.use(http.get(EVT_LIST, () => listResponse([
+      newer,
+      record({ local_id: 'late-create', h: hlc(1), payload: { board: { name: 'Delayed board' } } }),
+    ])));
+    await catchUp();
+    expect(listBoards().map(b => b.id)).toContain('board-1');
+    const db = await openStore();
+    expect(await db.get(KV_STORE, `${LAST_SEEN_PREFIX}board-1`)).toEqual(hlc(2));
   });
 
   it('AC-005: pulls events > lastSeenHlc, applies in order, advances lastSeenHlc atomically', async () => {

@@ -6,16 +6,19 @@
 // pushes them back.
 
 import { emit, EVENT_EMITTED } from '../events.js';
-import { persistEvent, openStore, KV_STORE } from '../idb-store.js';
+import { persistEvent, openStore, KV_STORE, EVENTS_STORE } from '../idb-store.js';
 import { getPb, isAuthenticated, getUser } from '../sync.js';
 import { observeRemote, compareHlc } from './hlc.js';
-import { GLOBAL_SNAPSHOT_KEY, saveSnapshot } from './snapshot.js';
+import { GLOBAL_SNAPSHOT_KEY, saveSnapshot, loadSnapshot } from './snapshot.js';
 import { downloadAllSnapshots } from './snapshot-sync.js';
 import { hydrateFromSnapshotState } from '../storage.js';
 
 const LAST_SEEN_PREFIX = 'kanvana:sync:lastSeenHlc:';
 
 let _unsubscribe = null;
+let _connectUnsubscribe = null;
+let _starting = null;
+let _catchingUp = null;
 let _handlers = null;
 
 function recordToEvent(r) {
@@ -60,29 +63,46 @@ export async function applyRemoteEvent(record) {
 
 export async function startRealtime() {
   if (_unsubscribe || !isAuthenticated()) return;
+  if (_starting) return _starting;
+  _starting = subscribeRealtime().finally(() => { _starting = null; });
+  return _starting;
+}
+
+async function subscribeRealtime() {
   const pb = getPb();
   const ownerId = getUser()?.id;
-  _unsubscribe = await pb.collection('events').subscribe('*', (e) => {
-    if (e.action === 'create') applyRemoteEvent(e.record);
-  }, { filter: `owner = "${ownerId}"` });
+  _connectUnsubscribe = await pb.realtime.subscribe('PB_CONNECT', () => {
+    catchUpAfterPending().catch(err => console.error('[Kanvana] Realtime reconnect catch-up failed', err));
+  });
+  try {
+    _unsubscribe = await pb.collection('events').subscribe('*', (e) => {
+      if (e.action === 'create') applyRemoteEvent(e.record);
+    }, { filter: `owner = "${ownerId}"` });
+  } catch (err) {
+    await _connectUnsubscribe();
+    _connectUnsubscribe = null;
+    throw err;
+  }
 }
 
 export async function stopRealtime() {
+  if (_starting) { try { await _starting; } catch {} }
+  if (_connectUnsubscribe) {
+    await _connectUnsubscribe();
+    _connectUnsubscribe = null;
+  }
   if (!_unsubscribe) return;
   const unsub = _unsubscribe;
   _unsubscribe = null;
   await unsub();
 }
 
-// Catch-up pull: owner-scoped events newer than lastSeenHlc, applied in HLC
-// order; lastSeenHlc advances per scope once the batch is drained. PB can't
-// range-filter the JSON hlc field, so we fetch owner-scoped and filter by HLC
-// client-side (the reducer re-sorts anyway; server order is irrelevant).
+// Catch-up pulls all owner-scoped events in HLC order. Only snapshots cover
+// earlier history; a watermark cannot exclude delayed events from other devices.
 // Adopt any server snapshot newer than what this device has already seen, before
 // replaying events. uploadSnapshot() deletes the events a snapshot covers, so for
 // a device that joined afterwards the snapshot is the only surviving history.
-// lastSeenHlc advances to the snapshot's HLC, which makes the event pass below
-// skip anything the snapshot already accounts for.
+// The saved snapshot's HLC excludes events already represented by its state.
 async function hydrateFromRemoteSnapshots() {
   for (const snapshot of await downloadAllSnapshots()) {
     const seen = await getLastSeen(snapshot.key);
@@ -95,6 +115,17 @@ async function hydrateFromRemoteSnapshots() {
 
 export async function catchUp() {
   if (!isAuthenticated()) return;
+  if (_catchingUp) return _catchingUp;
+  _catchingUp = pullRemoteState().finally(() => { _catchingUp = null; });
+  return _catchingUp;
+}
+
+async function catchUpAfterPending() {
+  if (_catchingUp) await _catchingUp;
+  await catchUp();
+}
+
+async function pullRemoteState() {
   await hydrateFromRemoteSnapshots();
   const pb = getPb();
   const ownerId = getUser()?.id;
@@ -110,24 +141,30 @@ export async function catchUp() {
 
   const seenByKey = new Map();
   const maxByKey = new Map();
+  const db = await openStore();
 
   for (const event of events) {
     const key = scopeKey(event);
-    if (!seenByKey.has(key)) seenByKey.set(key, await getLastSeen(key));
+    if (!seenByKey.has(key)) seenByKey.set(key, (await loadSnapshot(key))?.hlc);
     const seen = seenByKey.get(key);
+    // A later HLC arriving first does not cover missing earlier events. Only a
+    // snapshot covers history; otherwise deduplicate by the persisted event id.
     if (seen && compareHlc(event.hlc, seen) <= 0) continue;
+    if (await db.get(EVENTS_STORE, event.id)) continue;
     await ingest(event);
     const max = maxByKey.get(key);
     if (!max || compareHlc(event.hlc, max) > 0) maxByKey.set(key, event.hlc);
   }
 
-  for (const [key, hlc] of maxByKey) await setLastSeen(key, hlc);
+  for (const [key, hlc] of maxByKey) {
+    const seen = await getLastSeen(key);
+    if (!seen || compareHlc(hlc, seen) > 0) await setLastSeen(key, hlc);
+  }
 }
 
 async function onAuthChanged() {
   if (isAuthenticated()) {
-    await startRealtime();
-    await catchUp();
+    await onOnline();
   } else {
     await stopRealtime();
   }
@@ -135,7 +172,7 @@ async function onAuthChanged() {
 
 async function onOnline() {
   if (!isAuthenticated()) return;
-  await startRealtime();
+  await Promise.all([catchUp(), startRealtime()]);
   await catchUp();
 }
 
@@ -156,8 +193,8 @@ export async function _resetRealtimeForTesting() {
     window.removeEventListener('online', _handlers.online);
   }
   _handlers = null;
-  if (_unsubscribe) { try { await _unsubscribe(); } catch { /* ignore */ } }
-  _unsubscribe = null;
+  await stopRealtime();
+  if (_catchingUp) await _catchingUp;
 }
 
 // True when the SSE subscription is live (used by the header sync indicator, #115).
