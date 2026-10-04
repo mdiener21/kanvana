@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.5] - 2026-10-04
+
 ### Fixed
 
 - Download all account boards on login even when the realtime connection stalls or fails. Fetch missed changes after automatic realtime reconnects, and retain delayed board events that arrive behind the catch-up watermark.
