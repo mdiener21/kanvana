@@ -1,8 +1,10 @@
 import { defineConfig } from 'vite';
+import { pwaBuild } from './scripts/pwa-build.mjs';
 
 const appVersion = process.env.npm_package_version ?? '0.0.0';
 
 export default defineConfig({
+  plugins: [pwaBuild()],
   root: 'src',
   // root is 'src', so envDir would default to client/src/ — but the .env files
   // live one level up in client/. Point envDir at client/ so .env.local (dev)

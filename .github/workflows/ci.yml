@@ -41,6 +41,10 @@ jobs:
         run: npm run test:e2e
         working-directory: client
 
+      - name: Production PWA tests
+        run: npm run test:pwa
+        working-directory: client
+
       - name: Large-board performance budgets
         run: npm run test:perf
         working-directory: client
@@ -72,6 +76,8 @@ jobs:
       - name: Assert build output
         run: |
           [ -f client/dist/index.html ] || (echo "ERROR: client/dist/index.html missing" && exit 1)
+          [ -f client/dist/sw.js ] || (echo "ERROR: client/dist/sw.js missing" && exit 1)
+          [ -f client/dist/manifest.webmanifest ] || (echo "ERROR: client/dist/manifest.webmanifest missing" && exit 1)
 
       - name: Upload dist artifact
         uses: actions/upload-artifact@v4
