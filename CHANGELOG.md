@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.6] - 2026-10-04
+
 ### Added
 
 - Install Kanvana as a standalone app with its proper logo on Android and Apple devices. Cache the production app for offline launches, and offer a reload when a new version is ready while preserving local boards and tasks.
