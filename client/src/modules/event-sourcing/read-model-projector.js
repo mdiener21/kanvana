@@ -70,8 +70,8 @@ export function createReadModelProjector(ctx) {
 
   // Adopt a snapshot's projected state as the read model. Kept here rather than
   // in the sync layer so the projector stays the sole writer (ADR-0005). Boards
-  // merge by id: a board-scoped snapshot carries the whole board list as of the
-  // snapshotting device, which must not clobber boards only this device knows.
+  // merge only the snapshot's own board: older snapshots include unrelated
+  // board metadata without the corresponding columns, tasks or settings.
   function hydrate(key, snapshotState) {
     if (key === GLOBAL_SNAPSHOT_KEY) {
       state.globalSettings = snapshotState.globalSettings || {};
@@ -82,7 +82,7 @@ export function createReadModelProjector(ctx) {
 
     const known = new Map((state.boards || []).map((board) => [board.id, board]));
     for (const board of snapshotState.boards || []) {
-      if (!known.has(board.id)) known.set(board.id, board);
+      if (board.id === key) known.set(board.id, board);
     }
 
     writeBoard(key, {

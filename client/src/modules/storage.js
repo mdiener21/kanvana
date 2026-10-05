@@ -46,6 +46,7 @@ const state = {
 
 // Per-board default-task cache (keeps defaults stable within a session).
 const taskCacheByBoard = new Map();
+const syntheticDoneIdByBoard = new Map();
 
 // Sole writer of the read model (ADR-0005), extracted from this module (#119).
 // Wired with the closure `state` + schedulers; the reducer stays pure.
@@ -506,6 +507,7 @@ export function _resetStorageForTesting() {
   for (const k in state.settings) delete state.settings[k];
   state.globalSettings = null;
   taskCacheByBoard.clear();
+  syntheticDoneIdByBoard.clear();
   readModelProjector.reset();
   _resetSnapshotSchedulerForTesting();
 }
@@ -648,7 +650,7 @@ function emitBoardScaffoldEvents(boardId, { columns = [], labels = [] }) {
   }
 }
 
-export function createBoard(name) {
+export function createBoard(name, initialData = {}) {
   ensureBoardsInitialized();
   const trimmed = typeof name === 'string' ? name.trim() : '';
   const boardName = trimmed || 'Untitled board';
@@ -656,13 +658,19 @@ export function createBoard(name) {
 
   const id = generateUUID();
   const defaults = defaultBoardData(false);
+  const data = {
+    columns: initialData.columns ?? defaults.columns,
+    tasks: initialData.tasks ?? [],
+    labels: initialData.labels ?? defaults.labels,
+    settings: { ...defaults.settings, ...initialData.settings }
+  };
   const board = { id, name: boardName, createdAt: nowIso() };
   saveBoards([...boards, board]);
 
-  state.columns[id] = defaults.columns;
-  state.tasks[id] = [];
-  state.labels[id] = defaults.labels;
-  state.settings[id] = defaults.settings;
+  state.columns[id] = data.columns;
+  state.tasks[id] = data.tasks;
+  state.labels[id] = data.labels;
+  state.settings[id] = data.settings;
 
   scheduleReadModelPersist(id, 'columns', state.columns[id]);
   scheduleReadModelPersist(id, 'tasks', state.tasks[id]);
@@ -677,7 +685,11 @@ export function createBoard(name) {
     entityId: id,
     payload: { board }
   });
-  emitBoardScaffoldEvents(id, { columns: defaults.columns, labels: defaults.labels });
+  emitBoardScaffoldEvents(id, data);
+  for (const task of data.tasks) {
+    scheduleDomainEvent({ type: 'task.created', boardId: id, entityId: task.id, payload: { task } });
+  }
+  scheduleDomainEvent({ type: 'settings.updated', boardId: id, entityId: id, payload: { fields: data.settings } });
 
   return board;
 }
@@ -749,13 +761,14 @@ function normalizeColumn(c) {
   return { ...c, color, collapsed, ...(isDoneColumn(c) ? { role: DONE_COLUMN_ROLE } : {}) };
 }
 
-function ensureDoneColumn(columns) {
+function ensureDoneColumn(columns, boardId) {
   const list = Array.isArray(columns) ? columns.slice() : [];
   if (list.some((c) => isDoneColumn(c))) {
     return list.map((column) => (isDoneColumn(column) ? { ...column, role: DONE_COLUMN_ROLE } : column));
   }
   const maxOrder = list.reduce((max, c) => Math.max(max, Number.isFinite(c?.order) ? c.order : 0), 0);
-  list.push({ id: generateUUID(), name: 'Done', color: '#16a34a', order: maxOrder + 1, collapsed: false, role: DONE_COLUMN_ROLE });
+  if (!syntheticDoneIdByBoard.has(boardId)) syntheticDoneIdByBoard.set(boardId, generateUUID());
+  list.push({ id: syntheticDoneIdByBoard.get(boardId), name: 'Done', color: '#16a34a', order: maxOrder + 1, collapsed: false, role: DONE_COLUMN_ROLE });
   return list;
 }
 
@@ -776,19 +789,11 @@ export function loadColumns() {
   const raw = state.columns[boardId];
   const parsed = safeParseArray(raw);
   if (parsed) {
-    const live = parsed.filter(c => !c.deleted);
-    const normalized = ensureDoneColumn(live.map(normalizeColumn));
-    // Persist back if done column was added (length check uses live count vs normalized).
-    if (!raw || !Array.isArray(raw) || normalized.length !== live.length) {
-      // Merge normalized live columns back with deleted records for persistence
-      const deleted = parsed.filter(c => c.deleted);
-      const merged = [...normalized, ...deleted];
-      state.columns[boardId] = merged;
-      scheduleReadModelPersist(boardId, 'columns', merged);
-    }
-    return normalized;
+    // View-only fallback: a synced board's Done column may not have arrived yet,
+    // and persisting a synthetic one here duplicates it once the real one lands.
+    return ensureDoneColumn(parsed.filter(c => !c.deleted).map(normalizeColumn), boardId);
   }
-  return ensureDoneColumn(defaultColumns().map(normalizeColumn));
+  return ensureDoneColumn(defaultColumns().map(normalizeColumn), boardId);
 }
 
 export function saveColumns(columns) {

@@ -113,4 +113,32 @@ test.describe('AC-009 two-context realtime convergence (live PocketBase)', () =>
     await deviceA.context().close();
     await deviceB.context().close();
   });
+  test('a template board created on device A shows its real columns on device B', async ({ browser }) => {
+    test.skip(!pbReachable, `PocketBase not reachable at ${PB_URL} — start the Docker stack to run this spec.`);
+
+    const email = `tmpl-${Date.now()}@example.test`;
+    await registerAccount(email);
+    const deviceA = await bootAndLogin(browser, email);
+
+    await deviceA.evaluate(() => document.dispatchEvent(new Event('kanban:open-board-create')));
+    await deviceA.locator('#board-create-name').fill('db');
+    await deviceA.locator('#board-create-template').selectOption('Product-Development-Board-Template');
+    await deviceA.locator('#board-create-form button[type=submit]').click();
+    const expected = ['Idea Backlog', 'Planned', 'In Development', 'Testing', 'Ready for Release', 'Shipped'];
+    await expect(deviceA.locator('article.task-column h2')).toHaveText(expected);
+
+    const deviceB = await bootAndLogin(browser, email);
+    const select = deviceB.locator('#board-select');
+    await expect(select.locator('option', { hasText: 'db' })).toHaveCount(1, { timeout: 5000 });
+    await select.evaluate((el: HTMLSelectElement) => {
+      el.value = [...el.options].find(o => o.textContent === 'db')!.value;
+      el.dispatchEvent(new Event('change'));
+    });
+
+    await expect(deviceB.locator('article.task-column h2')).toHaveText(expected, { timeout: 5000 });
+    await expect(deviceB.locator('li.task')).toHaveCount(5);
+
+    await deviceA.context().close();
+    await deviceB.context().close();
+  });
 });

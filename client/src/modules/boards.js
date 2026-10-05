@@ -7,12 +7,7 @@ import {
   createBoard,
   getActiveBoardId,
   setActiveBoardId,
-  getActiveBoardName,
-  saveColumns,
-  saveTasks,
-  saveLabels,
-  loadSettings,
-  saveSettings
+  getActiveBoardName
 } from './storage.js';
 import { normalizeBoardModelIds } from './board-serializer.js';
 import { alertDialog } from './dialog.js';
@@ -66,26 +61,6 @@ function populateTemplateSelect(selectEl) {
     opt.textContent = t.name;
     selectEl.appendChild(opt);
   });
-}
-
-function applyBoardTemplate(templateBoard) {
-  const board = templateBoard && typeof templateBoard === 'object' ? templateBoard : null;
-  if (!board) return;
-
-  const normalized = normalizeBoardModelIds({
-    columns: board.columns,
-    tasks: board.tasks,
-    labels: board.labels,
-    settings: board.settings
-  });
-
-  if (Array.isArray(board.columns)) saveColumns(normalized.columns);
-  if (Array.isArray(board.tasks)) saveTasks(normalized.tasks);
-  if (Array.isArray(board.labels)) saveLabels(normalized.labels);
-  if (board.settings && typeof board.settings === 'object') {
-    const current = loadSettings();
-    saveSettings({ ...current, ...normalized.settings });
-  }
 }
 
 function refreshBoardSelect(selectEl) {
@@ -220,10 +195,8 @@ export function initializeBoardsUI() {
       const templates = selectedTemplateId ? getBuiltInBoardTemplates() : [];
       const template = selectedTemplateId ? templates.find((t) => t.id === selectedTemplateId) : null;
 
-      const board = createBoard(trimmed);
+      const board = createBoard(trimmed, template ? normalizeBoardModelIds(template.board) : {});
       setActiveBoardId(board.id);
-
-      if (template?.board) applyBoardTemplate(template.board);
 
       refreshBoardSelect(selectEl);
       refreshBrandText();
