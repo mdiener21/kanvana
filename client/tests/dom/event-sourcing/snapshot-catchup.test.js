@@ -97,6 +97,24 @@ afterEach(async () => {
 });
 
 describe('catch-up with a server snapshot', () => {
+  it('does not discover unrelated boards from a board-scoped snapshot', async () => {
+    const bytes = await gzip({
+      ...SNAPSHOT_BODY,
+      boards: [...SNAPSHOT_BODY.boards, { id: 'unrelated-db', name: 'db' }],
+    });
+    server.use(
+      http.get(SNAP_LIST, () => listResponse([snapRecord(hlc(100))])),
+      http.get(SNAP_FILE, () => new HttpResponse(bytes)),
+      http.get(EVT_LIST, () => listResponse([])),
+    );
+    setAuth();
+
+    await catchUp();
+
+    expect(listBoards().map(board => board.name)).toEqual(['GOMOGI']);
+    expect(loadColumnsForBoard(BOARD).map(column => column.name)).toEqual(['To Do', 'Done']);
+  });
+
   it('reconstructs a board whose events were GC-ed, from the snapshot alone', async () => {
     const bytes = await gzip(SNAPSHOT_BODY);
     server.use(
