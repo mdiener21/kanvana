@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.7] - 2026-10-05
+
 ### Fixed
 
 - Boards created from a template now sync their real columns, tasks and settings to other devices instead of showing only To Do, In Progress and Done.
