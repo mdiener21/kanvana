@@ -3,6 +3,7 @@ import { performance } from 'node:perf_hooks';
 import { createBoard, createColumn, createLabel, createTask } from '../../src/modules/schema.js';
 import {
   MOVES_PER_REPETITION,
+  PERFORMANCE_BACKFILL_SCENARIOS,
   PERFORMANCE_CALIBRATION,
   PERFORMANCE_REPETITIONS,
   PERFORMANCE_SCENARIOS,
@@ -82,15 +83,14 @@ function createSyntheticBoard(taskCount, view) {
   };
 }
 
-// Writes the read model straight to IndexedDB and pre-sets the event-backfill flag,
-// so startup measures the returning-user path initStorage() actually takes: hydrate
-// from read_model, no event replay. The returned time is the harness's own seeding
-// cost, not any production code path.
-async function seedSyntheticBoard(page, fixture) {
+// Writes the read model straight to IndexedDB. Returning-user scenarios pre-set
+// the backfill flag; migration scenarios leave it unset. The returned time is
+// fixture setup, not application startup.
+async function seedSyntheticBoard(page, fixture, skipBackfill = true) {
   // impressum.html is the one built page that never boots the board app, so the
   // fixture can own kanvana-db outright instead of racing initStorage() for it.
   await page.goto('/impressum.html', { waitUntil: 'domcontentloaded' });
-  return page.evaluate(async ({ data, backfillFlagKey }) => {
+  return page.evaluate(async ({ data, backfillFlagKey, skipBackfill }) => {
     const startedAt = performance.now();
     await new Promise((resolve) => {
       const request = indexedDB.deleteDatabase('kanvana-db');
@@ -113,7 +113,9 @@ async function seedSyntheticBoard(page, fixture) {
         kv.put([data.board], 'kanbanBoards');
         kv.put(data.board.id, 'kanbanActiveBoardId');
         kv.put(data.settings, `kanbanBoard:${data.board.id}:settings`);
-        kv.put({ at: data.board.createdAt, emitted: data.tasks.length + data.columns.length + data.labels.length + 2, synthetic: true }, backfillFlagKey);
+        if (skipBackfill) {
+          kv.put({ at: data.board.createdAt, emitted: data.tasks.length + data.columns.length + data.labels.length + 2, synthetic: true }, backfillFlagKey);
+        }
         const readModel = request.transaction.objectStore('read_model');
         readModel.put(data.columns, `${data.board.id}:columns`);
         readModel.put(data.tasks, `${data.board.id}:tasks`);
@@ -125,7 +127,7 @@ async function seedSyntheticBoard(page, fixture) {
       };
     });
     return performance.now() - startedAt;
-  }, { data: fixture, backfillFlagKey: BACKFILL_FLAG_KEY });
+  }, { data: fixture, backfillFlagKey: BACKFILL_FLAG_KEY, skipBackfill });
 }
 
 function renderCount(entries) {
@@ -312,7 +314,7 @@ for (const scenario of PERFORMANCE_SCENARIOS) {
           globalThis.__kanvanaStartupStartedAt = performance.now();
         });
 
-        await page.goto('/');
+        await page.goto('/', { waitUntil: 'domcontentloaded' });
         // 40% of the fixture sits outside Done; standard view adds the 50 Done cards
         // rendered before the "Show more" cut-off, swimlane view hides Done entirely.
         const expectedLiveCards = scenario.view === 'standard'
@@ -320,7 +322,9 @@ for (const scenario of PERFORMANCE_SCENARIOS) {
           : Math.floor(scenario.taskCount * 0.4);
         await expect(page.locator('.task')).toHaveCount(expectedLiveCards, { timeout: 30_000 });
         await expect.poll(async () => renderCount(await readRenderCounts(page))).toBeGreaterThan(0);
-        const startupMs = await page.evaluate(() => performance.now() - globalThis.__kanvanaStartupStartedAt);
+        const startupMs = await page.evaluate(() =>
+          performance.getEntriesByName('kanvana:board-render:full')[0].startTime - globalThis.__kanvanaStartupStartedAt
+        );
         const startupBoardRenders = renderCount(await readRenderCounts(page));
         const moveMetrics = await performMeasuredMoves(page, fixture, scenario.view);
         const memoryMetrics = await collectMemoryMetrics(page, cdp);
@@ -364,6 +368,64 @@ for (const scenario of PERFORMANCE_SCENARIOS) {
     if (!PERFORMANCE_CALIBRATION) {
       for (const [metric, limit] of Object.entries(scenario.budget)) {
         expect(metrics[metric], `${metric} exceeded its ${scenario.taskCount}/${scenario.view} budget`).toBeLessThanOrEqual(limit);
+      }
+    }
+  });
+}
+
+for (const scenario of PERFORMANCE_BACKFILL_SCENARIOS) {
+  const { taskCount } = scenario;
+  test(`${taskCount} tasks complete event-log backfill within budget`, async ({ browser }, testInfo) => {
+    test.setTimeout(120_000 * PERFORMANCE_REPETITIONS);
+    const fixture = createSyntheticBoard(taskCount, 'standard');
+    const samples = [];
+
+    for (let repetition = 0; repetition < PERFORMANCE_REPETITIONS; repetition += 1) {
+      const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+      try {
+        const page = await context.newPage();
+        await seedSyntheticBoard(page, fixture, false);
+        await page.addInitScript(() => {
+          globalThis.__kanvanaPerfMarks = true;
+          globalThis.__kanvanaStartupStartedAt = performance.now();
+        });
+        await page.goto('/', { waitUntil: 'domcontentloaded' });
+        await expect(page.locator('.task')).toHaveCount(Math.floor(taskCount * 0.4) + 50, { timeout: 30_000 });
+        const sample = await page.evaluate(async (backfillFlagKey) => ({
+          startupMs: performance.getEntriesByName('kanvana:board-render:full')[0].startTime - globalThis.__kanvanaStartupStartedAt,
+          backfillMs: performance.getEntriesByName('kanvana:startup:backfill')[0]?.duration,
+          boardRenders: performance.getEntriesByName('kanvana:board-render:full').length,
+          backfillEvents: await new Promise((resolve, reject) => {
+            const request = indexedDB.open('kanvana-db');
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => {
+              const db = request.result;
+              const read = db.transaction('kv').objectStore('kv').get(backfillFlagKey);
+              read.onsuccess = () => { resolve(read.result?.emitted); db.close(); };
+              read.onerror = () => { reject(read.error); db.close(); };
+            };
+          }),
+        }), BACKFILL_FLAG_KEY);
+        expect(sample.backfillMs, 'backfill did not run').toBeGreaterThan(0);
+        expect(sample.backfillEvents).toBe(taskCount + fixture.columns.length + fixture.labels.length + 2);
+        samples.push(sample);
+      } finally {
+        await context.close();
+      }
+    }
+
+    const metrics = {
+      startupMs: median(samples.map((sample) => sample.startupMs)),
+      backfillMs: median(samples.map((sample) => sample.backfillMs)),
+      boardRenders: Math.max(...samples.map((sample) => sample.boardRenders)),
+    };
+    const result = { scenario: { taskCount, mode: 'backfill' }, repetitions: PERFORMANCE_REPETITIONS, metrics: rounded(metrics), baseline: scenario.baseline, budget: scenario.budget };
+    console.log(`KANVANA_PERFORMANCE ${JSON.stringify(result)}`);
+    await testInfo.attach('performance-result', { body: JSON.stringify(result, null, 2), contentType: 'application/json' });
+    expect(metrics.boardRenders).toBe(1);
+    if (!PERFORMANCE_CALIBRATION) {
+      for (const [metric, limit] of Object.entries(scenario.budget)) {
+        expect(metrics[metric], `${metric} exceeded its ${taskCount}/backfill budget`).toBeLessThanOrEqual(limit);
       }
     }
   });

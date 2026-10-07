@@ -456,6 +456,7 @@ export async function initStorage() {
   }
 
   // One-shot: give pre-event-sourcing state an event log so it can sync at all.
+  const backfillStartedAt = globalThis.__kanvanaPerfMarks ? performance.now() : null;
   await backfillEventLog({
     boards: listBoards(),
     columnsFor: loadColumnsForBoard,
@@ -463,6 +464,9 @@ export async function initStorage() {
     tasksFor: loadTasksForBoard,
     settingsFor: loadSettingsForBoard
   });
+  if (backfillStartedAt !== null) {
+    performance.measure('kanvana:startup:backfill', { start: backfillStartedAt, end: performance.now() });
+  }
 
   // Backfill emits synthetic create events only to populate the event log. The
   // read model is already loaded above, so projecting those events during boot

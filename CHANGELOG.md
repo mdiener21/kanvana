@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- CI now fails when the test job fails, so large-board performance budgets block regressions. The Chromium harness also measures and budgets real first-start event-log backfill separately from returning-user startup and task moves.
+
 ## [3.1.7] - 2026-10-05
 
 ### Fixed

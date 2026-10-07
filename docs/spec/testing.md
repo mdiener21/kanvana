@@ -91,16 +91,21 @@ expect(loadTasks().some(t => t.title === 'Persisted task')).toBe(true);
 builds the app and serves the production bundle from `dist-perf/` — the dev server's on-demand
 transform makes cold startup swing several hundred percent between runs, which no stable budget
 survives. It generates fixed synthetic 400-task and 1,000-task boards in standard and swimlane views.
-Each scenario runs three cold starts and five real `page.mouse` SortableJS drops per start. It prints
+Each steady-state scenario runs three cold starts and five real `page.mouse` SortableJS drops per start.
+Separate 400-task and 1,000-task scenarios start without the migration flag and time the real
+event-log backfill. Each scenario prints
 one `KANVANA_PERFORMANCE` JSON record and attaches the same JSON to the Playwright result.
 
 ### What each metric measures
 
 - `fixtureSeedMs` — the harness writing its own read model into IndexedDB. This is setup cost, **not**
-  the app's event-backfill migration: the fixture pre-sets `kanvana:migrations:eventBackfill:v1` and
-  leaves the `events` store empty, so startup takes the returning-user path `initStorage()` actually
-  takes — hydrate from `read_model`, no event replay. Event-replay cost is not covered here.
-- `startupMs` — navigation to the board rendered with every expected card present.
+  the app's event-backfill migration. Steady-state scenarios pre-set the backfill flag and measure
+  returning-user startup. Separate migration scenarios leave the flag unset and assert that the
+  expected number of synthetic events was emitted.
+- `backfillMs` — time spent in the one-time `backfillEventLog()` migration on first startup.
+  This measures event creation, not replay of an existing event log.
+- `startupMs` — navigation start to the first completed full-board render mark. Card counts are
+  checked separately, so browser `load` delays and Playwright polling do not inflate this metric.
 - `taskDropLatencyMs` — measured **in-page**, from pointer-up to the last board render the drop
   triggers. Wall-clock around the gesture would be mostly CDP round trips and `expect()` poll
   granularity, which buried real app time roughly 10:1.
@@ -122,14 +127,18 @@ production, or personal data is read.
 
 Timing, heap, live-node, and retained-node results use the median of three repetitions. Live-card,
 render, and detached-node limits use the largest repetition, and crash events are summed. The
-checked-in timing and heap baseline was captured on 2026-08-29 with Playwright 1.58.2 headless
-Chromium on Linux over two consecutive full runs. The structural baseline in the second table was
+checked-in drop timing and heap baseline was captured on 2026-08-29 with Playwright 1.58.2 headless
+Chromium on Linux over two consecutive full runs. The structural baseline in the structural table was
 re-recorded on 2026-09-16 over three consecutive runs, after the `forceFallback` drag fix cut
 swimlane DOM retention roughly in half (1,000 swimlane: 55,843 retained nodes down to 30,155). The
 old structural limits then carried about 2x headroom, which is too loose to catch a regression.
-Timing and heap numbers were deliberately not re-recorded: they belong to the reference runner, and
-re-recording them on a developer machine would bake in that machine's speed. One consequence is that
+Drop timing and heap numbers were deliberately not re-recorded: they belong to the reference runner.
+Startup baselines were re-recorded on 2026-10-07 after changing the metric to use the board-render
+mark; earlier values included browser load and Playwright polling delays. Startup budgets retain
+headroom for the slower reference runner until CI calibration is available. One consequence is that
 the 1,000 swimlane heap budget (18 MB) now sits well above what the board actually uses.
+Backfill baselines were recorded on 2026-10-07 from three cold starts after a two-start calibration
+on the same Linux runner; their limits allow roughly 3x variation in migration time.
 
 Structural metrics reproduce almost exactly across runs (standard view is bit-identical; swimlane
 retained and detached nodes vary by 28, under 0.1%), so their budgets sit just above baseline: they
@@ -139,10 +148,15 @@ Wall-clock and heap budgets carry roughly 2-3x headroom because they do move wit
 
 | Scenario | Fixture seed baseline / budget (ms) | Startup baseline / budget (ms) | Drop baseline / budget (ms) | Heap baseline / budget (MB) |
 |---|---:|---:|---:|---:|
-| 400 standard | 22.4 / 200 | 957.4 / 3000 | 283.3 / 700 | 5.98 / 14 |
-| 1,000 standard | 48.0 / 250 | 1849.4 / 4000 | 537.0 / 1300 | 7.27 / 16 |
-| 400 swimlane | 21.1 / 200 | 708.7 / 2500 | 334.1 / 850 | 6.27 / 14 |
-| 1,000 swimlane | 40.4 / 250 | 1320.8 / 3600 | 400.2 / 1000 | 8.75 / 18 |
+| 400 standard | 22.4 / 200 | 303.9 / 3000 | 283.3 / 700 | 5.98 / 14 |
+| 1,000 standard | 48.0 / 250 | 390.5 / 4000 | 537.0 / 1300 | 7.27 / 16 |
+| 400 swimlane | 21.1 / 200 | 451.8 / 2500 | 334.1 / 850 | 6.27 / 14 |
+| 1,000 swimlane | 40.4 / 250 | 355.8 / 3600 | 400.2 / 1000 | 8.75 / 18 |
+
+| Migration scenario | Startup baseline / budget (ms) | Backfill baseline / budget (ms) | Startup renders |
+|---|---:|---:|---:|
+| 400 standard | 343.3 / 3000 | 52.3 / 200 | 1 |
+| 1,000 standard | 506.3 / 4000 | 127.9 / 400 | 1 |
 
 | Scenario | Live cards baseline / budget | Live nodes baseline / budget | Detached nodes baseline / budget | Retained nodes baseline / budget | Startup renders | Renders for five moves | Crash events |
 |---|---:|---:|---:|---:|---:|---:|---:|
