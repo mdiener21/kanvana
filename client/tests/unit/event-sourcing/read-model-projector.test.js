@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { createReadModelProjector } from '../../../src/modules/event-sourcing/read-model-projector.js';
 import { emit, EVENT_EMITTED } from '../../../src/modules/events.js';
+import { TIMETRACKING_SNAPSHOT_KEY } from '../../../src/modules/event-sourcing/snapshot.js';
 
 const BOARD_ID = 'board-a';
 const BOARDS_KEY = 'kanbanBoards';
 const GLOBAL_SETTINGS_KEY = 'kanvana:settings:global';
+const TIME_TRACKING_KEY = 'kanvana:timetracking';
 
 function safeParseArray(value) {
   return Array.isArray(value) ? value : null;
@@ -35,7 +37,8 @@ function makeHarness() {
     columns: { [BOARD_ID]: [{ id: 'todo', name: 'To Do' }] },
     labels: { [BOARD_ID]: [] },
     settings: { [BOARD_ID]: {} },
-    globalSettings: null
+    globalSettings: null,
+    timeTracking: null
   };
   const ctx = {
     state,
@@ -47,7 +50,8 @@ function makeHarness() {
     scheduleReadModelPersist: vi.fn(),
     checkAndScheduleSnapshot: vi.fn(),
     boardsKey: BOARDS_KEY,
-    globalSettingsKey: GLOBAL_SETTINGS_KEY
+    globalSettingsKey: GLOBAL_SETTINGS_KEY,
+    timeTrackingKey: TIME_TRACKING_KEY
   };
   return { state, ctx, projector: createReadModelProjector(ctx) };
 }
@@ -94,6 +98,43 @@ describe('createReadModelProjector', () => {
 
     expect(h.ctx.schedulePersist).toHaveBeenCalledWith(GLOBAL_SETTINGS_KEY, h.state.globalSettings);
     expect(h.ctx.scheduleReadModelPersist).not.toHaveBeenCalled();
+  });
+
+  test('timetracking-scope event is never routed into a board projection and lands in the time-tracking slot', () => {
+    const boardsBefore = h.state.boards;
+    const tasksBefore = h.state.tasks[BOARD_ID];
+    // Even a stray board_id must not pull a timetracking event into that board.
+    h.projector.project({
+      id: 't1',
+      type: 'settings.updated',
+      hlc: { wallTime: 5, counter: 0, nodeId: 'n' },
+      at: '2026-05-26T00:00:00.000Z',
+      actor: { type: 'human', id: null },
+      scope: 'timetracking',
+      board_id: BOARD_ID,
+      entity_id: 'x',
+      payload: { fields: { showDoneTasks: true } }
+    });
+
+    expect(h.state.boards).toBe(boardsBefore);
+    expect(h.state.tasks[BOARD_ID]).toBe(tasksBefore);
+    expect(h.state.settings[BOARD_ID]).toEqual({});
+    expect(h.state.globalSettings).toBeNull();
+    expect(h.state.timeTracking).toEqual({ customers: [], projects: [], timeEntries: [] });
+    expect(h.ctx.scheduleReadModelPersist).not.toHaveBeenCalled();
+    expect(h.ctx.schedulePersist).toHaveBeenCalledWith(TIME_TRACKING_KEY, h.state.timeTracking);
+    expect(h.ctx.checkAndScheduleSnapshot).toHaveBeenCalledWith(TIMETRACKING_SNAPSHOT_KEY, expect.anything(), { wallTime: 5, counter: 0, nodeId: 'n' });
+  });
+
+  test('hydrate() with the timetracking key adopts only the time-tracking slot', () => {
+    const tasksBefore = h.state.tasks[BOARD_ID];
+    const slot = { customers: [{ id: 'c1', name: 'Acme' }], projects: [], timeEntries: [] };
+    h.projector.hydrate(TIMETRACKING_SNAPSHOT_KEY, { timeTracking: slot, boards: [{ id: 'other' }] });
+
+    expect(h.state.timeTracking).toEqual(slot);
+    expect(h.state.tasks[BOARD_ID]).toBe(tasksBefore);
+    expect(h.state.boards.map((b) => b.id)).toEqual([BOARD_ID]);
+    expect(h.ctx.schedulePersist).toHaveBeenCalledWith(TIME_TRACKING_KEY, slot);
   });
 
   test('register() is idempotent — a single emit projects once', () => {

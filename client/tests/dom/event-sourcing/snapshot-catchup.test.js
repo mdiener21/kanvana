@@ -7,16 +7,17 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { deleteDB } from 'idb';
 import { server } from '../../mocks/server.js';
 import { getPb } from '../../../src/modules/sync.js';
-import { _resetIdbForTesting } from '../../../src/modules/idb-store.js';
+import { _resetIdbForTesting, openStore, KV_STORE } from '../../../src/modules/idb-store.js';
 import {
   initStorage,
   listBoards,
+  getTimeTrackingState,
   loadTasksForBoard,
   loadColumnsForBoard,
   _resetStorageForTesting,
 } from '../../../src/modules/storage.js';
 import { _resetHlcForTesting } from '../../../src/modules/event-sourcing/hlc.js';
-import { catchUp, _resetRealtimeForTesting } from '../../../src/modules/event-sourcing/realtime.js';
+import { catchUp, LAST_SEEN_PREFIX, _resetRealtimeForTesting } from '../../../src/modules/event-sourcing/realtime.js';
 
 const SNAP_LIST = '*/api/collections/snapshots/records';
 const SNAP_FILE = '*/api/files/:collection/:record/:filename';
@@ -171,6 +172,29 @@ describe('catch-up with a server snapshot', () => {
 
     expect(loadTasksForBoard(BOARD).map((t) => t.title)).not.toContain('Already in the snapshot');
     expect(loadTasksForBoard(BOARD)).toHaveLength(2);
+  });
+
+  it('hydrates a timetracking snapshot into the time-tracking slot, not a board', async () => {
+    const slot = { customers: [{ id: 'c1', name: 'Acme' }], projects: [], timeEntries: [] };
+    const boardBytes = await gzip(SNAPSHOT_BODY);
+    const ttBytes = await gzip({ ...SNAPSHOT_BODY, boards: [], tasks: [], columns: [], labels: [], timeTracking: slot });
+    server.use(
+      http.get(SNAP_LIST, () => listResponse([
+        snapRecord(hlc(100)),
+        { ...snapRecord(hlc(120)), id: 'snap-tt', board_id: '__timetracking__' },
+      ])),
+      http.get(SNAP_FILE, ({ params }) => new HttpResponse(params.record === 'snap-tt' ? ttBytes : boardBytes)),
+      http.get(EVT_LIST, () => listResponse([])),
+    );
+    setAuth();
+
+    await catchUp();
+
+    expect(getTimeTrackingState()).toEqual(slot);
+    expect(listBoards().map((b) => b.id)).toEqual([BOARD]);
+    expect(loadTasksForBoard(BOARD)).toHaveLength(2);
+    const db = await openStore();
+    expect(await db.get(KV_STORE, `${LAST_SEEN_PREFIX}__timetracking__`)).toEqual(hlc(120));
   });
 
   it('still replays events normally when the server has no snapshot', async () => {

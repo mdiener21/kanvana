@@ -1,6 +1,6 @@
-import { applyEvent, createProjectionState } from '../reducer.js';
+import { applyEvent, createProjectionState, createTimeTrackingState } from '../reducer.js';
 import { keyFor } from '../idb-store.js';
-import { GLOBAL_SNAPSHOT_KEY } from './snapshot.js';
+import { GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY } from './snapshot.js';
 import { DATA_CHANGED, EVENT_EMITTED, emit, off, on } from '../events.js';
 
 // Sole writer of the IDB read model (ADR-0005). Extracted from storage.js so the
@@ -18,7 +18,8 @@ export function createReadModelProjector(ctx) {
     scheduleReadModelPersist,
     checkAndScheduleSnapshot,
     boardsKey,
-    globalSettingsKey
+    globalSettingsKey,
+    timeTrackingKey
   } = ctx;
 
   const appliedDomainEventIds = new Set();
@@ -28,6 +29,14 @@ export function createReadModelProjector(ctx) {
   function project(event) {
     if (!event?.id || appliedDomainEventIds.has(event.id)) return;
     appliedDomainEventIds.add(event.id);
+
+    if (event.scope === 'timetracking') {
+      const projected = applyEvent(createProjectionState({ timeTracking: state.timeTracking }), event);
+      writeTimeTracking(projected.timeTracking);
+      checkAndScheduleSnapshot(TIMETRACKING_SNAPSHOT_KEY, projected, event.hlc);
+      emit(DATA_CHANGED, { event });
+      return;
+    }
 
     if (event.scope === 'global') {
       const projected = applyEvent(createProjectionState({ globalSettings: loadGlobalSettings() }), event);
@@ -54,6 +63,11 @@ export function createReadModelProjector(ctx) {
     emit(DATA_CHANGED, { event });
   }
 
+  function writeTimeTracking(slot) {
+    state.timeTracking = createTimeTrackingState(slot);
+    schedulePersist(timeTrackingKey, state.timeTracking);
+  }
+
   function writeBoard(boardId, projected) {
     state.boards = projected.boards;
     state.tasks[boardId] = projected.tasks;
@@ -73,6 +87,12 @@ export function createReadModelProjector(ctx) {
   // merge only the snapshot's own board: older snapshots include unrelated
   // board metadata without the corresponding columns, tasks or settings.
   function hydrate(key, snapshotState) {
+    if (key === TIMETRACKING_SNAPSHOT_KEY) {
+      writeTimeTracking(snapshotState.timeTracking);
+      emit(DATA_CHANGED, { hydrated: key });
+      return;
+    }
+
     if (key === GLOBAL_SNAPSHOT_KEY) {
       state.globalSettings = snapshotState.globalSettings || {};
       schedulePersist(globalSettingsKey, state.globalSettings);

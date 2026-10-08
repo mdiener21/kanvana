@@ -1,5 +1,14 @@
 import { isDoneColumn } from './constants.js';
 
+export function createTimeTrackingState(seed = {}) {
+  const source = seed && typeof seed === 'object' ? seed : {};
+  return {
+    customers: Array.isArray(source.customers) ? source.customers : [],
+    projects: Array.isArray(source.projects) ? source.projects : [],
+    timeEntries: Array.isArray(source.timeEntries) ? source.timeEntries : []
+  };
+}
+
 export function createProjectionState(seed = {}) {
   return {
     boards: Array.isArray(seed.boards) ? seed.boards : [],
@@ -8,8 +17,18 @@ export function createProjectionState(seed = {}) {
     labels: Array.isArray(seed.labels) ? seed.labels : [],
     settings: seed.settings && typeof seed.settings === 'object' ? seed.settings : {},
     globalSettings: seed.globalSettings && typeof seed.globalSettings === 'object' ? seed.globalSettings : {},
+    timeTracking: createTimeTrackingState(seed.timeTracking),
     appliedEventIds: seed.appliedEventIds instanceof Set ? new Set(seed.appliedEventIds) : new Set(),
     taskTombstones: seed.taskTombstones instanceof Set ? new Set(seed.taskTombstones) : new Set()
+  };
+}
+
+function cloneTimeTracking(timeTracking) {
+  const slot = createTimeTrackingState(timeTracking);
+  return {
+    customers: slot.customers.map((customer) => ({ ...customer })),
+    projects: slot.projects.map((project) => ({ ...project })),
+    timeEntries: slot.timeEntries.map((entry) => ({ ...entry }))
   };
 }
 
@@ -28,6 +47,7 @@ function cloneState(state) {
     labels: state.labels.map((label) => ({ ...label })),
     settings: { ...state.settings },
     globalSettings: { ...state.globalSettings },
+    timeTracking: cloneTimeTracking(state.timeTracking),
     appliedEventIds: new Set(state.appliedEventIds),
     taskTombstones: new Set(state.taskTombstones)
   };
@@ -268,9 +288,10 @@ function applyBoardDeleted(state, event) {
 
 function applySettingsUpdated(state, event) {
   const fields = event.payload?.fields && typeof event.payload.fields === 'object' ? event.payload.fields : {};
-  return event.scope === 'global'
-    ? { ...state, globalSettings: { ...state.globalSettings, ...fields } }
-    : { ...state, settings: { ...state.settings, ...fields } };
+  const scope = event.scope ?? 'board';
+  if (scope === 'global') return { ...state, globalSettings: { ...state.globalSettings, ...fields } };
+  if (scope === 'board') return { ...state, settings: { ...state.settings, ...fields } };
+  return state; // timetracking owns no settings; the spec routes them through global
 }
 
 const handlers = {

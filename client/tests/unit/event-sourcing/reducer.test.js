@@ -208,6 +208,28 @@ test('settings.updated handles board and global settings', () => {
   expect(globalSettings.globalSettings).toEqual({ locale: 'de-DE' });
 });
 
+test('settings.updated in the timetracking scope touches neither board nor global settings', () => {
+  const next = applyEvent(createProjectionState(), event({
+    id: 'settings-tt',
+    type: 'settings.updated',
+    scope: 'timetracking',
+    board_id: null,
+    payload: { fields: { locale: 'de-DE' } }
+  }));
+
+  expect(next.settings).toEqual({});
+  expect(next.globalSettings).toEqual({});
+  expect(next.appliedEventIds.has('settings-tt')).toBe(true);
+});
+
+test('projection state carries an empty time-tracking slot that survives events', () => {
+  const state = createProjectionState();
+  expect(state.timeTracking).toEqual({ customers: [], projects: [], timeEntries: [] });
+
+  const next = applyEvent(state, event({ id: 'board-ev', type: 'settings.updated', payload: { fields: { a: 1 } } }));
+  expect(next.timeTracking).toEqual({ customers: [], projects: [], timeEntries: [] });
+});
+
 test('subtask and relationship events update embedded task collections', () => {
   const state = createProjectionState({
     tasks: [{ id: 'task-a', title: 'Task', subTasks: [], relationships: [], column: 'todo', columnHistory: [] }]

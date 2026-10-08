@@ -7,9 +7,10 @@
 
 import { getPb, isAuthenticated, getUser } from '../sync.js';
 import { compareHlc } from './hlc.js';
-import { serializeState, GLOBAL_SNAPSHOT_KEY, setAfterSnapshotSaved } from './snapshot.js';
+import { serializeState, GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY, setAfterSnapshotSaved } from './snapshot.js';
 import { createProjectionState } from '../reducer.js';
 
+// PB snapshots have no scope column, so timetracking stores its sentinel key in board_id.
 function boardIdFor(key) {
   return key === GLOBAL_SNAPSHOT_KEY ? '' : key;
 }
@@ -19,9 +20,9 @@ function snapshotFilter(ownerId, boardId) {
 }
 
 function eventFilter(ownerId, key) {
-  return key === GLOBAL_SNAPSHOT_KEY
-    ? `owner = "${ownerId}" && scope = "global"`
-    : `owner = "${ownerId}" && board = "${key}"`;
+  if (key === GLOBAL_SNAPSHOT_KEY) return `owner = "${ownerId}" && scope = "global"`;
+  if (key === TIMETRACKING_SNAPSHOT_KEY) return `owner = "${ownerId}" && scope = "timetracking"`;
+  return `owner = "${ownerId}" && board = "${key}"`;
 }
 
 export function buildSnapshotForm(ownerId, boardId, hlc, payloadBytes) {

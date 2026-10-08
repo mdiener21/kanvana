@@ -7,6 +7,8 @@ import {
   SNAPSHOT_AGE_MS,
   MAX_JITTER_MS,
   GLOBAL_SNAPSHOT_KEY,
+  TIMETRACKING_SNAPSHOT_KEY,
+  snapshotKeyForEvent,
   saveSnapshot,
   loadSnapshot,
   gcEvents,
@@ -93,6 +95,39 @@ test('gcEvents for a board snapshot does not delete unrelated boards\' events', 
 
   const remaining = await db.getAll('events');
   expect(remaining.map(e => e.id)).toEqual(['b1', 'b2']);
+});
+
+test('gcEvents scopes timetracking, global and board snapshots independently', async () => {
+  const db = await openStore();
+  const tt = (id, wall) => ({ ...makeEvent(id, 'customer.created', makeHlc(wall), null, id), scope: 'timetracking' });
+  const gl = (id, wall) => ({ ...makeEvent(id, 'settings.updated', makeHlc(wall), null, 'global'), scope: 'global' });
+  const eventsToWrite = [
+    tt('t1', 100), tt('t2', 300),
+    gl('g1', 100),
+    makeEvent('b1', 'task.updated', makeHlc(100))
+  ];
+  for (const ev of eventsToWrite) await db.put('events', { ...ev, synced: false });
+
+  await gcEvents(TIMETRACKING_SNAPSHOT_KEY, makeHlc(200));
+  expect((await db.getAll('events')).map(e => e.id).sort()).toEqual(['b1', 'g1', 't2']);
+
+  await gcEvents(GLOBAL_SNAPSHOT_KEY, makeHlc(200));
+  await gcEvents('board-a', makeHlc(200));
+  expect((await db.getAll('events')).map(e => e.id)).toEqual(['t2']);
+});
+
+test('timetracking snapshot round-trips the time-tracking slot', async () => {
+  const slot = { customers: [{ id: 'c1', name: 'Acme' }], projects: [{ id: 'p1', customerId: 'c1' }], timeEntries: [] };
+  await saveSnapshot(TIMETRACKING_SNAPSHOT_KEY, createProjectionState({ timeTracking: slot }), makeHlc(10));
+
+  expect((await loadSnapshot(TIMETRACKING_SNAPSHOT_KEY)).state.timeTracking).toEqual(slot);
+});
+
+test('snapshotKeyForEvent maps each scope to its own key', () => {
+  expect(snapshotKeyForEvent({ scope: 'timetracking', board_id: 'board-a' })).toBe(TIMETRACKING_SNAPSHOT_KEY);
+  expect(snapshotKeyForEvent({ scope: 'global', board_id: null })).toBe(GLOBAL_SNAPSHOT_KEY);
+  expect(snapshotKeyForEvent({ scope: 'board', board_id: 'board-a' })).toBe('board-a');
+  expect(snapshotKeyForEvent({ board_id: 'board-a' })).toBe('board-a');
 });
 
 // ── Hydration ──────────────────────────────────────────────────────────────────

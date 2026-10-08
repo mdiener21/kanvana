@@ -1,19 +1,30 @@
 import { openStore, EVENTS_STORE, SNAPSHOTS_STORE } from '../idb-store.js';
-import { createProjectionState, applyEvents } from '../reducer.js';
+import { createProjectionState, createTimeTrackingState, applyEvents } from '../reducer.js';
 import { compareHlc } from './hlc.js';
 
 export const SNAPSHOT_EVENT_THRESHOLD = 500;
 export const SNAPSHOT_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 export const MAX_JITTER_MS = 60_000;
 export const GLOBAL_SNAPSHOT_KEY = '__global__';
+export const TIMETRACKING_SNAPSHOT_KEY = '__timetracking__';
+
+// Board-less scopes; any other scope (or none, on legacy events) is keyed by board_id.
+const SCOPE_KEYS = {
+  global: GLOBAL_SNAPSHOT_KEY,
+  timetracking: TIMETRACKING_SNAPSHOT_KEY
+};
 
 const _pendingSnapshots = new Map();
 let _getJitter = () => Math.floor(Math.random() * (MAX_JITTER_MS + 1));
 let _afterSnapshotSaved = null;
 
+export function snapshotKeyForEvent(event) {
+  return SCOPE_KEYS[event?.scope] ?? (event?.board_id || '');
+}
+
 function eventMatchesSnapshotScope(key, event) {
   if (!event || typeof event !== 'object') return false;
-  if (key === GLOBAL_SNAPSHOT_KEY) return event.scope === 'global';
+  if (key === GLOBAL_SNAPSHOT_KEY || key === TIMETRACKING_SNAPSHOT_KEY) return SCOPE_KEYS[event.scope] === key;
   return (event.scope ?? 'board') === 'board' && event.board_id === key;
 }
 
@@ -25,6 +36,7 @@ export function serializeState(state) {
     labels: Array.isArray(state.labels) ? state.labels : [],
     settings: state.settings && typeof state.settings === 'object' ? state.settings : {},
     globalSettings: state.globalSettings && typeof state.globalSettings === 'object' ? state.globalSettings : {},
+    timeTracking: createTimeTrackingState(state.timeTracking),
     appliedEventIds: [...(state.appliedEventIds instanceof Set ? state.appliedEventIds : [])],
     taskTombstones: [...(state.taskTombstones instanceof Set ? state.taskTombstones : [])]
   };

@@ -9,12 +9,14 @@ import { _flushDomainEventsForTesting, scheduleDomainEvent } from './event-sourc
 import { checkAndScheduleSnapshot, _resetSnapshotSchedulerForTesting } from './event-sourcing/snapshot.js';
 import { createReadModelProjector } from './event-sourcing/read-model-projector.js';
 import { backfillEventLog } from './event-sourcing/backfill.js';
+import { createTimeTrackingState } from './reducer.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 const BOARDS_KEY = 'kanbanBoards';
 const ACTIVE_BOARD_KEY = 'kanbanActiveBoardId';
 const GLOBAL_SETTINGS_KEY = 'kanvana:settings:global';
+const TIME_TRACKING_KEY = 'kanvana:timetracking';
 
 const LEGACY_COLUMNS_KEY = 'kanbanColumns';
 const LEGACY_TASKS_KEY = 'kanbanTasks';
@@ -41,7 +43,8 @@ const state = {
   columns: {},  // { [boardId]: column[] | null }
   labels: {},   // { [boardId]: label[] | null }
   settings: {},  // { [boardId]: object | null }
-  globalSettings: null
+  globalSettings: null,
+  timeTracking: null  // board-less projection for scope "timetracking"
 };
 
 // Per-board default-task cache (keeps defaults stable within a session).
@@ -60,7 +63,8 @@ const readModelProjector = createReadModelProjector({
   scheduleReadModelPersist,
   checkAndScheduleSnapshot,
   boardsKey: BOARDS_KEY,
-  globalSettingsKey: GLOBAL_SETTINGS_KEY
+  globalSettingsKey: GLOBAL_SETTINGS_KEY,
+  timeTrackingKey: TIME_TRACKING_KEY
 });
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -447,6 +451,7 @@ export async function initStorage() {
   state.boards = safeParseArray(await db.get(KV_STORE, BOARDS_KEY)) || [];
   state.activeBoardId = (await db.get(KV_STORE, ACTIVE_BOARD_KEY)) || null;
   state.globalSettings = normalizeGlobalSettings(await db.get(KV_STORE, GLOBAL_SETTINGS_KEY));
+  state.timeTracking = createTimeTrackingState(await db.get(KV_STORE, TIME_TRACKING_KEY));
 
   for (const board of state.boards) {
     state.tasks[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'tasks'))) ?? null;
@@ -487,6 +492,10 @@ export function hydrateFromSnapshotState(key, snapshotState) {
   readModelProjector.hydrate(key, snapshotState);
 }
 
+export function getTimeTrackingState() {
+  return createTimeTrackingState(state.timeTracking);
+}
+
 export async function _flushPersistsForTesting() {
   await _flushDomainEventsForTesting();
   await _flushIdbPersistsForTesting();
@@ -506,6 +515,7 @@ export function _resetStorageForTesting() {
   for (const k in state.labels) delete state.labels[k];
   for (const k in state.settings) delete state.settings[k];
   state.globalSettings = null;
+  state.timeTracking = null;
   taskCacheByBoard.clear();
   syntheticDoneIdByBoard.clear();
   readModelProjector.reset();

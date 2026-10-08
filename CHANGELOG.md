@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Sync now carries a separate time-tracking data stream alongside boards and global settings, in preparation for Time Tracking. No visible change.
+
 ## [3.1.7] - 2026-10-05
 
 ### Fixed

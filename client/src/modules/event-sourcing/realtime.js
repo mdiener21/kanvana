@@ -9,7 +9,7 @@ import { emit, EVENT_EMITTED } from '../events.js';
 import { persistEvent, openStore, KV_STORE, EVENTS_STORE } from '../idb-store.js';
 import { getPb, isAuthenticated, getUser } from '../sync.js';
 import { observeRemote, compareHlc } from './hlc.js';
-import { GLOBAL_SNAPSHOT_KEY, saveSnapshot, loadSnapshot } from './snapshot.js';
+import { snapshotKeyForEvent, saveSnapshot, loadSnapshot } from './snapshot.js';
 import { downloadAllSnapshots } from './snapshot-sync.js';
 import { hydrateFromSnapshotState } from '../storage.js';
 
@@ -33,10 +33,6 @@ function recordToEvent(r) {
     entity_id: r.entity_id ?? '',
     payload: r.payload ?? {},
   };
-}
-
-function scopeKey(event) {
-  return event.scope === 'global' ? GLOBAL_SNAPSHOT_KEY : (event.board_id || '');
 }
 
 async function getLastSeen(key) {
@@ -144,7 +140,7 @@ async function pullRemoteState() {
   const db = await openStore();
 
   for (const event of events) {
-    const key = scopeKey(event);
+    const key = snapshotKeyForEvent(event);
     if (!seenByKey.has(key)) seenByKey.set(key, (await loadSnapshot(key))?.hlc);
     const seen = seenByKey.get(key);
     // A later HLC arriving first does not cover missing earlier events. Only a

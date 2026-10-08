@@ -7,7 +7,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { server } from '../../mocks/server.js';
 import { getPb } from '../../../src/modules/sync.js';
 import { createProjectionState } from '../../../src/modules/reducer.js';
-import { GLOBAL_SNAPSHOT_KEY } from '../../../src/modules/event-sourcing/snapshot.js';
+import { GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY } from '../../../src/modules/event-sourcing/snapshot.js';
 import { uploadSnapshot, buildSnapshotForm } from '../../../src/modules/event-sourcing/snapshot-sync.js';
 
 const SNAP_LIST = '*/api/collections/snapshots/records';
@@ -127,5 +127,20 @@ describe('snapshot upload', () => {
     expect(res.uploaded).toBe('snap-g');
     expect(snapFilter).toContain('board_id = ""');
     expect(evtFilter).toContain('scope = "global"');
+  });
+
+  it('timetracking snapshot uses its own board_id key and GCs only timetracking events', async () => {
+    let snapFilter = null;
+    let evtFilter = null;
+    server.use(
+      http.get(SNAP_LIST, ({ request }) => { snapFilter = new URL(request.url).searchParams.get('filter'); return listResponse([]); }),
+      http.get(EVT_LIST, ({ request }) => { evtFilter = new URL(request.url).searchParams.get('filter'); return listResponse([]); }),
+      http.post(SNAP_LIST, () => HttpResponse.json({ id: 'snap-tt' })),
+    );
+    setAuth();
+    const res = await uploadSnapshot(TIMETRACKING_SNAPSHOT_KEY, state, hlc(7));
+    expect(res.uploaded).toBe('snap-tt');
+    expect(snapFilter).toBe(`owner = "user1" && board_id = "${TIMETRACKING_SNAPSHOT_KEY}"`);
+    expect(evtFilter).toBe('owner = "user1" && scope = "timetracking"');
   });
 });

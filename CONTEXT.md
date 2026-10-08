@@ -102,7 +102,8 @@ The storage layer is split into three modules:
 | `kanbanActiveBoardId` | Active board ID string |
 | `kanvana:settings:global` | Global (cross-board) settings object |
 | `kanvana:hlc:node` | Persisted Hybrid Logical Clock node id |
-| `kanvana:sync:lastSeenHlc:{scope}` | Per-scope catch-up watermark |
+| `kanvana:timetracking` | Time-tracking projection (`customers` / `projects` / `timeEntries`) |
+| `kanvana:sync:lastSeenHlc:{scope}` | Per-scope catch-up watermark (`{boardId}`, `__global__` or `__timetracking__`) |
 
 **Pattern:** `initStorage()` (async, called once at startup) → synchronous CRUD functions read/write
 in-memory `state` → fire-and-forget IDB writes via `scheduleReadModelPersist()` → `renderBoard()`.
@@ -335,7 +336,7 @@ re-sorts by HLC on replay, so server insertion order is irrelevant. Node id pers
   "hlc": { /* HLC stamp */ },
   "at": "<ISO datetime>",
   "scope": "board",
-  "board_id": "<board uuid | null for global>",
+  "board_id": "<board uuid | null for global / timetracking>",
   "entity_id": "<id of the affected entity>",
   "actor": { "type": "human", "id": null },
   "payload": { "from": "high", "to": "medium" }
@@ -344,7 +345,8 @@ re-sorts by HLC on replay, so server insertion order is irrelevant. Node id pers
 
 `payload` (formerly `details`) carries the event data; for field changes, before/after values. Locally,
 events are persisted to the `events` IDB store with a `synced` flag; on PocketBase they live in the
-`events` collection (`payload`/`board`-text/`hlc`/`scope`/`entity_id`).
+`events` collection (`payload`/`board`-text/`hlc`/`scope`/`entity_id`). `scope` is `board`, `global` or
+`timetracking`; the last two are board-less and are snapshotted under `__global__` / `__timetracking__`.
 
 ### Actor Model
 

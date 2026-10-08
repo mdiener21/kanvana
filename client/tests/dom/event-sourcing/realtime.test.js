@@ -229,6 +229,35 @@ describe('catch-up pull', () => {
     expect(await db.get(KV_STORE, `${LAST_SEEN_PREFIX}board-1`)).toEqual(hlc(2));
   });
 
+  it('ingests timetracking events under their own watermark without touching boards', async () => {
+    server.use(http.get(EVT_LIST, () => listResponse([
+      record({ local_id: 'b1', h: hlc(1), payload: { board: { name: 'B' } } }),
+      { ...record({ local_id: 't1', type: 'customer.created', h: hlc(3), board: '', scope: 'timetracking' }), entity_id: 'customer-1' },
+      { ...record({ local_id: 'g1', type: 'settings.updated', h: hlc(2), board: '', scope: 'global', payload: { fields: { locale: 'de-DE' } } }), entity_id: 'global' },
+    ])));
+    setAuth();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const emitted = [];
+    const handler = (e) => emitted.push(e.detail);
+    on(EVENT_EMITTED, handler);
+    await catchUp();
+    await catchUp(); // dedup: a second pull re-ingests nothing
+    off(EVENT_EMITTED, handler);
+    warn.mockRestore();
+
+    expect(emitted.map(e => e.id)).toEqual(['b1', 'g1', 't1']);
+    expect(emitted.find(e => e.id === 't1')).toMatchObject({ scope: 'timetracking', board_id: null });
+    expect(listBoards().map(b => b.id)).toEqual(['board-1']);
+    expect(await getUnsyncedEvents()).toHaveLength(0);
+
+    const db = await openStore();
+    expect(await db.get(KV_STORE, `${LAST_SEEN_PREFIX}__timetracking__`)).toEqual(hlc(3));
+    expect(await db.get(KV_STORE, `${LAST_SEEN_PREFIX}__global__`)).toEqual(hlc(2));
+    expect(await db.get(KV_STORE, `${LAST_SEEN_PREFIX}board-1`)).toEqual(hlc(1));
+    expect(await db.get(KV_STORE, LAST_SEEN_PREFIX)).toBeUndefined();
+  });
+
   it('AC-005/AC-006: re-running catch-up applies nothing new (idempotent overlap)', async () => {
     server.use(http.get(EVT_LIST, () => listResponse([
       record({ local_id: 'c1', h: hlc(1), payload: { board: { name: 'B' } } }),

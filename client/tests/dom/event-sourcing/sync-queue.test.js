@@ -117,6 +117,25 @@ describe('sync-queue push', () => {
     expect(received[0].event_type).toBe('task.updated');
   });
 
+  it('pushes a timetracking event with its scope and no board', async () => {
+    const received = [];
+    server.use(http.post(EVENTS_URL, async ({ request }) => {
+      received.push(await request.json());
+      return HttpResponse.json({ id: 'rec-tt' });
+    }));
+
+    setAuth();
+    const event = { ...makeEvent({ counter: 0, id: 'evt-tt', type: 'customer.created' }), scope: 'timetracking', board_id: null, entity_id: 'customer-1' };
+    await persistEvent(event);
+
+    initSyncQueue();
+    emit(EVENT_EMITTED, event);
+
+    await waitFor(async () => expect((await getUnsyncedEvents()).length).toBe(0));
+    expect(received).toHaveLength(1);
+    expect(received[0]).toMatchObject({ local_id: 'evt-tt', scope: 'timetracking', board: null, entity_id: 'customer-1' });
+  });
+
   it('AC-005: caps concurrent pushes at 5 and drains the whole queue', async () => {
     let inFlight = 0;
     let peak = 0;
