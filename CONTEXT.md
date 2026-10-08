@@ -29,6 +29,30 @@ limit* is `taskCount > wipLimit`. A Column's count is measured **board-wide acro
 not per lane×column cell — a WIP limit constrains system capacity, not each lane's. The **Done**
 Column is exempt: it is terminal and unbounded, and limiting it would block finishing work.
 
+### Time Tracking glossary
+
+Time Tracking is a **standalone, user-wide** area. It has no relationship to Boards, Columns or
+Tasks — a Time Entry never references a Task, and a Project is not a Board.
+
+**Customer** — a party work is done for. Identified by name only.
+
+**Project** — a named unit of work belonging to exactly one Customer. A Customer has many Projects.
+Not to be confused with a Board.
+
+**Time Entry** — one span of tracked work: a start and an end, booked to exactly one Project, with
+an optional free-text description. Its Customer is always the Project's Customer — never set
+independently. A Time Entry is always **complete** — it has both a start and an end; there is no
+running timer. It may cross midnight, and entries may overlap.
+
+**Duration** — end minus start of a Time Entry. Derived, never stored independently.
+
+**Archived** — a Customer or Project hidden from selection for new Time Entries but still shown in
+lists, filters and reports. A Customer or Project that is referenced (by Projects or Time Entries)
+can only be archived, never deleted; deletion is allowed only once nothing references it.
+
+**Attribution** — a Time Entry's whole Duration counts toward the day and month of its **start**,
+in the user's timezone. Entries are never split at midnight or month boundaries.
+
 ---
 
 ## 2. Aggregate Roots and Boundaries
