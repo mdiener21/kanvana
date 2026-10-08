@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - CI now fails when the test job fails, so large-board performance budgets block regressions. The Chromium harness also measures and budgets real first-start event-log backfill separately from returning-user startup and task moves.
+- CI now runs ESLint and stores Chromium performance measurements. Drop and heap limits are based on three GitHub-hosted runs, while a manual calibration workflow collects new startup and backfill baselines. A fast performance smoke test validates startup timing before browser load completes.
 
 ## [3.1.7] - 2026-10-05
 

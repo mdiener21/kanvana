@@ -7,7 +7,7 @@
 - `MSW` for mocked API behavior shared by Vitest suites in `tests/mocks/`
 - `Playwright` for end-to-end, visual, and accessibility smoke tests in `tests/e2e/`
 
-The canonical folder and naming conventions live in `docs/testing-strategy.md`.
+The canonical folder and naming conventions live in [`testing-strategy.md`](testing-strategy.md).
 
 ## Test Scripts
 
@@ -16,6 +16,7 @@ The canonical folder and naming conventions live in `docs/testing-strategy.md`.
 - `npm run test:dom` - run DOM integration tests only
 - `npm run test:e2e` - run Playwright (mocked suite; ignores `tests/e2e/event-sourcing/`)
 - `npm run test:perf` - run the deterministic large-board Chromium performance budgets
+- `npm run test:perf:smoke` - run one 400-task Chromium startup check before the full performance suite
 - `npm run test:e2e:live` - run the event-sourcing convergence specs against a **live** PocketBase
 - `npm run test:ui` - open Playwright UI mode
 - `npm run test:debug` - run Playwright debug mode
@@ -93,8 +94,10 @@ transform makes cold startup swing several hundred percent between runs, which n
 survives. It generates fixed synthetic 400-task and 1,000-task boards in standard and swimlane views.
 Each steady-state scenario runs three cold starts and five real `page.mouse` SortableJS drops per start.
 Separate 400-task and 1,000-task scenarios start without the migration flag and time the real
-event-log backfill. Each scenario prints
-one `KANVANA_PERFORMANCE` JSON record and attaches the same JSON to the Playwright result.
+event-log backfill. Each scenario prints one `KANVANA_PERFORMANCE` JSON record and attaches the
+same JSON to the Playwright result. The smoke check holds an image request open to prove that
+startup timing stops at the board-render mark, before browser `load` finishes.
+CI uploads `client/test-results/performance-report.json` for review after each run.
 
 ### What each metric measures
 
@@ -127,16 +130,21 @@ production, or personal data is read.
 
 Timing, heap, live-node, and retained-node results use the median of three repetitions. Live-card,
 render, and detached-node limits use the largest repetition, and crash events are summed. The
-checked-in drop timing and heap baseline was captured on 2026-08-29 with Playwright 1.58.2 headless
-Chromium on Linux over two consecutive full runs. The structural baseline in the structural table was
-re-recorded on 2026-09-16 over three consecutive runs, after the `forceFallback` drag fix cut
-swimlane DOM retention roughly in half (1,000 swimlane: 55,843 retained nodes down to 30,155). The
-old structural limits then carried about 2x headroom, which is too loose to catch a regression.
-Drop timing and heap numbers were deliberately not re-recorded: they belong to the reference runner.
+checked-in fixture-seed, drop, and heap baselines are medians from three GitHub-hosted Ubuntu runs:
+[October 4 first](https://github.com/mdiener21/kanvana/actions/runs/37236682975),
+[October 4 second](https://github.com/mdiener21/kanvana/actions/runs/37237978176), and
+[October 5](https://github.com/mdiener21/kanvana/actions/runs/37368949961).
+The structural baseline table was re-recorded on 2026-09-16 over three consecutive runs, after the
+`forceFallback` drag fix cut swimlane DOM retention roughly in half (1,000 swimlane: 55,843 retained
+nodes down to 30,155). The old structural limits then carried about 2x headroom, which is too loose
+to catch a regression. Drop limits sit roughly 2x above the slowest CI measurement; heap limits
+allow at least 50% above the highest observed use. These runs used the same drop and heap metrics as
+the current harness.
+CI enables these stricter drop limits with `KANVANA_PERF_BUDGET=ci`. Local `npm run test:perf` uses
+the former portable drop thresholds so developers can verify behavior on slower machines.
 Startup baselines were re-recorded on 2026-10-07 after changing the metric to use the board-render
 mark; earlier values included browser load and Playwright polling delays. Startup budgets retain
-headroom for the slower reference runner until CI calibration is available. One consequence is that
-the 1,000 swimlane heap budget (18 MB) now sits well above what the board actually uses.
+headroom until CI calibration of the new startup metric is available.
 Backfill baselines were recorded on 2026-10-07 from three cold starts after a two-start calibration
 on the same Linux runner; their limits allow roughly 3x variation in migration time.
 
@@ -144,14 +152,14 @@ Structural metrics reproduce almost exactly across runs (standard view is bit-id
 retained and detached nodes vary by 28, under 0.1%), so their budgets sit just above baseline: they
 fail on a lost virtualization boundary, a duplicated render path, or a board-sized DOM left retained. Render counts are budgeted at exactly their baseline
 on purpose — they depend on code, not on runner speed, so any extra render is a real regression.
-Wall-clock and heap budgets carry roughly 2-3x headroom because they do move with runner load.
+Drop and heap budgets carry measured headroom because they move with runner load.
 
 | Scenario | Fixture seed baseline / budget (ms) | Startup baseline / budget (ms) | Drop baseline / budget (ms) | Heap baseline / budget (MB) |
 |---|---:|---:|---:|---:|
-| 400 standard | 22.4 / 200 | 303.9 / 3000 | 283.3 / 700 | 5.98 / 14 |
-| 1,000 standard | 48.0 / 250 | 390.5 / 4000 | 537.0 / 1300 | 7.27 / 16 |
-| 400 swimlane | 21.1 / 200 | 451.8 / 2500 | 334.1 / 850 | 6.27 / 14 |
-| 1,000 swimlane | 40.4 / 250 | 355.8 / 3600 | 400.2 / 1000 | 8.75 / 18 |
+| 400 standard | 9.0 / 200 | 303.9 / 3000 | 59.4 / 150 | 6.04 / 10 |
+| 1,000 standard | 18.5 / 250 | 390.5 / 4000 | 103.2 / 250 | 7.52 / 12 |
+| 400 swimlane | 8.9 / 200 | 451.8 / 2500 | 95.0 / 250 | 5.40 / 9 |
+| 1,000 swimlane | 18.5 / 250 | 355.8 / 3600 | 159.3 / 400 | 7.11 / 11 |
 
 | Migration scenario | Startup baseline / budget (ms) | Backfill baseline / budget (ms) | Startup renders |
 |---|---:|---:|---:|
@@ -167,8 +175,9 @@ Wall-clock and heap budgets carry roughly 2-3x headroom because they do move wit
 
 ### Known limits
 
-- The baseline is local, not GitHub-runner calibrated. The timing headroom is sized for a slower
-  shared runner, but the first CI runs should be watched before the numbers are trusted as final.
+- Startup and backfill baselines are local because GitHub has not yet run those revised metrics.
+  Use the manual `performance-calibration.yml` workflow for three independent GitHub-runner samples
+  after the workflow reaches the default branch. Its three matrix jobs each upload a JSON report.
 - Swimlane view hides Done, so drops into a large Done column are exercised by the two standard
   scenarios only; the swimlane scenarios move To Do to In Progress across a populated lane instead.
 

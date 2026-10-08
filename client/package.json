@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "lint": "eslint .",
     "preview": "vite preview",
     "release:prepare": "node scripts/prepare-release.mjs",
     "release:generate": "gh workflow run release.yml",
@@ -15,6 +16,7 @@
     "test:dom": "vitest run --config vitest.dom.config.js",
     "test:e2e": "playwright test",
     "test:perf": "playwright test --config playwright.performance.config.js",
+    "test:perf:smoke": "playwright test --config playwright.performance.config.js --grep 'smoke:'",
     "test:e2e:live": "playwright test --config playwright.live.config.js",
     "test:pwa": "playwright test --config playwright.pwa.config.js",
     "pwa:icons": "node scripts/generate-pwa-icons.mjs",
@@ -26,7 +28,9 @@
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "@testing-library/dom": "^10.4.1",
+    "eslint": "^10.12.0",
     "fake-indexeddb": "^6.2.5",
+    "globals": "^16.5.0",
     "jsdom": "^29.0.1",
     "msw": "^2.12.14",
     "vite": "^8.0.16",
