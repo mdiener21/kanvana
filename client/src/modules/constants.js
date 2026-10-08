@@ -8,7 +8,14 @@ export function isDoneColumn(column) {
   return column?.role === DONE_COLUMN_ROLE || column?.id === LEGACY_DONE_COLUMN_ID;
 }
 
-export const PRIORITIES = ['urgent', 'high', 'medium', 'low', 'none'];
+// Event scopes (ADR-0004). Events without a scope (legacy) are board-scoped.
+export const EVENT_SCOPE = Object.freeze({
+  BOARD: 'board',
+  GLOBAL: 'global',
+  TIMETRACKING: 'timetracking'
+});
+
+export const PRIORITIES =['urgent', 'high', 'medium', 'low', 'none'];
 export const PRIORITY_SET = new Set(PRIORITIES);
 
 export const PRIORITY_ORDER = { urgent: 0, high: 1, medium: 2, low: 3, none: 4 };

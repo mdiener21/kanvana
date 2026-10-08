@@ -7,10 +7,12 @@
 
 import { getPb, isAuthenticated, getUser } from '../sync.js';
 import { compareHlc } from './hlc.js';
-import { serializeState, GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY, setAfterSnapshotSaved } from './snapshot.js';
+import { serializeState, GLOBAL_SNAPSHOT_KEY, scopeForSnapshotKey, setAfterSnapshotSaved } from './snapshot.js';
 import { createProjectionState } from '../reducer.js';
+import { EVENT_SCOPE } from '../constants.js';
 
-// PB snapshots have no scope column, so timetracking stores its sentinel key in board_id.
+// PB snapshots have no scope column: global keeps its legacy empty board_id,
+// every other key (board ids, the timetracking sentinel) is stored as-is.
 function boardIdFor(key) {
   return key === GLOBAL_SNAPSHOT_KEY ? '' : key;
 }
@@ -20,9 +22,10 @@ function snapshotFilter(ownerId, boardId) {
 }
 
 function eventFilter(ownerId, key) {
-  if (key === GLOBAL_SNAPSHOT_KEY) return `owner = "${ownerId}" && scope = "global"`;
-  if (key === TIMETRACKING_SNAPSHOT_KEY) return `owner = "${ownerId}" && scope = "timetracking"`;
-  return `owner = "${ownerId}" && board = "${key}"`;
+  const scope = scopeForSnapshotKey(key);
+  return scope === EVENT_SCOPE.BOARD
+    ? `owner = "${ownerId}" && board = "${key}"`
+    : `owner = "${ownerId}" && scope = "${scope}"`;
 }
 
 export function buildSnapshotForm(ownerId, boardId, hlc, payloadBytes) {

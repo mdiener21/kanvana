@@ -1,6 +1,7 @@
 import { applyEvent, createProjectionState, createTimeTrackingState } from '../reducer.js';
 import { keyFor } from '../idb-store.js';
-import { GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY } from './snapshot.js';
+import { scopeForSnapshotKey, snapshotKeyForEvent } from './snapshot.js';
+import { EVENT_SCOPE } from '../constants.js';
 import { DATA_CHANGED, EVENT_EMITTED, emit, off, on } from '../events.js';
 
 // Sole writer of the IDB read model (ADR-0005). Extracted from storage.js so the
@@ -22,6 +23,23 @@ export function createReadModelProjector(ctx) {
     timeTrackingKey
   } = ctx;
 
+  // Board-less scopes each own one read-model slot. `normalize` applies only at
+  // the snapshot boundary; projected slots are already normalised by the reducer.
+  const boardlessSlots = new Map([
+    [EVENT_SCOPE.GLOBAL, {
+      field: 'globalSettings',
+      persistKey: globalSettingsKey,
+      seed: loadGlobalSettings,
+      normalize: (value) => value || {}
+    }],
+    [EVENT_SCOPE.TIMETRACKING, {
+      field: 'timeTracking',
+      persistKey: timeTrackingKey,
+      seed: () => state.timeTracking,
+      normalize: createTimeTrackingState
+    }]
+  ]);
+
   const appliedDomainEventIds = new Set();
   let registered = false;
   let handler = null;
@@ -30,19 +48,11 @@ export function createReadModelProjector(ctx) {
     if (!event?.id || appliedDomainEventIds.has(event.id)) return;
     appliedDomainEventIds.add(event.id);
 
-    if (event.scope === 'timetracking') {
-      const projected = applyEvent(createProjectionState({ timeTracking: state.timeTracking }), event);
-      writeTimeTracking(projected.timeTracking);
-      checkAndScheduleSnapshot(TIMETRACKING_SNAPSHOT_KEY, projected, event.hlc);
-      emit(DATA_CHANGED, { event });
-      return;
-    }
-
-    if (event.scope === 'global') {
-      const projected = applyEvent(createProjectionState({ globalSettings: loadGlobalSettings() }), event);
-      state.globalSettings = projected.globalSettings;
-      schedulePersist(globalSettingsKey, state.globalSettings);
-      checkAndScheduleSnapshot(GLOBAL_SNAPSHOT_KEY, projected, event.hlc);
+    const slot = boardlessSlots.get(event.scope);
+    if (slot) {
+      const projected = applyEvent(createProjectionState({ [slot.field]: slot.seed() }), event);
+      writeBoardless(slot, projected[slot.field]);
+      checkAndScheduleSnapshot(snapshotKeyForEvent(event), projected, event.hlc);
       emit(DATA_CHANGED, { event });
       return;
     }
@@ -63,9 +73,9 @@ export function createReadModelProjector(ctx) {
     emit(DATA_CHANGED, { event });
   }
 
-  function writeTimeTracking(slot) {
-    state.timeTracking = createTimeTrackingState(slot);
-    schedulePersist(timeTrackingKey, state.timeTracking);
+  function writeBoardless(slot, value) {
+    state[slot.field] = value;
+    schedulePersist(slot.persistKey, value);
   }
 
   function writeBoard(boardId, projected) {
@@ -87,15 +97,9 @@ export function createReadModelProjector(ctx) {
   // merge only the snapshot's own board: older snapshots include unrelated
   // board metadata without the corresponding columns, tasks or settings.
   function hydrate(key, snapshotState) {
-    if (key === TIMETRACKING_SNAPSHOT_KEY) {
-      writeTimeTracking(snapshotState.timeTracking);
-      emit(DATA_CHANGED, { hydrated: key });
-      return;
-    }
-
-    if (key === GLOBAL_SNAPSHOT_KEY) {
-      state.globalSettings = snapshotState.globalSettings || {};
-      schedulePersist(globalSettingsKey, state.globalSettings);
+    const slot = boardlessSlots.get(scopeForSnapshotKey(key));
+    if (slot) {
+      writeBoardless(slot, slot.normalize(snapshotState[slot.field]));
       emit(DATA_CHANGED, { hydrated: key });
       return;
     }

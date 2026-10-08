@@ -12,6 +12,7 @@ import { observeRemote, compareHlc } from './hlc.js';
 import { snapshotKeyForEvent, saveSnapshot, loadSnapshot } from './snapshot.js';
 import { downloadAllSnapshots } from './snapshot-sync.js';
 import { hydrateFromSnapshotState } from '../storage.js';
+import { EVENT_SCOPE } from '../constants.js';
 
 const LAST_SEEN_PREFIX = 'kanvana:sync:lastSeenHlc:';
 
@@ -28,7 +29,7 @@ function recordToEvent(r) {
     hlc: r.hlc,
     at: r.at,
     actor: { type: r.actor_type ?? 'human', id: r.actor_id ?? null },
-    scope: r.scope ?? 'board',
+    scope: r.scope ?? EVENT_SCOPE.BOARD,
     board_id: r.board || null,
     entity_id: r.entity_id ?? '',
     payload: r.payload ?? {},

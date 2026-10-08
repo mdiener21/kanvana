@@ -1,6 +1,7 @@
 import { openStore, EVENTS_STORE, SNAPSHOTS_STORE } from '../idb-store.js';
 import { createProjectionState, createTimeTrackingState, applyEvents } from '../reducer.js';
 import { compareHlc } from './hlc.js';
+import { EVENT_SCOPE } from '../constants.js';
 
 export const SNAPSHOT_EVENT_THRESHOLD = 500;
 export const SNAPSHOT_AGE_MS = 14 * 24 * 60 * 60 * 1000;
@@ -8,24 +9,33 @@ export const MAX_JITTER_MS = 60_000;
 export const GLOBAL_SNAPSHOT_KEY = '__global__';
 export const TIMETRACKING_SNAPSHOT_KEY = '__timetracking__';
 
-// Board-less scopes; any other scope (or none, on legacy events) is keyed by board_id.
-const SCOPE_KEYS = {
-  global: GLOBAL_SNAPSHOT_KEY,
-  timetracking: TIMETRACKING_SNAPSHOT_KEY
-};
+// The one scope -> snapshot/watermark key mapping. Board-less scopes have a
+// sentinel key; board scope (or none, on legacy events) is keyed by board_id.
+const SNAPSHOT_KEY_BY_SCOPE = new Map([
+  [EVENT_SCOPE.GLOBAL, GLOBAL_SNAPSHOT_KEY],
+  [EVENT_SCOPE.TIMETRACKING, TIMETRACKING_SNAPSHOT_KEY]
+]);
+
+const SCOPE_BY_SNAPSHOT_KEY = new Map([...SNAPSHOT_KEY_BY_SCOPE].map(([scope, key]) => [key, scope]));
 
 const _pendingSnapshots = new Map();
 let _getJitter = () => Math.floor(Math.random() * (MAX_JITTER_MS + 1));
 let _afterSnapshotSaved = null;
 
 export function snapshotKeyForEvent(event) {
-  return SCOPE_KEYS[event?.scope] ?? (event?.board_id || '');
+  return SNAPSHOT_KEY_BY_SCOPE.get(event?.scope) ?? (event?.board_id || '');
+}
+
+// Inverse of snapshotKeyForEvent: any non-sentinel key is a board id.
+export function scopeForSnapshotKey(key) {
+  return SCOPE_BY_SNAPSHOT_KEY.get(key) ?? EVENT_SCOPE.BOARD;
 }
 
 function eventMatchesSnapshotScope(key, event) {
   if (!event || typeof event !== 'object') return false;
-  if (key === GLOBAL_SNAPSHOT_KEY || key === TIMETRACKING_SNAPSHOT_KEY) return SCOPE_KEYS[event.scope] === key;
-  return (event.scope ?? 'board') === 'board' && event.board_id === key;
+  const scope = scopeForSnapshotKey(key);
+  if ((event.scope ?? EVENT_SCOPE.BOARD) !== scope) return false;
+  return scope !== EVENT_SCOPE.BOARD || event.board_id === key;
 }
 
 export function serializeState(state) {

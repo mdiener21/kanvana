@@ -16,6 +16,7 @@ import {
 import {
   initStorage,
   listBoards,
+  _flushPersistsForTesting,
   _resetStorageForTesting,
 } from '../../../src/modules/storage.js';
 import {
@@ -132,6 +133,18 @@ describe('applyRemoteEvent', () => {
     await applyRemoteEvent(rec);
     await applyRemoteEvent(rec);
     expect(listBoards().filter(b => b.id === 'board-1')).toHaveLength(1);
+    expect(await getUnsyncedEvents()).toHaveLength(0);
+  });
+
+  it('projects a live timetracking event into the time-tracking slot, never into a board', async () => {
+    const boardsBefore = listBoards();
+    // A board-shaped payload proves the scope, not the type, decides the projection.
+    await applyRemoteEvent(record({ local_id: 'tt1', h: hlc(1), board: '', scope: 'timetracking', payload: { board: { name: 'Leak' } } }));
+    await _flushPersistsForTesting();
+
+    expect(listBoards()).toEqual(boardsBefore);
+    const db = await openStore();
+    expect(await db.get(KV_STORE, 'kanvana:timetracking')).toEqual({ customers: [], projects: [], timeEntries: [] });
     expect(await getUnsyncedEvents()).toHaveLength(0);
   });
 });

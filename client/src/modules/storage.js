@@ -44,7 +44,7 @@ const state = {
   labels: {},   // { [boardId]: label[] | null }
   settings: {},  // { [boardId]: object | null }
   globalSettings: null,
-  timeTracking: null  // board-less projection for scope "timetracking"
+  timeTracking: null
 };
 
 // Per-board default-task cache (keeps defaults stable within a session).
@@ -490,10 +490,6 @@ export async function initStorage() {
 // Adopt a downloaded snapshot as the read model (inbound catch-up, bug #4).
 export function hydrateFromSnapshotState(key, snapshotState) {
   readModelProjector.hydrate(key, snapshotState);
-}
-
-export function getTimeTrackingState() {
-  return createTimeTrackingState(state.timeTracking);
 }
 
 export async function _flushPersistsForTesting() {

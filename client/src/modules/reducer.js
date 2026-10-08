@@ -1,4 +1,4 @@
-import { isDoneColumn } from './constants.js';
+import { EVENT_SCOPE, isDoneColumn } from './constants.js';
 
 export function createTimeTrackingState(seed = {}) {
   const source = seed && typeof seed === 'object' ? seed : {};
@@ -24,11 +24,10 @@ export function createProjectionState(seed = {}) {
 }
 
 function cloneTimeTracking(timeTracking) {
-  const slot = createTimeTrackingState(timeTracking);
   return {
-    customers: slot.customers.map((customer) => ({ ...customer })),
-    projects: slot.projects.map((project) => ({ ...project })),
-    timeEntries: slot.timeEntries.map((entry) => ({ ...entry }))
+    customers: timeTracking.customers.map((customer) => ({ ...customer })),
+    projects: timeTracking.projects.map((project) => ({ ...project })),
+    timeEntries: timeTracking.timeEntries.map((entry) => ({ ...entry }))
   };
 }
 
@@ -288,9 +287,9 @@ function applyBoardDeleted(state, event) {
 
 function applySettingsUpdated(state, event) {
   const fields = event.payload?.fields && typeof event.payload.fields === 'object' ? event.payload.fields : {};
-  const scope = event.scope ?? 'board';
-  if (scope === 'global') return { ...state, globalSettings: { ...state.globalSettings, ...fields } };
-  if (scope === 'board') return { ...state, settings: { ...state.settings, ...fields } };
+  const scope = event.scope ?? EVENT_SCOPE.BOARD;
+  if (scope === EVENT_SCOPE.GLOBAL) return { ...state, globalSettings: { ...state.globalSettings, ...fields } };
+  if (scope === EVENT_SCOPE.BOARD) return { ...state, settings: { ...state.settings, ...fields } };
   return state; // timetracking owns no settings; the spec routes them through global
 }
 

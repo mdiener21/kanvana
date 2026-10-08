@@ -11,9 +11,9 @@ import { _resetIdbForTesting, openStore, KV_STORE } from '../../../src/modules/i
 import {
   initStorage,
   listBoards,
-  getTimeTrackingState,
   loadTasksForBoard,
   loadColumnsForBoard,
+  _flushPersistsForTesting,
   _resetStorageForTesting,
 } from '../../../src/modules/storage.js';
 import { _resetHlcForTesting } from '../../../src/modules/event-sourcing/hlc.js';
@@ -190,10 +190,12 @@ describe('catch-up with a server snapshot', () => {
 
     await catchUp();
 
-    expect(getTimeTrackingState()).toEqual(slot);
+    await _flushPersistsForTesting();
+    const db = await openStore();
+    // The projector persists the time-tracking read model under its own KV key.
+    expect(await db.get(KV_STORE, 'kanvana:timetracking')).toEqual(slot);
     expect(listBoards().map((b) => b.id)).toEqual([BOARD]);
     expect(loadTasksForBoard(BOARD)).toHaveLength(2);
-    const db = await openStore();
     expect(await db.get(KV_STORE, `${LAST_SEEN_PREFIX}__timetracking__`)).toEqual(hlc(120));
   });
 

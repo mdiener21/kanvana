@@ -1,6 +1,6 @@
 // Event-sourced sync schema (PRD docs/temp/prd/PRD-event-sourced-sync.md §7, §5.4).
 //
-// events: gains hlc (json), scope (board|global), entity_id (string);
+// events: gains hlc (json), scope (board|global|timetracking), entity_id (string);
 //   board becomes an optional TEXT field holding the local board UUID — under
 //   pure event sourcing the board ref is a client-side UUID, never a PB boards
 //   record id, so a relation field would reject every board-scoped push. This
@@ -73,7 +73,7 @@ migrate((app) => {
                 id: "snp_board_id",
                 name: "board_id",
                 type: "text",
-                required: false, // null for global-scope snapshots
+                required: false, // empty for global-scope snapshots; "__timetracking__" for timetracking-scope snapshots
             },
             {
                 id: "snp_hlc",
