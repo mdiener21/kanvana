@@ -40,6 +40,7 @@ export const TT_KEYBINDINGS = {
   prevMonth:    { key: '[' },
   nextMonth:    { key: ']' },
   help:         { key: '?' },
+  esc:          { key: 'Escape' },
   gotoTracker:  { key: 'g', seq: 't' },
   gotoReports:  { key: 'g', seq: 'r' },
   gotoProjects: { key: 'g', seq: 'p' },

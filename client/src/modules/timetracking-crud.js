@@ -5,12 +5,8 @@ import { EVENT_SCOPE, TT_COLOR_PALETTE } from './constants.js';
 
 // ── Color auto-assignment ──────────────────────────────────────────────────────
 
-function nextCustomerColor(customers) {
-  return customers.length % TT_COLOR_PALETTE.length;
-}
-
-function nextProjectColor(projects) {
-  return projects.length % TT_COLOR_PALETTE.length;
+function nextColorIndex(collection) {
+  return collection.length % TT_COLOR_PALETTE.length;
 }
 
 // ── Validation ─────────────────────────────────────────────────────────────────
@@ -45,7 +41,7 @@ export function addCustomer(rawName) {
 
   const customer = createCustomer(
     { name: validation.name },
-    nextCustomerColor(tt.customers)
+    nextColorIndex(tt.customers)
   );
 
   scheduleDomainEvent({
@@ -64,7 +60,7 @@ export function addProject(customerId, rawName) {
 
   const project = createProject(
     { customerId, name: validation.name },
-    nextProjectColor(tt.projects)
+    nextColorIndex(tt.projects)
   );
 
   scheduleDomainEvent({

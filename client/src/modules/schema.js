@@ -142,11 +142,6 @@ export function createRelationship(overrides = {}) {
 
 // ── Time Tracking ──────────────────────────────────────────────────────────────
 
-/**
- * @param {object} overrides
- * @param {number} [colorIndex] index into TT_COLOR_PALETTE for auto-assignment
- * @returns {Customer}
- */
 export function createCustomer(overrides = {}, colorIndex = 0) {
   return {
     id: generateUUID(),
@@ -157,11 +152,6 @@ export function createCustomer(overrides = {}, colorIndex = 0) {
   };
 }
 
-/**
- * @param {object} overrides
- * @param {number} [colorIndex] index into TT_COLOR_PALETTE for auto-assignment
- * @returns {Project}
- */
 export function createProject(overrides = {}, colorIndex = 0) {
   return {
     id: generateUUID(),
@@ -173,10 +163,6 @@ export function createProject(overrides = {}, colorIndex = 0) {
   };
 }
 
-/**
- * @param {object} overrides
- * @returns {TimeEntry}
- */
 export function createTimeEntry(overrides = {}) {
   return {
     id: generateUUID(),

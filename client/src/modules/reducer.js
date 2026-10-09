@@ -309,15 +309,15 @@ function applyCustomerUpdated(state, event) {
   return { ...state, timeTracking: { ...tt, customers: tt.customers.map((c) => c.id === event.entity_id ? { ...c, ...fields } : c) } };
 }
 
-function applyCustomerArchived(state, event) {
-  const tt = cloneTimeTracking(state.timeTracking);
-  return { ...state, timeTracking: { ...tt, customers: tt.customers.map((c) => c.id === event.entity_id ? { ...c, archived: true } : c) } };
+function applyArchiveToggle(collectionKey, archived) {
+  return function (state, event) {
+    const tt = cloneTimeTracking(state.timeTracking);
+    return { ...state, timeTracking: { ...tt, [collectionKey]: tt[collectionKey].map((x) => x.id === event.entity_id ? { ...x, archived } : x) } };
+  };
 }
 
-function applyCustomerUnarchived(state, event) {
-  const tt = cloneTimeTracking(state.timeTracking);
-  return { ...state, timeTracking: { ...tt, customers: tt.customers.map((c) => c.id === event.entity_id ? { ...c, archived: false } : c) } };
-}
+const applyCustomerArchived = applyArchiveToggle('customers', true);
+const applyCustomerUnarchived = applyArchiveToggle('customers', false);
 
 function applyCustomerDeleted(state, event) {
   const tt = cloneTimeTracking(state.timeTracking);
@@ -338,15 +338,8 @@ function applyProjectUpdated(state, event) {
   return { ...state, timeTracking: { ...tt, projects: tt.projects.map((p) => p.id === event.entity_id ? { ...p, ...fields } : p) } };
 }
 
-function applyProjectArchived(state, event) {
-  const tt = cloneTimeTracking(state.timeTracking);
-  return { ...state, timeTracking: { ...tt, projects: tt.projects.map((p) => p.id === event.entity_id ? { ...p, archived: true } : p) } };
-}
-
-function applyProjectUnarchived(state, event) {
-  const tt = cloneTimeTracking(state.timeTracking);
-  return { ...state, timeTracking: { ...tt, projects: tt.projects.map((p) => p.id === event.entity_id ? { ...p, archived: false } : p) } };
-}
+const applyProjectArchived = applyArchiveToggle('projects', true);
+const applyProjectUnarchived = applyArchiveToggle('projects', false);
 
 function applyProjectDeleted(state, event) {
   const tt = cloneTimeTracking(state.timeTracking);
