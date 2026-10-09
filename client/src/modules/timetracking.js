@@ -2,7 +2,9 @@ import { initStorage, loadTimeTracking } from './storage.js';
 import { on, DATA_CHANGED } from './events.js';
 import { renderIcons } from './icons.js';
 import { initializeThemeToggle } from './theme.js';
-export { addCustomer, addProject } from './timetracking-crud.js';
+import { TT_KEYBINDINGS } from './constants.js';
+import { addCustomer, addProject } from './timetracking-crud.js';
+export { addCustomer, addProject };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -110,9 +112,7 @@ function wireProjectsPanel(container) {
   const addProjectBtn = container.querySelector('#tt-add-project-btn');
   const customerSelect = container.querySelector('#tt-customer-select');
 
-  // Import dynamically avoids circular dep; crud module has no DOM dependency.
-  async function doAddCustomer() {
-    const { addCustomer } = await import('./timetracking-crud.js');
+  function doAddCustomer() {
     const result = addCustomer(customerInput.value);
     if (!result.ok) {
       const msg = result.reason === 'EMPTY_NAME'
@@ -125,8 +125,7 @@ function wireProjectsPanel(container) {
     customerInput.value = '';
   }
 
-  async function doAddProject() {
-    const { addProject } = await import('./timetracking-crud.js');
+  function doAddProject() {
     const customerId = customerSelect?.value || '';
     const result = addProject(customerId, projectInput.value);
     if (!result.ok) {
@@ -195,34 +194,37 @@ function wireSidebar() {
 
 // ── Keyboard shortcuts ─────────────────────────────────────────────────────────
 
+function matchesBinding(ev, binding) {
+  return ev.key === binding.key && !ev.altKey && !ev.ctrlKey && !ev.metaKey;
+}
+
 function wireKeyboard() {
   let pending = null;
+
+  const GOTO_ACTIONS = {
+    [TT_KEYBINDINGS.gotoTracker.seq]: 'tracker',
+    [TT_KEYBINDINGS.gotoReports.seq]: 'reports',
+    [TT_KEYBINDINGS.gotoProjects.seq]: 'projects',
+    [TT_KEYBINDINGS.gotoSettings.seq]: 'settings'
+  };
 
   document.addEventListener('keydown', (ev) => {
     const active = document.activeElement;
     const inInput = active && (active.matches('input,textarea,select') || active.isContentEditable);
 
-    // Two-key sequences (g t, g r, g p, g s)
-    if (pending === 'g') {
+    // Two-key sequences: first key (g) is pending
+    if (pending === TT_KEYBINDINGS.gotoTracker.key) {
       pending = null;
       if (!inInput) {
-        if (ev.key === 't') { ev.preventDefault(); showSection('tracker'); return; }
-        if (ev.key === 'r') { ev.preventDefault(); showSection('reports'); return; }
-        if (ev.key === 'p') { ev.preventDefault(); showSection('projects'); return; }
-        if (ev.key === 's') { ev.preventDefault(); showSection('settings'); return; }
+        const target = GOTO_ACTIONS[ev.key];
+        if (target) { ev.preventDefault(); showSection(target); return; }
       }
     }
 
     if (ev.altKey || ev.ctrlKey || ev.metaKey) return;
 
-    if (ev.key === 'g' && !inInput) {
-      ev.preventDefault();
-      pending = 'g';
-      setTimeout(() => { pending = null; }, 1000);
-      return;
-    }
-
-    if (ev.key === 'Escape') {
+    // Esc: close help modal (not suppressed by inInput)
+    if (matchesBinding(ev, TT_KEYBINDINGS.esc)) {
       const modal = document.getElementById('tt-help-modal');
       if (modal && !modal.hidden) { modal.hidden = true; return; }
       return;
@@ -230,16 +232,24 @@ function wireKeyboard() {
 
     if (inInput) return;
 
-    if (ev.key === '?') {
+    // First key of two-key goto sequence
+    if (matchesBinding(ev, TT_KEYBINDINGS.gotoTracker)) {
+      ev.preventDefault();
+      pending = TT_KEYBINDINGS.gotoTracker.key;
+      setTimeout(() => { pending = null; }, 1000);
+      return;
+    }
+
+    if (matchesBinding(ev, TT_KEYBINDINGS.help)) {
       ev.preventDefault();
       const modal = document.getElementById('tt-help-modal');
       if (modal) modal.hidden = !modal.hidden;
       return;
     }
 
-    if (ev.key === '[' || ev.key === ']') {
+    if (matchesBinding(ev, TT_KEYBINDINGS.prevMonth) || matchesBinding(ev, TT_KEYBINDINGS.nextMonth)) {
       ev.preventDefault();
-      // month navigation handled by reports section when active
+      // month navigation handled by the reports section when active
     }
   });
 }
