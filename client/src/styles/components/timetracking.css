@@ -226,6 +226,9 @@
 .tt-project-row:last-child { border-bottom: 0; }
 .tt-project-row.tt-archived { opacity: 0.6; }
 .tt-project-name { flex: 1; }
+.tt-item-actions { display: inline-flex; gap: 2px; }
+.tt-entry-action[aria-disabled="true"] { opacity: 0.4; cursor: not-allowed; }
+.tt-entry-action[aria-disabled="true"]:hover { background: transparent; color: var(--text-muted, #6b7280); }
 .tt-empty {
   color: var(--text-muted, #6b7280);
   padding: 20px 0;
