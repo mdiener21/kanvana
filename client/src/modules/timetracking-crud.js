@@ -3,6 +3,9 @@ import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 import { createCustomer, createProject, createTimeEntry } from './schema.js';
 import { EVENT_SCOPE, TT_COLOR_PALETTE } from './constants.js';
 import { floorToMinute } from './timetracking-time.js';
+import { isCustomerInUse, isProjectInUse } from './reducer.js';
+
+export { isCustomerInUse, isProjectInUse };
 
 export const CRUD_ERROR = Object.freeze({
   EMPTY_NAME: 'EMPTY_NAME',
@@ -12,7 +15,8 @@ export const CRUD_ERROR = Object.freeze({
   ARCHIVED_PROJECT: 'ARCHIVED_PROJECT',
   INVALID_TIME: 'INVALID_TIME',
   ZERO_DURATION: 'ZERO_DURATION',
-  NOT_FOUND: 'NOT_FOUND'
+  NOT_FOUND: 'NOT_FOUND',
+  IN_USE: 'IN_USE'
 });
 
 const EDITABLE_ENTRY_FIELDS = ['projectId', 'description', 'start', 'end'];
@@ -183,3 +187,38 @@ export function deleteTimeEntry(id) {
   });
   return { ok: true };
 }
+
+// ── Archive / delete customers and projects ────────────────────────────────────
+
+function setArchived(entity, collection, id, archived) {
+  const item = loadTimeTracking()[collection].find((x) => x.id === id);
+  if (!item) return { ok: false, reason: CRUD_ERROR.NOT_FOUND };
+  if (!!item.archived === archived) return { ok: true };
+  scheduleDomainEvent({
+    type: `${entity}.${archived ? 'archived' : 'unarchived'}`,
+    scope: EVENT_SCOPE.TIMETRACKING,
+    entityId: id,
+    payload: {}
+  });
+  return { ok: true };
+}
+
+export const setCustomerArchived = (id, archived) => setArchived('customer', 'customers', id, archived);
+export const setProjectArchived = (id, archived) => setArchived('project', 'projects', id, archived);
+
+function deleteGuarded(entity, collection, id, inUse) {
+  const tt = loadTimeTracking();
+  const item = tt[collection].find((x) => x.id === id);
+  if (!item) return { ok: false, reason: CRUD_ERROR.NOT_FOUND };
+  if (inUse(tt, id)) return { ok: false, reason: CRUD_ERROR.IN_USE };
+  scheduleDomainEvent({
+    type: `${entity}.deleted`,
+    scope: EVENT_SCOPE.TIMETRACKING,
+    entityId: id,
+    payload: { [entity]: { ...item } }
+  });
+  return { ok: true };
+}
+
+export const deleteCustomer = (id) => deleteGuarded('customer', 'customers', id, isCustomerInUse);
+export const deleteProject = (id) => deleteGuarded('project', 'projects', id, isProjectInUse);

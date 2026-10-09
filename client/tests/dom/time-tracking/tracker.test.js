@@ -312,6 +312,20 @@ describe('entry list', () => {
     expect(within(row).getByText('1:30')).toBeTruthy();
   });
 
+  test('entries on archived projects and archived customers still render and count in the day total', () => {
+    mount({
+      timeEntries: [
+        entry('on-legacy', '2026-10-08T07:00:00.000Z', '2026-10-08T08:00:00.000Z', { projectId: 'p2' }),
+        entry('on-old-co', '2026-10-08T08:00:00.000Z', '2026-10-08T08:30:00.000Z', { projectId: 'p3' })
+      ]
+    });
+    const today = within(entryList()).getByRole('list', { name: 'Today' });
+    expect(within(today).getByText('Legacy')).toBeTruthy();
+    expect(within(today).getByText('Support')).toBeTruthy();
+    expect(within(today).getByText('Old Co')).toBeTruthy();
+    expect(within(entryList()).getByLabelText('Total for Today').textContent).toBe('1:30');
+  });
+
   test('an entry whose project is not known yet renders as Unknown project', () => {
     mount({ timeEntries: [entry('e1', '2026-10-08T07:00:00.000Z', '2026-10-08T08:00:00.000Z', { projectId: 'ghost' })] });
     expect(within(entryList()).getByText('Unknown project')).toBeTruthy();

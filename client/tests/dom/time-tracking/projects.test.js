@@ -1,4 +1,4 @@
-import { beforeEach, afterEach, test, expect, vi } from 'vitest';
+import { beforeEach, afterEach, describe, test, expect, vi } from 'vitest';
 import { screen, fireEvent, within } from '@testing-library/dom';
 import { mountToBody } from '../setup.js';
 
@@ -19,6 +19,12 @@ vi.mock('../../../src/modules/event-sourcing/emitter.js', async () => {
     scheduleDomainEvent: vi.fn((event) => {
       if (event.type === 'customer.created') state.customers = [...state.customers, event.payload.customer];
       if (event.type === 'project.created') state.projects = [...state.projects, event.payload.project];
+      const [entity, action] = event.type.split('.');
+      const key = { customer: 'customers', project: 'projects' }[entity];
+      if (key && (action === 'archived' || action === 'unarchived')) {
+        state[key] = state[key].map((x) => (x.id === event.entityId ? { ...x, archived: action === 'archived' } : x));
+      }
+      if (key && action === 'deleted') state[key] = state[key].filter((x) => x.id !== event.entityId);
       emit(DATA_CHANGED);
       return Promise.resolve();
     })
@@ -31,9 +37,10 @@ const { emit, DATA_CHANGED } = await import('../../../src/modules/events.js');
 
 let unmount = null;
 
-function mount({ customers = [], projects = [] } = {}) {
+function mount({ customers = [], projects = [], timeEntries = [] } = {}) {
   state.customers = customers;
   state.projects = projects;
+  state.timeEntries = timeEntries;
   mountToBody('<section id="tt-section-projects"></section>');
   unmount = mountProjectsPanel(document.getElementById('tt-section-projects'));
 }
@@ -195,4 +202,69 @@ test('selection falls back to the placeholder when the selected customer disappe
   emit(DATA_CHANGED);
 
   expect(customerSelect().value).toBe('');
+});
+
+describe('archive and delete', () => {
+  const ACME = { id: 'c1', name: 'Acme', color: '#000', archived: false };
+  const WEBSITE = { id: 'p1', customerId: 'c1', name: 'Website', color: '#000', archived: false };
+  const ENTRY = { id: 'e1', projectId: 'p1', description: '', start: '2026-10-08T07:00:00.000Z', end: '2026-10-08T08:00:00.000Z' };
+  const button = (name) => screen.getByRole('button', { name });
+  const customerRow = () => list().querySelector('[data-customer-id="c1"]');
+  const projectRow = () => list().querySelector('[data-project-id="p1"]');
+
+  test('archiving a customer emits customer.archived, mutes the row and offers Unarchive', () => {
+    mount({ customers: [ACME] });
+    fireEvent.click(button('Archive customer Acme'));
+
+    expect(scheduleDomainEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'customer.archived', scope: 'timetracking', entityId: 'c1' })
+    );
+    expect(customerRow().classList.contains('tt-archived')).toBe(true);
+    fireEvent.click(button('Unarchive customer Acme'));
+    expect(scheduleDomainEvent).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'customer.unarchived' }));
+    expect(customerRow().classList.contains('tt-archived')).toBe(false);
+  });
+
+  test('archiving a project emits project.archived and mutes the row; unarchive restores it', () => {
+    mount({ customers: [ACME], projects: [WEBSITE] });
+    fireEvent.click(button('Archive project Website'));
+
+    expect(scheduleDomainEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'project.archived', scope: 'timetracking', entityId: 'p1' })
+    );
+    expect(projectRow().classList.contains('tt-archived')).toBe(true);
+    fireEvent.click(button('Unarchive project Website'));
+    expect(scheduleDomainEvent).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'project.unarchived' }));
+    expect(projectRow().classList.contains('tt-archived')).toBe(false);
+  });
+
+  test('delete of a referenced item is disabled and explains why', () => {
+    mount({ customers: [ACME], projects: [WEBSITE], timeEntries: [ENTRY] });
+
+    for (const name of ['Delete customer Acme', 'Delete project Website']) {
+      const del = button(name);
+      expect(del.getAttribute('aria-disabled')).toBe('true');
+      expect(del.title).toBe('In use — archive instead');
+      expect(document.getElementById(del.getAttribute('aria-describedby')).textContent).toBe('In use — archive instead');
+      fireEvent.click(del);
+    }
+    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(toastText()).toBe('In use — archive instead');
+  });
+
+  test('delete of an unreferenced project emits project.deleted and removes it; then its customer can go', () => {
+    mount({ customers: [ACME], projects: [WEBSITE] });
+    expect(button('Delete customer Acme').getAttribute('aria-disabled')).toBe('true');
+
+    fireEvent.click(button('Delete project Website'));
+    expect(scheduleDomainEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'project.deleted', scope: 'timetracking', entityId: 'p1' })
+    );
+    expect(projectRow()).toBeNull();
+
+    expect(button('Delete customer Acme').getAttribute('aria-disabled')).toBe('false');
+    fireEvent.click(button('Delete customer Acme'));
+    expect(scheduleDomainEvent).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'customer.deleted', entityId: 'c1' }));
+    expect(customerRow()).toBeNull();
+  });
 });
