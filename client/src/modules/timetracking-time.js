@@ -143,8 +143,9 @@ export const formatDate = (ms, { tz, dateFormat }) => formatYmd(zonedParts(ms, t
 
 export const formatTime = (ms, { tz, timeFormat }) => formatMinutes(zonedParts(ms, tz).minutes, timeFormat);
 
-export function formatDuration(ms) {
+export function formatDuration(ms, durationFormat = 'h:mm') {
   const minutes = Math.round(ms / MINUTE_MS);
+  if (durationFormat === 'decimal') return `${(minutes / 60).toFixed(2)} h`;
   return `${Math.floor(minutes / 60)}:${pad2(minutes % 60)}`;
 }
 
@@ -165,7 +166,7 @@ export function describeEntryTimes(startMs, endMs, prefs) {
       date: formatDate(startMs, prefs),
       start: formatTime(startMs, prefs),
       end: formatTime(endMs, prefs),
-      duration: formatDuration(endMs - startMs)
+      duration: formatDuration(endMs - startMs, prefs.durationFormat)
     }
   };
 }
@@ -233,7 +234,7 @@ export function adjustLinkedField(values, field, deltaMinutes, prefs) {
   } else if (field === 'end') {
     next.end = formatTime(Math.max(current.startMs, current.endMs + delta), prefs);
   } else {
-    next.duration = formatDuration(Math.max(0, current.endMs - current.startMs + delta));
+    next.duration = formatDuration(Math.max(0, current.endMs - current.startMs + delta), prefs.durationFormat);
   }
   return resolveLinkedFields(next, field, prefs);
 }
