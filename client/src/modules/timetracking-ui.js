@@ -3,12 +3,9 @@ import { on, off, DATA_CHANGED } from './events.js';
 import { renderIcons } from './icons.js';
 import { DEFAULT_APP_KEYBINDINGS, matchesKey } from './constants.js';
 import { addCustomer, addProject, CRUD_ERROR } from './timetracking-crud.js';
+import { escapeHtml } from './security.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-function esc(s) {
-  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
 
 let toastTimer = null;
 function showToast(msg) {
@@ -72,20 +69,20 @@ function customerListHtml(tt) {
   return tt.customers.map((customer) => {
     const projs = tt.projects.filter((p) => p.customerId === customer.id);
     return `
-      <div class="tt-customer-item${customer.archived ? ' tt-archived' : ''}" role="listitem" data-customer-id="${esc(customer.id)}">
+      <div class="tt-customer-item${customer.archived ? ' tt-archived' : ''}" role="listitem" data-customer-id="${escapeHtml(customer.id)}">
         <div class="tt-customer-row">
-          <span class="tt-color-dot" style="background:${esc(customer.color)};" aria-hidden="true"></span>
-          <span class="tt-customer-name">${esc(customer.name)}</span>
+          <span class="tt-color-dot" style="background:${escapeHtml(customer.color)};" aria-hidden="true"></span>
+          <span class="tt-customer-name">${escapeHtml(customer.name)}</span>
           ${customer.archived ? '<span class="tt-tag">archived</span>' : ''}
           <span class="tt-spacer"></span>
           <span class="tt-count">${projs.length} project${projs.length !== 1 ? 's' : ''}</span>
         </div>
         ${projs.length > 0 ? `
-        <ul class="tt-project-list" aria-label="Projects for ${esc(customer.name)}">
+        <ul class="tt-project-list" aria-label="Projects for ${escapeHtml(customer.name)}">
           ${projs.map((project) => `
-          <li class="tt-project-row${project.archived ? ' tt-archived' : ''}" data-project-id="${esc(project.id)}">
-            <span class="tt-color-dot" style="background:${esc(project.color)};" aria-hidden="true"></span>
-            <span class="tt-project-name">${esc(project.name)}</span>
+          <li class="tt-project-row${project.archived ? ' tt-archived' : ''}" data-project-id="${escapeHtml(project.id)}">
+            <span class="tt-color-dot" style="background:${escapeHtml(project.color)};" aria-hidden="true"></span>
+            <span class="tt-project-name">${escapeHtml(project.name)}</span>
             ${project.archived ? '<span class="tt-tag">archived</span>' : ''}
           </li>`).join('')}
         </ul>` : ''}
@@ -95,7 +92,7 @@ function customerListHtml(tt) {
 
 function customerOptionsHtml(tt) {
   return '<option value="">— select customer —</option>'
-    + tt.customers.filter((c) => !c.archived).map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+    + tt.customers.filter((c) => !c.archived).map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join('');
 }
 
 export function mountProjectsPanel(container) {
@@ -126,10 +123,10 @@ export function mountProjectsPanel(container) {
   const submitProject = () => submit(projectInput, 'project', (name) => addProject(customerSelect.value, name));
 
   customerInput.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter') { ev.preventDefault(); submitCustomer(); }
+    if (matchesKey(ev, DEFAULT_APP_KEYBINDINGS.ttSubmitInline)) { ev.preventDefault(); submitCustomer(); }
   });
   projectInput.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter') { ev.preventDefault(); submitProject(); }
+    if (matchesKey(ev, DEFAULT_APP_KEYBINDINGS.ttSubmitInline)) { ev.preventDefault(); submitProject(); }
   });
   container.querySelector('#tt-add-customer-btn').addEventListener('click', submitCustomer);
   container.querySelector('#tt-add-project-btn').addEventListener('click', submitProject);
@@ -256,7 +253,7 @@ function wireHelpModal(root) {
   const rows = root.getElementById('tt-help-rows');
   if (rows) {
     rows.innerHTML = HELP_ROWS
-      .map(({ binding, label }) => `<tr><td>${esc(keyLabel(binding))}</td><td>${esc(label)}</td></tr>`)
+      .map(({ binding, label }) => `<tr><td>${escapeHtml(keyLabel(binding))}</td><td>${escapeHtml(label)}</td></tr>`)
       .join('');
   }
   root.getElementById('tt-help-modal-close')?.addEventListener('click', () => { if (modal) modal.hidden = true; });

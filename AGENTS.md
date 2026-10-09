@@ -84,7 +84,7 @@ Check `docs/adr/` for recorded architectural decisions before making structural 
 | State → render | Every state change must end with `renderBoard()` or an incremental sync helper |
 | Circular dep guard | Use dynamic `await import('./render.js')` only for render calls; all other imports must be top-level static |
 | `done` column | `id === 'done'` is permanent; never delete or reorder it past the last position |
-| Entity IDs | Always `generateId()` from `utils.js` — no numeric or legacy string IDs |
+| Entity IDs | Always `generateUUID()` from `utils.js` — no numeric or legacy string IDs |
 | Keybindings | Register in `DEFAULT_APP_KEYBINDINGS` or `DEFAULT_EDITOR_KEYBINDINGS` — never hardcode key strings |
 | Storage init | `initStorage()` is async; call it once at startup before any board operation |
 | Audit trail (dual log) | Column moves write to both `columnHistory` (CFD/lead-time) **and** `activityLog` (audit). Both writes are intentional — see ADR-0001. |

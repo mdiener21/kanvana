@@ -32,6 +32,7 @@ export const DEFAULT_APP_KEYBINDINGS = {
   openBoardsModal: { key: 'b', ctrlKey: true, shiftKey: false, altKey: false, metaKey: false },
   ttHelp: { key: '?', ctrlKey: false, shiftKey: true, altKey: false, metaKey: false },
   ttCloseModal: { key: 'Escape', ...NO_MODIFIERS },
+  ttSubmitInline: { key: 'Enter', ...NO_MODIFIERS },
   ttGotoTracker: { key: 'g', seq: 't', ...NO_MODIFIERS },
   ttGotoReports: { key: 'g', seq: 'r', ...NO_MODIFIERS },
   ttGotoProjects: { key: 'g', seq: 'p', ...NO_MODIFIERS },
