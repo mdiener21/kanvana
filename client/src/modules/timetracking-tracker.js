@@ -7,6 +7,7 @@ import {
 } from './timetracking-crud.js';
 import { showToast } from './timetracking-toast.js';
 import { entryFieldsHtml, wireEntryFields } from './timetracking-entry-fields.js';
+import { prefillProjectId } from './timetracking-settings.js';
 import { groupEntriesByDay, formatTime, formatDuration, plusDaysBetween, floorToMinute } from './timetracking-time.js';
 
 export const ENTRY_ERROR_MESSAGES = {
@@ -16,10 +17,6 @@ export const ENTRY_ERROR_MESSAGES = {
   [CRUD_ERROR.ZERO_DURATION]: 'Duration must be greater than zero.',
   [CRUD_ERROR.NOT_FOUND]: 'That entry no longer exists.'
 };
-
-export function prefillProjectId() {
-  return null;
-}
 
 const PANEL_HTML = `
   <div class="tt-tracker-panel">
@@ -61,7 +58,7 @@ function entryRowHtml(entry, tt, prefs, view) {
   if (entry.id === view.confirmingId) {
     return `
     <li class="tt-entry-row tt-entry-confirm is-selected" ${attrs}>
-      <span class="tt-confirm-text">Delete “${escapeHtml(descriptionText(entry))}” · ${escapeHtml(project?.name ?? 'Unknown project')} · ${formatDuration(endMs - startMs)}?</span>
+      <span class="tt-confirm-text">Delete “${escapeHtml(descriptionText(entry))}” · ${escapeHtml(project?.name ?? 'Unknown project')} · ${formatDuration(endMs - startMs, prefs.durationFormat)}?</span>
       <span class="tt-confirm-hint">y = delete · Esc = cancel</span>
       <button type="button" class="tt-btn-danger" data-confirm="yes">Delete</button>
       <button type="button" class="tt-btn-secondary" data-confirm="no">Cancel</button>
@@ -73,7 +70,7 @@ function entryRowHtml(entry, tt, prefs, view) {
       <span class="tt-entry-project"${project ? ` style="color:${escapeHtml(project.color)};"` : ''}>${escapeHtml(project?.name ?? 'Unknown project')}</span>
       <span class="tt-entry-customer">${escapeHtml(customer?.name ?? '')}</span>
       <span class="tt-entry-range"><span>${formatTime(startMs, prefs)} – ${formatTime(endMs, prefs)}</span>${plusDays > 0 ? `<sup class="tt-entry-plus" title="Ends ${plusDays} day(s) later">+${plusDays}</sup>` : ''}</span>
-      <span class="tt-entry-duration">${formatDuration(endMs - startMs)}</span>
+      <span class="tt-entry-duration">${formatDuration(endMs - startMs, prefs.durationFormat)}</span>
       <span class="tt-entry-actions">
         ${ROW_ACTIONS.map(({ action, icon, label }) => `
         <button type="button" class="tt-entry-action" data-action="${action}" aria-label="${label}" title="${label}">
@@ -102,7 +99,7 @@ function entryListHtml(tt, prefs, groups, view) {
       <div class="tt-day">
         <div class="tt-day-header">
           <h3 class="tt-day-heading">${heading}</h3>
-          <span class="tt-day-total" aria-label="Total for ${heading}">${formatDuration(group.totalMs)}</span>
+          <span class="tt-day-total" aria-label="Total for ${heading}">${formatDuration(group.totalMs, prefs.durationFormat)}</span>
         </div>
         <ul class="tt-day-entries" aria-label="${heading}">
           ${group.entries.map((entry) => entryRowHtml(entry, tt, prefs, view)).join('')}
@@ -111,7 +108,7 @@ function entryListHtml(tt, prefs, groups, view) {
   }).join('');
 }
 
-export function mountTrackerPanel(container, { getPrefs }) {
+export function mountTrackerPanel(container, { getPrefs, getSettings }) {
   container.innerHTML = PANEL_HTML;
   renderIcons(container);
 
@@ -128,17 +125,41 @@ export function mountTrackerPanel(container, { getPrefs }) {
     }
   });
 
+  const currentPrefill = () => prefillProjectId(loadTimeTracking(), getSettings());
+  let lastPrefill = null;
+
   function reset() {
     const now = floorToMinute(getPrefs().now);
-    fields.setEntry({ projectId: prefillProjectId(), startMs: now, endMs: now });
+    lastPrefill = currentPrefill();
+    fields.setEntry({ projectId: lastPrefill, startMs: now, endMs: now });
+  }
+
+  // An untouched entry bar follows a changed default project; a typed one is left alone.
+  function followPrefill() {
+    const prefill = currentPrefill();
+    if (prefill === lastPrefill) return;
+    if (fields.projectId() === lastPrefill) fields.setProject(prefill);
+    lastPrefill = prefill;
   }
 
   const view = { selectedId: null, confirmingId: null };
   let visibleIds = [];
+  let displayKey = null;
+
+  function redisplayOnFormatChange(prefs) {
+    const key = [prefs.tz, prefs.dateFormat, prefs.timeFormat, prefs.durationFormat].join('|');
+    if (displayKey !== null && key !== displayKey) {
+      fields.redisplay();
+      editor?.fields.redisplay();
+    }
+    displayKey = key;
+  }
 
   function refresh() {
     const tt = loadTimeTracking();
     const prefs = getPrefs();
+    redisplayOnFormatChange(prefs);
+    followPrefill();
     const groups = groupEntriesByDay(tt.timeEntries, prefs);
     visibleIds = groups.flatMap((group) => group.entries.map((e) => e.id));
     if (!visibleIds.includes(view.selectedId)) view.selectedId = null;

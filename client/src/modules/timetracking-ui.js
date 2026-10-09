@@ -7,6 +7,8 @@ import { escapeHtml } from './security.js';
 import { showToast } from './timetracking-toast.js';
 import { mountTrackerPanel } from './timetracking-tracker.js';
 import { timeTrackingPrefs } from './timetracking-time.js';
+import { loadTimeTrackingSettings } from './timetracking-settings.js';
+import { mountSettingsPanel } from './timetracking-settings-panel.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -295,17 +297,23 @@ function wireHelpModal(root) {
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
-export function mountTimeTracking(root = document, { getPrefs = () => timeTrackingPrefs() } = {}) {
+export function mountTimeTracking(root = document, {
+  getSettings = loadTimeTrackingSettings,
+  getPrefs = () => timeTrackingPrefs(getSettings())
+} = {}) {
   wireSidebar(root);
   wireHelpModal(root);
-  const tracker = mountTrackerPanel(root.getElementById('tt-section-tracker'), { getPrefs });
+  const tracker = mountTrackerPanel(root.getElementById('tt-section-tracker'), { getPrefs, getSettings });
   const unwireKeyboard = wireKeyboard(root, tracker);
   const projects = root.getElementById('tt-section-projects');
   const unmountProjects = projects ? mountProjectsPanel(projects) : () => {};
+  const settings = root.getElementById('tt-section-settings');
+  const unmountSettings = settings ? mountSettingsPanel(settings) : () => {};
   showSection(root, 'tracker');
   return () => {
     unwireKeyboard();
     tracker.unmount();
     unmountProjects();
+    unmountSettings();
   };
 }
