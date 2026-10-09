@@ -4,24 +4,11 @@ import { renderIcons } from './icons.js';
 import { DEFAULT_APP_KEYBINDINGS, matchesKey } from './constants.js';
 import { addCustomer, addProject, CRUD_ERROR } from './timetracking-crud.js';
 import { escapeHtml } from './security.js';
+import { showToast } from './timetracking-toast.js';
+import { mountTrackerPanel } from './timetracking-tracker.js';
+import { timeTrackingPrefs } from './timetracking-time.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-let toastTimer = null;
-function showToast(msg) {
-  let t = document.getElementById('tt-toast');
-  if (!t) {
-    t = document.createElement('div');
-    t.id = 'tt-toast';
-    t.setAttribute('role', 'status');
-    t.setAttribute('aria-live', 'polite');
-    document.body.appendChild(t);
-  }
-  t.textContent = msg;
-  t.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
-}
 
 const ERROR_MESSAGES = {
   customer: {
@@ -171,7 +158,8 @@ function wireSidebar(root) {
 // ── Keyboard shortcuts ─────────────────────────────────────────────────────────
 
 const {
-  ttHelp, ttCloseModal, ttGotoTracker, ttGotoReports, ttGotoProjects, ttGotoSettings
+  ttHelp, ttCloseModal, ttGotoTracker, ttGotoReports, ttGotoProjects, ttGotoSettings,
+  ttNewEntry, ttSubmitInline, ttAdjustUp, ttAdjustDown
 } = DEFAULT_APP_KEYBINDINGS;
 
 const GOTO_BINDINGS = [
@@ -182,17 +170,22 @@ const GOTO_BINDINGS = [
 ];
 
 const HELP_ROWS = [
+  { binding: ttNewEntry, label: 'New entry' },
+  { binding: ttSubmitInline, label: 'Save entry' },
+  { binding: ttAdjustUp, label: '+15 min on Start / End / Duration' },
+  { binding: ttAdjustDown, label: '−15 min on Start / End / Duration' },
   ...GOTO_BINDINGS,
   { binding: ttHelp, label: 'This cheat-sheet' },
-  { binding: ttCloseModal, label: 'Close cheat-sheet' }
+  { binding: ttCloseModal, label: 'Close cheat-sheet / leave field' }
 ];
 
-const KEY_LABELS = { Escape: 'Esc' };
+const KEY_LABELS = { Escape: 'Esc', ArrowUp: '↑', ArrowDown: '↓' };
 const SEQUENCE_TIMEOUT_MS = 1000;
 
 function keyLabel(binding) {
   const key = KEY_LABELS[binding.key] ?? binding.key;
-  return binding.seq ? `${key} ${binding.seq}` : key;
+  if (binding.seq) return `${key} ${binding.seq}`;
+  return binding.altKey ? `Alt+${key}` : key;
 }
 
 const secondKey = (binding) => ({ ...binding, key: binding.seq });
@@ -201,7 +194,7 @@ function isTyping(el) {
   return !!el && (el.matches('input,textarea,select') || el.isContentEditable);
 }
 
-function wireKeyboard(root) {
+function wireKeyboard(root, { focusNewEntry }) {
   const modal = root.getElementById('tt-help-modal');
   let pendingPrefix = null;
   let pendingTimer = null;
@@ -219,11 +212,19 @@ function wireKeyboard(root) {
     }
 
     if (matchesKey(ev, ttCloseModal)) {
-      if (modal) modal.hidden = true;
+      if (modal && !modal.hidden) modal.hidden = true;
+      else if (typing) root.activeElement.blur();
       return;
     }
 
     if (typing) return;
+
+    if (matchesKey(ev, ttNewEntry)) {
+      ev.preventDefault();
+      showSection(root, 'tracker');
+      focusNewEntry();
+      return;
+    }
 
     const prefixBinding = GOTO_BINDINGS.find(({ binding }) => matchesKey(ev, binding));
     if (prefixBinding) {
@@ -262,15 +263,17 @@ function wireHelpModal(root) {
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
-export function mountTimeTracking(root = document) {
+export function mountTimeTracking(root = document, { getPrefs = () => timeTrackingPrefs() } = {}) {
   wireSidebar(root);
   wireHelpModal(root);
-  const unwireKeyboard = wireKeyboard(root);
+  const tracker = mountTrackerPanel(root.getElementById('tt-section-tracker'), { getPrefs });
+  const unwireKeyboard = wireKeyboard(root, { focusNewEntry: tracker.focusNewEntry });
   const projects = root.getElementById('tt-section-projects');
   const unmountProjects = projects ? mountProjectsPanel(projects) : () => {};
-  showSection(root, 'projects');
+  showSection(root, 'tracker');
   return () => {
     unwireKeyboard();
+    tracker.unmount();
     unmountProjects();
   };
 }

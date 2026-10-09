@@ -36,10 +36,11 @@ afterEach(() => {
 const helpModal = () => document.getElementById('tt-help-modal');
 const section = (id) => document.getElementById(`tt-section-${id}`);
 
-test('starts on the Projects section', () => {
-  expect(section('projects').hidden).toBe(false);
-  expect(section('tracker').hidden).toBe(true);
-  expect(screen.getByLabelText('New customer name')).toBeTruthy();
+test('starts on the Time Tracker section', () => {
+  expect(section('tracker').hidden).toBe(false);
+  expect(section('projects').hidden).toBe(true);
+  expect(document.getElementById('tt-nav-tracker').getAttribute('aria-current')).toBe('page');
+  expect(screen.getByLabelText('Description')).toBeTruthy();
 });
 
 test('? opens the cheat-sheet and Escape closes it', () => {
@@ -53,10 +54,11 @@ test('? opens the cheat-sheet and Escape closes it', () => {
 test('cheat-sheet lists only implemented shortcuts', () => {
   const table = within(helpModal()).getByRole('table', { hidden: true });
   const keys = within(table).getAllByRole('row', { hidden: true }).map((row) => row.cells[0].textContent);
-  expect(keys).toEqual(['g t', 'g r', 'g p', 'g s', '?', 'Esc']);
+  expect(keys).toEqual(['n', 'Enter', 'Alt+↑', 'Alt+↓', 'g t', 'g r', 'g p', 'g s', '?', 'Esc']);
 });
 
 test('g then t switches to the Time Tracker section', () => {
+  fireEvent.click(document.getElementById('tt-nav-projects'));
   fireEvent.keyDown(document, { key: 'g' });
   fireEvent.keyDown(document, { key: 't' });
   expect(section('tracker').hidden).toBe(false);
@@ -65,12 +67,12 @@ test('g then t switches to the Time Tracker section', () => {
 });
 
 test('goto sequences are ignored while typing in an input', () => {
-  const input = screen.getByLabelText('New customer name');
+  const input = screen.getByLabelText('Description');
   input.focus();
   fireEvent.keyDown(input, { key: 'g' });
   fireEvent.keyDown(input, { key: 's' });
   expect(section('settings').hidden).toBe(true);
-  expect(section('projects').hidden).toBe(false);
+  expect(section('tracker').hidden).toBe(false);
 });
 
 test('clicking a sidebar entry switches section', () => {

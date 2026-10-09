@@ -1,5 +1,5 @@
-import { describe, test, expect } from 'vitest';
-import { fromZoned, zonedParts, formatTime, formatDate, formatDuration } from '../../../src/modules/timetracking-time.js';
+import { describe, test, expect, vi } from 'vitest';
+import { fromZoned, zonedParts, formatTime, formatDate, formatDuration, timeTrackingPrefs } from '../../../src/modules/timetracking-time.js';
 
 const BERLIN = 'Europe/Berlin';
 const iso = (ms) => new Date(ms).toISOString();
@@ -36,6 +36,23 @@ describe('fromZoned: wall-clock date + time in a timezone → absolute instant',
   test('round-trips through zonedParts', () => {
     const ms = fromZoned({ y: 2026, m: 10, d: 31 }, 22 * 60, BERLIN);
     expect(zonedParts(ms, BERLIN)).toEqual({ y: 2026, m: 10, d: 31, minutes: 22 * 60 });
+  });
+});
+
+describe('timeTrackingPrefs (defaults until Settings exist)', () => {
+  test('DD.MM.YYYY, 24-hour, browser timezone', () => {
+    expect(timeTrackingPrefs(123)).toEqual({
+      tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      dateFormat: 'DD.MM.YYYY',
+      timeFormat: '24h',
+      now: 123
+    });
+  });
+
+  test('falls back to Europe/Berlin when the browser reports no timezone', () => {
+    const spy = vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockReturnValue({ timeZone: undefined });
+    expect(timeTrackingPrefs().tz).toBe('Europe/Berlin');
+    spy.mockRestore();
   });
 });
 
