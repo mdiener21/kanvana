@@ -34,6 +34,7 @@ export const DEFAULT_APP_KEYBINDINGS = {
   ttCloseModal: { key: 'Escape', ...NO_MODIFIERS },
   ttSubmitInline: { key: 'Enter', ...NO_MODIFIERS },
   ttNewEntry: { key: 'n', ...NO_MODIFIERS },
+  ttFocusFilter: { key: '/', ...NO_MODIFIERS },
   ttAdjustUp: { key: 'ArrowUp', ...NO_MODIFIERS, altKey: true },
   ttAdjustDown: { key: 'ArrowDown', ...NO_MODIFIERS, altKey: true },
   ttSelectNext: { key: 'j', ...NO_MODIFIERS },

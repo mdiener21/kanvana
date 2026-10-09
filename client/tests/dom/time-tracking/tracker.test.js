@@ -640,3 +640,104 @@ describe('delete', () => {
     expect(scheduleDomainEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'time_entry.deleted', entityId: 'late' }));
   });
 });
+
+describe('entry list filter', () => {
+  const FILTERED = [
+    entry('website-today', '2026-10-08T07:00:00.000Z', '2026-10-08T08:00:00.000Z'),
+    entry('legacy-today', '2026-10-08T09:00:00.000Z', '2026-10-08T09:30:00.000Z', { projectId: 'p2' }),
+    entry('support-today', '2026-10-08T05:00:00.000Z', '2026-10-08T07:00:00.000Z', { projectId: 'p3' }),
+    entry('support-yesterday', '2026-10-07T07:00:00.000Z', '2026-10-07T08:00:00.000Z', { projectId: 'p3' })
+  ];
+  const customerFilter = () => screen.getByLabelText('Filter by customer');
+  const projectFilter = () => screen.getByLabelText('Filter by project');
+  const choose = (select, value) => fireEvent.change(select, { target: { value } });
+  const descriptions = () => rows().map((r) => r.querySelector('.tt-entry-desc').textContent);
+  const total = (heading) => within(entryList()).getByLabelText(`Total for ${heading}`).textContent;
+  const count = () => screen.getByLabelText('Entry count').textContent;
+
+  test('filter controls sit above the list and start at All', () => {
+    mount({ timeEntries: FILTERED });
+    const filterGroup = screen.getByRole('group', { name: 'Filter entries' });
+    expect(filterGroup.compareDocumentPosition(entryList()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(customerFilter().value).toBe('');
+    expect(descriptions()).toHaveLength(4);
+    expect(count()).toBe('4 entries');
+  });
+
+  test('by customer, by project, both, and All resets', () => {
+    mount({ timeEntries: FILTERED });
+    choose(customerFilter(), 'c2');
+    expect(descriptions()).toEqual(['support-today', 'support-yesterday']);
+
+    choose(customerFilter(), '');
+    choose(projectFilter(), 'p2');
+    expect(descriptions()).toEqual(['legacy-today']);
+
+    choose(customerFilter(), 'c1');
+    choose(projectFilter(), 'p1');
+    expect(descriptions()).toEqual(['website-today']);
+
+    choose(projectFilter(), '');
+    expect(descriptions()).toEqual(['legacy-today', 'website-today']);
+    choose(customerFilter(), '');
+    expect(descriptions()).toHaveLength(4);
+  });
+
+  test('day totals and the entry count reflect the filtered entries', () => {
+    mount({ timeEntries: FILTERED });
+    expect(total('Today')).toBe('3:30');
+    choose(customerFilter(), 'c1');
+    expect(total('Today')).toBe('1:30');
+    expect(within(entryList()).queryByLabelText('Total for Yesterday')).toBeNull();
+    expect(count()).toBe('2 entries');
+    choose(projectFilter(), 'p1');
+    expect(count()).toBe('1 entry');
+  });
+
+  test('a filter that matches nothing says so', () => {
+    mount({ timeEntries: FILTERED.slice(0, 1) });
+    choose(customerFilter(), 'c2');
+    expect(within(entryList()).getByText('No entries match the filter.')).toBeTruthy();
+    expect(count()).toBe('0 entries');
+  });
+
+  test('j / k only walk the visible entries and a hidden selection is dropped', () => {
+    mount({ timeEntries: FILTERED });
+    key('j');
+    expect(selected()).toEqual(['legacy-today']);
+    choose(customerFilter(), 'c2');
+    expect(selected()).toEqual([]);
+    key('j');
+    key('j');
+    key('j');
+    expect(selected()).toEqual(['support-yesterday']);
+    key('k');
+    expect(selected()).toEqual(['support-today']);
+  });
+
+  test('/ focuses the customer filter; it is ignored while typing', () => {
+    mount({ timeEntries: FILTERED });
+    field('Description').focus();
+    expect(press(field('Description'), '/')).toBe(true);
+    expect(document.activeElement).toBe(field('Description'));
+    fireEvent.blur(field('Description'));
+    field('Description').blur();
+    expect(press(document.body, '/')).toBe(false);
+    expect(document.activeElement).toBe(customerFilter());
+  });
+
+  test('the filter survives new data and archived items stay selectable', () => {
+    mount({ timeEntries: FILTERED });
+    choose(customerFilter(), 'c2');
+    state.timeEntries = [...FILTERED, entry('support-new', '2026-10-08T08:00:00.000Z', '2026-10-08T08:15:00.000Z', { projectId: 'p3' })];
+    emitDataChanged();
+    expect(customerFilter().value).toBe('c2');
+    expect(descriptions()).toEqual(['support-new', 'support-today', 'support-yesterday']);
+    expect(customerFilter().selectedOptions[0].textContent).toBe('Old Co (archived)');
+  });
+
+  test('/ is listed in the shortcut cheat-sheet', () => {
+    mount();
+    expect(within(document.getElementById('tt-help-rows')).getByText('Focus the entry filter')).toBeTruthy();
+  });
+});

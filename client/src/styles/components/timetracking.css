@@ -257,8 +257,21 @@
 }
 .tt-plus-day[hidden] { display: none; }
 
+/* Entry filter */
+.tt-filter { display: flex; flex-wrap: wrap; gap: 8px; }
+.tt-filter .tt-select { min-width: 180px; }
+.tt-list-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 20px;
+}
+.tt-entry-count { font-size: 13px; color: var(--text-muted, #6b7280); }
+
 /* Entry list */
-.tt-entry-list { margin-top: 20px; }
+.tt-entry-list { margin-top: 12px; }
 .tt-day { margin-bottom: 16px; }
 .tt-day-header {
   display: flex;
