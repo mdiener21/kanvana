@@ -50,7 +50,6 @@ export function entryFieldsHtml(prefix) {
 
 // ── Behaviour ──────────────────────────────────────────────────────────────────
 
-// onSubmit receives { ok: true, entry: { projectId, description, start, end } } or { ok: false, reason }.
 export function wireEntryFields(root, { getPrefs, getTimeTracking, onSubmit }) {
   const inputs = Object.fromEntries(
     [...root.querySelectorAll('[data-tt-field]')].map((input) => [input.dataset.ttField, input])

@@ -15,7 +15,6 @@ export const ENTRY_ERROR_MESSAGES = {
   [CRUD_ERROR.NOT_FOUND]: 'That entry no longer exists.'
 };
 
-// Single seam for project prefill: default project (#170) and last-used project (#171) plug in here.
 export function prefillProjectId() {
   return null;
 }

@@ -3,7 +3,6 @@ const MS_PER_DAY = 24 * 60 * MS_PER_MINUTE;
 
 export const TT_FALLBACK_TIMEZONE = 'Europe/Berlin';
 
-// Display defaults until Time Tracking settings exist (#170 replaces this source).
 export function timeTrackingPrefs(now = Date.now()) {
   return {
     tz: Intl.DateTimeFormat().resolvedOptions().timeZone || TT_FALLBACK_TIMEZONE,
