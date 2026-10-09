@@ -94,11 +94,13 @@ export function parseDuration(input) {
   return null;
 }
 
-const DATE_FIELD_ORDER = {
-  'DD.MM.YYYY': ['d', 'm', 'y'],
-  'MM/DD/YYYY': ['m', 'd', 'y'],
-  'YYYY-MM-DD': ['y', 'm', 'd']
+const DATE_FORMATS = {
+  'DD.MM.YYYY': { order: ['d', 'm', 'y'], separator: '.' },
+  'MM/DD/YYYY': { order: ['m', 'd', 'y'], separator: '/' },
+  'YYYY-MM-DD': { order: ['y', 'm', 'd'], separator: '-' }
 };
+
+const dateFormatOf = (dateFormat) => DATE_FORMATS[dateFormat] ?? DATE_FORMATS['DD.MM.YYYY'];
 
 export function parseDate(input, { dateFormat, tz, now }) {
   const s = String(input ?? '').trim().toLowerCase();
@@ -108,7 +110,7 @@ export function parseDate(input, { dateFormat, tz, now }) {
 
   const numbers = s.split(/\D+/).filter(Boolean).map(Number);
   if (numbers.length < 2 || numbers.length > 3 || !/^[\d\s./-]+$/.test(s)) return null;
-  const order = DATE_FIELD_ORDER[dateFormat] ?? DATE_FIELD_ORDER['DD.MM.YYYY'];
+  const { order } = dateFormatOf(dateFormat);
   const fields = numbers.length === 3 ? order : order.filter((f) => f !== 'y');
   const parsed = { y: today.y };
   fields.forEach((field, i) => { parsed[field] = numbers[i]; });
@@ -125,10 +127,9 @@ export function parseDate(input, { dateFormat, tz, now }) {
 
 const pad2 = (n) => String(n).padStart(2, '0');
 
-export function formatYmd({ y, m, d }, dateFormat) {
-  if (dateFormat === 'MM/DD/YYYY') return `${pad2(m)}/${pad2(d)}/${y}`;
-  if (dateFormat === 'YYYY-MM-DD') return `${y}-${pad2(m)}-${pad2(d)}`;
-  return `${pad2(d)}.${pad2(m)}.${y}`;
+export function formatYmd(ymd, dateFormat) {
+  const { order, separator } = dateFormatOf(dateFormat);
+  return order.map((field) => (field === 'y' ? ymd.y : pad2(ymd[field]))).join(separator);
 }
 
 export function formatMinutes(minutes, timeFormat) {
