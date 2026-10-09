@@ -56,8 +56,21 @@ export function saveTimeTrackingSettings(patch) {
   return resolved;
 }
 
-// Single resolution point for the entry bar's project prefill.
-export function prefillProjectId(tt, settings) {
-  const project = projectById(tt, settings.defaultProjectId);
+// Per-device convenience state: deliberately local storage, not a domain event, so it never syncs.
+const LAST_USED_PROJECT_KEY = 'kanvana:timetracking:lastUsedProjectId';
+
+export const loadLastUsedProjectId = () => idOrNull(localStorage.getItem(LAST_USED_PROJECT_KEY));
+
+export function rememberLastUsedProject(projectId) {
+  if (idOrNull(projectId)) localStorage.setItem(LAST_USED_PROJECT_KEY, projectId);
+}
+
+const activeProjectId = (tt, id) => {
+  const project = projectById(tt, id);
   return project && isProjectActive(project, tt) ? project.id : null;
+};
+
+// Single resolution point for the entry bar's project prefill.
+export function prefillProjectId(tt, settings, lastUsedProjectId = null) {
+  return activeProjectId(tt, lastUsedProjectId) ?? activeProjectId(tt, settings.defaultProjectId);
 }
