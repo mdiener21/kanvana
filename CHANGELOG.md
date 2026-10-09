@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Time entries are listed by day, newest first, under `Today`, `Yesterday` or the weekday and date, with a total per day. An entry that runs past midnight counts towards the day it started.
 - Time Tracker shortcuts: `n` jumps to a new entry, `Enter` saves, `Esc` leaves a field, and `Alt+↑` / `Alt+↓` move Start, End or Duration by 15 minutes.
 - Correct your time log from the keyboard: `j` / `k` select an entry, `e` (or double-click) opens it for editing with the same linked fields as the entry bar (`Enter` saves, `Esc` cancels), `d` duplicates it starting now with the same project, description and duration, and `Del` asks for confirmation inline (`y` deletes permanently, `Esc` keeps it). Hovering or selecting a row also shows edit, duplicate and delete buttons. An entry can keep a project that has since been archived, but cannot be moved to or duplicated on an archived project. Edits and deletions sync to your other signed-in devices.
+- Filter the time entry list by customer, project or both; `/` jumps to the filter and "All" resets it. Picking a customer narrows the project list to that customer's projects. Archived customers and projects can still be picked, marked as archived. Day totals, the entry count and `j` / `k` selection only cover the entries shown.
 
 ### Changed
 
