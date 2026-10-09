@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest';
-import { createCustomer, createProject, createTimeEntry } from '../../../src/modules/schema.js';
+import { createCustomer, createProject } from '../../../src/modules/schema.js';
 import { TT_COLOR_PALETTE } from '../../../src/modules/constants.js';
 
 test('createCustomer returns all required fields with defaults', () => {
@@ -60,28 +60,5 @@ test('createProject auto-assigns color from palette', () => {
 
 test('createProject generates unique ids', () => {
   const ids = Array.from({ length: 20 }, () => createProject().id);
-  expect(new Set(ids).size).toBe(20);
-});
-
-test('createTimeEntry returns all required fields with defaults', () => {
-  const e = createTimeEntry();
-  expect(typeof e.id).toBe('string');
-  expect(e.id).toMatch(/^[0-9a-f-]{36}$/);
-  expect(e.projectId).toBe('');
-  expect(e.description).toBe('');
-  expect(e.start).toBe('');
-  expect(e.end).toBe('');
-});
-
-test('createTimeEntry applies overrides', () => {
-  const e = createTimeEntry({ projectId: 'proj-1', description: 'Standup', start: '2026-01-01T09:00:00Z', end: '2026-01-01T09:30:00Z' });
-  expect(e.projectId).toBe('proj-1');
-  expect(e.description).toBe('Standup');
-  expect(e.start).toBe('2026-01-01T09:00:00Z');
-  expect(e.end).toBe('2026-01-01T09:30:00Z');
-});
-
-test('createTimeEntry generates unique ids', () => {
-  const ids = Array.from({ length: 20 }, () => createTimeEntry().id);
   expect(new Set(ids).size).toBe(20);
 });

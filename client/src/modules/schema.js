@@ -162,14 +162,3 @@ export function createProject(overrides = {}, colorIndex = 0) {
     ...overrides,
   };
 }
-
-export function createTimeEntry(overrides = {}) {
-  return {
-    id: generateUUID(),
-    projectId: '',
-    description: '',
-    start: '',
-    end: '',
-    ...overrides,
-  };
-}

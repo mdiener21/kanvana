@@ -3,6 +3,12 @@ import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 import { createCustomer, createProject } from './schema.js';
 import { EVENT_SCOPE, TT_COLOR_PALETTE } from './constants.js';
 
+export const CRUD_ERROR = Object.freeze({
+  EMPTY_NAME: 'EMPTY_NAME',
+  DUPLICATE_NAME: 'DUPLICATE_NAME',
+  NO_CUSTOMER: 'NO_CUSTOMER'
+});
+
 // ── Color auto-assignment ──────────────────────────────────────────────────────
 
 function nextColorIndex(collection) {
@@ -13,22 +19,22 @@ function nextColorIndex(collection) {
 
 export function validateCustomerName(name, customers, skipId = null) {
   const trimmed = name.trim();
-  if (!trimmed) return { ok: false, reason: 'EMPTY_NAME' };
+  if (!trimmed) return { ok: false, reason: CRUD_ERROR.EMPTY_NAME };
   const lower = trimmed.toLowerCase();
   const dup = customers.find((c) => c.id !== skipId && c.name.trim().toLowerCase() === lower);
-  if (dup) return { ok: false, reason: 'DUPLICATE_NAME' };
+  if (dup) return { ok: false, reason: CRUD_ERROR.DUPLICATE_NAME };
   return { ok: true, name: trimmed };
 }
 
 export function validateProjectName(name, customerId, projects, skipId = null) {
   const trimmed = name.trim();
-  if (!trimmed) return { ok: false, reason: 'EMPTY_NAME' };
-  if (!customerId) return { ok: false, reason: 'NO_CUSTOMER' };
+  if (!trimmed) return { ok: false, reason: CRUD_ERROR.EMPTY_NAME };
+  if (!customerId) return { ok: false, reason: CRUD_ERROR.NO_CUSTOMER };
   const lower = trimmed.toLowerCase();
   const dup = projects.find(
     (p) => p.id !== skipId && p.customerId === customerId && p.name.trim().toLowerCase() === lower
   );
-  if (dup) return { ok: false, reason: 'DUPLICATE_NAME' };
+  if (dup) return { ok: false, reason: CRUD_ERROR.DUPLICATE_NAME };
   return { ok: true, name: trimmed };
 }
 

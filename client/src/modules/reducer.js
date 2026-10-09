@@ -298,71 +298,13 @@ function applySettingsUpdated(state, event) {
 function applyCustomerCreated(state, event) {
   if (state.timeTracking.customers.some((c) => c.id === event.entity_id)) return state;
   const tt = cloneTimeTracking(state.timeTracking);
-  const customer = event.payload?.customer && typeof event.payload.customer === 'object'
-    ? event.payload.customer : event.payload?.fields || {};
-  return { ...state, timeTracking: { ...tt, customers: [...tt.customers, { id: event.entity_id, ...customer }] } };
-}
-
-function applyCustomerUpdated(state, event) {
-  const fields = event.payload?.fields && typeof event.payload.fields === 'object' ? event.payload.fields : {};
-  const tt = cloneTimeTracking(state.timeTracking);
-  return { ...state, timeTracking: { ...tt, customers: tt.customers.map((c) => c.id === event.entity_id ? { ...c, ...fields } : c) } };
-}
-
-function applyArchiveToggle(collectionKey, archived) {
-  return function (state, event) {
-    const tt = cloneTimeTracking(state.timeTracking);
-    return { ...state, timeTracking: { ...tt, [collectionKey]: tt[collectionKey].map((x) => x.id === event.entity_id ? { ...x, archived } : x) } };
-  };
-}
-
-const applyCustomerArchived = applyArchiveToggle('customers', true);
-const applyCustomerUnarchived = applyArchiveToggle('customers', false);
-
-function applyCustomerDeleted(state, event) {
-  const tt = cloneTimeTracking(state.timeTracking);
-  return { ...state, timeTracking: { ...tt, customers: tt.customers.filter((c) => c.id !== event.entity_id) } };
+  return { ...state, timeTracking: { ...tt, customers: [...tt.customers, { id: event.entity_id, ...event.payload.customer }] } };
 }
 
 function applyProjectCreated(state, event) {
   if (state.timeTracking.projects.some((p) => p.id === event.entity_id)) return state;
   const tt = cloneTimeTracking(state.timeTracking);
-  const project = event.payload?.project && typeof event.payload.project === 'object'
-    ? event.payload.project : event.payload?.fields || {};
-  return { ...state, timeTracking: { ...tt, projects: [...tt.projects, { id: event.entity_id, ...project }] } };
-}
-
-function applyProjectUpdated(state, event) {
-  const fields = event.payload?.fields && typeof event.payload.fields === 'object' ? event.payload.fields : {};
-  const tt = cloneTimeTracking(state.timeTracking);
-  return { ...state, timeTracking: { ...tt, projects: tt.projects.map((p) => p.id === event.entity_id ? { ...p, ...fields } : p) } };
-}
-
-const applyProjectArchived = applyArchiveToggle('projects', true);
-const applyProjectUnarchived = applyArchiveToggle('projects', false);
-
-function applyProjectDeleted(state, event) {
-  const tt = cloneTimeTracking(state.timeTracking);
-  return { ...state, timeTracking: { ...tt, projects: tt.projects.filter((p) => p.id !== event.entity_id) } };
-}
-
-function applyTimeEntryCreated(state, event) {
-  if (state.timeTracking.timeEntries.some((e) => e.id === event.entity_id)) return state;
-  const tt = cloneTimeTracking(state.timeTracking);
-  const entry = event.payload?.entry && typeof event.payload.entry === 'object'
-    ? event.payload.entry : event.payload?.fields || {};
-  return { ...state, timeTracking: { ...tt, timeEntries: [...tt.timeEntries, { id: event.entity_id, ...entry }] } };
-}
-
-function applyTimeEntryUpdated(state, event) {
-  const fields = event.payload?.fields && typeof event.payload.fields === 'object' ? event.payload.fields : {};
-  const tt = cloneTimeTracking(state.timeTracking);
-  return { ...state, timeTracking: { ...tt, timeEntries: tt.timeEntries.map((e) => e.id === event.entity_id ? { ...e, ...fields } : e) } };
-}
-
-function applyTimeEntryDeleted(state, event) {
-  const tt = cloneTimeTracking(state.timeTracking);
-  return { ...state, timeTracking: { ...tt, timeEntries: tt.timeEntries.filter((e) => e.id !== event.entity_id) } };
+  return { ...state, timeTracking: { ...tt, projects: [...tt.projects, { id: event.entity_id, ...event.payload.project }] } };
 }
 
 const handlers = {
@@ -390,18 +332,7 @@ const handlers = {
   'board.deleted': applyBoardDeleted,
   'settings.updated': applySettingsUpdated,
   'customer.created': applyCustomerCreated,
-  'customer.updated': applyCustomerUpdated,
-  'customer.archived': applyCustomerArchived,
-  'customer.unarchived': applyCustomerUnarchived,
-  'customer.deleted': applyCustomerDeleted,
-  'project.created': applyProjectCreated,
-  'project.updated': applyProjectUpdated,
-  'project.archived': applyProjectArchived,
-  'project.unarchived': applyProjectUnarchived,
-  'project.deleted': applyProjectDeleted,
-  'time_entry.created': applyTimeEntryCreated,
-  'time_entry.updated': applyTimeEntryUpdated,
-  'time_entry.deleted': applyTimeEntryDeleted
+  'project.created': applyProjectCreated
 };
 
 export function applyEvent(state, event) {

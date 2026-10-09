@@ -15,7 +15,7 @@ export const EVENT_SCOPE = Object.freeze({
   TIMETRACKING: 'timetracking'
 });
 
-export const PRIORITIES =['urgent', 'high', 'medium', 'low', 'none'];
+export const PRIORITIES = ['urgent', 'high', 'medium', 'low', 'none'];
 export const PRIORITY_SET = new Set(PRIORITIES);
 
 export const PRIORITY_ORDER = { urgent: 0, high: 1, medium: 2, low: 3, none: 4 };
@@ -25,26 +25,17 @@ export const DEFAULT_COLUMN_COLOR = '#3b82f6';
 
 export const MAX_LABEL_NAME_LENGTH = 40;
 
-export const DEFAULT_APP_KEYBINDINGS = {
-  openBoardsModal: { key: 'b', ctrlKey: true, shiftKey: false, altKey: false, metaKey: false }
-};
+const NO_MODIFIERS = Object.freeze({ ctrlKey: false, shiftKey: false, altKey: false, metaKey: false });
 
-export const TT_KEYBINDINGS = {
-  newEntry:     { key: 'n' },
-  focusFilter:  { key: '/' },
-  selectDown:   { key: 'j' },
-  selectUp:     { key: 'k' },
-  editSelected: { key: 'e' },
-  dupSelected:  { key: 'd' },
-  delSelected:  { key: 'Delete' },
-  prevMonth:    { key: '[' },
-  nextMonth:    { key: ']' },
-  help:         { key: '?' },
-  esc:          { key: 'Escape' },
-  gotoTracker:  { key: 'g', seq: 't' },
-  gotoReports:  { key: 'g', seq: 'r' },
-  gotoProjects: { key: 'g', seq: 'p' },
-  gotoSettings: { key: 'g', seq: 's' }
+// `seq` marks the second key of a two-key sequence; `key` is the prefix, matched with matchesKey.
+export const DEFAULT_APP_KEYBINDINGS = {
+  openBoardsModal: { key: 'b', ctrlKey: true, shiftKey: false, altKey: false, metaKey: false },
+  ttHelp: { key: '?', ctrlKey: false, shiftKey: true, altKey: false, metaKey: false },
+  ttCloseModal: { key: 'Escape', ...NO_MODIFIERS },
+  ttGotoTracker: { key: 'g', seq: 't', ...NO_MODIFIERS },
+  ttGotoReports: { key: 'g', seq: 'r', ...NO_MODIFIERS },
+  ttGotoProjects: { key: 'g', seq: 'p', ...NO_MODIFIERS },
+  ttGotoSettings: { key: 'g', seq: 's', ...NO_MODIFIERS }
 };
 
 export const TT_COLOR_PALETTE = [

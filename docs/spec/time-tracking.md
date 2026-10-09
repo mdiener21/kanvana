@@ -18,7 +18,7 @@ Terms (Customer, Project, Time Entry, Duration, Archived, Attribution) are defin
 
 ## Page and Navigation
 
-- Entry point: `src/timetracker.html` (new Vite build input)
+- Entry point: `src/timetracking.html` (new Vite build input)
 - Reachable from the main board menu as `Time Tracking`; page links `Back to Board`
 - Sidebar sections: **Time Tracker**, **Reports**, **Projects**, **Settings**
 

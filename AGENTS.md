@@ -32,6 +32,7 @@ client/             Frontend app (the main product)
     index.html      Main board page
     reports.html    Analytics page
     calendar.html   Calendar view
+    timetracking.html Time tracking page
     activity.html   Board event log page
   tests/
     unit/           Vitest pure-unit tests

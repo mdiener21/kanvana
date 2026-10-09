@@ -16,7 +16,7 @@ vi.mock('../../../src/modules/storage.js', async (importOriginal) => {
 });
 
 // Import the pure CRUD module — no DOM/icons dependency
-const { addCustomer, addProject } = await import('../../../src/modules/timetracking-crud.js');
+const { addCustomer, addProject, CRUD_ERROR } = await import('../../../src/modules/timetracking-crud.js');
 const { loadTimeTracking } = await import('../../../src/modules/storage.js');
 
 beforeEach(() => {
@@ -41,7 +41,7 @@ test('addCustomer trims whitespace from name', () => {
 test('addCustomer rejects empty name', () => {
   expect(addCustomer('').ok).toBe(false);
   expect(addCustomer('   ').ok).toBe(false);
-  expect(addCustomer('').reason).toBe('EMPTY_NAME');
+  expect(addCustomer('').reason).toBe(CRUD_ERROR.EMPTY_NAME);
 });
 
 test('addCustomer rejects duplicate name (case-insensitive)', () => {
@@ -52,7 +52,7 @@ test('addCustomer rejects duplicate name (case-insensitive)', () => {
   });
   const result = addCustomer('acme');
   expect(result.ok).toBe(false);
-  expect(result.reason).toBe('DUPLICATE_NAME');
+  expect(result.reason).toBe(CRUD_ERROR.DUPLICATE_NAME);
 });
 
 test('addCustomer allows different customer names', () => {
@@ -104,13 +104,13 @@ test('addProject rejects empty name', () => {
   });
   const result = addProject('c1', '');
   expect(result.ok).toBe(false);
-  expect(result.reason).toBe('EMPTY_NAME');
+  expect(result.reason).toBe(CRUD_ERROR.EMPTY_NAME);
 });
 
 test('addProject rejects missing customerId', () => {
   const result = addProject('', 'MVP');
   expect(result.ok).toBe(false);
-  expect(result.reason).toBe('NO_CUSTOMER');
+  expect(result.reason).toBe(CRUD_ERROR.NO_CUSTOMER);
 });
 
 test('addProject rejects duplicate project name within same customer (case-insensitive)', () => {
@@ -121,7 +121,7 @@ test('addProject rejects duplicate project name within same customer (case-insen
   });
   const result = addProject('c1', 'website');
   expect(result.ok).toBe(false);
-  expect(result.reason).toBe('DUPLICATE_NAME');
+  expect(result.reason).toBe(CRUD_ERROR.DUPLICATE_NAME);
 });
 
 test('addProject allows same project name under different customers', () => {
