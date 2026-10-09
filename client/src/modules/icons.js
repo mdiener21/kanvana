@@ -44,7 +44,12 @@ import {
   Apple,
   LayoutGrid,
   Scale,
-  ListChecks
+  ListChecks,
+  ArrowLeft,
+  Clock,
+  Folder,
+  PanelLeftClose,
+  PanelLeftOpen
 } from 'lucide';
 
 // Map of all icons used in the app (PascalCase keys for createIcons)
@@ -89,7 +94,12 @@ const icons = {
   Apple,
   LayoutGrid,
   Scale,
-  ListChecks
+  ListChecks,
+  ArrowLeft,
+  Clock,
+  Folder,
+  PanelLeftClose,
+  PanelLeftOpen
 };
 
 /**

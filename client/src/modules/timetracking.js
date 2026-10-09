@@ -4,6 +4,8 @@ import { renderIcons } from './icons.js';
 import { initializeThemeToggle } from './theme.js';
 import { TT_KEYBINDINGS } from './constants.js';
 import { addCustomer, addProject } from './timetracking-crud.js';
+import { initSyncQueue } from './event-sourcing/sync-queue.js';
+import { initRealtime } from './event-sourcing/realtime.js';
 export { addCustomer, addProject };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -270,6 +272,8 @@ async function main() {
   wireSidebar();
   wireKeyboard();
   wireHelpModal();
+  initSyncQueue();
+  initRealtime();
   showSection('projects');
 
   on(DATA_CHANGED, () => {

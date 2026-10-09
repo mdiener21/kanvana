@@ -285,6 +285,7 @@
       place-items: center;
       z-index: 200;
     }
+    #tt-help-modal[hidden] { display: none; }
     .tt-help-card {
       background: var(--surface, #fff);
       border-radius: 8px;
@@ -392,7 +393,7 @@
         <span class="tt-nav-label">Time Tracker</span>
       </button>
       <button id="tt-nav-reports" class="tt-nav-btn" type="button" aria-current="false">
-        <span data-lucide="bar-chart-3" aria-hidden="true"></span>
+        <span data-lucide="chart-column" aria-hidden="true"></span>
         <span class="tt-nav-label">Reports</span>
       </button>
       <button id="tt-nav-projects" class="tt-nav-btn" type="button" aria-current="false">
