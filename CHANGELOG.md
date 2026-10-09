@@ -12,8 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Open the new Time Tracking page from the board menu. It has a collapsible sidebar with Time Tracker, Reports, Projects and Settings sections, works on mobile, and links back to the board.
 - Add customers and their projects inline on the Projects page by pressing Enter. Each gets a colour automatically. Empty or duplicate names show a message and nothing is saved. Customers and projects sync to your other signed-in devices.
 - Keyboard shortcuts on the Time Tracking page: `g t`, `g r`, `g p` and `g s` switch sections, `?` shows the shortcut list and `Esc` closes it.
+- Log time on the Time Tracker: enter a description, pick a `Customer / Project`, and set date, start, end or duration, then press Enter. Start, End and Duration stay in sync, an end before the start counts as the next day (`+1 day`), and shorthand such as `930`, `2:30pm`, `90m`, `1.5`, `t` or `y` is understood. Entries without a project, with an archived project or with zero duration show a message and are not saved. Logged time syncs to your other signed-in devices.
+- Time entries are listed by day, newest first, under `Today`, `Yesterday` or the weekday and date, with a total per day. An entry that runs past midnight counts towards the day it started.
+- Time Tracker shortcuts: `n` jumps to a new entry, `Enter` saves, `Esc` leaves a field, and `Alt+↑` / `Alt+↓` move Start, End or Duration by 15 minutes.
 
 ### Changed
+
+- The Time Tracking page now opens on the Time Tracker instead of Projects.
 
 - Sync now carries a separate time-tracking data stream alongside boards and global settings, in preparation for Time Tracking. No visible change.
 

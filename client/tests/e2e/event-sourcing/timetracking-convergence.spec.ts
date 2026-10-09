@@ -34,8 +34,37 @@ async function loginAndOpenTimeTracking(browser: Browser, email: string): Promis
   await expect(page.locator('#login-btn')).toBeHidden();
 
   await page.goto('/timetracking.html');
-  await expect(page.locator('#tt-new-customer-input')).toBeVisible();
+  await expect(page.getByLabel('Description', { exact: true })).toBeVisible();
   return page;
+}
+
+async function openProjects(page: Page): Promise<void> {
+  await page.locator('#tt-nav-projects').click();
+  await expect(page.locator('#tt-new-customer-input')).toBeVisible();
+}
+
+async function createCustomerAndProject(page: Page, customer: string, project: string): Promise<void> {
+  await openProjects(page);
+  await page.locator('#tt-new-customer-input').fill(customer);
+  await page.locator('#tt-add-customer-btn').click();
+  await expect(page.locator('.tt-customer-name', { hasText: customer })).toBeVisible();
+  await page.locator('#tt-customer-select').selectOption({ label: customer });
+  await page.locator('#tt-new-project-input').fill(project);
+  await page.locator('#tt-add-project-btn').click();
+  await expect(page.locator('.tt-project-name', { hasText: project })).toBeVisible();
+}
+
+async function listUserEvents(email: string, filter: string): Promise<Array<Record<string, unknown>>> {
+  const auth = await fetch(`${PB_URL}/api/collections/users/auth-with-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ identity: email, password: PASSWORD }),
+  });
+  const { token } = await auth.json();
+  const res = await fetch(`${PB_URL}/api/collections/events/records?filter=${encodeURIComponent(filter)}`, {
+    headers: { Authorization: token },
+  });
+  return (await res.json()).items;
 }
 
 let pbReachable = false;
@@ -52,25 +81,59 @@ test.describe('#165 time-tracking convergence (live PocketBase)', () => {
 
     const deviceB = await loginAndOpenTimeTracking(browser, email);
     const deviceA = await loginAndOpenTimeTracking(browser, email);
+    await openProjects(deviceB);
 
     const customer = `Acme ${Date.now()}`;
     const project = `Website ${Date.now()}`;
 
-    await deviceA.locator('#tt-new-customer-input').fill(customer);
-    await deviceA.locator('#tt-add-customer-btn').click();
-    await expect(deviceA.locator('.tt-customer-name', { hasText: customer })).toBeVisible();
-
-    await deviceA.locator('#tt-customer-select').selectOption({ label: customer });
-    await deviceA.locator('#tt-new-project-input').fill(project);
-    await deviceA.locator('#tt-add-project-btn').click();
-    await expect(deviceA.locator('.tt-project-name', { hasText: project })).toBeVisible();
+    await createCustomerAndProject(deviceA, customer, project);
 
     await expect(deviceB.locator('.tt-customer-name', { hasText: customer })).toBeVisible({ timeout: 5000 });
     await expect(deviceB.locator('.tt-project-name', { hasText: project })).toBeVisible({ timeout: 5000 });
 
     const deviceC = await loginAndOpenTimeTracking(browser, email);
+    await openProjects(deviceC);
     await expect(deviceC.locator('.tt-customer-name', { hasText: customer })).toBeVisible({ timeout: 5000 });
     await expect(deviceC.locator('.tt-project-name', { hasText: project })).toBeVisible({ timeout: 5000 });
+
+    for (const p of [deviceA, deviceB, deviceC]) await p.context().close();
+  });
+
+  test('#166 a time entry logged on device A appears on device B and syncs as time_entry.created', async ({ browser }) => {
+    test.skip(!pbReachable, `PocketBase not reachable at ${PB_URL}`);
+
+    const email = `tt-entry-${Date.now()}@example.test`;
+    await registerAccount(email);
+
+    const deviceB = await loginAndOpenTimeTracking(browser, email);
+    const deviceA = await loginAndOpenTimeTracking(browser, email);
+
+    const customer = `Acme ${Date.now()}`;
+    const project = `Website ${Date.now()}`;
+    const description = `Standup ${Date.now()}`;
+    await createCustomerAndProject(deviceA, customer, project);
+
+    await deviceA.keyboard.press('Escape');
+    await deviceA.keyboard.press('n');
+    await expect(deviceA.getByLabel('Description', { exact: true })).toBeFocused();
+    await deviceA.keyboard.type(description);
+    await deviceA.getByLabel('Project', { exact: true }).fill(`${customer} / ${project}`);
+    await deviceA.getByLabel('Duration', { exact: true }).fill('1h30');
+    await deviceA.keyboard.press('Enter');
+    await expect(deviceA.getByRole('list', { name: 'Today' }).getByText(description)).toBeVisible();
+
+    const rowOnB = deviceB.locator('.tt-entry-row', { hasText: description });
+    await expect(rowOnB).toBeVisible({ timeout: 5000 });
+    await expect(rowOnB.locator('.tt-entry-project')).toHaveText(project);
+    await expect(rowOnB.locator('.tt-entry-duration')).toHaveText('1:30');
+
+    const deviceC = await loginAndOpenTimeTracking(browser, email);
+    await expect(deviceC.locator('.tt-entry-row', { hasText: description })).toBeVisible({ timeout: 5000 });
+
+    const events = await listUserEvents(email, "event_type='time_entry.created'");
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ scope: 'timetracking', board: '' });
+    expect((events[0].payload as { timeEntry: { description: string } }).timeEntry.description).toBe(description);
 
     for (const p of [deviceA, deviceB, deviceC]) await p.context().close();
   });
