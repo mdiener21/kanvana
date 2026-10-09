@@ -1069,6 +1069,10 @@ export function loadGlobalSettings() {
   return parsed ? normalizeGlobalSettings(parsed) : defaultGlobalSettings();
 }
 
+export function loadTimeTracking() {
+  return createTimeTrackingState(state.timeTracking);
+}
+
 export function saveGlobalSettings(settings) {
   const normalized = normalizeGlobalSettings(settings);
   state.globalSettings = normalized;

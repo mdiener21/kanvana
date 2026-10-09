@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Kanvana Time Tracking">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://pb.kanvana.com; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <title>Kanvana — Time Tracking</title>
+  <link rel="stylesheet" href="styles/index.css">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="./icons/icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
+  <meta name="theme-color" content="#3b82f6">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Kanvana">
+  <style>
+    /* ── Time Tracking layout ──────────────────────────────────────────────── */
+    .tt-shell {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      grid-template-rows: 56px 1fr;
+      min-height: 100vh;
+    }
+    .tt-shell.sidebar-collapsed {
+      grid-template-columns: 48px 1fr;
+    }
+
+    /* Top bar */
+    .tt-topbar {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--surface, #fff);
+      border-bottom: 1px solid var(--border, #e5e7eb);
+      padding: 0 20px;
+    }
+    .tt-topbar-logo {
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--accent, #3b82f6);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .tt-topbar-title {
+      font-weight: 600;
+      font-size: 16px;
+      color: var(--text, #111);
+    }
+    .tt-topbar-spacer { flex: 1; }
+    .tt-topbar-back {
+      color: var(--accent, #3b82f6);
+      text-decoration: none;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .tt-topbar-back:hover { text-decoration: underline; }
+    .tt-theme-btn {
+      border: 0;
+      background: none;
+      cursor: pointer;
+      color: var(--text-muted, #6b7280);
+      padding: 6px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+    }
+    .tt-theme-btn:hover { background: var(--surface-hover, #f3f4f6); }
+
+    /* Sidebar */
+    .tt-sidebar {
+      background: var(--surface, #fff);
+      border-right: 1px solid var(--border, #e5e7eb);
+      display: flex;
+      flex-direction: column;
+      padding-top: 8px;
+      overflow: hidden;
+      transition: width 0.2s;
+    }
+    .tt-sidebar-toggle {
+      border: 0;
+      background: none;
+      cursor: pointer;
+      color: var(--text-muted, #6b7280);
+      padding: 8px 12px;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      align-self: flex-end;
+      border-radius: 6px;
+      margin: 0 8px 4px;
+    }
+    .tt-sidebar-toggle:hover { background: var(--surface-hover, #f3f4f6); }
+    .tt-shell.sidebar-collapsed .tt-sidebar-toggle-label { display: none; }
+
+    .tt-nav-btn {
+      border: 0;
+      background: none;
+      cursor: pointer;
+      width: 100%;
+      padding: 12px 20px;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text-muted, #6b7280);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+    .tt-nav-btn:hover { background: var(--surface-hover, #f3f4f6); }
+    .tt-nav-btn[aria-current="page"] {
+      background: var(--surface-hover, #f3f4f6);
+      color: var(--text, #111);
+      box-shadow: inset 3px 0 0 var(--accent, #3b82f6);
+      font-weight: 600;
+    }
+    .tt-nav-btn [data-lucide] { flex-shrink: 0; width: 16px; height: 16px; }
+    .tt-nav-label { overflow: hidden; }
+    .tt-shell.sidebar-collapsed .tt-nav-label { display: none; }
+
+    /* Main content */
+    .tt-main {
+      padding: 28px 32px;
+      overflow-y: auto;
+      background: var(--bg, #f9fafb);
+    }
+
+    /* Projects panel */
+    .tt-section-title {
+      font-size: 18px;
+      font-weight: 500;
+      margin: 0 0 20px;
+      color: var(--text, #111);
+    }
+    .tt-add-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .tt-input {
+      border: 1px solid var(--border, #d1d5db);
+      border-radius: 6px;
+      padding: 8px 12px;
+      font: inherit;
+      font-size: 14px;
+      background: var(--surface, #fff);
+      color: var(--text, #111);
+      flex: 1;
+      min-width: 0;
+    }
+    .tt-input:focus {
+      outline: none;
+      border-color: var(--accent, #3b82f6);
+      box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+    }
+    .tt-select {
+      border: 1px solid var(--border, #d1d5db);
+      border-radius: 6px;
+      padding: 8px 12px;
+      font: inherit;
+      font-size: 14px;
+      background: var(--surface, #fff);
+      color: var(--text, #111);
+    }
+    .tt-btn-add {
+      border: 1px solid var(--accent, #3b82f6);
+      background: var(--accent, #3b82f6);
+      color: #fff;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font: inherit;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+    }
+    .tt-btn-add:hover { opacity: 0.9; }
+    .tt-btn-add [data-lucide] { width: 14px; height: 14px; }
+
+    /* Customer / project list */
+    .tt-customer-list { margin-top: 20px; }
+    .tt-customer-item {
+      border: 1px solid var(--border, #e5e7eb);
+      border-radius: 8px;
+      margin-bottom: 12px;
+      background: var(--surface, #fff);
+      overflow: hidden;
+    }
+    .tt-customer-item.tt-archived { opacity: 0.6; }
+    .tt-customer-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      font-weight: 600;
+    }
+    .tt-color-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .tt-customer-name { font-size: 14px; }
+    .tt-spacer { flex: 1; }
+    .tt-count { font-size: 12px; color: var(--text-muted, #6b7280); }
+    .tt-tag {
+      font-size: 11px;
+      background: var(--surface-hover, #f3f4f6);
+      color: var(--text-muted, #6b7280);
+      border-radius: 4px;
+      padding: 1px 6px;
+    }
+    .tt-project-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      border-top: 1px solid var(--border-subtle, #f3f4f6);
+    }
+    .tt-project-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px 8px 32px;
+      border-bottom: 1px solid var(--border-subtle, #f3f4f6);
+      font-size: 13px;
+      color: var(--text, #111);
+    }
+    .tt-project-row:last-child { border-bottom: 0; }
+    .tt-project-row.tt-archived { opacity: 0.6; }
+    .tt-project-name { flex: 1; }
+    .tt-empty {
+      color: var(--text-muted, #6b7280);
+      padding: 20px 0;
+      font-size: 14px;
+    }
+
+    /* Placeholder sections */
+    .tt-placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 200px;
+      color: var(--text-muted, #6b7280);
+      font-size: 15px;
+      border: 2px dashed var(--border, #e5e7eb);
+      border-radius: 8px;
+    }
+
+    /* Toast */
+    #tt-toast {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translate(-50%, -90px);
+      background: var(--text, #1f2937);
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: 6px;
+      transition: transform 0.2s;
+      z-index: 1000;
+      pointer-events: none;
+      font-size: 14px;
+    }
+    #tt-toast.show { transform: translate(-50%, 0); }
+
+    /* Help modal */
+    #tt-help-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      display: grid;
+      place-items: center;
+      z-index: 200;
+    }
+    .tt-help-card {
+      background: var(--surface, #fff);
+      border-radius: 8px;
+      padding: 24px 28px;
+      min-width: 380px;
+      max-width: 520px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+    }
+    .tt-help-card h3 {
+      margin: 0 0 16px;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text, #111);
+    }
+    .tt-help-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .tt-help-table td {
+      padding: 5px 8px 5px 0;
+      color: var(--text, #111);
+    }
+    .tt-help-table td:first-child {
+      white-space: nowrap;
+      font-family: ui-monospace, monospace;
+      font-size: 12px;
+      color: var(--text-muted, #6b7280);
+      padding-right: 16px;
+    }
+    .tt-help-close {
+      margin-top: 16px;
+      border: 1px solid var(--border, #d1d5db);
+      background: var(--surface, #fff);
+      border-radius: 6px;
+      padding: 7px 14px;
+      cursor: pointer;
+      font: inherit;
+      font-size: 13px;
+      color: var(--text, #111);
+    }
+
+    /* Mobile */
+    @media (max-width: 600px) {
+      .tt-shell {
+        grid-template-columns: 1fr;
+        grid-template-rows: 56px auto 1fr;
+      }
+      .tt-sidebar {
+        flex-direction: row;
+        border-right: 0;
+        border-bottom: 1px solid var(--border, #e5e7eb);
+        padding: 0;
+        overflow-x: auto;
+      }
+      .tt-sidebar-toggle { display: none; }
+      .tt-nav-btn {
+        flex-direction: column;
+        padding: 8px 12px;
+        font-size: 10px;
+        gap: 4px;
+        text-transform: none;
+      }
+      .tt-nav-label { display: block; }
+      .tt-main { padding: 16px; }
+      .tt-add-row { flex-wrap: wrap; }
+      .tt-help-card { min-width: unset; margin: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="tt-shell" id="tt-shell">
+    <!-- Top bar -->
+    <header class="tt-topbar" role="banner">
+      <a class="tt-topbar-logo" href="./index.html" aria-label="Kanvana home">
+        <span data-lucide="square-kanban" aria-hidden="true" style="width:24px;height:24px;"></span>
+        Kanvana
+      </a>
+      <span class="tt-topbar-title">Time Tracking</span>
+      <div class="tt-topbar-spacer"></div>
+      <button id="theme-toggle-btn" class="tt-theme-btn" type="button" aria-pressed="false" aria-label="Toggle dark mode">
+        <span data-lucide="moon" aria-hidden="true" style="width:18px;height:18px;"></span>
+      </button>
+      <a class="tt-topbar-back" href="./index.html">
+        <span data-lucide="arrow-left" aria-hidden="true" style="width:14px;height:14px;"></span>
+        Back to Board
+      </a>
+    </header>
+
+    <!-- Sidebar -->
+    <nav id="tt-sidebar" class="tt-sidebar" aria-label="Time tracking navigation">
+      <button
+        id="tt-sidebar-toggle"
+        class="tt-sidebar-toggle"
+        type="button"
+        aria-pressed="false"
+        aria-label="Collapse sidebar"
+      >
+        <span data-lucide="panel-left-close" aria-hidden="true" style="width:16px;height:16px;"></span>
+        <span class="tt-sidebar-toggle-label">Collapse</span>
+      </button>
+
+      <button id="tt-nav-tracker" class="tt-nav-btn" type="button" aria-current="false">
+        <span data-lucide="clock" aria-hidden="true"></span>
+        <span class="tt-nav-label">Time Tracker</span>
+      </button>
+      <button id="tt-nav-reports" class="tt-nav-btn" type="button" aria-current="false">
+        <span data-lucide="bar-chart-3" aria-hidden="true"></span>
+        <span class="tt-nav-label">Reports</span>
+      </button>
+      <button id="tt-nav-projects" class="tt-nav-btn" type="button" aria-current="false">
+        <span data-lucide="folder" aria-hidden="true"></span>
+        <span class="tt-nav-label">Projects</span>
+      </button>
+      <button id="tt-nav-settings" class="tt-nav-btn" type="button" aria-current="false">
+        <span data-lucide="settings" aria-hidden="true"></span>
+        <span class="tt-nav-label">Settings</span>
+      </button>
+    </nav>
+
+    <!-- Main content -->
+    <main class="tt-main" id="tt-main" aria-label="Time tracking content">
+      <section id="tt-section-tracker" hidden>
+        <div class="tt-placeholder">Time Tracker — coming soon</div>
+      </section>
+
+      <section id="tt-section-reports" hidden>
+        <div class="tt-placeholder">Reports — coming soon</div>
+      </section>
+
+      <section id="tt-section-projects">
+        <!-- rendered by timetracking.js -->
+      </section>
+
+      <section id="tt-section-settings" hidden>
+        <div class="tt-placeholder">Settings — coming soon</div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Help modal -->
+  <div id="tt-help-modal" role="dialog" aria-modal="true" aria-labelledby="tt-help-title" hidden>
+    <div class="tt-help-card">
+      <h3 id="tt-help-title">Keyboard shortcuts</h3>
+      <table class="tt-help-table" aria-label="Keyboard shortcut reference">
+        <tbody>
+          <tr><td>n</td><td>New entry (focus entry bar)</td></tr>
+          <tr><td>/</td><td>Focus filter</td></tr>
+          <tr><td>j / k</td><td>Select next / previous entry</td></tr>
+          <tr><td>e</td><td>Edit selected entry</td></tr>
+          <tr><td>d</td><td>Duplicate selected entry</td></tr>
+          <tr><td>Del</td><td>Delete selected → y to confirm</td></tr>
+          <tr><td>g t · g r · g p · g s</td><td>Go to Tracker · Reports · Projects · Settings</td></tr>
+          <tr><td>[ / ]</td><td>Previous / next month</td></tr>
+          <tr><td>?</td><td>This cheat-sheet</td></tr>
+          <tr><td>Enter</td><td>Save (entry bar, edit modal, inline add)</td></tr>
+          <tr><td>Esc</td><td>Cancel / close modal</td></tr>
+          <tr><td>Alt + ↑ / ↓</td><td>±15 min on Start / End / Duration</td></tr>
+        </tbody>
+      </table>
+      <button id="tt-help-modal-close" class="tt-help-close" type="button">Close</button>
+    </div>
+  </div>
+
+  <script type="module" src="./modules/timetracking.js"></script>
+  <script type="module" src="./modules/pwa.js"></script>
+</body>
+</html>
