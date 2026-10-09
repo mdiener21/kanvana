@@ -320,7 +320,8 @@
 
 /* Mobile */
 @media (max-width: 600px) {
-  .tt-shell {
+  .tt-shell,
+  .tt-shell.sidebar-collapsed {
     grid-template-columns: 1fr;
     grid-template-rows: 56px auto 1fr;
   }
@@ -339,7 +340,8 @@
     gap: 4px;
     text-transform: none;
   }
-  .tt-nav-label { display: block; }
+  .tt-nav-label,
+  .tt-shell.sidebar-collapsed .tt-nav-label { display: block; }
   .tt-main { padding: 16px; }
   .tt-add-row { flex-wrap: wrap; }
   .tt-help-card { min-width: unset; margin: 16px; }
