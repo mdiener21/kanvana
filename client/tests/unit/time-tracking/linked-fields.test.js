@@ -107,6 +107,23 @@ describe('adjustLinkedField (Alt+↑ / Alt+↓, ±15 min)', () => {
 
   test('Duration never goes below zero', () => {
     expect(adjustLinkedField(fields(), 'duration', -15, prefs).values).toMatchObject({ end: '09:00', duration: '0:00' });
+    expect(adjustLinkedField(fields({ end: '09:10', duration: '0:10' }), 'duration', -15, prefs).values)
+      .toMatchObject({ end: '09:00', duration: '0:00' });
+  });
+
+  test('End moved down clamps at Start instead of rolling over to the next day', () => {
+    const atStart = adjustLinkedField(fields(), 'end', -15, prefs);
+    expect(atStart.values).toMatchObject({ start: '09:00', end: '09:00', duration: '0:00' });
+    expect(atStart.plusDays).toBe(0);
+    const nearStart = adjustLinkedField(fields({ end: '09:10', duration: '0:10' }), 'end', -15, prefs);
+    expect(nearStart.values).toMatchObject({ end: '09:00', duration: '0:00' });
+    expect(nearStart.plusDays).toBe(0);
+  });
+
+  test('End moved down on an overnight entry stays on the next day', () => {
+    const r = adjustLinkedField(fields({ start: '22:00', end: '01:00', duration: '3:00' }), 'end', -15, prefs);
+    expect(r.values).toMatchObject({ end: '00:45', duration: '2:45' });
+    expect(r.plusDays).toBe(1);
   });
 
   test('Start moved past midnight carries the Date along', () => {

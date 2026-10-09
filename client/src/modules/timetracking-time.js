@@ -229,7 +229,7 @@ export function adjustLinkedField(values, field, deltaMinutes, prefs) {
     next.date = formatDate(startMs, prefs);
     next.start = formatTime(startMs, prefs);
   } else if (field === 'end') {
-    next.end = formatTime(current.endMs + delta, prefs);
+    next.end = formatTime(Math.max(current.startMs, current.endMs + delta), prefs);
   } else {
     next.duration = formatDuration(Math.max(0, current.endMs - current.startMs + delta));
   }
