@@ -42,7 +42,6 @@ const ROW_ACTIONS = [
 
 const projectOf = (entry, tt) => tt.projects.find((p) => p.id === entry.projectId);
 const descriptionText = (entry) => entry.description || '(no description)';
-const entryDurationMs = (entry) => Date.parse(entry.end) - Date.parse(entry.start);
 
 function entryRowHtml(entry, tt, prefs, view) {
   const startMs = Date.parse(entry.start);

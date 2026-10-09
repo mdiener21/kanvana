@@ -1,5 +1,5 @@
-// #165 — customers/projects created on one device appear on a second signed-in
-// device, against a LIVE PocketBase. Skips when PB is unreachable.
+// #165 / #166 / #167 — time-tracking events from one device converge on other
+// signed-in devices, against a LIVE PocketBase. Skips when PB is unreachable.
 
 import { test, expect, type Page, type Browser } from '@playwright/test';
 
@@ -134,6 +134,70 @@ test.describe('#165 time-tracking convergence (live PocketBase)', () => {
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({ scope: 'timetracking', board: '' });
     expect((events[0].payload as { timeEntry: { description: string } }).timeEntry.description).toBe(description);
+
+    for (const p of [deviceA, deviceB, deviceC]) await p.context().close();
+  });
+
+  test('#167 edits and deletes on device A converge on device B', async ({ browser }) => {
+    test.skip(!pbReachable, `PocketBase not reachable at ${PB_URL}`);
+
+    const email = `tt-edit-${Date.now()}@example.test`;
+    await registerAccount(email);
+
+    const deviceB = await loginAndOpenTimeTracking(browser, email);
+    const deviceA = await loginAndOpenTimeTracking(browser, email);
+
+    const customer = `Acme ${Date.now()}`;
+    const project = `Website ${Date.now()}`;
+    const keep = `Keep ${Date.now()}`;
+    const drop = `Drop ${Date.now()}`;
+    await createCustomerAndProject(deviceA, customer, project);
+    await deviceA.keyboard.press('Escape');
+
+    for (const [description, start] of [[keep, '9:00'], [drop, '10:00']]) {
+      await deviceA.keyboard.press('n');
+      await deviceA.keyboard.type(description);
+      await deviceA.getByLabel('Project', { exact: true }).fill(`${customer} / ${project}`);
+      await deviceA.getByLabel('Start', { exact: true }).fill(start);
+      await deviceA.keyboard.press('Tab');
+      await deviceA.getByLabel('Duration', { exact: true }).fill('1h');
+      await deviceA.keyboard.press('Enter');
+      await expect(deviceA.locator('.tt-entry-row', { hasText: description })).toBeVisible();
+      await deviceA.keyboard.press('Escape');
+    }
+    await expect(deviceB.locator('.tt-entry-row', { hasText: drop })).toBeVisible({ timeout: 5000 });
+
+    const edited = `${keep} edited`;
+    await deviceA.locator('.tt-entry-row', { hasText: keep }).click();
+    await deviceA.keyboard.press('e');
+    const dialog = deviceA.getByRole('dialog', { name: 'Edit entry' });
+    await dialog.getByLabel('Description').fill(edited);
+    await dialog.getByLabel('Duration').fill('2:15');
+    await deviceA.keyboard.press('Enter');
+    await expect(dialog).toBeHidden();
+
+    await deviceA.locator('.tt-entry-row', { hasText: drop }).click();
+    await deviceA.keyboard.press('Delete');
+    await deviceA.keyboard.press('y');
+    await expect(deviceA.locator('.tt-entry-row', { hasText: drop })).toHaveCount(0);
+
+    const editedOnB = deviceB.locator('.tt-entry-row', { hasText: edited });
+    await expect(editedOnB).toBeVisible({ timeout: 5000 });
+    await expect(editedOnB.locator('.tt-entry-duration')).toHaveText('2:15');
+    await expect(deviceB.locator('.tt-entry-row', { hasText: drop })).toHaveCount(0, { timeout: 5000 });
+    await expect(deviceB.locator('.tt-entry-row')).toHaveCount(1);
+
+    const deviceC = await loginAndOpenTimeTracking(browser, email);
+    await expect(deviceC.locator('.tt-entry-row', { hasText: edited })).toBeVisible({ timeout: 5000 });
+    await expect(deviceC.locator('.tt-entry-row')).toHaveCount(1);
+
+    const updates = await listUserEvents(email, "event_type='time_entry.updated'");
+    expect(updates).toHaveLength(1);
+    expect(updates[0]).toMatchObject({ scope: 'timetracking', board: '' });
+    expect(updates[0].payload).toMatchObject({ fields: { description: edited }, before: { description: keep } });
+    const deletes = await listUserEvents(email, "event_type='time_entry.deleted'");
+    expect(deletes).toHaveLength(1);
+    expect((deletes[0].payload as { timeEntry: { description: string } }).timeEntry.description).toBe(drop);
 
     for (const p of [deviceA, deviceB, deviceC]) await p.context().close();
   });

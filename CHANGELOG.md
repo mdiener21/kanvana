@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Log time on the Time Tracker: enter a description, pick a `Customer / Project`, and set date, start, end or duration, then press Enter. Start, End and Duration stay in sync, an end before the start counts as the next day (`+1 day`), and shorthand such as `930`, `2:30pm`, `90m`, `1.5`, `t` or `y` is understood. Entries without a project, with an archived project or with zero duration show a message and are not saved. Logged time syncs to your other signed-in devices.
 - Time entries are listed by day, newest first, under `Today`, `Yesterday` or the weekday and date, with a total per day. An entry that runs past midnight counts towards the day it started.
 - Time Tracker shortcuts: `n` jumps to a new entry, `Enter` saves, `Esc` leaves a field, and `Alt+↑` / `Alt+↓` move Start, End or Duration by 15 minutes.
+- Correct your time log from the keyboard: `j` / `k` select an entry, `e` (or double-click) opens it for editing with the same linked fields as the entry bar (`Enter` saves, `Esc` cancels), `d` duplicates it starting now with the same project, description and duration, and `Del` asks for confirmation inline (`y` deletes permanently, `Esc` keeps it). Hovering or selecting a row also shows edit, duplicate and delete buttons. An entry can keep a project that has since been archived, but cannot be moved to or duplicated on an archived project. Edits and deletions sync to your other signed-in devices.
 
 ### Changed
 
