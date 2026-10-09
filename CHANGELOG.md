@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Time Tracking page shell (`timetracking.html`) with top-bar, collapsible sidebar, and four section stubs: Tracker, Reports, Customers & Projects, and Settings.
+- Customers & Projects panel with inline add forms, duplicate-name and empty-name validation, toast error messages, and auto-assigned color from the `TT_COLOR_PALETTE`.
+- `TT_KEYBINDINGS` registry in `constants.js` as the single source of truth for all time-tracking keyboard shortcuts; global `wireKeyboard()` wired exclusively through it.
+- Schema factories `createCustomer`, `createProject`, `createTimeEntry` with auto-color assignment.
+- Reducer handlers for all nine time-tracking events (`customer.*`, `project.*`, `time_entry.*`).
+- Pure business-logic layer `timetracking-crud.js` (no DOM) covering validation and `addCustomer`/`addProject`; 49 new unit tests.
+- Time Tracking nav link in the main Kanban header.
+
 ### Changed
 
 - Sync now carries a separate time-tracking data stream alongside boards and global settings, in preparation for Time Tracking. No visible change.
