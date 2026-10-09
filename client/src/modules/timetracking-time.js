@@ -1,5 +1,7 @@
-const MS_PER_MINUTE = 60 * 1000;
-const MS_PER_DAY = 24 * 60 * MS_PER_MINUTE;
+const MINUTE_MS = 60 * 1000;
+const MS_PER_DAY = 24 * 60 * MINUTE_MS;
+
+export const floorToMinute = (ms) => Math.floor(ms / MINUTE_MS) * MINUTE_MS;
 
 export const TT_FALLBACK_TIMEZONE = 'Europe/Berlin';
 
@@ -34,14 +36,14 @@ export function zonedParts(ms, tz) {
 
 function offsetAt(ms, tz) {
   const z = zonedParts(ms, tz);
-  const wallAsUtc = Date.UTC(z.y, z.m - 1, z.d) + z.minutes * MS_PER_MINUTE;
-  return wallAsUtc - Math.floor(ms / MS_PER_MINUTE) * MS_PER_MINUTE;
+  const wallAsUtc = Date.UTC(z.y, z.m - 1, z.d) + z.minutes * MINUTE_MS;
+  return wallAsUtc - floorToMinute(ms);
 }
 
 // Skipped wall times (spring forward) move forward by the gap; repeated wall
 // times (fall back) resolve to the first occurrence — same as Temporal's 'compatible'.
 export function fromZoned({ y, m, d }, minutes, tz) {
-  const wallAsUtc = Date.UTC(y, m - 1, d) + minutes * MS_PER_MINUTE;
+  const wallAsUtc = Date.UTC(y, m - 1, d) + minutes * MINUTE_MS;
   const before = wallAsUtc - offsetAt(wallAsUtc - MS_PER_DAY, tz);
   const after = wallAsUtc - offsetAt(wallAsUtc + MS_PER_DAY, tz);
   const isExact = (ms) => ms + offsetAt(ms, tz) === wallAsUtc;
@@ -141,7 +143,7 @@ export const formatDate = (ms, { tz, dateFormat }) => formatYmd(zonedParts(ms, t
 export const formatTime = (ms, { tz, timeFormat }) => formatMinutes(zonedParts(ms, tz).minutes, timeFormat);
 
 export function formatDuration(ms) {
-  const minutes = Math.round(ms / MS_PER_MINUTE);
+  const minutes = Math.round(ms / MINUTE_MS);
   return `${Math.floor(minutes / 60)}:${pad2(minutes % 60)}`;
 }
 
@@ -182,7 +184,7 @@ export function resolveLinkedFields(values, changed, prefs) {
   } else {
     const durationMinutes = parseDuration(values.duration);
     if (durationMinutes === null) return null;
-    endMs = startMs + durationMinutes * MS_PER_MINUTE;
+    endMs = startMs + durationMinutes * MINUTE_MS;
   }
   return describeEntryTimes(startMs, endMs, prefs);
 }
@@ -221,7 +223,7 @@ export function groupEntriesByDay(entries, prefs) {
 export function adjustLinkedField(values, field, deltaMinutes, prefs) {
   const current = resolveLinkedFields(values, field, prefs);
   if (!current) return null;
-  const delta = deltaMinutes * MS_PER_MINUTE;
+  const delta = deltaMinutes * MINUTE_MS;
   const next = { ...current.values };
   if (field === 'start') {
     const startMs = current.startMs + delta;

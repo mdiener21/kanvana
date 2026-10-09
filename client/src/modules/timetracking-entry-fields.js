@@ -1,7 +1,7 @@
 import { DEFAULT_APP_KEYBINDINGS, matchesKey } from './constants.js';
 import { escapeHtml } from './security.js';
 import { resolveLinkedFields, adjustLinkedField, describeEntryTimes } from './timetracking-time.js';
-import { isProjectActive, CRUD_ERROR } from './timetracking-crud.js';
+import { isProjectActive, projectById, customerById, CRUD_ERROR } from './timetracking-crud.js';
 
 const { ttSubmitInline, ttAdjustUp, ttAdjustDown } = DEFAULT_APP_KEYBINDINGS;
 
@@ -11,22 +11,21 @@ const ADJUST_STEP_MINUTES = 15;
 
 // ── Project labels ─────────────────────────────────────────────────────────────
 
-export function projectLabel(project, customers) {
-  const customer = customers.find((c) => c.id === project.customerId);
-  return `${customer?.name ?? '?'} / ${project.name}`;
+export function projectLabel(project, tt) {
+  return `${customerById(tt, project.customerId)?.name ?? '?'} / ${project.name}`;
 }
 
 export function pickableProjects(tt) {
-  return tt.projects.filter((p) => isProjectActive(p, tt.customers));
+  return tt.projects.filter((p) => isProjectActive(p, tt));
 }
 
 // An exact label wins even when archived, so validation can name the real problem.
 export function resolveProjectLabel(label, tt) {
   const query = String(label ?? '').trim().toLowerCase();
   if (!query) return null;
-  const exact = tt.projects.find((p) => projectLabel(p, tt.customers).toLowerCase() === query);
+  const exact = tt.projects.find((p) => projectLabel(p, tt).toLowerCase() === query);
   if (exact) return exact.id;
-  const matches = pickableProjects(tt).filter((p) => projectLabel(p, tt.customers).toLowerCase().includes(query));
+  const matches = pickableProjects(tt).filter((p) => projectLabel(p, tt).toLowerCase().includes(query));
   return matches.length === 1 ? matches[0].id : null;
 }
 
@@ -115,15 +114,15 @@ export function wireEntryFields(root, { getPrefs, getTimeTracking, onSubmit }) {
   return {
     setEntry({ description = '', projectId = null, startMs, endMs }) {
       const tt = getTimeTracking();
-      const project = projectId ? tt.projects.find((p) => p.id === projectId) : null;
+      const project = projectById(tt, projectId);
       inputs.description.value = description;
-      inputs.project.value = project ? projectLabel(project, tt.customers) : '';
+      inputs.project.value = project ? projectLabel(project, tt) : '';
       show(describeEntryTimes(startMs, endMs, getPrefs()));
     },
     refreshProjects() {
       const tt = getTimeTracking();
       projectOptions.innerHTML = pickableProjects(tt)
-        .map((p) => `<option value="${escapeHtml(projectLabel(p, tt.customers))}"></option>`)
+        .map((p) => `<option value="${escapeHtml(projectLabel(p, tt))}"></option>`)
         .join('');
     },
     focus() {

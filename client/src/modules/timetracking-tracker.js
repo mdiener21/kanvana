@@ -2,10 +2,12 @@ import { loadTimeTracking } from './storage.js';
 import { on, off, DATA_CHANGED } from './events.js';
 import { renderIcons } from './icons.js';
 import { escapeHtml } from './security.js';
-import { addTimeEntry, updateTimeEntry, duplicateTimeEntry, deleteTimeEntry, CRUD_ERROR } from './timetracking-crud.js';
+import {
+  addTimeEntry, updateTimeEntry, duplicateTimeEntry, deleteTimeEntry, projectById, customerById, CRUD_ERROR
+} from './timetracking-crud.js';
 import { showToast } from './timetracking-toast.js';
 import { entryFieldsHtml, wireEntryFields } from './timetracking-entry-fields.js';
-import { groupEntriesByDay, formatTime, formatDuration, plusDaysBetween } from './timetracking-time.js';
+import { groupEntriesByDay, formatTime, formatDuration, plusDaysBetween, floorToMinute } from './timetracking-time.js';
 
 export const ENTRY_ERROR_MESSAGES = {
   [CRUD_ERROR.NO_PROJECT]: 'Select a project.',
@@ -39,14 +41,20 @@ const ROW_ACTIONS = [
   { action: 'delete', icon: 'trash-2', label: 'Delete entry' }
 ];
 
-const projectOf = (entry, tt) => tt.projects.find((p) => p.id === entry.projectId);
 const descriptionText = (entry) => entry.description || '(no description)';
+
+function reportFailure(result) {
+  if (!result.ok) showToast(ENTRY_ERROR_MESSAGES[result.reason]);
+  return result.ok;
+}
+
+const saveSubmitted = (result, save) => reportFailure(result.ok ? save(result.entry) : result);
 
 function entryRowHtml(entry, tt, prefs, view) {
   const startMs = Date.parse(entry.start);
   const endMs = Date.parse(entry.end);
-  const project = projectOf(entry, tt);
-  const customer = project && tt.customers.find((c) => c.id === project.customerId);
+  const project = projectById(tt, entry.projectId);
+  const customer = project && customerById(tt, project.customerId);
   const plusDays = plusDaysBetween(startMs, endMs, prefs.tz);
   const isSelected = entry.id === view.selectedId;
   const attrs = `data-entry-id="${escapeHtml(entry.id)}" aria-current="${isSelected}"`;
@@ -114,18 +122,14 @@ export function mountTrackerPanel(container, { getPrefs }) {
     getPrefs,
     getTimeTracking: loadTimeTracking,
     onSubmit(result) {
-      const saved = result.ok ? addTimeEntry(result.entry) : result;
-      if (!saved.ok) {
-        showToast(ENTRY_ERROR_MESSAGES[saved.reason]);
-        return;
-      }
+      if (!saveSubmitted(result, addTimeEntry)) return;
       reset();
       fields.focus();
     }
   });
 
   function reset() {
-    const now = Math.floor(getPrefs().now / 60000) * 60000;
+    const now = floorToMinute(getPrefs().now);
     fields.setEntry({ projectId: prefillProjectId(), startMs: now, endMs: now });
   }
 
@@ -183,11 +187,7 @@ export function mountTrackerPanel(container, { getPrefs }) {
       getPrefs,
       getTimeTracking: loadTimeTracking,
       onSubmit(result) {
-        const saved = result.ok ? updateTimeEntry(id, result.entry) : result;
-        if (!saved.ok) {
-          showToast(ENTRY_ERROR_MESSAGES[saved.reason]);
-          return;
-        }
+        if (!saveSubmitted(result, (entry) => updateTimeEntry(id, entry))) return;
         closeEditor();
         select(id);
       }
@@ -211,11 +211,7 @@ export function mountTrackerPanel(container, { getPrefs }) {
 
   function duplicate(id) {
     const result = duplicateTimeEntry(id, getPrefs().now);
-    if (!result.ok) {
-      showToast(ENTRY_ERROR_MESSAGES[result.reason]);
-      return;
-    }
-    select(result.timeEntry.id);
+    if (reportFailure(result)) select(result.timeEntry.id);
   }
 
   function askDelete(id) {
@@ -235,9 +231,7 @@ export function mountTrackerPanel(container, { getPrefs }) {
     const index = visibleIds.indexOf(id);
     const neighbour = visibleIds[index + 1] ?? visibleIds[index - 1] ?? null;
     view.confirmingId = null;
-    const result = deleteTimeEntry(id);
-    if (!result.ok) showToast(ENTRY_ERROR_MESSAGES[result.reason]);
-    select(result.ok ? neighbour : id);
+    select(reportFailure(deleteTimeEntry(id)) ? neighbour : id);
   }
 
   const ROW_ACTION_HANDLERS = { edit: openEditor, duplicate, delete: askDelete };
