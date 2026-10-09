@@ -128,9 +128,7 @@ export function wireEntryFields(root, { getPrefs, getTimeTracking, onSubmit }) {
     focus() {
       inputs.description.focus();
     },
-    submit() {
-      submit(null);
-    },
+    submit,
     unwire() {
       for (const [input, handler] of blurHandlers) input.removeEventListener('blur', handler);
       root.removeEventListener('keydown', onKeyDown);
