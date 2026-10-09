@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Sync now carries a separate time-tracking data stream alongside boards and global settings, in preparation for Time Tracking. No visible change.
 
+### Fixed
+
+- Time Tracker: while a delete is waiting for `y`, any other key now cancels it and works as usual (for example `Tab` moves focus and `j` / `k` move the selection) instead of being swallowed. `Alt+↓` on End now stops at Start (`0:00`) instead of jumping to the next day.
+
 ## [3.1.7] - 2026-10-05
 
 ### Fixed

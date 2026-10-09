@@ -56,7 +56,8 @@ Constructed through factories in `schema.js`; IDs via `generateUUID()`.
 - Editing Start or End recomputes Duration
 - Editing Duration recomputes End (`End = Start + Duration`)
 - An End earlier than Start means the next day; the bar shows a `+1 day` marker
-- `Alt+↑` / `Alt+↓` on Start, End or Duration adjusts by ±15 minutes
+- `Alt+↑` / `Alt+↓` on Start, End or Duration adjusts by ±15 minutes; `Alt+↓` on End stops at Start
+  and on Duration stops at `0:00` (it never rolls End over to the next day)
 - Fields normalise to the display format on blur
 
 ### Input shorthand
@@ -69,8 +70,10 @@ Constructed through factories in `schema.js`; IDs via `generateUUID()`.
 
 ### Validation
 
-- A Project is required and must not be archived
+- A Project is required and must not be archived (exception: an edited entry may keep its current
+  project, see Edit below)
 - Duration must be greater than zero
+- Description is limited to 500 characters
 - Invalid input shows a non-blocking toast; nothing is saved
 
 ### Entry list
@@ -88,8 +91,13 @@ Constructed through factories in `schema.js`; IDs via `generateUUID()`.
 
 - Edit opens a modal with the same fields and linked behaviour as the entry bar; `Enter` saves,
   `Esc` cancels
-- Duplicate creates a copy with the same project, description and duration, starting now
-- Delete asks for confirmation inline (`y` confirms, `Esc` cancels) and is permanent
+- Editing an entry may keep its current project even if that project (or its customer) has since
+  been archived; switching to a different archived project is rejected
+- Duplicate creates a copy with the same project, description and duration, starting now; it is
+  refused if the project is archived
+- Delete asks for confirmation inline (`y` confirms, `Esc` cancels) and is permanent; any other key
+  cancels the confirmation and then does what it normally does (e.g. `Tab` moves focus, `j` / `k`
+  move the selection)
 
 ## Reports (Month View)
 
