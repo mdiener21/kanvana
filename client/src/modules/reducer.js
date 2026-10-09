@@ -313,6 +313,20 @@ function applyTimeEntryCreated(state, event) {
   return { ...state, timeTracking: { ...tt, timeEntries: [...tt.timeEntries, { ...event.payload.timeEntry, id: event.entity_id }] } };
 }
 
+function applyTimeEntryUpdated(state, event) {
+  const fields = event.payload?.fields && typeof event.payload.fields === 'object' ? event.payload.fields : {};
+  const tt = cloneTimeTracking(state.timeTracking);
+  return {
+    ...state,
+    timeTracking: { ...tt, timeEntries: tt.timeEntries.map((e) => (e.id === event.entity_id ? { ...e, ...fields, id: e.id } : e)) }
+  };
+}
+
+function applyTimeEntryDeleted(state, event) {
+  const tt = cloneTimeTracking(state.timeTracking);
+  return { ...state, timeTracking: { ...tt, timeEntries: tt.timeEntries.filter((e) => e.id !== event.entity_id) } };
+}
+
 const handlers = {
   'task.created': applyTaskCreated,
   'task.updated': applyTaskUpdated,
@@ -339,7 +353,9 @@ const handlers = {
   'settings.updated': applySettingsUpdated,
   'customer.created': applyCustomerCreated,
   'project.created': applyProjectCreated,
-  'time_entry.created': applyTimeEntryCreated
+  'time_entry.created': applyTimeEntryCreated,
+  'time_entry.updated': applyTimeEntryUpdated,
+  'time_entry.deleted': applyTimeEntryDeleted
 };
 
 export function applyEvent(state, event) {

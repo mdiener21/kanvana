@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest';
-import { applyEvent, createProjectionState } from '../../../src/modules/reducer.js';
+import { applyEvent, applyEvents, createProjectionState } from '../../../src/modules/reducer.js';
 
 function event(overrides) {
   return {
@@ -97,6 +97,54 @@ test('time_entry.created is idempotent by entity_id', () => {
     payload: { timeEntry: { ...existing, description: 'B' } }
   }));
   expect(next.timeTracking.timeEntries).toEqual([existing]);
+});
+
+const ENTRY = { id: 'te-1', projectId: 'proj-1', description: 'A', start: '2026-10-08T07:00:00.000Z', end: '2026-10-08T08:00:00.000Z' };
+const hlc = (wallTime) => ({ wallTime, counter: 0, nodeId: 'node-a' });
+
+test('time_entry.updated merges the after values into the entry', () => {
+  const next = applyEvent(baseState({ timeEntries: [ENTRY] }), event({
+    type: 'time_entry.updated',
+    entity_id: 'te-1',
+    payload: { fields: { description: 'B', end: '2026-10-08T09:00:00.000Z' }, before: { description: 'A', end: ENTRY.end } }
+  }));
+  expect(next.timeTracking.timeEntries).toEqual([{ ...ENTRY, description: 'B', end: '2026-10-08T09:00:00.000Z' }]);
+});
+
+test('time_entry.updated for an unknown entry is a no-op', () => {
+  const next = applyEvent(baseState({ timeEntries: [ENTRY] }), event({
+    type: 'time_entry.updated', entity_id: 'ghost', payload: { fields: { description: 'B' }, before: {} }
+  }));
+  expect(next.timeTracking.timeEntries).toEqual([ENTRY]);
+});
+
+test('time_entry.deleted removes the entry permanently', () => {
+  const other = { ...ENTRY, id: 'te-2' };
+  const next = applyEvent(baseState({ timeEntries: [ENTRY, other] }), event({
+    type: 'time_entry.deleted', entity_id: 'te-1', payload: { timeEntry: ENTRY }
+  }));
+  expect(next.timeTracking.timeEntries).toEqual([other]);
+});
+
+test('time_entry.deleted for an unknown entry is a no-op', () => {
+  const next = applyEvent(baseState({ timeEntries: [ENTRY] }), event({ type: 'time_entry.deleted', entity_id: 'ghost' }));
+  expect(next.timeTracking.timeEntries).toEqual([ENTRY]);
+});
+
+test('edits and deletes converge to the same projection regardless of arrival order', () => {
+  const created = { ...event({ id: 'e-created', type: 'time_entry.created', entity_id: 'te-1', payload: { timeEntry: ENTRY } }), hlc: hlc(1) };
+  const edited = { ...event({ id: 'e-edited', type: 'time_entry.updated', entity_id: 'te-1', payload: { fields: { description: 'B' }, before: { description: 'A' } } }), hlc: hlc(2) };
+  const otherCreated = { ...event({ id: 'e-other', type: 'time_entry.created', entity_id: 'te-2', payload: { timeEntry: { ...ENTRY, id: 'te-2' } } }), hlc: hlc(3) };
+  const deleted = { ...event({ id: 'e-deleted', type: 'time_entry.deleted', entity_id: 'te-1', payload: { timeEntry: ENTRY } }), hlc: hlc(4) };
+  const events = [created, edited, otherCreated, deleted];
+
+  const forward = applyEvents(baseState(), events);
+  const backward = applyEvents(baseState(), [...events].reverse());
+  expect(forward.timeTracking).toEqual(backward.timeTracking);
+  expect(forward.timeTracking.timeEntries).toEqual([{ ...ENTRY, id: 'te-2' }]);
+
+  const editedOnly = applyEvents(baseState(), [edited, created]);
+  expect(editedOnly.timeTracking.timeEntries).toEqual([{ ...ENTRY, description: 'B' }]);
 });
 
 // ── Board state isolation ──────────────────────────────────────────────────────
