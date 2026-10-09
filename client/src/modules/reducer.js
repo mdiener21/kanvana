@@ -23,6 +23,9 @@ export function createProjectionState(seed = {}) {
   };
 }
 
+export const isCustomerInUse = (tt, customerId) => tt.projects.some((p) => p.customerId === customerId);
+export const isProjectInUse = (tt, projectId) => tt.timeEntries.some((e) => e.projectId === projectId);
+
 function cloneTimeTracking(timeTracking) {
   return {
     customers: timeTracking.customers.map((customer) => ({ ...customer })),
@@ -327,6 +330,25 @@ function applyTimeEntryDeleted(state, event) {
   return { ...state, timeTracking: { ...tt, timeEntries: tt.timeEntries.filter((e) => e.id !== event.entity_id) } };
 }
 
+function archiveHandler(collection, archived) {
+  return (state, event) => {
+    const tt = cloneTimeTracking(state.timeTracking);
+    return {
+      ...state,
+      timeTracking: { ...tt, [collection]: tt[collection].map((x) => (x.id === event.entity_id ? { ...x, archived } : x)) }
+    };
+  };
+}
+
+// A delete that raced a new reference (e.g. an entry logged on another device) must not orphan it.
+function guardedDeleteHandler(collection, inUse) {
+  return (state, event) => {
+    if (inUse(state.timeTracking, event.entity_id)) return state;
+    const tt = cloneTimeTracking(state.timeTracking);
+    return { ...state, timeTracking: { ...tt, [collection]: tt[collection].filter((x) => x.id !== event.entity_id) } };
+  };
+}
+
 const handlers = {
   'task.created': applyTaskCreated,
   'task.updated': applyTaskUpdated,
@@ -352,7 +374,13 @@ const handlers = {
   'board.deleted': applyBoardDeleted,
   'settings.updated': applySettingsUpdated,
   'customer.created': applyCustomerCreated,
+  'customer.archived': archiveHandler('customers', true),
+  'customer.unarchived': archiveHandler('customers', false),
+  'customer.deleted': guardedDeleteHandler('customers', isCustomerInUse),
   'project.created': applyProjectCreated,
+  'project.archived': archiveHandler('projects', true),
+  'project.unarchived': archiveHandler('projects', false),
+  'project.deleted': guardedDeleteHandler('projects', isProjectInUse),
   'time_entry.created': applyTimeEntryCreated,
   'time_entry.updated': applyTimeEntryUpdated,
   'time_entry.deleted': applyTimeEntryDeleted

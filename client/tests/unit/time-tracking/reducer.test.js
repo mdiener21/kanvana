@@ -173,3 +173,47 @@ test('customer.created respects event-level idempotency via appliedEventIds', ()
   expect(twice.timeTracking.customers).toHaveLength(1);
   expect(twice).toEqual(once);
 });
+
+// ── Archive and guarded delete ─────────────────────────────────────────────────
+
+const ACME_C = { id: 'c1', name: 'Acme', color: '#000', archived: false };
+const WEBSITE_P = { id: 'p1', customerId: 'c1', name: 'Website', color: '#000', archived: false };
+const ON_WEBSITE = { id: 'te-9', projectId: 'p1', description: '', start: '2026-10-08T07:00:00.000Z', end: '2026-10-08T08:00:00.000Z' };
+
+test('customer.archived / unarchived toggle the archived flag', () => {
+  const archived = applyEvent(baseState({ customers: [ACME_C] }), event({ type: 'customer.archived', entity_id: 'c1' }));
+  expect(archived.timeTracking.customers[0].archived).toBe(true);
+  const back = applyEvent(archived, event({ type: 'customer.unarchived', entity_id: 'c1' }));
+  expect(back.timeTracking.customers[0].archived).toBe(false);
+});
+
+test('project.archived / unarchived toggle the archived flag and keep its entries', () => {
+  const archived = applyEvent(
+    baseState({ customers: [ACME_C], projects: [WEBSITE_P], timeEntries: [ON_WEBSITE] }),
+    event({ type: 'project.archived', entity_id: 'p1' })
+  );
+  expect(archived.timeTracking.projects[0].archived).toBe(true);
+  expect(archived.timeTracking.timeEntries).toEqual([ON_WEBSITE]);
+  const back = applyEvent(archived, event({ type: 'project.unarchived', entity_id: 'p1' }));
+  expect(back.timeTracking.projects[0].archived).toBe(false);
+});
+
+test('project.deleted removes an unreferenced project', () => {
+  const next = applyEvent(baseState({ customers: [ACME_C], projects: [WEBSITE_P] }), event({ type: 'project.deleted', entity_id: 'p1' }));
+  expect(next.timeTracking.projects).toEqual([]);
+});
+
+test('customer.deleted removes an unreferenced customer', () => {
+  const next = applyEvent(baseState({ customers: [ACME_C] }), event({ type: 'customer.deleted', entity_id: 'c1' }));
+  expect(next.timeTracking.customers).toEqual([]);
+});
+
+test('replayed deletes of referenced items keep them', () => {
+  const state = baseState({ customers: [ACME_C], projects: [WEBSITE_P], timeEntries: [ON_WEBSITE] });
+  const next = applyEvents(state, [
+    event({ type: 'project.deleted', entity_id: 'p1' }),
+    event({ type: 'customer.deleted', entity_id: 'c1' })
+  ]);
+  expect(next.timeTracking.projects).toEqual([WEBSITE_P]);
+  expect(next.timeTracking.customers).toEqual([ACME_C]);
+});
