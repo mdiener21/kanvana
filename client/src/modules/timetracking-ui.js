@@ -159,7 +159,8 @@ function wireSidebar(root) {
 
 const {
   ttHelp, ttCloseModal, ttGotoTracker, ttGotoReports, ttGotoProjects, ttGotoSettings,
-  ttNewEntry, ttSubmitInline, ttAdjustUp, ttAdjustDown
+  ttNewEntry, ttSubmitInline, ttAdjustUp, ttAdjustDown,
+  ttSelectNext, ttSelectPrev, ttEditEntry, ttDuplicateEntry, ttDeleteEntry, ttConfirmDelete
 } = DEFAULT_APP_KEYBINDINGS;
 
 const GOTO_BINDINGS = [
@@ -174,12 +175,18 @@ const HELP_ROWS = [
   { binding: ttSubmitInline, label: 'Save entry' },
   { binding: ttAdjustUp, label: '+15 min on Start / End / Duration' },
   { binding: ttAdjustDown, label: '−15 min on Start / End / Duration' },
+  { binding: ttSelectNext, label: 'Select next entry' },
+  { binding: ttSelectPrev, label: 'Select previous entry' },
+  { binding: ttEditEntry, label: 'Edit selected entry' },
+  { binding: ttDuplicateEntry, label: 'Duplicate selected entry' },
+  { binding: ttDeleteEntry, label: 'Delete selected entry' },
+  { binding: ttConfirmDelete, label: 'Confirm delete' },
   ...GOTO_BINDINGS,
   { binding: ttHelp, label: 'This cheat-sheet' },
-  { binding: ttCloseModal, label: 'Close cheat-sheet / leave field' }
+  { binding: ttCloseModal, label: 'Cancel / close / leave field' }
 ];
 
-const KEY_LABELS = { Escape: 'Esc', ArrowUp: '↑', ArrowDown: '↓' };
+const KEY_LABELS = { Escape: 'Esc', ArrowUp: '↑', ArrowDown: '↓', Delete: 'Del' };
 const SEQUENCE_TIMEOUT_MS = 1000;
 
 function keyLabel(binding) {
@@ -194,7 +201,15 @@ function isTyping(el) {
   return !!el && (el.matches('input,textarea,select') || el.isContentEditable);
 }
 
-function wireKeyboard(root, { focusNewEntry }) {
+const ENTRY_COMMANDS = [
+  { binding: ttSelectNext, command: 'selectNext' },
+  { binding: ttSelectPrev, command: 'selectPrev' },
+  { binding: ttEditEntry, command: 'editSelected' },
+  { binding: ttDuplicateEntry, command: 'duplicateSelected' },
+  { binding: ttDeleteEntry, command: 'deleteSelected' }
+];
+
+function wireKeyboard(root, tracker) {
   const modal = root.getElementById('tt-help-modal');
   let pendingPrefix = null;
   let pendingTimer = null;
@@ -212,17 +227,31 @@ function wireKeyboard(root, { focusNewEntry }) {
     }
 
     if (matchesKey(ev, ttCloseModal)) {
-      if (modal && !modal.hidden) modal.hidden = true;
+      if (tracker.cancel()) ev.preventDefault();
+      else if (modal && !modal.hidden) modal.hidden = true;
       else if (typing) root.activeElement.blur();
       return;
     }
 
-    if (typing) return;
+    if (typing || tracker.isEditing()) return;
+
+    if (tracker.isConfirming()) {
+      if (matchesKey(ev, ttConfirmDelete)) tracker.confirmDelete();
+      ev.preventDefault();
+      return;
+    }
 
     if (matchesKey(ev, ttNewEntry)) {
       ev.preventDefault();
       showSection(root, 'tracker');
-      focusNewEntry();
+      tracker.focusNewEntry();
+      return;
+    }
+
+    const entryCommand = ENTRY_COMMANDS.find(({ binding }) => matchesKey(ev, binding));
+    if (entryCommand) {
+      ev.preventDefault();
+      tracker[entryCommand.command]();
       return;
     }
 
@@ -267,7 +296,7 @@ export function mountTimeTracking(root = document, { getPrefs = () => timeTracki
   wireSidebar(root);
   wireHelpModal(root);
   const tracker = mountTrackerPanel(root.getElementById('tt-section-tracker'), { getPrefs });
-  const unwireKeyboard = wireKeyboard(root, { focusNewEntry: tracker.focusNewEntry });
+  const unwireKeyboard = wireKeyboard(root, tracker);
   const projects = root.getElementById('tt-section-projects');
   const unmountProjects = projects ? mountProjectsPanel(projects) : () => {};
   showSection(root, 'tracker');

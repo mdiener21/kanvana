@@ -19,6 +19,10 @@ vi.mock('../../../src/modules/event-sourcing/emitter.js', async () => {
   return {
     scheduleDomainEvent: vi.fn((event) => {
       if (event.type === 'time_entry.created') state.timeEntries = [...state.timeEntries, event.payload.timeEntry];
+      if (event.type === 'time_entry.updated') {
+        state.timeEntries = state.timeEntries.map((e) => (e.id === event.entityId ? { ...e, ...event.payload.fields } : e));
+      }
+      if (event.type === 'time_entry.deleted') state.timeEntries = state.timeEntries.filter((e) => e.id !== event.entityId);
       emit(DATA_CHANGED);
       return Promise.resolve();
     })
@@ -27,6 +31,8 @@ vi.mock('../../../src/modules/event-sourcing/emitter.js', async () => {
 
 const { mountTimeTracking } = await import('../../../src/modules/timetracking-ui.js');
 const { scheduleDomainEvent } = await import('../../../src/modules/event-sourcing/emitter.js');
+const { emit, DATA_CHANGED } = await import('../../../src/modules/events.js');
+const emitDataChanged = () => emit(DATA_CHANGED);
 
 const pageHtml = readFileSync(resolve(__dirname, '../../../src/timetracking.html'), 'utf-8');
 const bodyHtml = pageHtml.slice(pageHtml.indexOf('<body>') + 6, pageHtml.indexOf('</body>'));
@@ -313,5 +319,311 @@ describe('entry list', () => {
   test('empty state', () => {
     mount();
     expect(within(entryList()).getByText('No time entries yet.')).toBeTruthy();
+  });
+});
+
+const entry = (id, start, end, extra = {}) => ({ id, projectId: 'p1', description: id, start, end, ...extra });
+const THREE_ENTRIES = [
+  entry('morning', '2026-10-08T06:00:00.000Z', '2026-10-08T07:00:00.000Z'),
+  entry('late', '2026-10-08T08:00:00.000Z', '2026-10-08T09:30:00.000Z'),
+  entry('yesterday', '2026-10-07T07:00:00.000Z', '2026-10-07T08:00:00.000Z')
+];
+const rows = () => within(entryList()).getAllByRole('listitem');
+const row = (description) => rows().find((r) => within(r).queryByText(description));
+const selected = () => rows().filter((r) => r.getAttribute('aria-current') === 'true')
+  .map((r) => r.querySelector('.tt-entry-desc').textContent);
+const key = (k, init) => press(document.body, k, init);
+
+describe('selection', () => {
+  let scrollIntoView;
+  beforeEach(() => {
+    scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+  });
+  afterEach(() => { delete Element.prototype.scrollIntoView; });
+
+  test('j / k move the selection through the visible list, clamped at both ends, and keep it in view', () => {
+    mount({ timeEntries: THREE_ENTRIES });
+    expect(selected()).toEqual([]);
+    key('j');
+    expect(selected()).toEqual(['late']);
+    key('j');
+    expect(selected()).toEqual(['morning']);
+    key('j');
+    expect(selected()).toEqual(['yesterday']);
+    key('j');
+    expect(selected()).toEqual(['yesterday']);
+    key('k');
+    expect(selected()).toEqual(['morning']);
+    expect(row('morning').classList.contains('is-selected')).toBe(true);
+    expect(scrollIntoView).toHaveBeenLastCalledWith({ block: 'nearest' });
+    expect(scrollIntoView.mock.contexts.at(-1)).toBe(row('morning'));
+  });
+
+  test('single-key shortcuts are ignored while an input is focused', () => {
+    mount({ timeEntries: THREE_ENTRIES });
+    field('Description').focus();
+    for (const k of ['j', 'k', 'e', 'd', 'Delete']) {
+      expect(press(field('Description'), k)).toBe(true);
+    }
+    expect(selected()).toEqual([]);
+    expect(screen.queryByRole('dialog', { name: 'Edit entry' })).toBeNull();
+    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+  });
+
+  test('clicking a row selects it', () => {
+    mount({ timeEntries: THREE_ENTRIES });
+    fireEvent.click(row('yesterday'));
+    expect(selected()).toEqual(['yesterday']);
+    key('k');
+    expect(selected()).toEqual(['morning']);
+  });
+
+  test('selection survives a re-render and is dropped when the entry disappears', () => {
+    mount({ timeEntries: THREE_ENTRIES });
+    key('j');
+    state.timeEntries = THREE_ENTRIES.filter((e) => e.id !== 'morning');
+    emitDataChanged();
+    expect(selected()).toEqual(['late']);
+    state.timeEntries = THREE_ENTRIES.filter((e) => e.id !== 'late');
+    emitDataChanged();
+    expect(selected()).toEqual([]);
+  });
+
+  test('shortcuts with no selection do nothing', () => {
+    mount({ timeEntries: THREE_ENTRIES });
+    key('e');
+    key('d');
+    key('Delete');
+    expect(screen.queryByRole('dialog', { name: 'Edit entry' })).toBeNull();
+    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(rows()).toHaveLength(3);
+  });
+
+  test('a selected row shows edit, duplicate and delete actions', () => {
+    mount({ timeEntries: THREE_ENTRIES });
+    key('j');
+    const actions = within(row('late')).getAllByRole('button').map((b) => b.getAttribute('aria-label'));
+    expect(actions).toEqual(['Edit entry', 'Duplicate entry', 'Delete entry']);
+  });
+});
+
+describe('edit modal', () => {
+  const dialog = () => screen.queryByRole('dialog', { name: 'Edit entry' });
+  const inDialog = (name) => within(dialog()).getByLabelText(name);
+  const dialogValues = () => ['Date', 'Start', 'End', 'Duration'].map((n) => inDialog(n).value);
+  const typeIn = (name, value) => fireEvent.input(inDialog(name), { target: { value } });
+
+  function openEditorOn(description, entries = THREE_ENTRIES) {
+    mount({ timeEntries: entries });
+    fireEvent.click(row(description));
+    key('e');
+  }
+
+  test('e opens the selected entry with its values and focuses Description', () => {
+    openEditorOn('late');
+    expect(dialog()).toBeTruthy();
+    expect(inDialog('Description').value).toBe('late');
+    expect(inDialog('Project').value).toBe('Acme / Website');
+    expect(dialogValues()).toEqual(['08.10.2026', '10:00', '11:30', '1:30']);
+    expect(document.activeElement).toBe(inDialog('Description'));
+  });
+
+  test('linked fields behave as in the entry bar and Enter saves time_entry.updated with before / after', () => {
+    openEditorOn('late');
+    typeIn('Description', 'Late review');
+    typeIn('Duration', '2h');
+    fireEvent.blur(inDialog('Duration'));
+    expect(dialogValues()).toEqual(['08.10.2026', '10:00', '12:00', '2:00']);
+    typeIn('Start', '930');
+    press(inDialog('Start'), 'Enter');
+
+    expect(scheduleDomainEvent).toHaveBeenCalledOnce();
+    expect(scheduleDomainEvent).toHaveBeenCalledWith({
+      type: 'time_entry.updated',
+      scope: 'timetracking',
+      entityId: 'late',
+      payload: {
+        fields: { description: 'Late review', start: '2026-10-08T07:30:00.000Z', end: '2026-10-08T10:00:00.000Z' },
+        before: { description: 'late', start: '2026-10-08T08:00:00.000Z', end: '2026-10-08T09:30:00.000Z' }
+      }
+    });
+    expect(dialog()).toBeNull();
+    expect(within(row('Late review')).getByText('09:30 – 12:00')).toBeTruthy();
+    expect(selected()).toEqual(['Late review']);
+  });
+
+  test('Esc cancels without saving', () => {
+    openEditorOn('late');
+    typeIn('Description', 'Changed');
+    press(inDialog('Description'), 'Escape');
+    expect(dialog()).toBeNull();
+    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(row('late')).toBeTruthy();
+  });
+
+  test('validation errors toast and keep the modal open', () => {
+    openEditorOn('late');
+    typeIn('Duration', '0:00');
+    fireEvent.blur(inDialog('Duration'));
+    press(inDialog('Description'), 'Enter');
+    expect(toastText()).toBe('Duration must be greater than zero.');
+    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(dialog()).toBeTruthy();
+  });
+
+  test('switching to an archived project is rejected', () => {
+    openEditorOn('late');
+    typeIn('Project', 'Acme / Legacy');
+    press(inDialog('Description'), 'Enter');
+    expect(toastText()).toBe('That project is archived.');
+    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+  });
+
+  test('an entry may keep its already-archived project', () => {
+    openEditorOn('old', [entry('old', '2026-10-08T08:00:00.000Z', '2026-10-08T09:00:00.000Z', { projectId: 'p2' })]);
+    expect(inDialog('Project').value).toBe('Acme / Legacy');
+    typeIn('Description', 'old cleanup');
+    press(inDialog('Description'), 'Enter');
+    expect(scheduleDomainEvent).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'time_entry.updated',
+      payload: { fields: { description: 'old cleanup' }, before: { description: 'old' } }
+    }));
+  });
+
+  test('saving without changes just closes the modal', () => {
+    openEditorOn('late');
+    press(inDialog('Description'), 'Enter');
+    expect(dialog()).toBeNull();
+    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+  });
+
+  test('single-key shortcuts are suppressed while the modal is open', () => {
+    openEditorOn('late');
+    inDialog('Description').blur();
+    key('j');
+    key('d');
+    expect(selected()).toEqual(['late']);
+    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+  });
+
+  test('double-click and the row edit action also open the modal', () => {
+    mount({ timeEntries: THREE_ENTRIES });
+    fireEvent.dblClick(row('morning'));
+    expect(inDialog('Description').value).toBe('morning');
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Cancel' }));
+    expect(dialog()).toBeNull();
+
+    fireEvent.click(within(row('yesterday')).getByRole('button', { name: 'Edit entry' }));
+    expect(inDialog('Description').value).toBe('yesterday');
+    expect(dialogValues()[0]).toBe('07.10.2026');
+    typeIn('Description', 'Retro');
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Save' }));
+    expect(scheduleDomainEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'time_entry.updated', entityId: 'yesterday' }));
+  });
+});
+
+describe('duplicate', () => {
+  test('d copies project, description and duration, starting now, and selects the copy', () => {
+    vi.setSystemTime(new Date('2026-10-08T10:20:30.000Z'));
+    mount({ timeEntries: THREE_ENTRIES });
+    fireEvent.click(row('yesterday'));
+    key('d');
+
+    expect(scheduleDomainEvent).toHaveBeenCalledOnce();
+    const [{ type, payload }] = scheduleDomainEvent.mock.calls[0];
+    expect(type).toBe('time_entry.created');
+    expect(payload.timeEntry).toMatchObject({
+      projectId: 'p1',
+      description: 'yesterday',
+      start: '2026-10-08T10:20:00.000Z',
+      end: '2026-10-08T11:20:00.000Z'
+    });
+    const today = within(entryList()).getByRole('list', { name: 'Today' });
+    expect(within(today).getByText('yesterday')).toBeTruthy();
+    expect(within(today).getByText('12:20 – 13:20')).toBeTruthy();
+    expect(rows().find((r) => r.getAttribute('aria-current') === 'true').dataset.entryId).toBe(payload.timeEntry.id);
+  });
+
+  test('the row duplicate action does the same', () => {
+    mount({ timeEntries: THREE_ENTRIES });
+    fireEvent.click(within(row('late')).getByRole('button', { name: 'Duplicate entry' }));
+    expect(scheduleDomainEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'time_entry.created' }));
+  });
+
+  test('an entry on an archived project is not duplicated', () => {
+    mount({ timeEntries: [entry('old', '2026-10-08T08:00:00.000Z', '2026-10-08T09:00:00.000Z', { projectId: 'p2' })] });
+    key('j');
+    key('d');
+    expect(toastText()).toBe('That project is archived.');
+    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe('delete', () => {
+  const confirmRow = () => entryList().querySelector('.tt-entry-confirm');
+
+  function confirmDeleteOf(description) {
+    mount({ timeEntries: THREE_ENTRIES });
+    fireEvent.click(row(description));
+    key('Delete');
+  }
+
+  test('Del asks inline with description, project and duration', () => {
+    confirmDeleteOf('late');
+    expect(confirmRow().textContent).toContain('Delete “late” · Website · 1:30?');
+    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+  });
+
+  test('y deletes permanently, removes the row and selects the next one', () => {
+    confirmDeleteOf('late');
+    key('y');
+    expect(scheduleDomainEvent).toHaveBeenCalledOnce();
+    expect(scheduleDomainEvent).toHaveBeenCalledWith({
+      type: 'time_entry.deleted',
+      scope: 'timetracking',
+      entityId: 'late',
+      payload: { timeEntry: THREE_ENTRIES[1] }
+    });
+    expect(row('late')).toBeUndefined();
+    expect(confirmRow()).toBeNull();
+    expect(selected()).toEqual(['morning']);
+  });
+
+  test('deleting the last row selects the previous one', () => {
+    confirmDeleteOf('yesterday');
+    key('y');
+    expect(selected()).toEqual(['morning']);
+  });
+
+  test('Esc cancels and leaves the entry untouched', () => {
+    confirmDeleteOf('late');
+    key('Escape');
+    expect(confirmRow()).toBeNull();
+    expect(row('late')).toBeTruthy();
+    expect(selected()).toEqual(['late']);
+    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+  });
+
+  test('other shortcuts are ignored while confirming', () => {
+    confirmDeleteOf('late');
+    key('j');
+    key('d');
+    key('e');
+    expect(confirmRow()).toBeTruthy();
+    expect(screen.queryByRole('dialog', { name: 'Edit entry' })).toBeNull();
+    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+  });
+
+  test('the row delete action asks too; Cancel and Delete buttons work with the mouse', () => {
+    mount({ timeEntries: THREE_ENTRIES });
+    fireEvent.click(within(row('late')).getByRole('button', { name: 'Delete entry' }));
+    fireEvent.click(within(confirmRow()).getByRole('button', { name: 'Cancel' }));
+    expect(confirmRow()).toBeNull();
+    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+
+    fireEvent.click(within(row('late')).getByRole('button', { name: 'Delete entry' }));
+    fireEvent.click(within(confirmRow()).getByRole('button', { name: 'Delete' }));
+    expect(scheduleDomainEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'time_entry.deleted', entityId: 'late' }));
   });
 });

@@ -49,7 +49,8 @@ import {
   Clock,
   Folder,
   PanelLeftClose,
-  PanelLeftOpen
+  PanelLeftOpen,
+  Copy
 } from 'lucide';
 
 // Map of all icons used in the app (PascalCase keys for createIcons)
@@ -99,7 +100,8 @@ const icons = {
   Clock,
   Folder,
   PanelLeftClose,
-  PanelLeftOpen
+  PanelLeftOpen,
+  Copy
 };
 
 /**
