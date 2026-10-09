@@ -39,12 +39,13 @@ describe('fromZoned: wall-clock date + time in a timezone → absolute instant',
   });
 });
 
-describe('timeTrackingPrefs (defaults until Settings exist)', () => {
-  test('DD.MM.YYYY, 24-hour, browser timezone', () => {
-    expect(timeTrackingPrefs(123)).toEqual({
+describe('timeTrackingPrefs defaults', () => {
+  test('DD.MM.YYYY, 24-hour, h:mm, browser timezone', () => {
+    expect(timeTrackingPrefs(undefined, 123)).toEqual({
       tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
       dateFormat: 'DD.MM.YYYY',
       timeFormat: '24h',
+      durationFormat: 'h:mm',
       now: 123
     });
   });

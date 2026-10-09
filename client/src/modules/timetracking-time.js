@@ -5,11 +5,14 @@ export const floorToMinute = (ms) => Math.floor(ms / MINUTE_MS) * MINUTE_MS;
 
 export const TT_FALLBACK_TIMEZONE = 'Europe/Berlin';
 
-export function timeTrackingPrefs(now = Date.now()) {
+export const browserTimezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || TT_FALLBACK_TIMEZONE;
+
+export function timeTrackingPrefs(settings = {}, now = Date.now()) {
   return {
-    tz: Intl.DateTimeFormat().resolvedOptions().timeZone || TT_FALLBACK_TIMEZONE,
-    dateFormat: 'DD.MM.YYYY',
-    timeFormat: '24h',
+    tz: settings?.timezone ?? browserTimezone(),
+    dateFormat: settings?.dateFormat ?? 'DD.MM.YYYY',
+    timeFormat: settings?.timeFormat ?? '24h',
+    durationFormat: settings?.durationFormat ?? 'h:mm',
     now
   };
 }
@@ -94,7 +97,7 @@ export function parseDuration(input) {
   return null;
 }
 
-const DATE_FORMATS = {
+export const DATE_FORMATS = {
   'DD.MM.YYYY': { order: ['d', 'm', 'y'], separator: '.' },
   'MM/DD/YYYY': { order: ['m', 'd', 'y'], separator: '/' },
   'YYYY-MM-DD': { order: ['y', 'm', 'd'], separator: '-' }

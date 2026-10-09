@@ -1038,9 +1038,11 @@ function normalizeSettings(raw) {
   };
 }
 
+const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
+
 function normalizeGlobalSettings(raw) {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
-  return {};
+  if (!isPlainObject(raw)) return {};
+  return isPlainObject(raw.timeTracking) ? { timeTracking: { ...raw.timeTracking } } : {};
 }
 
 export function loadSettings() {
