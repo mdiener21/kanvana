@@ -605,13 +605,26 @@ describe('delete', () => {
     expect(scheduleDomainEvent).not.toHaveBeenCalled();
   });
 
-  test('other shortcuts are ignored while confirming', () => {
+  test('any other key cancels the confirmation and is then handled normally', () => {
     confirmDeleteOf('late');
     key('j');
-    key('d');
+    expect(confirmRow()).toBeNull();
+    expect(selected()).toEqual(['morning']);
+    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+
+    key('Delete');
     key('e');
-    expect(confirmRow()).toBeTruthy();
-    expect(screen.queryByRole('dialog', { name: 'Edit entry' })).toBeNull();
+    expect(confirmRow()).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Edit entry' })).toBeTruthy();
+    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+  });
+
+  test('Tab cancels the confirmation without being swallowed', () => {
+    confirmDeleteOf('late');
+    expect(key('Tab')).toBe(true);
+    expect(confirmRow()).toBeNull();
+    expect(row('late')).toBeTruthy();
+    key('y');
     expect(scheduleDomainEvent).not.toHaveBeenCalled();
   });
 

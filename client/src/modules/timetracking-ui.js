@@ -236,9 +236,12 @@ function wireKeyboard(root, tracker) {
     if (typing || tracker.isEditing()) return;
 
     if (tracker.isConfirming()) {
-      if (matchesKey(ev, ttConfirmDelete)) tracker.confirmDelete();
-      ev.preventDefault();
-      return;
+      if (matchesKey(ev, ttConfirmDelete)) {
+        ev.preventDefault();
+        tracker.confirmDelete();
+        return;
+      }
+      tracker.cancel();
     }
 
     if (matchesKey(ev, ttNewEntry)) {
