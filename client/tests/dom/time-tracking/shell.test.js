@@ -55,7 +55,7 @@ test('cheat-sheet lists only implemented shortcuts', () => {
   const table = within(helpModal()).getByRole('table', { hidden: true });
   const keys = within(table).getAllByRole('row', { hidden: true }).map((row) => row.cells[0].textContent);
   expect(keys).toEqual([
-    'n', 'Enter', 'Alt+↑', 'Alt+↓', 'j', 'k', 'e', 'd', 'Del', 'y', 'g t', 'g r', 'g p', 'g s', '?', 'Esc'
+    'n', 'Enter', '/', 'Alt+↑', 'Alt+↓', 'j', 'k', 'e', 'd', 'Del', 'y', 'g t', 'g r', 'g p', 'g s', '?', 'Esc'
   ]);
 });
 

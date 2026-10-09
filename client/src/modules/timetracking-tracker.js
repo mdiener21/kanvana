@@ -7,6 +7,7 @@ import {
 } from './timetracking-crud.js';
 import { showToast } from './timetracking-toast.js';
 import { entryFieldsHtml, wireEntryFields } from './timetracking-entry-fields.js';
+import { filterEntries, mountEntryFilter } from './timetracking-filter.js';
 import { groupEntriesByDay, formatTime, formatDuration, plusDaysBetween, floorToMinute } from './timetracking-time.js';
 
 export const ENTRY_ERROR_MESSAGES = {
@@ -30,6 +31,10 @@ const PANEL_HTML = `
         <span data-lucide="plus" aria-hidden="true"></span>
         Add
       </button>
+    </div>
+    <div class="tt-list-toolbar">
+      <div class="tt-list-filter"></div>
+      <span class="tt-entry-count" aria-label="Entry count" aria-live="polite"></span>
     </div>
     <section class="tt-entry-list" aria-label="Time entries"></section>
   </div>
@@ -96,6 +101,7 @@ const EDITOR_HTML = `
 
 function entryListHtml(tt, prefs, groups, view) {
   if (tt.timeEntries.length === 0) return '<p class="tt-empty">No time entries yet.</p>';
+  if (groups.length === 0) return '<p class="tt-empty">No entries match the filter.</p>';
   return groups.map((group) => {
     const heading = escapeHtml(group.heading);
     return `
@@ -117,6 +123,11 @@ export function mountTrackerPanel(container, { getPrefs }) {
 
   const bar = container.querySelector('.tt-entry-bar');
   const list = container.querySelector('.tt-entry-list');
+  const count = container.querySelector('.tt-entry-count');
+  const filter = mountEntryFilter(container.querySelector('.tt-list-filter'), {
+    getTimeTracking: loadTimeTracking,
+    onChange: () => refresh()
+  });
 
   const fields = wireEntryFields(bar, {
     getPrefs,
@@ -139,11 +150,13 @@ export function mountTrackerPanel(container, { getPrefs }) {
   function refresh() {
     const tt = loadTimeTracking();
     const prefs = getPrefs();
-    const groups = groupEntriesByDay(tt.timeEntries, prefs);
+    filter.refresh();
+    const groups = groupEntriesByDay(filterEntries(tt, filter.getFilter()), prefs);
     visibleIds = groups.flatMap((group) => group.entries.map((e) => e.id));
     if (!visibleIds.includes(view.selectedId)) view.selectedId = null;
     if (!visibleIds.includes(view.confirmingId)) view.confirmingId = null;
     fields.refreshProjects();
+    count.textContent = `${visibleIds.length} ${visibleIds.length === 1 ? 'entry' : 'entries'}`;
     list.innerHTML = entryListHtml(tt, prefs, groups, view);
     renderIcons(list);
   }
@@ -263,6 +276,7 @@ export function mountTrackerPanel(container, { getPrefs }) {
   on(DATA_CHANGED, refresh);
   return {
     focusNewEntry: () => fields.focus(),
+    focusFilter: () => filter.focus(),
     selectNext: () => moveSelection(1),
     selectPrev: () => moveSelection(-1),
     editSelected: () => view.selectedId && openEditor(view.selectedId),
@@ -281,6 +295,7 @@ export function mountTrackerPanel(container, { getPrefs }) {
       closeEditor();
       off(DATA_CHANGED, refresh);
       fields.unwire();
+      filter.unmount();
     }
   };
 }
