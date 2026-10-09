@@ -5,7 +5,8 @@ import { resolve } from 'node:path';
 import { mountToBody } from '../setup.js';
 
 vi.mock('../../../src/modules/storage.js', () => ({
-  loadTimeTracking: vi.fn(() => ({ customers: [], projects: [], timeEntries: [] }))
+  loadTimeTracking: vi.fn(() => ({ customers: [], projects: [], timeEntries: [] })),
+  loadGlobalSettings: vi.fn(() => ({}))
 }));
 
 vi.mock('../../../src/modules/icons.js', () => ({

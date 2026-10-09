@@ -5,7 +5,8 @@ import { mountToBody } from '../setup.js';
 const state = { customers: [], projects: [], timeEntries: [] };
 
 vi.mock('../../../src/modules/storage.js', () => ({
-  loadTimeTracking: vi.fn(() => state)
+  loadTimeTracking: vi.fn(() => state),
+  loadGlobalSettings: vi.fn(() => ({}))
 }));
 
 vi.mock('../../../src/modules/icons.js', () => ({

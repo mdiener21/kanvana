@@ -66,6 +66,12 @@ export function wireEntryFields(root, { getPrefs, getTimeTracking, onSubmit }) {
     plusDay.textContent = resolved.plusDays > 1 ? `+${resolved.plusDays} days` : '+1 day';
   }
 
+  function setProject(projectId) {
+    const tt = getTimeTracking();
+    const project = projectById(tt, projectId);
+    inputs.project.value = project ? projectLabel(project, tt) : '';
+  }
+
   function normalise(field) {
     const resolved = resolveLinkedFields(typedValues(), field, getPrefs());
     if (resolved) show(resolved);
@@ -113,11 +119,14 @@ export function wireEntryFields(root, { getPrefs, getTimeTracking, onSubmit }) {
 
   return {
     setEntry({ description = '', projectId = null, startMs, endMs }) {
-      const tt = getTimeTracking();
-      const project = projectById(tt, projectId);
       inputs.description.value = description;
-      inputs.project.value = project ? projectLabel(project, tt) : '';
+      setProject(projectId);
       show(describeEntryTimes(startMs, endMs, getPrefs()));
+    },
+    setProject,
+    projectId: () => resolveProjectLabel(inputs.project.value, getTimeTracking()),
+    redisplay() {
+      if (lastValid) show(describeEntryTimes(lastValid.startMs, lastValid.endMs, getPrefs()));
     },
     refreshProjects() {
       const tt = getTimeTracking();
