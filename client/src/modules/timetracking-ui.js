@@ -201,7 +201,7 @@ function wireSidebar(root) {
 
 const {
   ttHelp, ttCloseModal, ttGotoTracker, ttGotoReports, ttGotoProjects, ttGotoSettings,
-  ttNewEntry, ttSubmitInline, ttAdjustUp, ttAdjustDown,
+  ttNewEntry, ttFocusFilter, ttSubmitInline, ttAdjustUp, ttAdjustDown,
   ttSelectNext, ttSelectPrev, ttEditEntry, ttDuplicateEntry, ttDeleteEntry, ttConfirmDelete
 } = DEFAULT_APP_KEYBINDINGS;
 
@@ -215,6 +215,7 @@ const GOTO_BINDINGS = [
 const HELP_ROWS = [
   { binding: ttNewEntry, label: 'New entry' },
   { binding: ttSubmitInline, label: 'Save entry' },
+  { binding: ttFocusFilter, label: 'Focus the entry filter' },
   { binding: ttAdjustUp, label: '+15 min on Start / End / Duration' },
   { binding: ttAdjustDown, label: '−15 min on Start / End / Duration' },
   { binding: ttSelectNext, label: 'Select next entry' },
@@ -290,6 +291,13 @@ function wireKeyboard(root, tracker) {
       ev.preventDefault();
       showSection(root, 'tracker');
       tracker.focusNewEntry();
+      return;
+    }
+
+    if (matchesKey(ev, ttFocusFilter)) {
+      ev.preventDefault();
+      showSection(root, 'tracker');
+      tracker.focusFilter();
       return;
     }
 
