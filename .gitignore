@@ -25,3 +25,5 @@ graphify-out/cache/
 dist/
 dist-perf/
 build/
+
+pocketbase_0.40.5/
