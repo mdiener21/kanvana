@@ -152,6 +152,17 @@ export function createCustomer(overrides = {}, colorIndex = 0) {
   };
 }
 
+export function createTimeEntry(overrides = {}) {
+  return {
+    id: generateUUID(),
+    projectId: '',
+    description: '',
+    start: '',
+    end: '',
+    ...overrides,
+  };
+}
+
 export function createProject(overrides = {}, colorIndex = 0) {
   return {
     id: generateUUID(),

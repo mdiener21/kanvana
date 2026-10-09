@@ -307,6 +307,12 @@ function applyProjectCreated(state, event) {
   return { ...state, timeTracking: { ...tt, projects: [...tt.projects, { id: event.entity_id, ...event.payload.project }] } };
 }
 
+function applyTimeEntryCreated(state, event) {
+  if (state.timeTracking.timeEntries.some((e) => e.id === event.entity_id)) return state;
+  const tt = cloneTimeTracking(state.timeTracking);
+  return { ...state, timeTracking: { ...tt, timeEntries: [...tt.timeEntries, { ...event.payload.timeEntry, id: event.entity_id }] } };
+}
+
 const handlers = {
   'task.created': applyTaskCreated,
   'task.updated': applyTaskUpdated,
@@ -332,7 +338,8 @@ const handlers = {
   'board.deleted': applyBoardDeleted,
   'settings.updated': applySettingsUpdated,
   'customer.created': applyCustomerCreated,
-  'project.created': applyProjectCreated
+  'project.created': applyProjectCreated,
+  'time_entry.created': applyTimeEntryCreated
 };
 
 export function applyEvent(state, event) {

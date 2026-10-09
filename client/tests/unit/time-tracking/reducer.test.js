@@ -76,6 +76,29 @@ test('project.created is idempotent by entity_id', () => {
   expect(next.timeTracking.projects[0].name).toBe('MVP');
 });
 
+// ── Time entry handlers ────────────────────────────────────────────────────────
+
+test('time_entry.created adds the entry with its absolute instants', () => {
+  const next = applyEvent(baseState(), event({
+    type: 'time_entry.created',
+    entity_id: 'te-1',
+    payload: { timeEntry: { projectId: 'proj-1', description: 'Standup', start: '2026-10-31T21:00:00.000Z', end: '2026-11-01T01:00:00.000Z' } }
+  }));
+  expect(next.timeTracking.timeEntries).toEqual([
+    { id: 'te-1', projectId: 'proj-1', description: 'Standup', start: '2026-10-31T21:00:00.000Z', end: '2026-11-01T01:00:00.000Z' }
+  ]);
+});
+
+test('time_entry.created is idempotent by entity_id', () => {
+  const existing = { id: 'te-1', projectId: 'proj-1', description: 'A', start: '2026-10-08T07:00:00.000Z', end: '2026-10-08T08:00:00.000Z' };
+  const next = applyEvent(baseState({ timeEntries: [existing] }), event({
+    type: 'time_entry.created',
+    entity_id: 'te-1',
+    payload: { timeEntry: { ...existing, description: 'B' } }
+  }));
+  expect(next.timeTracking.timeEntries).toEqual([existing]);
+});
+
 // ── Board state isolation ──────────────────────────────────────────────────────
 
 test('time-tracking events do not affect board-level state', () => {
