@@ -33,14 +33,12 @@ client/             Frontend app (the main product)
     reports.html    Analytics page
     calendar.html   Calendar view
     timetracking.html Time tracking page
-    activity.html   Board event log page
   tests/
     unit/           Vitest pure-unit tests
     dom/            Vitest + @testing-library/dom integration tests
     mocks/          MSW API mocks shared by Vitest suites
     e2e/            Playwright end-to-end tests
 backend/            PocketBase Dockerfile + migrations (optional cloud sync)
-cli/                Go CLI tooling (TODO)
 agents/             AI-agent configuration (issue tracker, labels, domain)
 docs/
   adr/              Architecture Decision Records
@@ -69,6 +67,13 @@ npm run test:e2e     # Playwright E2E tests only
 ```
 
 Run the full test suite before opening a PR. CI runs all three layers.
+
+Run local pocketbase without docker on windows for development
+
+```bash
+.\pocketbase.exe serve --migrationsDir ../backend/pb_migrations --hooksDir ../backend/pb_hook
+```
+
 
 ---
 
