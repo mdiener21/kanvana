@@ -1,12 +1,13 @@
 import { loadTimeTracking } from './storage.js';
 import { on, off, DATA_CHANGED } from './events.js';
 import { renderIcons } from './icons.js';
-import { DEFAULT_APP_KEYBINDINGS, matchesKey } from './constants.js';
+import { DEFAULT_APP_KEYBINDINGS, matchesKey, keyLabel } from './constants.js';
 import {
   addCustomer, addProject, setCustomerArchived, setProjectArchived, deleteCustomer, deleteProject, CRUD_ERROR
 } from './timetracking-crud.js';
 import { isCustomerInUse, isProjectInUse } from './timetracking-references.js';
 import { escapeHtml } from './security.js';
+import { colorDotHtml } from './timetracking-markup.js';
 import { showToast } from './timetracking-toast.js';
 import { mountTrackerPanel } from './timetracking-tracker.js';
 import { timeTrackingPrefs } from './timetracking-time.js';
@@ -92,7 +93,7 @@ function customerListHtml(tt) {
     return `
       <div class="tt-customer-item${customer.archived ? ' tt-archived' : ''}" role="listitem" data-customer-id="${escapeHtml(customer.id)}">
         <div class="tt-customer-row">
-          <span class="tt-color-dot" style="background:${escapeHtml(customer.color)};" aria-hidden="true"></span>
+          ${colorDotHtml(customer.color)}
           <span class="tt-customer-name">${escapeHtml(customer.name)}</span>
           ${customer.archived ? '<span class="tt-tag">archived</span>' : ''}
           <span class="tt-spacer"></span>
@@ -103,7 +104,7 @@ function customerListHtml(tt) {
         <ul class="tt-project-list" aria-label="Projects for ${escapeHtml(customer.name)}">
           ${projs.map((project) => `
           <li class="tt-project-row${project.archived ? ' tt-archived' : ''}" data-project-id="${escapeHtml(project.id)}">
-            <span class="tt-color-dot" style="background:${escapeHtml(project.color)};" aria-hidden="true"></span>
+            ${colorDotHtml(project.color)}
             <span class="tt-project-name">${escapeHtml(project.name)}</span>
             ${project.archived ? '<span class="tt-tag">archived</span>' : ''}
             ${itemActionsHtml('project', project, isProjectInUse(tt, project.id))}
@@ -256,14 +257,7 @@ const HELP_ROWS = [
   { binding: ttCloseModal, label: 'Cancel / close / leave field' }
 ];
 
-const KEY_LABELS = { Escape: 'Esc', ArrowUp: '↑', ArrowDown: '↓', Delete: 'Del' };
 const SEQUENCE_TIMEOUT_MS = 1000;
-
-function keyLabel(binding) {
-  const key = KEY_LABELS[binding.key] ?? binding.key;
-  if (binding.seq) return `${key} ${binding.seq}`;
-  return binding.altKey ? `Alt+${key}` : key;
-}
 
 const secondKey = (binding) => ({ ...binding, key: binding.seq });
 
@@ -279,12 +273,17 @@ const ENTRY_COMMANDS = [
   { binding: ttDeleteEntry, command: 'deleteSelected' }
 ];
 
-const MONTH_COMMANDS = [
-  { binding: ttPrevMonth, command: 'prevMonth' },
-  { binding: ttNextMonth, command: 'nextMonth' }
-];
+// Shortcuts that only apply while their section is shown; checked before the page-wide ones.
+const SECTION_COMMANDS = {
+  reports: [
+    { binding: ttFocusFilter, command: 'focusFilter' },
+    { binding: ttPrevMonth, command: 'prevMonth' },
+    { binding: ttNextMonth, command: 'nextMonth' }
+  ]
+};
 
 function wireKeyboard(root, { tracker, reports, nav, help }) {
+  const panels = { tracker, reports };
   let pendingPrefix = null;
   let pendingTimer = null;
 
@@ -325,6 +324,14 @@ function wireKeyboard(root, { tracker, reports, nav, help }) {
       tracker.cancel();
     }
 
+    const section = nav.current();
+    const sectionCommand = SECTION_COMMANDS[section]?.find(({ binding }) => matchesKey(ev, binding));
+    if (sectionCommand) {
+      ev.preventDefault();
+      panels[section][sectionCommand.command]();
+      return;
+    }
+
     if (matchesKey(ev, ttNewEntry)) {
       ev.preventDefault();
       nav.show('tracker');
@@ -334,19 +341,8 @@ function wireKeyboard(root, { tracker, reports, nav, help }) {
 
     if (matchesKey(ev, ttFocusFilter)) {
       ev.preventDefault();
-      if (nav.current() === 'reports') {
-        reports.focusFilter();
-        return;
-      }
       nav.show('tracker');
       tracker.focusFilter();
-      return;
-    }
-
-    const monthCommand = MONTH_COMMANDS.find(({ binding }) => matchesKey(ev, binding));
-    if (monthCommand && nav.current() === 'reports') {
-      ev.preventDefault();
-      reports[monthCommand.command]();
       return;
     }
 

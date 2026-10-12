@@ -14,7 +14,6 @@ vi.mock('../../../src/modules/icons.js', () => ({
 const { mountReportsPanel } = await import('../../../src/modules/timetracking-reports-panel.js');
 const { emit, DATA_CHANGED } = await import('../../../src/modules/events.js');
 
-const H = 3600000;
 const entry = (id, projectId, start, end) => ({ id, projectId, description: '', start, end });
 
 function makeState() {
@@ -93,6 +92,12 @@ describe('month navigation', () => {
     panel.prevMonth();
     panel.prevMonth();
     expect(monthLabel().textContent).toBe('September 2026');
+  });
+
+  test('month buttons name their shortcut in the tooltip', () => {
+    mount();
+    expect(screen.getByRole('button', { name: 'Previous month' }).title).toBe('Previous month ([)');
+    expect(screen.getByRole('button', { name: 'Next month' }).title).toBe('Next month (])');
   });
 
   test('re-resolves the current month on show when the month was not changed', () => {
