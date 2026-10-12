@@ -6,9 +6,12 @@ import {
 } from '../../../src/modules/storage.js';
 import { scheduleDomainEvent } from '../../../src/modules/event-sourcing/emitter.js';
 import { on, off, EVENT_EMITTED } from '../../../src/modules/events.js';
-import { addCustomer, addProject } from '../../../src/modules/timetracking-crud.js';
 import {
-  resolveTimeTrackingSettings, loadTimeTrackingSettings, saveTimeTrackingSettings, prefillProjectId
+  addCustomer, addProject, setCustomerArchived, setProjectArchived, deleteProject
+} from '../../../src/modules/timetracking-crud.js';
+import {
+  resolveTimeTrackingSettings, loadTimeTrackingSettings, saveTimeTrackingSettings, prefillProjectId,
+  loadLastUsedProjectId, rememberLastUsedProject
 } from '../../../src/modules/timetracking-settings.js';
 import { timeTrackingPrefs } from '../../../src/modules/timetracking-time.js';
 
@@ -164,5 +167,69 @@ describe('default customer and project', () => {
     const tt = loadTimeTracking();
     const archived = { ...tt, projects: tt.projects.map((p) => (p.id === site.id ? { ...p, archived: true } : p)) };
     expect(prefillProjectId(archived, loadTimeTrackingSettings())).toBeNull();
+  });
+});
+
+describe('last-used project prefill', () => {
+  function seed() {
+    const acme = addCustomer('Acme').customer;
+    const beta = addCustomer('Beta').customer;
+    const site = addProject(acme.id, 'Website').project;
+    const app = addProject(beta.id, 'App').project;
+    saveTimeTrackingSettings({ defaultCustomerId: acme.id });
+    return { acme, beta, site, app };
+  }
+  const prefill = () => prefillProjectId(loadTimeTracking(), loadTimeTrackingSettings(), loadLastUsedProjectId());
+
+  test('the last-used project wins over the default project', () => {
+    const { app } = seed();
+    rememberLastUsedProject(app.id);
+    expect(prefill()).toBe(app.id);
+  });
+
+  test('falls back to the default project without a last-used project', () => {
+    const { site } = seed();
+    expect(loadLastUsedProjectId()).toBeNull();
+    expect(prefill()).toBe(site.id);
+  });
+
+  test('falls back to the default project when the last-used project is archived', () => {
+    const { site, app } = seed();
+    rememberLastUsedProject(app.id);
+    setProjectArchived(app.id, true);
+    expect(prefill()).toBe(site.id);
+  });
+
+  test('falls back to the default project when the last-used project customer is archived', () => {
+    const { beta, site, app } = seed();
+    rememberLastUsedProject(app.id);
+    setCustomerArchived(beta.id, true);
+    expect(prefill()).toBe(site.id);
+  });
+
+  test('falls back to the default project when the last-used project was deleted', () => {
+    const { site, app } = seed();
+    rememberLastUsedProject(app.id);
+    expect(deleteProject(app.id).ok).toBe(true);
+    expect(prefill()).toBe(site.id);
+  });
+
+  test('is empty when neither the last-used nor the default project is active', () => {
+    const { acme, app } = seed();
+    rememberLastUsedProject(app.id);
+    setProjectArchived(app.id, true);
+    setCustomerArchived(acme.id, true);
+    expect(prefill()).toBeNull();
+  });
+
+  test('is remembered in local storage on this device, without a domain event', () => {
+    const { app } = seed();
+    const events = vi.fn();
+    on(EVENT_EMITTED, events);
+    rememberLastUsedProject(app.id);
+    off(EVENT_EMITTED, events);
+    expect(events).not.toHaveBeenCalled();
+    expect(Object.values(localStorage._store)).toContain(app.id);
+    expect(JSON.stringify(loadGlobalSettings())).not.toContain(app.id);
   });
 });

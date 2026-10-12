@@ -49,9 +49,9 @@ const SUPPORT = { id: 'p3', customerId: 'c2', name: 'Support', color: '#8bc34a',
 
 let unmount = null;
 
-function mount({ timeEntries = [] } = {}) {
+function mount({ timeEntries = [], extraProjects = [] } = {}) {
   state.customers = [ACME, OLD_CO];
-  state.projects = [WEBSITE, LEGACY, SUPPORT];
+  state.projects = [WEBSITE, LEGACY, SUPPORT, ...extraProjects];
   state.timeEntries = timeEntries;
   mountToBody(bodyHtml);
   unmount = mountTimeTracking(document, { getPrefs: prefs });
@@ -128,7 +128,7 @@ describe('entry bar', () => {
     expect(within(today).getByText('12:00 – 13:30')).toBeTruthy();
 
     expect(field('Description').value).toBe('');
-    expect(field('Project').value).toBe('');
+    expect(field('Project').value).toBe('Acme / Website');
     expect(values()).toEqual(['08.10.2026', '12:00', '12:00', '0:00']);
     expect(document.activeElement).toBe(field('Description'));
   });
@@ -754,5 +754,63 @@ describe('entry list filter', () => {
   test('/ is listed in the shortcut cheat-sheet', () => {
     mount();
     expect(within(document.getElementById('tt-help-rows')).getByText('Focus the entry filter')).toBeTruthy();
+  });
+});
+
+describe('last-used project', () => {
+  const SHOP = { id: 'p4', customerId: 'c1', name: 'Shop', color: '#ff9800', archived: false };
+  const remount = (options) => { unmount(); mount(options); };
+
+  function saveFromBar(project) {
+    type('Project', project);
+    type('Duration', '1h');
+    press(field('Duration'), 'Enter');
+  }
+
+  test('saving from the entry bar prefills that project for the next entry, without an extra event', () => {
+    mount({ extraProjects: [SHOP] });
+    saveFromBar('Shop');
+    expect(scheduleDomainEvent).toHaveBeenCalledOnce();
+    expect(scheduleDomainEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'time_entry.created' }));
+    expect(field('Project').value).toBe('Acme / Shop');
+  });
+
+  test('survives a reload', () => {
+    mount({ extraProjects: [SHOP] });
+    saveFromBar('Shop');
+    remount({ extraProjects: [SHOP], timeEntries: state.timeEntries });
+    expect(field('Project').value).toBe('Acme / Shop');
+  });
+
+  test('duplicating an entry records its project as last-used', () => {
+    const onShop = entry('shop', '2026-10-08T06:00:00.000Z', '2026-10-08T07:00:00.000Z', { projectId: 'p4' });
+    mount({ extraProjects: [SHOP], timeEntries: [onShop] });
+    key('j');
+    key('d');
+    expect(field('Project').value).toBe('Acme / Shop');
+    remount({ extraProjects: [SHOP], timeEntries: state.timeEntries });
+    expect(field('Project').value).toBe('Acme / Shop');
+  });
+
+  test('editing an existing entry does not change it', () => {
+    mount({ extraProjects: [SHOP], timeEntries: THREE_ENTRIES });
+    saveFromBar('Website');
+    document.activeElement.blur();
+    fireEvent.click(row('late'));
+    key('e');
+    const dialog = screen.getByRole('dialog', { name: 'Edit entry' });
+    fireEvent.input(within(dialog).getByLabelText('Project'), { target: { value: 'Shop' } });
+    press(within(dialog).getByLabelText('Project'), 'Enter');
+    expect(scheduleDomainEvent).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'time_entry.updated' }));
+    expect(field('Project').value).toBe('Acme / Website');
+    remount({ extraProjects: [SHOP], timeEntries: state.timeEntries });
+    expect(field('Project').value).toBe('Acme / Website');
+  });
+
+  test('an archived last-used project is not prefilled', () => {
+    mount({ extraProjects: [SHOP] });
+    saveFromBar('Shop');
+    remount({ extraProjects: [{ ...SHOP, archived: true }], timeEntries: state.timeEntries });
+    expect(field('Project').value).toBe('');
   });
 });

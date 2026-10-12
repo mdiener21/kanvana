@@ -8,7 +8,7 @@ import {
 import { showToast } from './timetracking-toast.js';
 import { entryFieldsHtml, wireEntryFields } from './timetracking-entry-fields.js';
 import { filterEntries, mountEntryFilter } from './timetracking-filter.js';
-import { prefillProjectId } from './timetracking-settings.js';
+import { prefillProjectId, loadLastUsedProjectId, rememberLastUsedProject } from './timetracking-settings.js';
 import { groupEntriesByDay, formatTime, formatDuration, plusDaysBetween, floorToMinute } from './timetracking-time.js';
 
 export const ENTRY_ERROR_MESSAGES = {
@@ -131,12 +131,13 @@ export function mountTrackerPanel(container, { getPrefs, getSettings }) {
     getTimeTracking: loadTimeTracking,
     onSubmit(result) {
       if (!saveSubmitted(result, addTimeEntry)) return;
+      rememberLastUsedProject(result.entry.projectId);
       reset();
       fields.focus();
     }
   });
 
-  const currentPrefill = () => prefillProjectId(loadTimeTracking(), getSettings());
+  const currentPrefill = () => prefillProjectId(loadTimeTracking(), getSettings(), loadLastUsedProjectId());
   let lastPrefill = null;
 
   function reset() {
@@ -145,7 +146,7 @@ export function mountTrackerPanel(container, { getPrefs, getSettings }) {
     fields.setEntry({ projectId: lastPrefill, startMs: now, endMs: now });
   }
 
-  // An untouched entry bar follows a changed default project; a typed one is left alone.
+  // An untouched entry bar follows a changed prefill; a typed one is left alone.
   function followPrefill() {
     const prefill = currentPrefill();
     if (prefill === lastPrefill) return;
@@ -245,7 +246,9 @@ export function mountTrackerPanel(container, { getPrefs, getSettings }) {
 
   function duplicate(id) {
     const result = duplicateTimeEntry(id, getPrefs().now);
-    if (reportFailure(result)) select(result.timeEntry.id);
+    if (!reportFailure(result)) return;
+    rememberLastUsedProject(result.timeEntry.projectId);
+    select(result.timeEntry.id);
   }
 
   function askDelete(id) {
