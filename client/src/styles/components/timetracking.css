@@ -116,7 +116,7 @@
 .tt-main {
   padding: 28px 32px;
   overflow-y: auto;
-  background: var(--bg, #f9fafb);
+  background: var(--app-bg, #f9fafb);
 }
 
 /* Projects panel */
@@ -618,7 +618,7 @@
   flex: 1;
   height: 8px;
   border-radius: 4px;
-  background: var(--surface-hover, #f3f4f6);
+  background: var(--border-subtle, #f3f4f6);
   overflow: hidden;
 }
 .tt-share-fill { display: block; height: 100%; border-radius: 4px; }
