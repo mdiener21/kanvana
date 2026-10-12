@@ -2,11 +2,7 @@ import { loadGlobalSettings, loadTimeTracking } from './storage.js';
 import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 import { EVENT_SCOPE } from './constants.js';
 import { isProjectActive, projectById } from './timetracking-crud.js';
-import { DATE_FORMATS, browserTimezone } from './timetracking-time.js';
-
-export const TT_DATE_FORMATS = Object.keys(DATE_FORMATS);
-export const TT_TIME_FORMATS = ['24h', '12h'];
-export const TT_DURATION_FORMATS = ['h:mm', 'decimal'];
+import { DATE_FORMATS, TIME_FORMATS, DURATION_FORMATS, browserTimezone } from './timetracking-time.js';
 
 export function isValidTimezone(tz) {
   if (typeof tz !== 'string' || !tz) return false;
@@ -18,7 +14,11 @@ export function isValidTimezone(tz) {
   }
 }
 
-const oneOf = (value, options) => (options.includes(value) ? value : options[0]);
+// Falls back to the first (default) format.
+const oneOf = (value, formats) => {
+  const options = Object.keys(formats);
+  return options.includes(value) ? value : options[0];
+};
 const idOrNull = (value) => (typeof value === 'string' && value ? value : null);
 
 export function resolveTimeTrackingSettings(raw) {
@@ -26,10 +26,10 @@ export function resolveTimeTrackingSettings(raw) {
   return {
     defaultCustomerId: idOrNull(s.defaultCustomerId),
     defaultProjectId: idOrNull(s.defaultProjectId),
-    dateFormat: oneOf(s.dateFormat, TT_DATE_FORMATS),
-    timeFormat: oneOf(s.timeFormat, TT_TIME_FORMATS),
+    dateFormat: oneOf(s.dateFormat, DATE_FORMATS),
+    timeFormat: oneOf(s.timeFormat, TIME_FORMATS),
     timezone: isValidTimezone(s.timezone) ? s.timezone : browserTimezone(),
-    durationFormat: oneOf(s.durationFormat, TT_DURATION_FORMATS)
+    durationFormat: oneOf(s.durationFormat, DURATION_FORMATS)
   };
 }
 
