@@ -181,13 +181,22 @@ function showSection(root, sectionId) {
   }
 }
 
+// Focus the section heading (not a field) so further shortcuts keep working and Tab starts in the section.
+function focusSectionHeading(root, sectionId) {
+  const heading = root.getElementById(`tt-section-${sectionId}`)?.querySelector('h2');
+  if (!heading) return;
+  heading.tabIndex = -1;
+  heading.focus();
+}
+
 function createNavigator(root, onShow) {
   let current = null;
   return {
-    show(id) {
+    show(id, { focus = false } = {}) {
       showSection(root, id);
       current = id;
       onShow[id]?.();
+      if (focus) focusSectionHeading(root, id);
     },
     current: () => current
   };
@@ -219,7 +228,7 @@ const {
   ttNewEntry, ttFocusFilter, ttSubmitInline, ttAdjustUp, ttAdjustDown,
   ttSelectNext, ttSelectPrev, ttEditEntry, ttDuplicateEntry, ttDeleteEntry, ttConfirmDelete,
   ttPrevMonth, ttNextMonth
-} =DEFAULT_APP_KEYBINDINGS;
+} = DEFAULT_APP_KEYBINDINGS;
 
 const GOTO_BINDINGS = [
   { binding: ttGotoTracker, section: 'tracker', label: 'Go to Time Tracker' },
@@ -275,8 +284,7 @@ const MONTH_COMMANDS = [
   { binding: ttNextMonth, command: 'nextMonth' }
 ];
 
-function wireKeyboard(root, { tracker, reports, nav }) {
-  const modal = root.getElementById('tt-help-modal');
+function wireKeyboard(root, { tracker, reports, nav, help }) {
   let pendingPrefix = null;
   let pendingTimer = null;
 
@@ -289,12 +297,19 @@ function wireKeyboard(root, { tracker, reports, nav }) {
       clearTimeout(pendingTimer);
       const match = !typing && GOTO_BINDINGS.find(({ binding }) =>
         binding.key === prefix && matchesKey(ev, secondKey(binding)));
-      if (match) { ev.preventDefault(); nav.show(match.section); return; }
+      if (match) { ev.preventDefault(); nav.show(match.section, { focus: true }); return; }
+    }
+
+    if (help.isOpen()) {
+      if (matchesKey(ev, ttCloseModal) || matchesKey(ev, ttHelp)) {
+        ev.preventDefault();
+        help.close();
+      }
+      return;
     }
 
     if (matchesKey(ev, ttCloseModal)) {
       if (tracker.cancel()) ev.preventDefault();
-      else if (modal && !modal.hidden) modal.hidden = true;
       else if (typing) root.activeElement.blur();
       return;
     }
@@ -352,7 +367,7 @@ function wireKeyboard(root, { tracker, reports, nav }) {
 
     if (matchesKey(ev, ttHelp)) {
       ev.preventDefault();
-      if (modal) modal.hidden = !modal.hidden;
+      help.open();
     }
   }
 
@@ -365,6 +380,9 @@ function wireKeyboard(root, { tracker, reports, nav }) {
 
 // ── Help modal ─────────────────────────────────────────────────────────────────
 
+const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
+// Modal dialog: focus moves in on open, Tab cycles inside, focus returns to the opener on close.
 function wireHelpModal(root) {
   const modal = root.getElementById('tt-help-modal');
   const rows = root.getElementById('tt-help-rows');
@@ -373,8 +391,39 @@ function wireHelpModal(root) {
       .map(({ binding, label }) => `<tr><td>${escapeHtml(keyLabel(binding))}</td><td>${escapeHtml(label)}</td></tr>`)
       .join('');
   }
-  root.getElementById('tt-help-modal-close')?.addEventListener('click', () => { if (modal) modal.hidden = true; });
-  modal?.addEventListener('click', (ev) => { if (ev.target === modal) modal.hidden = true; });
+  let opener = null;
+
+  const isOpen = () => !!modal && !modal.hidden;
+
+  function open() {
+    if (!modal || isOpen()) return;
+    opener = root.activeElement;
+    modal.hidden = false;
+    modal.querySelector(FOCUSABLE)?.focus();
+  }
+
+  function close() {
+    if (!isOpen()) return;
+    modal.hidden = true;
+    if (opener?.isConnected) opener.focus();
+    opener = null;
+  }
+
+  function trapTab(ev) {
+    if (ev.key !== 'Tab') return;
+    const focusable = [...modal.querySelectorAll(FOCUSABLE)];
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = root.activeElement;
+    if (ev.shiftKey && (active === first || !modal.contains(active))) { ev.preventDefault(); last.focus(); }
+    else if (!ev.shiftKey && (active === last || !modal.contains(active))) { ev.preventDefault(); first.focus(); }
+  }
+
+  root.getElementById('tt-help-modal-close')?.addEventListener('click', close);
+  modal?.addEventListener('click', (ev) => { if (ev.target === modal) close(); });
+  modal?.addEventListener('keydown', trapTab);
+  return { isOpen, open, close };
 }
 
 // ── Page ───────────────────────────────────────────────────────────────────────
@@ -384,12 +433,12 @@ export function mountTimeTracking(root = document, {
   getPrefs = () => timeTrackingPrefs(getSettings()),
   createChart
 } = {}) {
-  wireHelpModal(root);
+  const help = wireHelpModal(root);
   const tracker = mountTrackerPanel(root.getElementById('tt-section-tracker'), { getPrefs, getSettings });
   const reports = mountReportsPanel(root.getElementById('tt-section-reports'), { getPrefs, createChart });
   const nav = createNavigator(root, { reports: reports.show });
   wireSidebar(root, nav);
-  const unwireKeyboard = wireKeyboard(root, { tracker, reports, nav });
+  const unwireKeyboard = wireKeyboard(root, { tracker, reports, nav, help });
   const projects = root.getElementById('tt-section-projects');
   const unmountProjects = projects ? mountProjectsPanel(projects) : () => {};
   const settings = root.getElementById('tt-section-settings');

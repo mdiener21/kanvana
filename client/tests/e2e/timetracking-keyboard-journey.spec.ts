@@ -1,15 +1,7 @@
-import { test, expect, type Page, type Locator } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 // Keyboard only: no click / fill / selectOption / hover / mouse — every step is page.keyboard.
 test.use({ timezoneId: 'Europe/Berlin', locale: 'en-US' });
-
-async function tabTo(page: Page, target: Locator, key: 'Tab' | 'Shift+Tab' = 'Tab'): Promise<void> {
-  for (let i = 0; i < 30; i++) {
-    if (await target.evaluate((el) => el === document.activeElement)) return;
-    await page.keyboard.press(key);
-  }
-  await expect(target).toBeFocused();
-}
 
 async function press(page: Page, ...keys: string[]): Promise<void> {
   for (const key of keys) await page.keyboard.press(key);
@@ -34,10 +26,12 @@ test('the whole time-tracking flow works with the keyboard only', async ({ page 
   const project = page.getByLabel('Project', { exact: true });
   await expect(description).toBeVisible();
 
-  // Customers and projects
+  // Customers and projects: g p focuses the section heading, Tab reaches its first field
   await press(page, 'g', 'p');
+  await expect(page.getByRole('heading', { name: 'Customers & Projects' })).toBeFocused();
   const customerInput = page.getByLabel('New customer name');
-  await tabTo(page, customerInput);
+  await press(page, 'Tab');
+  await expect(customerInput).toBeFocused();
   await page.keyboard.type('Acme');
   await press(page, 'Enter');
   await page.keyboard.type('Globex');
@@ -46,8 +40,9 @@ test('the whole time-tracking flow works with the keyboard only', async ({ page 
 
   const customerSelect = page.getByLabel('Select customer for new project');
   const projectInput = page.getByLabel('New project name');
+  await press(page, 'Tab', 'Tab'); // past "Add customer" to the customer picker
   for (const [customer, name] of [['Acme', 'Website'], ['Globex', 'Support']]) {
-    await tabTo(page, customerSelect, 'Shift+Tab');
+    await expect(customerSelect).toBeFocused();
     await page.keyboard.type(customer);
     await expect(customerSelect.locator('option:checked')).toHaveText(customer);
     await press(page, 'Tab');
@@ -55,6 +50,7 @@ test('the whole time-tracking flow works with the keyboard only', async ({ page 
     await page.keyboard.type(name);
     await press(page, 'Enter');
     await expect(page.locator('.tt-project-name', { hasText: name })).toBeVisible();
+    await press(page, 'Shift+Tab'); // back to the customer picker
   }
 
   await press(page, 'Escape');
@@ -216,10 +212,15 @@ test('the whole time-tracking flow works with the keyboard only', async ({ page 
   await expect(help).toBeHidden();
   await press(page, 'Shift+Slash');
   await expect(help).toBeVisible();
+  const closeHelp = help.getByRole('button', { name: 'Close' });
+  await expect(closeHelp).toBeFocused();
+  await press(page, 'Tab');
+  await expect(closeHelp).toBeFocused();
   await expect(help.getByRole('row', { name: /New entry/ })).toContainText('n');
   await expect(help.getByRole('row', { name: /Previous month \(Reports\)/ })).toContainText('[');
   await press(page, 'Escape');
   await expect(help).toBeHidden();
+  await expect(page.getByRole('heading', { name: 'Reports' })).toBeFocused();
 
   await page.reload();
   await expect(page.locator('.tt-entry-row')).toHaveCount(3);
