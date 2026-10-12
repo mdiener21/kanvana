@@ -111,6 +111,13 @@ describe('archive filtering', () => {
     expect(isProjectActive(null, tt)).toBe(false);
   });
 
+  test('a project whose customer is missing is not selectable', () => {
+    const orphan = { id: 'p9', customerId: 'gone', name: 'Orphan', color: '#000', archived: false };
+    const withOrphan = { ...tt, projects: [...tt.projects, orphan] };
+    expect(isProjectActive(orphan, withOrphan)).toBe(false);
+    expect(pickableProjects(withOrphan).map((p) => p.id)).toEqual(['p1']);
+  });
+
   test('the picker offers only selectable projects', () => {
     expect(pickableProjects(tt).map((p) => p.id)).toEqual(['p1']);
   });

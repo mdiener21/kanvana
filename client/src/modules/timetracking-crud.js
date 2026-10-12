@@ -55,7 +55,8 @@ export function validateProjectName(name, customerId, projects, skipId = null) {
 
 export function isProjectActive(project, tt) {
   if (!project || project.archived) return false;
-  return !customerById(tt, project.customerId)?.archived;
+  const customer = customerById(tt, project.customerId);
+  return !!customer && !customer.archived;
 }
 
 // keepProjectId: an edited entry may stay on its own project even after that project was archived.
