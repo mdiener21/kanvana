@@ -110,6 +110,26 @@ describe('persistence in the global settings layer', () => {
     expect(loadTimeTrackingSettings().timezone).toBe('Asia/Tokyo');
   });
 
+  test('saving another setting does not pin or sync the browser timezone', () => {
+    const events = [];
+    const listener = (ev) => events.push(ev.detail);
+    on(EVENT_EMITTED, listener);
+    saveTimeTrackingSettings({ dateFormat: 'YYYY-MM-DD' });
+    off(EVENT_EMITTED, listener);
+
+    expect(events[0].payload.fields.timeTracking).not.toHaveProperty('timezone');
+    const otherZone = browserZone === 'Asia/Tokyo' ? 'America/New_York' : 'Asia/Tokyo';
+    const spy = vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockReturnValue({ timeZone: otherZone });
+    expect(loadTimeTrackingSettings().timezone).toBe(otherZone);
+    spy.mockRestore();
+  });
+
+  test('a chosen timezone is kept when another setting is saved', () => {
+    saveTimeTrackingSettings({ timezone: 'Asia/Tokyo' });
+    saveTimeTrackingSettings({ timeFormat: '12h' });
+    expect(loadGlobalSettings().timeTracking).toMatchObject({ timezone: 'Asia/Tokyo', timeFormat: '12h' });
+  });
+
   test('saving one setting keeps the others', () => {
     saveTimeTrackingSettings({ timeFormat: '12h' });
     saveTimeTrackingSettings({ dateFormat: 'MM/DD/YYYY' });

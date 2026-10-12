@@ -224,10 +224,10 @@ test('settings.updated in the timetracking scope touches neither board nor globa
 
 test('projection state carries an empty time-tracking slot that survives events', () => {
   const state = createProjectionState();
-  expect(state.timeTracking).toEqual({ customers: [], projects: [], timeEntries: [] });
+  expect(state.timeTracking).toEqual({ customers: [], projects: [], timeEntries: [], tombstones: { customers: {}, projects: {} } });
 
   const next = applyEvent(state, event({ id: 'board-ev', type: 'settings.updated', payload: { fields: { a: 1 } } }));
-  expect(next.timeTracking).toEqual({ customers: [], projects: [], timeEntries: [] });
+  expect(next.timeTracking).toEqual({ customers: [], projects: [], timeEntries: [], tombstones: { customers: {}, projects: {} } });
 });
 
 test('subtask and relationship events update embedded task collections', () => {

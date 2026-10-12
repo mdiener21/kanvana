@@ -114,6 +114,9 @@ function entryListHtml(tt, prefs, groups, view) {
   }).join('');
 }
 
+const DISPLAY_PREF_KEYS = ['tz', 'dateFormat', 'timeFormat', 'durationFormat'];
+const sameDisplayPrefs = (a, b) => DISPLAY_PREF_KEYS.every((key) => a[key] === b[key]);
+
 export function mountTrackerPanel(container, { getPrefs, getSettings }) {
   container.innerHTML = PANEL_HTML;
   renderIcons(container);
@@ -156,15 +159,14 @@ export function mountTrackerPanel(container, { getPrefs, getSettings }) {
 
   const view = { selectedId: null, confirmingId: null };
   let visibleIds = [];
-  let displayKey = null;
+  let displayedPrefs = null;
 
   function redisplayOnFormatChange(prefs) {
-    const key = [prefs.tz, prefs.dateFormat, prefs.timeFormat, prefs.durationFormat].join('|');
-    if (displayKey !== null && key !== displayKey) {
+    if (displayedPrefs && !sameDisplayPrefs(displayedPrefs, prefs)) {
       fields.redisplay();
       editor?.fields.redisplay();
     }
-    displayKey = key;
+    displayedPrefs = prefs;
   }
 
   function refresh() {

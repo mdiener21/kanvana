@@ -144,7 +144,7 @@ describe('applyRemoteEvent', () => {
 
     expect(listBoards()).toEqual(boardsBefore);
     const db = await openStore();
-    expect(await db.get(KV_STORE, 'kanvana:timetracking')).toEqual({ customers: [], projects: [], timeEntries: [] });
+    expect(await db.get(KV_STORE, 'kanvana:timetracking')).toEqual({ customers: [], projects: [], timeEntries: [], tombstones: { customers: {}, projects: {} } });
     expect(await getUnsyncedEvents()).toHaveLength(0);
   });
 });

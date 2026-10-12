@@ -2,11 +2,7 @@ import { loadGlobalSettings, loadTimeTracking } from './storage.js';
 import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 import { EVENT_SCOPE } from './constants.js';
 import { isProjectActive, projectById } from './timetracking-crud.js';
-import { DATE_FORMATS, browserTimezone } from './timetracking-time.js';
-
-export const TT_DATE_FORMATS = Object.keys(DATE_FORMATS);
-export const TT_TIME_FORMATS = ['24h', '12h'];
-export const TT_DURATION_FORMATS = ['h:mm', 'decimal'];
+import { DATE_FORMATS, TIME_FORMATS, DURATION_FORMATS, browserTimezone } from './timetracking-time.js';
 
 export function isValidTimezone(tz) {
   if (typeof tz !== 'string' || !tz) return false;
@@ -18,7 +14,11 @@ export function isValidTimezone(tz) {
   }
 }
 
-const oneOf = (value, options) => (options.includes(value) ? value : options[0]);
+// Falls back to the first (default) format.
+const oneOf = (value, formats) => {
+  const options = Object.keys(formats);
+  return options.includes(value) ? value : options[0];
+};
 const idOrNull = (value) => (typeof value === 'string' && value ? value : null);
 
 export function resolveTimeTrackingSettings(raw) {
@@ -26,34 +26,39 @@ export function resolveTimeTrackingSettings(raw) {
   return {
     defaultCustomerId: idOrNull(s.defaultCustomerId),
     defaultProjectId: idOrNull(s.defaultProjectId),
-    dateFormat: oneOf(s.dateFormat, TT_DATE_FORMATS),
-    timeFormat: oneOf(s.timeFormat, TT_TIME_FORMATS),
+    dateFormat: oneOf(s.dateFormat, DATE_FORMATS),
+    timeFormat: oneOf(s.timeFormat, TIME_FORMATS),
     timezone: isValidTimezone(s.timezone) ? s.timezone : browserTimezone(),
-    durationFormat: oneOf(s.durationFormat, TT_DURATION_FORMATS)
+    durationFormat: oneOf(s.durationFormat, DURATION_FORMATS)
   };
 }
 
-export const loadTimeTrackingSettings = () => resolveTimeTrackingSettings(loadGlobalSettings().timeTracking);
+const storedTimeTrackingSettings = () => {
+  const stored = loadGlobalSettings().timeTracking;
+  return stored && typeof stored === 'object' ? stored : {};
+};
+
+export const loadTimeTrackingSettings = () => resolveTimeTrackingSettings(storedTimeTrackingSettings());
 
 export function activeProjectsOf(tt, customerId) {
   return tt.projects.filter((p) => p.customerId === customerId && isProjectActive(p, tt));
 }
 
+// Persists only what the user chose: unset fields (notably timezone) keep resolving per device.
 export function saveTimeTrackingSettings(patch) {
-  const next = { ...loadTimeTrackingSettings(), ...patch };
+  const next = { ...storedTimeTrackingSettings(), ...patch };
   if ('defaultCustomerId' in patch) {
     next.defaultProjectId = next.defaultCustomerId
       ? activeProjectsOf(loadTimeTracking(), next.defaultCustomerId)[0]?.id ?? null
       : null;
   }
-  const resolved = resolveTimeTrackingSettings(next);
   scheduleDomainEvent({
     type: 'settings.updated',
     scope: EVENT_SCOPE.GLOBAL,
     entityId: 'timeTracking',
-    payload: { fields: { timeTracking: resolved } }
+    payload: { fields: { timeTracking: next } }
   });
-  return resolved;
+  return resolveTimeTrackingSettings(next);
 }
 
 // Per-device convenience state: deliberately local storage, not a domain event, so it never syncs.
@@ -70,7 +75,6 @@ const activeProjectId = (tt, id) => {
   return project && isProjectActive(project, tt) ? project.id : null;
 };
 
-// Single resolution point for the entry bar's project prefill.
 export function prefillProjectId(tt, settings, lastUsedProjectId = null) {
   return activeProjectId(tt, lastUsedProjectId) ?? activeProjectId(tt, settings.defaultProjectId);
 }

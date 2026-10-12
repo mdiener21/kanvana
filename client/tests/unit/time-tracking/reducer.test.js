@@ -208,12 +208,51 @@ test('customer.deleted removes an unreferenced customer', () => {
   expect(next.timeTracking.customers).toEqual([]);
 });
 
-test('replayed deletes of referenced items keep them', () => {
+test('replayed deletes of referenced items keep them, archived', () => {
   const state = baseState({ customers: [ACME_C], projects: [WEBSITE_P], timeEntries: [ON_WEBSITE] });
   const next = applyEvents(state, [
     event({ type: 'project.deleted', entity_id: 'p1' }),
     event({ type: 'customer.deleted', entity_id: 'c1' })
   ]);
+  expect(next.timeTracking.projects).toEqual([{ ...WEBSITE_P, archived: true }]);
+  expect(next.timeTracking.customers).toEqual([{ ...ACME_C, archived: true }]);
+  expect(next.timeTracking.timeEntries).toEqual([ON_WEBSITE]);
+});
+
+// ── Concurrent delete vs. new reference (no orphans) ───────────────────────────
+
+const at = (wallTime, overrides) => ({ ...event(overrides), hlc: hlc(wallTime) });
+
+test('project.created after its customer was deleted restores the customer as archived', () => {
+  const next = applyEvents(baseState({ customers: [ACME_C] }), [
+    at(1, { type: 'customer.deleted', entity_id: 'c1', payload: { customer: ACME_C } }),
+    at(2, { type: 'project.created', entity_id: 'p1', payload: { project: WEBSITE_P } })
+  ]);
+  expect(next.timeTracking.customers).toEqual([{ ...ACME_C, archived: true }]);
   expect(next.timeTracking.projects).toEqual([WEBSITE_P]);
-  expect(next.timeTracking.customers).toEqual([ACME_C]);
+});
+
+test('time_entry.created after its project and customer were deleted restores both as archived', () => {
+  const next = applyEvents(baseState({ customers: [ACME_C], projects: [WEBSITE_P] }), [
+    at(1, { type: 'project.deleted', entity_id: 'p1', payload: { project: WEBSITE_P } }),
+    at(2, { type: 'customer.deleted', entity_id: 'c1', payload: { customer: ACME_C } }),
+    at(3, { type: 'time_entry.created', entity_id: ON_WEBSITE.id, payload: { timeEntry: ON_WEBSITE } })
+  ]);
+  expect(next.timeTracking.projects).toEqual([{ ...WEBSITE_P, archived: true }]);
+  expect(next.timeTracking.customers).toEqual([{ ...ACME_C, archived: true }]);
+  expect(next.timeTracking.timeEntries).toEqual([ON_WEBSITE]);
+});
+
+test('a delete that raced a new reference converges to the item archived, whatever the arrival order', () => {
+  const deleted = at(1, { type: 'customer.deleted', entity_id: 'c1', payload: { customer: ACME_C } });
+  const created = at(2, { type: 'project.created', entity_id: 'p1', payload: { project: WEBSITE_P } });
+  const start = baseState({ customers: [ACME_C] });
+
+  const replayed = applyEvents(start, [created, deleted]);
+  const createdFirst = applyEvent(applyEvent(start, created), deleted);
+  const deletedFirst = applyEvent(applyEvent(start, deleted), created);
+
+  expect(createdFirst.timeTracking).toEqual(replayed.timeTracking);
+  expect(deletedFirst.timeTracking).toEqual(replayed.timeTracking);
+  expect(replayed.timeTracking.customers).toEqual([{ ...ACME_C, archived: true }]);
 });

@@ -3,9 +3,9 @@ import { on, off, DATA_CHANGED } from './events.js';
 import { renderIcons } from './icons.js';
 import { DEFAULT_APP_KEYBINDINGS, matchesKey } from './constants.js';
 import {
-  addCustomer, addProject, setCustomerArchived, setProjectArchived, deleteCustomer, deleteProject,
-  isCustomerInUse, isProjectInUse, CRUD_ERROR
+  addCustomer, addProject, setCustomerArchived, setProjectArchived, deleteCustomer, deleteProject, CRUD_ERROR
 } from './timetracking-crud.js';
+import { isCustomerInUse, isProjectInUse } from './timetracking-references.js';
 import { escapeHtml } from './security.js';
 import { showToast } from './timetracking-toast.js';
 import { mountTrackerPanel } from './timetracking-tracker.js';

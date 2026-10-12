@@ -12,15 +12,15 @@ export function filterEntries(tt, filter) {
   });
 }
 
+const toOption = ({ id, name, archived }) => ({ id, name, archived: !!archived });
+
 export function filterOptions(tt, filter) {
-  const customers = tt.customers.map(({ id, name, archived }) => ({ id, name, archived: !!archived }));
+  const customers = tt.customers.map(toOption);
   const projectGroups = tt.customers
     .filter((customer) => !filter.customerId || customer.id === filter.customerId)
     .map((customer) => ({
-      customer: { id: customer.id, name: customer.name, archived: !!customer.archived },
-      projects: tt.projects
-        .filter((p) => p.customerId === customer.id)
-        .map(({ id, name, archived }) => ({ id, name, archived: !!archived }))
+      customer: toOption(customer),
+      projects: tt.projects.filter((p) => p.customerId === customer.id).map(toOption)
     }))
     .filter((group) => group.projects.length > 0);
   return { customers, projectGroups };

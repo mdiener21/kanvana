@@ -7,12 +7,29 @@ export const TT_FALLBACK_TIMEZONE = 'Europe/Berlin';
 
 export const browserTimezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || TT_FALLBACK_TIMEZONE;
 
+// ── Display formats: the single source of options, labels and defaults ──────────
+// Each map is value → label (date formats → their layout, labelled by the value).
+// The first entry is the default.
+
+export const DATE_FORMATS = {
+  'DD.MM.YYYY': { order: ['d', 'm', 'y'], separator: '.' },
+  'MM/DD/YYYY': { order: ['m', 'd', 'y'], separator: '/' },
+  'YYYY-MM-DD': { order: ['y', 'm', 'd'], separator: '-' }
+};
+export const TIME_FORMATS = { '24h': '24-hour', '12h': '12-hour' };
+export const DURATION_FORMATS = { 'h:mm': 'h:mm (7:30)', decimal: 'Decimal (7.50 h)' };
+
+const defaultOf = (formats) => Object.keys(formats)[0];
+export const DEFAULT_DATE_FORMAT = defaultOf(DATE_FORMATS);
+export const DEFAULT_TIME_FORMAT = defaultOf(TIME_FORMATS);
+export const DEFAULT_DURATION_FORMAT = defaultOf(DURATION_FORMATS);
+
 export function timeTrackingPrefs(settings = {}, now = Date.now()) {
   return {
     tz: settings?.timezone ?? browserTimezone(),
-    dateFormat: settings?.dateFormat ?? 'DD.MM.YYYY',
-    timeFormat: settings?.timeFormat ?? '24h',
-    durationFormat: settings?.durationFormat ?? 'h:mm',
+    dateFormat: settings?.dateFormat ?? DEFAULT_DATE_FORMAT,
+    timeFormat: settings?.timeFormat ?? DEFAULT_TIME_FORMAT,
+    durationFormat: settings?.durationFormat ?? DEFAULT_DURATION_FORMAT,
     now
   };
 }
@@ -97,13 +114,7 @@ export function parseDuration(input) {
   return null;
 }
 
-export const DATE_FORMATS = {
-  'DD.MM.YYYY': { order: ['d', 'm', 'y'], separator: '.' },
-  'MM/DD/YYYY': { order: ['m', 'd', 'y'], separator: '/' },
-  'YYYY-MM-DD': { order: ['y', 'm', 'd'], separator: '-' }
-};
-
-const dateFormatOf = (dateFormat) => DATE_FORMATS[dateFormat] ?? DATE_FORMATS['DD.MM.YYYY'];
+const dateFormatOf = (dateFormat) => DATE_FORMATS[dateFormat] ?? DATE_FORMATS[DEFAULT_DATE_FORMAT];
 
 export function parseDate(input, { dateFormat, tz, now }) {
   const s = String(input ?? '').trim().toLowerCase();
@@ -146,7 +157,7 @@ export const formatDate = (ms, { tz, dateFormat }) => formatYmd(zonedParts(ms, t
 
 export const formatTime = (ms, { tz, timeFormat }) => formatMinutes(zonedParts(ms, tz).minutes, timeFormat);
 
-export function formatDuration(ms, durationFormat = 'h:mm') {
+export function formatDuration(ms, durationFormat = DEFAULT_DURATION_FORMAT) {
   const minutes = Math.round(ms / MINUTE_MS);
   if (durationFormat === 'decimal') return `${(minutes / 60).toFixed(2)} h`;
   return `${Math.floor(minutes / 60)}:${pad2(minutes % 60)}`;

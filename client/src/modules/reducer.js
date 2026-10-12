@@ -1,11 +1,21 @@
 import { EVENT_SCOPE, isDoneColumn } from './constants.js';
+import { isCustomerInUse, isProjectInUse } from './timetracking-references.js';
 
+const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
+
+// tombstones: id → snapshot of deleted customers / projects, so a reference that raced
+// the delete (logged on another device) can restore its parent instead of orphaning.
 export function createTimeTrackingState(seed = {}) {
-  const source = seed && typeof seed === 'object' ? seed : {};
+  const source = isPlainObject(seed) ? seed : {};
+  const tombstones = isPlainObject(source.tombstones) ? source.tombstones : {};
   return {
     customers: Array.isArray(source.customers) ? source.customers : [],
     projects: Array.isArray(source.projects) ? source.projects : [],
-    timeEntries: Array.isArray(source.timeEntries) ? source.timeEntries : []
+    timeEntries: Array.isArray(source.timeEntries) ? source.timeEntries : [],
+    tombstones: {
+      customers: isPlainObject(tombstones.customers) ? tombstones.customers : {},
+      projects: isPlainObject(tombstones.projects) ? tombstones.projects : {}
+    }
   };
 }
 
@@ -23,14 +33,15 @@ export function createProjectionState(seed = {}) {
   };
 }
 
-export const isCustomerInUse = (tt, customerId) => tt.projects.some((p) => p.customerId === customerId);
-export const isProjectInUse = (tt, projectId) => tt.timeEntries.some((e) => e.projectId === projectId);
-
 function cloneTimeTracking(timeTracking) {
   return {
     customers: timeTracking.customers.map((customer) => ({ ...customer })),
     projects: timeTracking.projects.map((project) => ({ ...project })),
-    timeEntries: timeTracking.timeEntries.map((entry) => ({ ...entry }))
+    timeEntries: timeTracking.timeEntries.map((entry) => ({ ...entry })),
+    tombstones: {
+      customers: { ...timeTracking.tombstones.customers },
+      projects: { ...timeTracking.tombstones.projects }
+    }
   };
 }
 
@@ -304,16 +315,36 @@ function applyCustomerCreated(state, event) {
   return { ...state, timeTracking: { ...tt, customers: [...tt.customers, { id: event.entity_id, ...event.payload.customer }] } };
 }
 
+// Brings a tombstoned item back as archived; a no-op when it exists or was never deleted.
+function restoreArchived(tt, collection, id) {
+  const snapshot = tt.tombstones[collection][id];
+  if (!snapshot || tt[collection].some((x) => x.id === id)) return;
+  delete tt.tombstones[collection][id];
+  tt[collection].push({ ...snapshot, id, archived: true });
+}
+
+function restoreProjectAndCustomer(tt, projectId) {
+  restoreArchived(tt, 'projects', projectId);
+  const project = tt.projects.find((p) => p.id === projectId);
+  if (project) restoreArchived(tt, 'customers', project.customerId);
+}
+
 function applyProjectCreated(state, event) {
   if (state.timeTracking.projects.some((p) => p.id === event.entity_id)) return state;
   const tt = cloneTimeTracking(state.timeTracking);
-  return { ...state, timeTracking: { ...tt, projects: [...tt.projects, { id: event.entity_id, ...event.payload.project }] } };
+  const project = { id: event.entity_id, ...event.payload.project };
+  restoreArchived(tt, 'customers', project.customerId);
+  tt.projects.push(project);
+  return { ...state, timeTracking: tt };
 }
 
 function applyTimeEntryCreated(state, event) {
   if (state.timeTracking.timeEntries.some((e) => e.id === event.entity_id)) return state;
   const tt = cloneTimeTracking(state.timeTracking);
-  return { ...state, timeTracking: { ...tt, timeEntries: [...tt.timeEntries, { ...event.payload.timeEntry, id: event.entity_id }] } };
+  const timeEntry = { ...event.payload.timeEntry, id: event.entity_id };
+  restoreProjectAndCustomer(tt, timeEntry.projectId);
+  tt.timeEntries.push(timeEntry);
+  return { ...state, timeTracking: tt };
 }
 
 function applyTimeEntryUpdated(state, event) {
@@ -341,10 +372,15 @@ function archiveHandler(collection, archived) {
 }
 
 // A delete that raced a new reference (e.g. an entry logged on another device) must not orphan it.
-function guardedDeleteHandler(collection, inUse) {
+// Whichever arrives first, the item ends up archived: an in-use delete archives instead, and a
+// reference arriving after the delete restores the tombstoned item (payload[entity]) as archived.
+function guardedDeleteHandler(collection, entity, inUse) {
+  const archive = archiveHandler(collection, true);
   return (state, event) => {
-    if (inUse(state.timeTracking, event.entity_id)) return state;
+    if (inUse(state.timeTracking, event.entity_id)) return archive(state, event);
     const tt = cloneTimeTracking(state.timeTracking);
+    const item = tt[collection].find((x) => x.id === event.entity_id) ?? event.payload?.[entity];
+    if (item) tt.tombstones[collection][event.entity_id] = { ...item, id: event.entity_id };
     return { ...state, timeTracking: { ...tt, [collection]: tt[collection].filter((x) => x.id !== event.entity_id) } };
   };
 }
@@ -376,11 +412,11 @@ const handlers = {
   'customer.created': applyCustomerCreated,
   'customer.archived': archiveHandler('customers', true),
   'customer.unarchived': archiveHandler('customers', false),
-  'customer.deleted': guardedDeleteHandler('customers', isCustomerInUse),
+  'customer.deleted': guardedDeleteHandler('customers', 'customer', isCustomerInUse),
   'project.created': applyProjectCreated,
   'project.archived': archiveHandler('projects', true),
   'project.unarchived': archiveHandler('projects', false),
-  'project.deleted': guardedDeleteHandler('projects', isProjectInUse),
+  'project.deleted': guardedDeleteHandler('projects', 'project', isProjectInUse),
   'time_entry.created': applyTimeEntryCreated,
   'time_entry.updated': applyTimeEntryUpdated,
   'time_entry.deleted': applyTimeEntryDeleted

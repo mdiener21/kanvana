@@ -10,8 +10,9 @@ vi.mock('../../../src/modules/storage.js', () => ({
 
 const {
   setCustomerArchived, setProjectArchived, deleteCustomer, deleteProject,
-  isCustomerInUse, isProjectInUse, isProjectActive, validateTimeEntry, CRUD_ERROR
+  isProjectActive, validateTimeEntry, CRUD_ERROR
 } = await import('../../../src/modules/timetracking-crud.js');
+const { isCustomerInUse, isProjectInUse } = await import('../../../src/modules/timetracking-references.js');
 const { pickableProjects } = await import('../../../src/modules/timetracking-entry-fields.js');
 const { loadTimeTracking } = await import('../../../src/modules/storage.js');
 const { scheduleDomainEvent } = await import('../../../src/modules/event-sourcing/emitter.js');
@@ -109,6 +110,13 @@ describe('archive filtering', () => {
     expect(isProjectActive(LEGACY, tt)).toBe(false);
     expect(isProjectActive(SUPPORT, tt)).toBe(false);
     expect(isProjectActive(null, tt)).toBe(false);
+  });
+
+  test('a project whose customer is missing is not selectable', () => {
+    const orphan = { id: 'p9', customerId: 'gone', name: 'Orphan', color: '#000', archived: false };
+    const withOrphan = { ...tt, projects: [...tt.projects, orphan] };
+    expect(isProjectActive(orphan, withOrphan)).toBe(false);
+    expect(pickableProjects(withOrphan).map((p) => p.id)).toEqual(['p1']);
   });
 
   test('the picker offers only selectable projects', () => {
