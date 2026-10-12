@@ -13,6 +13,7 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { renderIcons } from './icons.js';
 import { escapeHtml } from './security.js';
 import { initializeThemeToggle } from './theme.js';
+import { getChartTheme } from './chart-theme.js';
 import { initStorage, ensureBoardsInitialized, getActiveBoardId, getActiveBoardName } from './storage.js';
 import { loadColumns, loadTasks } from './storage.js';
 import { isDoneColumn } from './constants.js';
@@ -30,25 +31,6 @@ echarts.use([
   LineChart,
   CanvasRenderer
 ]);
-
-// ---------------------------------------------------------------------------
-// Theme helpers
-// ---------------------------------------------------------------------------
-
-function cssVar(name, fallback) {
-  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  return value || fallback;
-}
-
-function getChartTheme() {
-  return {
-    text: cssVar('--text', '#111827'),
-    muted: cssVar('--text-muted', '#6b7280'),
-    border: cssVar('--border', '#d1d5db'),
-    borderSubtle: cssVar('--border-subtle', '#e5e7eb'),
-    surface: cssVar('--surface', '#ffffff')
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Date helpers
