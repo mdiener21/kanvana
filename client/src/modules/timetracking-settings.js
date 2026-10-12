@@ -33,27 +33,32 @@ export function resolveTimeTrackingSettings(raw) {
   };
 }
 
-export const loadTimeTrackingSettings = () => resolveTimeTrackingSettings(loadGlobalSettings().timeTracking);
+const storedTimeTrackingSettings = () => {
+  const stored = loadGlobalSettings().timeTracking;
+  return stored && typeof stored === 'object' ? stored : {};
+};
+
+export const loadTimeTrackingSettings = () => resolveTimeTrackingSettings(storedTimeTrackingSettings());
 
 export function activeProjectsOf(tt, customerId) {
   return tt.projects.filter((p) => p.customerId === customerId && isProjectActive(p, tt));
 }
 
+// Persists only what the user chose: unset fields (notably timezone) keep resolving per device.
 export function saveTimeTrackingSettings(patch) {
-  const next = { ...loadTimeTrackingSettings(), ...patch };
+  const next = { ...storedTimeTrackingSettings(), ...patch };
   if ('defaultCustomerId' in patch) {
     next.defaultProjectId = next.defaultCustomerId
       ? activeProjectsOf(loadTimeTracking(), next.defaultCustomerId)[0]?.id ?? null
       : null;
   }
-  const resolved = resolveTimeTrackingSettings(next);
   scheduleDomainEvent({
     type: 'settings.updated',
     scope: EVENT_SCOPE.GLOBAL,
     entityId: 'timeTracking',
-    payload: { fields: { timeTracking: resolved } }
+    payload: { fields: { timeTracking: next } }
   });
-  return resolved;
+  return resolveTimeTrackingSettings(next);
 }
 
 // Per-device convenience state: deliberately local storage, not a domain event, so it never syncs.
