@@ -48,7 +48,10 @@ running timer. It may cross midnight, and entries may overlap.
 
 **Archived** — a Customer or Project hidden from selection for new Time Entries but still shown in
 lists, filters and reports. A Customer or Project that is referenced (by Projects or Time Entries)
-can only be archived, never deleted; deletion is allowed only once nothing references it.
+can only be archived, never deleted; deletion is allowed only once nothing references it. When a
+delete from one device races a new reference from another, the item survives **archived**: an
+in-use delete archives instead, and a reference arriving after the delete restores the deleted item
+(from the tombstone the projection keeps) as archived — the same result in any arrival order.
 
 **Attribution** — a Time Entry's whole Duration counts toward the day and month of its **start**,
 in the user's timezone. Entries are never split at midnight or month boundaries.
@@ -102,7 +105,7 @@ The storage layer is split into three modules:
 | `kanbanActiveBoardId` | Active board ID string |
 | `kanvana:settings:global` | Global (cross-board) settings object |
 | `kanvana:hlc:node` | Persisted Hybrid Logical Clock node id |
-| `kanvana:timetracking` | Time-tracking projection (`customers` / `projects` / `timeEntries`) |
+| `kanvana:timetracking` | Time-tracking projection (`customers` / `projects` / `timeEntries`, plus `tombstones` of deleted customers / projects) |
 | `kanvana:sync:lastSeenHlc:{scope}` | Per-scope catch-up watermark (`{boardId}`, `__global__` or `__timetracking__`) |
 
 **Pattern:** `initStorage()` (async, called once at startup) → synchronous CRUD functions read/write

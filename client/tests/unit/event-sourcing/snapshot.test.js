@@ -117,7 +117,7 @@ test('gcEvents scopes timetracking, global and board snapshots independently', a
 });
 
 test('timetracking snapshot round-trips the time-tracking slot', async () => {
-  const slot = { customers: [{ id: 'c1', name: 'Acme' }], projects: [{ id: 'p1', customerId: 'c1' }], timeEntries: [] };
+  const slot = { customers: [{ id: 'c1', name: 'Acme' }], projects: [{ id: 'p1', customerId: 'c1' }], timeEntries: [], tombstones: { customers: {}, projects: {} } };
   await saveSnapshot(TIMETRACKING_SNAPSHOT_KEY, createProjectionState({ timeTracking: slot }), makeHlc(10));
 
   expect((await loadSnapshot(TIMETRACKING_SNAPSHOT_KEY)).state.timeTracking).toEqual(slot);

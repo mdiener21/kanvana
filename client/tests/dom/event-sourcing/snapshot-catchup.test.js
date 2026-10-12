@@ -175,7 +175,7 @@ describe('catch-up with a server snapshot', () => {
   });
 
   it('hydrates a timetracking snapshot into the time-tracking slot, not a board', async () => {
-    const slot = { customers: [{ id: 'c1', name: 'Acme' }], projects: [], timeEntries: [] };
+    const slot = { customers: [{ id: 'c1', name: 'Acme' }], projects: [], timeEntries: [], tombstones: { customers: {}, projects: {} } };
     const boardBytes = await gzip(SNAPSHOT_BODY);
     const ttBytes = await gzip({ ...SNAPSHOT_BODY, boards: [], tasks: [], columns: [], labels: [], timeTracking: slot });
     server.use(

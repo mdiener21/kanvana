@@ -120,7 +120,7 @@ describe('createReadModelProjector', () => {
     expect(h.state.tasks[BOARD_ID]).toBe(tasksBefore);
     expect(h.state.settings[BOARD_ID]).toEqual({});
     expect(h.state.globalSettings).toBeNull();
-    expect(h.state.timeTracking).toEqual({ customers: [], projects: [], timeEntries: [] });
+    expect(h.state.timeTracking).toEqual({ customers: [], projects: [], timeEntries: [], tombstones: { customers: {}, projects: {} } });
     expect(h.ctx.scheduleReadModelPersist).not.toHaveBeenCalled();
     expect(h.ctx.schedulePersist).toHaveBeenCalledWith(TIME_TRACKING_KEY, h.state.timeTracking);
     expect(h.ctx.checkAndScheduleSnapshot).toHaveBeenCalledWith(TIMETRACKING_SNAPSHOT_KEY, expect.anything(), { wallTime: 5, counter: 0, nodeId: 'n' });
@@ -128,7 +128,7 @@ describe('createReadModelProjector', () => {
 
   test('hydrate() with the timetracking key adopts only the time-tracking slot', () => {
     const tasksBefore = h.state.tasks[BOARD_ID];
-    const slot = { customers: [{ id: 'c1', name: 'Acme' }], projects: [], timeEntries: [] };
+    const slot = { customers: [{ id: 'c1', name: 'Acme' }], projects: [], timeEntries: [], tombstones: { customers: {}, projects: {} } };
     h.projector.hydrate(TIMETRACKING_SNAPSHOT_KEY, { timeTracking: slot, boards: [{ id: 'other' }] });
 
     expect(h.state.timeTracking).toEqual(slot);
