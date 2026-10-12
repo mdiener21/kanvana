@@ -141,6 +141,8 @@ const createEChart = (element) => echarts.init(element);
 
 const isVisible = (element) => !element.closest('[hidden]');
 
+const isSameMonth = (a, b) => a.y === b.y && a.m === b.m;
+
 export function mountReportsPanel(container, {
   getPrefs,
   getTimeTracking = loadTimeTracking,
@@ -162,10 +164,12 @@ export function mountReportsPanel(container, {
     labels: REPORT_FILTER_LABELS
   });
 
-  let month = currentMonth(getPrefs().now, getPrefs().tz);
+  let prefs = getPrefs();
+  let month = currentMonth(prefs.now, prefs.tz);
+  // Until the user picks another month, the report tracks "now" (midnight rollover, timezone change).
+  let followsCurrentMonth = true;
   let chart = null;
   let summary = null;
-  let prefs = null;
 
   function renderChart() {
     if (!summary || summary.entryCount === 0 || !isVisible(chartElement)) return;
@@ -177,6 +181,7 @@ export function mountReportsPanel(container, {
   function refresh() {
     const tt = getTimeTracking();
     prefs = getPrefs();
+    if (followsCurrentMonth) month = currentMonth(prefs.now, prefs.tz);
     filter.refresh();
     summary = summarizeMonth(tt, filterEntries(tt, filter.getFilter()), month, prefs.tz);
     const name = monthLabel(month);
@@ -196,6 +201,8 @@ export function mountReportsPanel(container, {
 
   function step(delta) {
     month = shiftMonth(month, delta);
+    const { now, tz } = getPrefs();
+    followsCurrentMonth = isSameMonth(month, currentMonth(now, tz));
     refresh();
   }
 
