@@ -143,6 +143,23 @@ describe('Settings section', () => {
     expect(setting('Default project').value).toBe('p4');
   });
 
+  test('an archived default customer stays visible, marked archived, and does not prefill', () => {
+    mount({ settings: { timezone: 'Europe/Berlin', defaultCustomerId: 'c3', defaultProjectId: null } });
+    expect(setting('Default customer').value).toBe('c3');
+    expect(optionLabels('Default customer')).toEqual(['None', 'Acme', 'Beta', 'Gone (archived)']);
+    expect(barValue('Project')).toBe('');
+  });
+
+  test('an archived default project stays visible, marked archived, and does not prefill', () => {
+    mount({ settings: { timezone: 'Europe/Berlin', defaultCustomerId: 'c2', defaultProjectId: 'p3' } });
+    expect(setting('Default project').value).toBe('p3');
+    expect(optionLabels('Default project')).toEqual(['None', 'App', 'Old (archived)']);
+    expect(barValue('Project')).toBe('');
+
+    choose('Default project', 'p4');
+    expect(optionLabels('Default project')).toEqual(['None', 'App']);
+  });
+
   test('re-renders from settings synced from another device', async () => {
     mount();
     const { emit, DATA_CHANGED } = await import('../../../src/modules/events.js');

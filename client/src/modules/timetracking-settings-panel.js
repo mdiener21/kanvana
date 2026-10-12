@@ -46,14 +46,27 @@ function timezoneOptions(selected) {
   return [...new Set([selected, ...zones, 'UTC'])].sort().map((zone) => [zone, zone]);
 }
 
+// Archived items are not offered, but a default that has since been archived stays
+// selected and visible as such (the entry bar does not prefill it).
+function defaultOptions(selectable, all, selectedId) {
+  const selectedArchived = selectable.some((x) => x.id === selectedId) ? null : all.find((x) => x.id === selectedId);
+  return [
+    ['', 'None'],
+    ...selectable.map((x) => [x.id, x.name]),
+    ...(selectedArchived ? [[selectedArchived.id, `${selectedArchived.name} (archived)`]] : [])
+  ];
+}
+
 function optionPairs(key, settings, tt) {
   switch (key) {
     case 'defaultCustomerId':
-      return [['', 'None'], ...tt.customers.filter((c) => !c.archived).map((c) => [c.id, c.name])];
+      return defaultOptions(tt.customers.filter((c) => !c.archived), tt.customers, settings.defaultCustomerId);
     case 'defaultProjectId':
-      return [['', 'None'], ...(settings.defaultCustomerId
-        ? activeProjectsOf(tt, settings.defaultCustomerId).map((p) => [p.id, p.name])
-        : [])];
+      return defaultOptions(
+        settings.defaultCustomerId ? activeProjectsOf(tt, settings.defaultCustomerId) : [],
+        tt.projects.filter((p) => p.customerId === settings.defaultCustomerId),
+        settings.defaultProjectId
+      );
     case 'dateFormat': return TT_DATE_FORMATS.map((f) => [f, f]);
     case 'timeFormat': return TIME_FORMAT_OPTIONS;
     case 'timezone': return timezoneOptions(settings.timezone);
