@@ -14,11 +14,14 @@
   --color-warning: #f59e0b;
   --color-warning-bg: #fef3c7;
   --color-warning-fg: #78350f;
+  /* Accent for text, outlines and indicator bars on surfaces (fills use --color-primary) */
+  --accent: var(--color-primary);
 
   /* Surface colors */
   --app-bg: #f3f4f6;
   --surface: #ffffff;
   --surface-muted: #f9fafb;
+  --surface-hover: #f3f4f6;
 
   /* Border colors */
   --border: #d1d5db;
@@ -72,6 +75,8 @@
   --app-bg: #111827;
   --surface: #1f2937;
   --surface-muted: #0f172a;
+  /* Keeps --text-muted >= 4.5:1 on hovered/selected rows */
+  --surface-hover: #283548;
   --border: #374151;
   --border-subtle: #334155;
   --text: #e5e7eb;
@@ -88,6 +93,8 @@
   --color-danger-bg: rgba(220, 38, 38, 0.15);
   --color-warning-bg: rgba(245, 158, 11, 0.18);
   --color-warning-fg: #fcd34d;
+  /* --color-primary is < 4.5:1 on dark surfaces; lighter blue for accent text */
+  --accent: #60a5fa;
 
   /* Priority badge colors – brighter for dark surfaces */
   --priority-high-fg: #f87171;

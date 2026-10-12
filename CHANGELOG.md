@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The Time Tracking page now opens on the Time Tracker instead of Projects.
 - The Time Tracking page background now follows dark mode.
+- In dark mode, the Time Tracking page's hovered and selected rows, active sidebar item and blue accents (links, `+1 day`, focus rings) now use dark-theme colours that stay readable, instead of light-grey highlights.
 
 - Sync now carries a separate time-tracking data stream alongside boards and global settings, in preparation for Time Tracking. No visible change.
 

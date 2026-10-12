@@ -23,7 +23,7 @@
 .tt-topbar-logo {
   font-weight: 700;
   font-size: 18px;
-  color: var(--accent, #3b82f6);
+  color: var(--accent);
   text-decoration: none;
   display: flex;
   align-items: center;
@@ -36,7 +36,7 @@
 }
 .tt-topbar-spacer { flex: 1; }
 .tt-topbar-back {
-  color: var(--accent, #3b82f6);
+  color: var(--accent);
   text-decoration: none;
   font-size: 14px;
   display: flex;
@@ -54,7 +54,7 @@
   display: flex;
   align-items: center;
 }
-.tt-theme-btn:hover { background: var(--surface-hover, #f3f4f6); }
+.tt-theme-btn:hover { background: var(--surface-hover); }
 
 /* Sidebar */
 .tt-sidebar {
@@ -81,7 +81,7 @@
   border-radius: 6px;
   margin: 0 8px 4px;
 }
-.tt-sidebar-toggle:hover { background: var(--surface-hover, #f3f4f6); }
+.tt-sidebar-toggle:hover { background: var(--surface-hover); }
 .tt-shell.sidebar-collapsed .tt-sidebar-toggle-label { display: none; }
 
 .tt-nav-btn {
@@ -101,11 +101,11 @@
   white-space: nowrap;
   overflow: hidden;
 }
-.tt-nav-btn:hover { background: var(--surface-hover, #f3f4f6); }
+.tt-nav-btn:hover { background: var(--surface-hover); }
 .tt-nav-btn[aria-current="page"] {
-  background: var(--surface-hover, #f3f4f6);
+  background: var(--surface-hover);
   color: var(--text, #111);
-  box-shadow: inset 3px 0 0 var(--accent, #3b82f6);
+  box-shadow: inset 3px 0 0 var(--accent);
   font-weight: 600;
 }
 .tt-nav-btn [data-lucide] { flex-shrink: 0; width: 16px; height: 16px; }
@@ -145,8 +145,8 @@
 }
 .tt-input:focus {
   outline: none;
-  border-color: var(--accent, #3b82f6);
-  box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--input-focus-ring);
 }
 .tt-select {
   border: 1px solid var(--border, #d1d5db);
@@ -158,8 +158,8 @@
   color: var(--text, #111);
 }
 .tt-btn-add {
-  border: 1px solid var(--accent, #3b82f6);
-  background: var(--accent, #3b82f6);
+  border: 1px solid var(--color-primary);
+  background: var(--color-primary);
   color: #fff;
   border-radius: 6px;
   padding: 8px 14px;
@@ -203,7 +203,7 @@
 .tt-count { font-size: 12px; color: var(--text-muted, #6b7280); }
 .tt-tag {
   font-size: 11px;
-  background: var(--surface-hover, #f3f4f6);
+  background: var(--surface-hover);
   color: var(--text-muted, #6b7280);
   border-radius: 4px;
   padding: 1px 6px;
@@ -290,7 +290,7 @@
 .tt-entry-sep { color: var(--text-muted, #6b7280); }
 .tt-plus-day {
   font-size: 11px;
-  color: var(--accent, #3b82f6);
+  color: var(--accent);
   white-space: nowrap;
 }
 .tt-plus-day[hidden] { display: none; }
@@ -337,10 +337,10 @@
   color: var(--text, #111);
   cursor: default;
 }
-.tt-entry-row:hover { background: var(--surface-hover, #f3f4f6); }
+.tt-entry-row:hover { background: var(--surface-hover); }
 .tt-entry-row.is-selected {
-  background: var(--surface-hover, #f3f4f6);
-  box-shadow: inset 3px 0 0 var(--accent, #3b82f6);
+  background: var(--surface-hover);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 .tt-entry-actions { display: inline-flex; gap: 2px; visibility: hidden; }
 .tt-entry-row:hover .tt-entry-actions,
@@ -377,7 +377,7 @@
   font-size: 13px;
   color: var(--text, #111);
 }
-.tt-btn-danger { border-color: #dc2626; background: #dc2626; color: #fff; }
+.tt-btn-danger { border-color: var(--color-danger); background: var(--color-danger); color: #fff; }
 .tt-btn-danger:hover, .tt-btn-secondary:hover { opacity: 0.9; }
 
 /* Edit modal */
@@ -409,7 +409,7 @@
 .tt-entry-project { font-weight: 600; }
 .tt-entry-customer { color: var(--text-muted, #6b7280); }
 .tt-entry-range { font-variant-numeric: tabular-nums; color: var(--text-muted, #6b7280); }
-.tt-entry-plus { margin-left: 2px; font-size: 10px; color: var(--accent, #3b82f6); }
+.tt-entry-plus { margin-left: 2px; font-size: 10px; color: var(--accent); }
 .tt-entry-row .tt-entry-duration { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* Toast */
@@ -543,9 +543,9 @@
   justify-content: center;
   cursor: pointer;
 }
-.tt-month-btn:hover { background: var(--surface-hover, #f3f4f6); }
+.tt-month-btn:hover { background: var(--surface-hover); }
 .tt-month-btn:focus-visible,
-.tt-btn-add:focus-visible { outline: 2px solid var(--accent, #3b82f6); outline-offset: 2px; }
+.tt-btn-add:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .tt-month-btn [data-lucide], .tt-month-btn svg { width: 16px; height: 16px; }
 .tt-month-label {
   min-width: 148px;
