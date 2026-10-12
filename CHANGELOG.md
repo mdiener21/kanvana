@@ -30,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Sync now carries a separate time-tracking data stream alongside boards and global settings, in preparation for Time Tracking. No visible change.
 
+### Fixed
+
+- Edits made offline are no longer lost when you keep working long enough for Kanvana to tidy up local history. Changes that have not reached the server yet are kept and sent once you are back online.
+
 ## [3.1.7] - 2026-10-05
 
 ### Fixed
