@@ -753,7 +753,7 @@ describe('entry list filter', () => {
 
   test('/ is listed in the shortcut cheat-sheet', () => {
     mount();
-    expect(within(document.getElementById('tt-help-rows')).getByText('Focus the entry filter')).toBeTruthy();
+    expect(within(document.getElementById('tt-help-rows')).getByText('Focus the filter')).toBeTruthy();
   });
 });
 

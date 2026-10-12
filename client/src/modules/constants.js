@@ -43,6 +43,8 @@ export const DEFAULT_APP_KEYBINDINGS = {
   ttDuplicateEntry: { key: 'd', ...NO_MODIFIERS },
   ttDeleteEntry: { key: 'Delete', ...NO_MODIFIERS },
   ttConfirmDelete: { key: 'y', ...NO_MODIFIERS },
+  ttPrevMonth: { key: '[', ...NO_MODIFIERS },
+  ttNextMonth: { key: ']', ...NO_MODIFIERS },
   ttGotoTracker: { key: 'g', seq: 't', ...NO_MODIFIERS },
   ttGotoReports: { key: 'g', seq: 'r', ...NO_MODIFIERS },
   ttGotoProjects: { key: 'g', seq: 'p', ...NO_MODIFIERS },

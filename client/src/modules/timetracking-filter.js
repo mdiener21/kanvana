@@ -48,15 +48,17 @@ function optionsHtml(tt, filter) {
   };
 }
 
-const FILTER_HTML = `
-  <div class="tt-filter" role="group" aria-label="Filter entries">
-    <select class="tt-select tt-filter-customer" aria-label="Filter by customer"></select>
-    <select class="tt-select tt-filter-project" aria-label="Filter by project"></select>
+const ENTRY_LIST_LABELS = { group: 'Filter entries', customer: 'Filter by customer', project: 'Filter by project' };
+
+const filterHtml = (labels) => `
+  <div class="tt-filter" role="group" aria-label="${escapeHtml(labels.group)}">
+    <select class="tt-select tt-filter-customer" aria-label="${escapeHtml(labels.customer)}"></select>
+    <select class="tt-select tt-filter-project" aria-label="${escapeHtml(labels.project)}"></select>
   </div>
 `;
 
-export function mountEntryFilter(container, { getTimeTracking, onChange }) {
-  container.innerHTML = FILTER_HTML;
+export function mountEntryFilter(container, { getTimeTracking, onChange, labels = ENTRY_LIST_LABELS }) {
+  container.innerHTML = filterHtml(labels);
   const customerSelect = container.querySelector('.tt-filter-customer');
   const projectSelect = container.querySelector('.tt-filter-project');
   let filter = ALL_ENTRIES;
