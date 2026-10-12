@@ -75,7 +75,6 @@ const activeProjectId = (tt, id) => {
   return project && isProjectActive(project, tt) ? project.id : null;
 };
 
-// Single resolution point for the entry bar's project prefill.
 export function prefillProjectId(tt, settings, lastUsedProjectId = null) {
   return activeProjectId(tt, lastUsedProjectId) ?? activeProjectId(tt, settings.defaultProjectId);
 }

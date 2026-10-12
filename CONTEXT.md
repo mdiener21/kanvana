@@ -56,6 +56,15 @@ in-use delete archives instead, and a reference arriving after the delete restor
 **Attribution** — a Time Entry's whole Duration counts toward the day and month of its **start**,
 in the user's timezone. Entries are never split at midnight or month boundaries.
 
+**Time Tracking settings** live in the global settings layer (`globalSettings.timeTracking`, synced
+via `settings.updated` with `global` scope). Only values the user explicitly chose are stored; an
+unset timezone resolves to each device's browser timezone.
+
+**Last-used project** — the project of the last saved or duplicated Time Entry, pre-filled in the
+entry bar ahead of the default project. It is **per-device** state in `localStorage`
+(`kanvana:timetracking:lastUsedProjectId`), deliberately outside the IDB read model and the synced
+global settings: it is a local convenience, not domain data, and never emits an event.
+
 ---
 
 ## 2. Aggregate Roots and Boundaries
