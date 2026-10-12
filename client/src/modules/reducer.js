@@ -1,4 +1,5 @@
 import { EVENT_SCOPE, isDoneColumn } from './constants.js';
+import { isCustomerInUse, isProjectInUse } from './timetracking-references.js';
 
 const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
 
@@ -31,9 +32,6 @@ export function createProjectionState(seed = {}) {
     taskTombstones: seed.taskTombstones instanceof Set ? new Set(seed.taskTombstones) : new Set()
   };
 }
-
-export const isCustomerInUse = (tt, customerId) => tt.projects.some((p) => p.customerId === customerId);
-export const isProjectInUse = (tt, projectId) => tt.timeEntries.some((e) => e.projectId === projectId);
 
 function cloneTimeTracking(timeTracking) {
   return {

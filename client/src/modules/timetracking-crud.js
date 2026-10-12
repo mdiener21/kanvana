@@ -3,9 +3,7 @@ import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 import { createCustomer, createProject, createTimeEntry } from './schema.js';
 import { EVENT_SCOPE, TT_COLOR_PALETTE } from './constants.js';
 import { floorToMinute } from './timetracking-time.js';
-import { isCustomerInUse, isProjectInUse } from './reducer.js';
-
-export { isCustomerInUse, isProjectInUse };
+import { isCustomerInUse, isProjectInUse } from './timetracking-references.js';
 
 export const CRUD_ERROR = Object.freeze({
   EMPTY_NAME: 'EMPTY_NAME',

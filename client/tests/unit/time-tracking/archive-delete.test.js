@@ -10,8 +10,9 @@ vi.mock('../../../src/modules/storage.js', () => ({
 
 const {
   setCustomerArchived, setProjectArchived, deleteCustomer, deleteProject,
-  isCustomerInUse, isProjectInUse, isProjectActive, validateTimeEntry, CRUD_ERROR
+  isProjectActive, validateTimeEntry, CRUD_ERROR
 } = await import('../../../src/modules/timetracking-crud.js');
+const { isCustomerInUse, isProjectInUse } = await import('../../../src/modules/timetracking-references.js');
 const { pickableProjects } = await import('../../../src/modules/timetracking-entry-fields.js');
 const { loadTimeTracking } = await import('../../../src/modules/storage.js');
 const { scheduleDomainEvent } = await import('../../../src/modules/event-sourcing/emitter.js');
