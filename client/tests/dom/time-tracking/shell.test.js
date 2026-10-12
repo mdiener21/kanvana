@@ -56,7 +56,7 @@ test('cheat-sheet lists only implemented shortcuts', () => {
   const table = within(helpModal()).getByRole('table', { hidden: true });
   const keys = within(table).getAllByRole('row', { hidden: true }).map((row) => row.cells[0].textContent);
   expect(keys).toEqual([
-    'n', 'Enter', '/', 'Alt+↑', 'Alt+↓', 'j', 'k', 'e', 'd', 'Del', 'y', 'g t', 'g r', 'g p', 'g s', '?', 'Esc'
+    'n', 'Enter', '/', 'Alt+↑', 'Alt+↓', 'j', 'k', 'e', 'd', 'Del', 'y', '[', ']', 'g t', 'g r', 'g p', 'g s', '?', 'Esc'
   ]);
 });
 
@@ -81,4 +81,53 @@ test('goto sequences are ignored while typing in an input', () => {
 test('clicking a sidebar entry switches section', () => {
   fireEvent.click(document.getElementById('tt-nav-reports'));
   expect(section('reports').hidden).toBe(false);
+});
+
+const reportMonth = () => screen.getByTestId('tt-report-month').textContent;
+const gotoReports = () => {
+  fireEvent.keyDown(document, { key: 'g' });
+  fireEvent.keyDown(document, { key: 'r' });
+};
+
+test('g then r opens Reports on the current month', () => {
+  gotoReports();
+  expect(section('reports').hidden).toBe(false);
+  expect(document.getElementById('tt-nav-reports').getAttribute('aria-current')).toBe('page');
+  const now = new Date();
+  const expected = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(now);
+  expect(reportMonth()).toBe(expected);
+  expect(screen.getByRole('status').textContent).toBe('No time tracked this month');
+});
+
+test('[ and ] switch the month on Reports', () => {
+  gotoReports();
+  const start = reportMonth();
+  fireEvent.keyDown(document, { key: '[' });
+  const previous = reportMonth();
+  expect(previous).not.toBe(start);
+  fireEvent.keyDown(document, { key: ']' });
+  expect(reportMonth()).toBe(start);
+  fireEvent.keyDown(document, { key: ']' });
+  expect(reportMonth()).not.toBe(start);
+});
+
+test('[ and ] do nothing outside Reports or while typing', () => {
+  gotoReports();
+  const start = reportMonth();
+  const filter = screen.getByLabelText('Filter report by customer');
+  filter.focus();
+  fireEvent.keyDown(filter, { key: '[' });
+  expect(reportMonth()).toBe(start);
+  filter.blur();
+  fireEvent.click(document.getElementById('tt-nav-tracker'));
+  fireEvent.keyDown(document, { key: '[' });
+  fireEvent.click(document.getElementById('tt-nav-reports'));
+  expect(reportMonth()).toBe(start);
+});
+
+test('/ on Reports focuses the report filter and stays on Reports', () => {
+  gotoReports();
+  fireEvent.keyDown(document, { key: '/' });
+  expect(section('reports').hidden).toBe(false);
+  expect(document.activeElement).toBe(screen.getByLabelText('Filter report by customer'));
 });

@@ -12,6 +12,7 @@ import { mountTrackerPanel } from './timetracking-tracker.js';
 import { timeTrackingPrefs } from './timetracking-time.js';
 import { loadTimeTrackingSettings } from './timetracking-settings.js';
 import { mountSettingsPanel } from './timetracking-settings-panel.js';
+import { mountReportsPanel } from './timetracking-reports-panel.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -180,9 +181,21 @@ function showSection(root, sectionId) {
   }
 }
 
-function wireSidebar(root) {
+function createNavigator(root, onShow) {
+  let current = null;
+  return {
+    show(id) {
+      showSection(root, id);
+      current = id;
+      onShow[id]?.();
+    },
+    current: () => current
+  };
+}
+
+function wireSidebar(root, nav) {
   for (const id of SECTIONS) {
-    root.getElementById(`tt-nav-${id}`)?.addEventListener('click', () => showSection(root, id));
+    root.getElementById(`tt-nav-${id}`)?.addEventListener('click', () => nav.show(id));
   }
 
   const collapseBtn = root.getElementById('tt-sidebar-toggle');
@@ -204,8 +217,9 @@ function wireSidebar(root) {
 const {
   ttHelp, ttCloseModal, ttGotoTracker, ttGotoReports, ttGotoProjects, ttGotoSettings,
   ttNewEntry, ttFocusFilter, ttSubmitInline, ttAdjustUp, ttAdjustDown,
-  ttSelectNext, ttSelectPrev, ttEditEntry, ttDuplicateEntry, ttDeleteEntry, ttConfirmDelete
-} = DEFAULT_APP_KEYBINDINGS;
+  ttSelectNext, ttSelectPrev, ttEditEntry, ttDuplicateEntry, ttDeleteEntry, ttConfirmDelete,
+  ttPrevMonth, ttNextMonth
+} =DEFAULT_APP_KEYBINDINGS;
 
 const GOTO_BINDINGS = [
   { binding: ttGotoTracker, section: 'tracker', label: 'Go to Time Tracker' },
@@ -217,7 +231,7 @@ const GOTO_BINDINGS = [
 const HELP_ROWS = [
   { binding: ttNewEntry, label: 'New entry' },
   { binding: ttSubmitInline, label: 'Save entry' },
-  { binding: ttFocusFilter, label: 'Focus the entry filter' },
+  { binding: ttFocusFilter, label: 'Focus the filter' },
   { binding: ttAdjustUp, label: '+15 min on Start / End / Duration' },
   { binding: ttAdjustDown, label: '−15 min on Start / End / Duration' },
   { binding: ttSelectNext, label: 'Select next entry' },
@@ -226,6 +240,8 @@ const HELP_ROWS = [
   { binding: ttDuplicateEntry, label: 'Duplicate selected entry' },
   { binding: ttDeleteEntry, label: 'Delete selected entry' },
   { binding: ttConfirmDelete, label: 'Confirm delete' },
+  { binding: ttPrevMonth, label: 'Previous month (Reports)' },
+  { binding: ttNextMonth, label: 'Next month (Reports)' },
   ...GOTO_BINDINGS,
   { binding: ttHelp, label: 'This cheat-sheet' },
   { binding: ttCloseModal, label: 'Cancel / close / leave field' }
@@ -254,7 +270,12 @@ const ENTRY_COMMANDS = [
   { binding: ttDeleteEntry, command: 'deleteSelected' }
 ];
 
-function wireKeyboard(root, tracker) {
+const MONTH_COMMANDS = [
+  { binding: ttPrevMonth, command: 'prevMonth' },
+  { binding: ttNextMonth, command: 'nextMonth' }
+];
+
+function wireKeyboard(root, { tracker, reports, nav }) {
   const modal = root.getElementById('tt-help-modal');
   let pendingPrefix = null;
   let pendingTimer = null;
@@ -268,7 +289,7 @@ function wireKeyboard(root, tracker) {
       clearTimeout(pendingTimer);
       const match = !typing && GOTO_BINDINGS.find(({ binding }) =>
         binding.key === prefix && matchesKey(ev, secondKey(binding)));
-      if (match) { ev.preventDefault(); showSection(root, match.section); return; }
+      if (match) { ev.preventDefault(); nav.show(match.section); return; }
     }
 
     if (matchesKey(ev, ttCloseModal)) {
@@ -291,15 +312,26 @@ function wireKeyboard(root, tracker) {
 
     if (matchesKey(ev, ttNewEntry)) {
       ev.preventDefault();
-      showSection(root, 'tracker');
+      nav.show('tracker');
       tracker.focusNewEntry();
       return;
     }
 
     if (matchesKey(ev, ttFocusFilter)) {
       ev.preventDefault();
-      showSection(root, 'tracker');
+      if (nav.current() === 'reports') {
+        reports.focusFilter();
+        return;
+      }
+      nav.show('tracker');
       tracker.focusFilter();
+      return;
+    }
+
+    const monthCommand = MONTH_COMMANDS.find(({ binding }) => matchesKey(ev, binding));
+    if (monthCommand && nav.current() === 'reports') {
+      ev.preventDefault();
+      reports[monthCommand.command]();
       return;
     }
 
@@ -349,20 +381,24 @@ function wireHelpModal(root) {
 
 export function mountTimeTracking(root = document, {
   getSettings = loadTimeTrackingSettings,
-  getPrefs = () => timeTrackingPrefs(getSettings())
+  getPrefs = () => timeTrackingPrefs(getSettings()),
+  createChart
 } = {}) {
-  wireSidebar(root);
   wireHelpModal(root);
   const tracker = mountTrackerPanel(root.getElementById('tt-section-tracker'), { getPrefs, getSettings });
-  const unwireKeyboard = wireKeyboard(root, tracker);
+  const reports = mountReportsPanel(root.getElementById('tt-section-reports'), { getPrefs, createChart });
+  const nav = createNavigator(root, { reports: reports.show });
+  wireSidebar(root, nav);
+  const unwireKeyboard = wireKeyboard(root, { tracker, reports, nav });
   const projects = root.getElementById('tt-section-projects');
   const unmountProjects = projects ? mountProjectsPanel(projects) : () => {};
   const settings = root.getElementById('tt-section-settings');
   const unmountSettings = settings ? mountSettingsPanel(settings) : () => {};
-  showSection(root, 'tracker');
+  nav.show('tracker');
   return () => {
     unwireKeyboard();
     tracker.unmount();
+    reports.unmount();
     unmountProjects();
     unmountSettings();
   };

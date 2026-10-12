@@ -412,18 +412,6 @@
 .tt-entry-plus { margin-left: 2px; font-size: 10px; color: var(--accent, #3b82f6); }
 .tt-entry-row .tt-entry-duration { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
 
-/* Placeholder sections */
-.tt-placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 200px;
-  color: var(--text-muted, #6b7280);
-  font-size: 15px;
-  border: 2px dashed var(--border, #e5e7eb);
-  border-radius: 8px;
-}
-
 /* Toast */
 #tt-toast {
   position: fixed;
@@ -531,4 +519,116 @@
   .tt-add-row { flex-wrap: wrap; }
   .tt-settings-grid { grid-template-columns: minmax(0, 1fr); }
   .tt-help-card { min-width: unset; margin: 16px; }
+}
+
+/* Reports */
+.tt-report-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.tt-month-nav { display: inline-flex; align-items: center; gap: 4px; }
+.tt-month-btn {
+  border: 1px solid var(--border, #d1d5db);
+  background: var(--surface, #fff);
+  color: var(--text, #111);
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.tt-month-btn:hover { background: var(--surface-hover, #f3f4f6); }
+.tt-month-btn:focus-visible,
+.tt-btn-add:focus-visible { outline: 2px solid var(--accent, #3b82f6); outline-offset: 2px; }
+.tt-month-btn [data-lucide], .tt-month-btn svg { width: 16px; height: 16px; }
+.tt-month-label {
+  min-width: 148px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text, #111);
+}
+.tt-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0 0 16px;
+}
+.tt-kpi {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  padding: 12px 16px;
+}
+.tt-kpi dt {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #6b7280);
+}
+.tt-kpi dd {
+  margin: 4px 0 0;
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text, #111);
+}
+.tt-report-empty {
+  text-align: center;
+  border: 1px dashed var(--border, #e5e7eb);
+  border-radius: 8px;
+  padding: 40px 0;
+}
+.tt-report-body { display: grid; gap: 16px; }
+.tt-report-body[hidden], .tt-report-empty[hidden] { display: none; }
+.tt-report-card {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  padding: 16px;
+  overflow-x: auto;
+}
+.tt-report-chart { height: 280px; min-width: 480px; }
+.tt-report-table { width: 100%; border-collapse: collapse; font-size: 13px; color: var(--text, #111); }
+.tt-report-table th, .tt-report-table td {
+  padding: 8px 4px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-subtle, #f3f4f6);
+}
+.tt-report-table thead th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted, #6b7280);
+  border-bottom-color: var(--border, #e5e7eb);
+}
+.tt-report-table tbody th { font-weight: 400; }
+.tt-report-table .tt-color-dot { margin-right: 8px; }
+.tt-report-table .tt-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tt-report-customer th, .tt-report-customer td { font-weight: 600; }
+.tt-report-project th { padding-left: 24px; }
+.tt-report-total th, .tt-report-total td { font-weight: 700; border-bottom: 0; border-top: 1px solid var(--border, #e5e7eb); }
+.tt-share { display: flex; align-items: center; gap: 8px; min-width: 140px; }
+.tt-share-track {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--surface-hover, #f3f4f6);
+  overflow: hidden;
+}
+.tt-share-fill { display: block; height: 100%; border-radius: 4px; }
+.tt-share-value {
+  width: 36px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--text-muted, #6b7280);
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 640px) {
+  .tt-kpis { grid-template-columns: 1fr; }
 }
