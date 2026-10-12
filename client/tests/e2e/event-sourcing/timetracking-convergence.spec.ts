@@ -3,7 +3,8 @@
 
 import { test, expect, type Page, type Browser } from '@playwright/test';
 
-const PB_URL = process.env.VITE_PB_URL || 'http://localhost:8090';
+// Match playwright.live.config.js: the node-side helpers must hit the same PB the app is proxied to.
+const PB_URL = process.env.PB_PROXY_TARGET || process.env.VITE_PB_URL || 'http://localhost:8090';
 const PASSWORD = 'convergence-pw-123';
 
 async function isPbHealthy(): Promise<boolean> {
@@ -200,5 +201,74 @@ test.describe('#165 time-tracking convergence (live PocketBase)', () => {
     expect((deletes[0].payload as { timeEntry: { description: string } }).timeEntry.description).toBe(drop);
 
     for (const p of [deviceA, deviceB, deviceC]) await p.context().close();
+  });
+
+  test('#173 customer, project and entry from device A reach device B; edit and delete on B converge on A', async ({ browser }) => {
+    test.skip(!pbReachable, `PocketBase not reachable at ${PB_URL}`);
+
+    const email = `tt-roundtrip-${Date.now()}@example.test`;
+    await registerAccount(email);
+
+    const deviceB = await loginAndOpenTimeTracking(browser, email);
+    const deviceA = await loginAndOpenTimeTracking(browser, email);
+    await openProjects(deviceB);
+
+    const customer = `Acme ${Date.now()}`;
+    const project = `Website ${Date.now()}`;
+    const keep = `Keep ${Date.now()}`;
+    const drop = `Drop ${Date.now()}`;
+    await createCustomerAndProject(deviceA, customer, project);
+    await expect(deviceB.locator('.tt-customer-name', { hasText: customer })).toBeVisible({ timeout: 5000 });
+    await expect(deviceB.locator('.tt-project-name', { hasText: project })).toBeVisible({ timeout: 5000 });
+
+    await deviceA.keyboard.press('Escape');
+    for (const [description, start] of [[keep, '9:00'], [drop, '10:00']]) {
+      await deviceA.keyboard.press('n');
+      await deviceA.keyboard.type(description);
+      await deviceA.getByLabel('Project', { exact: true }).fill(`${customer} / ${project}`);
+      await deviceA.getByLabel('Start', { exact: true }).fill(start);
+      await deviceA.keyboard.press('Tab');
+      await deviceA.getByLabel('Duration', { exact: true }).fill('1h');
+      await deviceA.keyboard.press('Enter');
+      await expect(deviceA.locator('.tt-entry-row', { hasText: description })).toBeVisible();
+      await deviceA.keyboard.press('Escape');
+    }
+
+    await deviceB.keyboard.press('g');
+    await deviceB.keyboard.press('t');
+    const rowsOnB = deviceB.locator('.tt-entry-row');
+    await expect(rowsOnB).toHaveCount(2, { timeout: 5000 });
+    await expect(deviceB.getByLabel('Total for Today')).toHaveText('2:00');
+
+    const edited = `${keep} edited on B`;
+    const selectedOnB = deviceB.locator('.tt-entry-row[aria-current="true"]');
+    await deviceB.keyboard.press('j');
+    await deviceB.keyboard.press('j');
+    await expect(selectedOnB).toContainText(keep);
+    await deviceB.keyboard.press('e');
+    const dialog = deviceB.getByRole('dialog', { name: 'Edit entry' });
+    await dialog.getByLabel('Description').fill(edited);
+    await dialog.getByLabel('Duration').fill('2:15');
+    await deviceB.keyboard.press('Enter');
+    await expect(dialog).toBeHidden();
+    await deviceB.keyboard.press('k');
+    await expect(selectedOnB).toContainText(drop);
+    await deviceB.keyboard.press('Delete');
+    await deviceB.keyboard.press('y');
+    await expect(rowsOnB).toHaveCount(1);
+
+    const rowsOnA = deviceA.locator('.tt-entry-row');
+    const editedOnA = rowsOnA.filter({ hasText: edited });
+    await expect(editedOnA).toBeVisible({ timeout: 5000 });
+    await expect(editedOnA.locator('.tt-entry-duration')).toHaveText('2:15');
+    await expect(rowsOnA.filter({ hasText: drop })).toHaveCount(0, { timeout: 5000 });
+    await expect(rowsOnA).toHaveCount(1);
+    await expect(deviceA.getByLabel('Total for Today')).toHaveText('2:15');
+
+    await deviceA.reload();
+    await expect(deviceA.locator('.tt-entry-row')).toHaveCount(1, { timeout: 5000 });
+    await expect(deviceA.locator('.tt-entry-row', { hasText: edited })).toBeVisible();
+
+    for (const p of [deviceA, deviceB]) await p.context().close();
   });
 });
