@@ -3,7 +3,8 @@
 
 import { test, expect, type Page, type Browser } from '@playwright/test';
 
-const PB_URL = process.env.VITE_PB_URL || 'http://localhost:8090';
+// Match playwright.live.config.js: the node-side helpers must hit the same PB the app is proxied to.
+const PB_URL = process.env.PB_PROXY_TARGET || process.env.VITE_PB_URL || 'http://localhost:8090';
 const PASSWORD = 'convergence-pw-123';
 
 async function isPbHealthy(): Promise<boolean> {
