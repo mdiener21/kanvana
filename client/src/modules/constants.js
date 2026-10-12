@@ -63,3 +63,12 @@ export function matchesKey(event, binding) {
     && Boolean(event.altKey) === binding.altKey
     && Boolean(event.metaKey) === binding.metaKey;
 }
+
+const KEY_LABELS = { Escape: 'Esc', ArrowUp: '↑', ArrowDown: '↓', Delete: 'Del' };
+
+// Human-readable key for a binding, e.g. "Alt+↑" or "g t" (cheat-sheet, tooltips).
+export function keyLabel(binding) {
+  const key = KEY_LABELS[binding.key] ?? binding.key;
+  if (binding.seq) return `${key} ${binding.seq}`;
+  return binding.altKey ? `Alt+${key}` : key;
+}

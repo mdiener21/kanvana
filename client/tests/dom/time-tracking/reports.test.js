@@ -14,7 +14,6 @@ vi.mock('../../../src/modules/icons.js', () => ({
 const { mountReportsPanel } = await import('../../../src/modules/timetracking-reports-panel.js');
 const { emit, DATA_CHANGED } = await import('../../../src/modules/events.js');
 
-const H = 3600000;
 const entry = (id, projectId, start, end) => ({ id, projectId, description: '', start, end });
 
 function makeState() {
@@ -93,6 +92,47 @@ describe('month navigation', () => {
     panel.prevMonth();
     panel.prevMonth();
     expect(monthLabel().textContent).toBe('September 2026');
+  });
+
+  test('month buttons name their shortcut in the tooltip', () => {
+    mount();
+    expect(screen.getByRole('button', { name: 'Previous month' }).title).toBe('Previous month ([)');
+    expect(screen.getByRole('button', { name: 'Next month' }).title).toBe('Next month (])');
+  });
+
+  test('re-resolves the current month on show when the month was not changed', () => {
+    mount();
+    prefs.now = Date.parse('2026-11-02T10:00:00Z');
+    panel.show();
+    expect(monthLabel().textContent).toBe('November 2026');
+  });
+
+  test('keeps a month the user switched to when shown again', () => {
+    mount();
+    panel.prevMonth();
+    prefs.now = Date.parse('2026-11-02T10:00:00Z');
+    panel.show();
+    expect(monthLabel().textContent).toBe('September 2026');
+  });
+
+  test('follows the current month again after switching back to it', () => {
+    mount();
+    panel.prevMonth();
+    panel.nextMonth();
+    prefs.now = Date.parse('2026-11-02T10:00:00Z');
+    panel.show();
+    expect(monthLabel().textContent).toBe('November 2026');
+  });
+
+  test('a timezone change re-resolves the current month', () => {
+    mount();
+    // 31 Oct 23:30 UTC is already 1 Nov in Berlin
+    prefs = { ...prefs, tz: 'UTC', now: Date.parse('2026-10-31T23:30:00Z') };
+    emit(DATA_CHANGED);
+    expect(monthLabel().textContent).toBe('October 2026');
+    prefs = { ...prefs, tz: 'Europe/Berlin' };
+    emit(DATA_CHANGED);
+    expect(monthLabel().textContent).toBe('November 2026');
   });
 });
 
