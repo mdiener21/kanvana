@@ -1,6 +1,6 @@
 // #178: the event log's memory of "deleted" (task delete records) and "already
 // applied" (event ids) survives a reload and a snapshot adoption.
-import { beforeEach, expect, test } from 'vitest';
+import { beforeEach, expect, test, vi } from 'vitest';
 import { deleteDB } from 'idb';
 import { resetLocalStorage } from '../setup.js';
 import {
@@ -13,6 +13,8 @@ import {
   hydrateFromSnapshotState
 } from '../../../src/modules/storage.js';
 import { EVENT_ORIGIN, ingestEvent } from '../../../src/modules/event-sourcing/ingest.js';
+import { loadSnapshot, _setJitterForTesting } from '../../../src/modules/event-sourcing/snapshot.js';
+import { openStore, READ_MODEL_STORE, SNAPSHOTS_STORE } from '../../../src/modules/idb-store.js';
 
 // Ids must be UUIDs: initStorage() remaps non-UUID ids on load.
 const TASK_ID = '7a5c0d2e-1b3f-4c6d-8e9f-0a1b2c3d4e5f';
@@ -97,4 +99,35 @@ test('a delete record in an adopted snapshot makes later edits of that task a no
   await ingestRemote(taskEvent('task.created', { id: 'e-recreate-2', counter: 4, payload: { task: { title: 'Zombie', column: column() } } }));
   await ingestRemote(taskEvent('task.updated', { id: 'e-update-2', counter: 5, payload: { fields: { title: 'Edited' } } }));
   expect(task(TASK_ID)).toBeUndefined();
+});
+
+test('a snapshot holds the board memory and the live applied set is pruned of what it holds', async () => {
+  // An old snapshot makes the next event take a new one (age trigger).
+  const db = await openStore();
+  await db.put(SNAPSHOTS_STORE, {
+    payload: { boards: [], tasks: [], columns: [], labels: [], settings: {}, appliedEventIds: ['e-old'], taskTombstones: [] },
+    hlc: { wallTime: 1, counter: 0, nodeId: 'node-a' },
+    at: '2020-01-01T00:00:00.000Z'
+  }, boardId);
+  await reload();
+  _setJitterForTesting(() => 0);
+
+  await ingestLocal(taskEvent('task.created', { id: 'e-create', counter: 1, payload: { task: { title: 'T', column: column() } } }));
+  await ingestLocal(taskEvent('task.deleted', { id: 'e-delete', counter: 2 }));
+  await vi.waitFor(async () => {
+    expect((await loadSnapshot(boardId)).at).not.toBe('2020-01-01T00:00:00.000Z');
+  });
+  await _flushPersistsForTesting();
+
+  const snapshot = (await loadSnapshot(boardId)).state;
+  expect([...snapshot.appliedEventIds]).toEqual(expect.arrayContaining(['e-old', 'e-create']));
+  const live = await (await openStore()).get(READ_MODEL_STORE, `${boardId}:appliedEventIds`);
+  expect(live).not.toContain('e-old');
+  expect(live).not.toContain('e-create');
+
+  // Pruned ids are still answered as applied, from the snapshot, after a reload.
+  await reload();
+  await ingestRemote(taskEvent('task.created', { id: 'e-create', counter: 1, payload: { task: { title: 'T', column: column() } } }));
+  expect(task(TASK_ID)).toBeUndefined();
+  expect(await (await openStore()).get(READ_MODEL_STORE, `${boardId}:taskTombstones`)).toEqual([TASK_ID]);
 });
