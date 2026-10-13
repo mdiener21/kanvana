@@ -45,12 +45,8 @@ async function setLastSeen(key, hlc) {
   await db.put(KV_STORE, hlc, LAST_SEEN_PREFIX + key);
 }
 
-function ingest(event, record) {
-  return ingestEvent(event, { origin: EVENT_ORIGIN.REMOTE, receivedAt: record.created });
-}
-
 export async function applyRemoteEvent(record) {
-  await ingest(recordToEvent(record), record);
+  await ingestEvent(recordToEvent(record), { origin: EVENT_ORIGIN.REMOTE, receivedAt: record.created });
 }
 
 export async function startRealtime() {
@@ -133,7 +129,7 @@ async function pullRemoteState() {
   for (const { record, event } of events) {
     const key = snapshotKeyForEvent(event);
     if (await db.get(EVENTS_STORE, event.id)) continue;
-    await ingest(event, record);
+    await ingestEvent(event, { origin: EVENT_ORIGIN.REMOTE, receivedAt: record.created });
     const max = maxByKey.get(key);
     if (!max || compareHlc(event.hlc, max) > 0) maxByKey.set(key, event.hlc);
   }
