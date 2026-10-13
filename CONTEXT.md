@@ -401,7 +401,8 @@ collection that catch-up pulls in full, to about a month of history.
 
 - A **snapshot covers only events older than the window**: when one is due (500 events or 14 days, see
   `checkAndScheduleSnapshot`), it folds the stored events older than the window onto the previous
-  snapshot, at save time. Every event inside the window is therefore newer than every snapshot and can
+  snapshot, at save time. When one is due but no event is old enough yet, the key is not checked again until its
+  oldest stored event leaves the window, so a busy board does not rescan the store on every event. Every event inside the window is therefore newer than every snapshot and can
   be ordered in by a rebuild from it ("the snapshot taken before it").
 - **Local cleanup** (`gcEvents`) deletes an event only when it is pushed, covered by the snapshot *and*
   older than the window. **Server cleanup** (`gcServerEvents`) skips events inside the window plus a one-hour clock-skew margin

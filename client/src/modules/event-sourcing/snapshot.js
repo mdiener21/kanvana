@@ -26,6 +26,7 @@ const SNAPSHOT_KEY_BY_SCOPE = new Map([
 const SCOPE_BY_SNAPSHOT_KEY = new Map([...SNAPSHOT_KEY_BY_SCOPE].map(([scope, key]) => [key, scope]));
 
 const _pendingSnapshots = new Map();
+const _notDueBefore = new Map();
 let _getJitter = () => Math.floor(Math.random() * (MAX_JITTER_MS + 1));
 let _afterSnapshotSaved = null;
 
@@ -129,7 +130,10 @@ async function takeSnapshot(key, fold) {
   if (!isSnapshotDue(snapshot, since.length)) return null;
 
   const covered = since.filter((event) => isOlderThanGraceWindow(event.hlc)).sort((a, b) => compareHlc(a.hlc, b.hlc));
-  if (!covered.length) return null;
+  if (!covered.length) {
+    _notDueBefore.set(key, since.reduce((min, event) => Math.min(min, event.hlc.wallTime), Infinity) + GRACE_WINDOW_MS);
+    return null;
+  }
   const hlc = covered.at(-1).hlc;
   const state = fold(snapshot, covered);
   await saveSnapshot(key, state, hlc);
@@ -144,7 +148,7 @@ function foldFromSnapshot(snapshot, events) {
 // `onSaved(key, state)` runs once the snapshot is stored, so the caller can
 // prune what the snapshot now holds (applied ids, #178).
 export function checkAndScheduleSnapshot(key, { fold = foldFromSnapshot, onSaved } = {}) {
-  if (_pendingSnapshots.has(key)) return;
+  if (_pendingSnapshots.has(key) || Date.now() <= (_notDueBefore.get(key) ?? -Infinity)) return;
   const jitter = _getJitter();
   const id = setTimeout(async () => {
     _pendingSnapshots.delete(key);
@@ -169,6 +173,7 @@ export function setAfterSnapshotSaved(fn) {
 export function _resetSnapshotSchedulerForTesting() {
   for (const id of _pendingSnapshots.values()) clearTimeout(id);
   _pendingSnapshots.clear();
+  _notDueBefore.clear();
   _getJitter = () => Math.floor(Math.random() * (MAX_JITTER_MS + 1));
   _afterSnapshotSaved = null;
 }

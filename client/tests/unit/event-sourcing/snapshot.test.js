@@ -200,6 +200,38 @@ test('checkAndScheduleSnapshot takes no snapshot while every event is inside the
   expect(await loadSnapshot('board-a')).toBeNull();
 });
 
+function countEventStoreScans() {
+  const storeName = (target) => (target.objectStore ? target.objectStore.name : target.name);
+  const spies = [IDBObjectStore.prototype, IDBIndex.prototype].flatMap((proto) => (
+    ['getAll', 'getAllKeys', 'openCursor', 'openKeyCursor'].map((method) => vi.spyOn(proto, method))
+  ));
+  return () => spies.flatMap((spy) => spy.mock.contexts).filter((target) => storeName(target) === 'events').length;
+}
+
+test('a due snapshot with nothing old enough is not re-checked until the oldest event leaves the grace window', async () => {
+  _setJitterForTesting(() => 0);
+  const db = await openStore();
+  const now = Date.now();
+  const oldestWall = now - GRACE_WINDOW_MS + 60_000;
+  const created = makeEvent('e-create', 'task.created', makeHlc(oldestWall), 'board-a', 'task-1', { task: { title: 'T0', column: 'todo', columnHistory: [] } });
+  await db.put('events', { ...created, synced: true });
+  for (let i = 1; i < SNAPSHOT_EVENT_THRESHOLD; i++) {
+    await db.put('events', { ...makeEvent(`e${i}`, 'task.updated', makeHlc(oldestWall + i), 'board-a', 'task-1', { fields: { title: `T${i}` } }), synced: true });
+  }
+  checkAndScheduleSnapshot('board-a');
+  await settle();
+  expect(await loadSnapshot('board-a')).toBeNull();
+
+  const scans = countEventStoreScans();
+  for (let i = 0; i < 5; i++) checkAndScheduleSnapshot('board-a');
+  await settle();
+  expect(scans()).toBe(0);
+
+  vi.spyOn(Date, 'now').mockReturnValue(oldestWall + GRACE_WINDOW_MS + 1);
+  checkAndScheduleSnapshot('board-a');
+  await vi.waitFor(async () => expect((await loadSnapshot('board-a'))?.hlc).toEqual(makeHlc(oldestWall)));
+});
+
 test('checkAndScheduleSnapshot folds with the supplied fold and reports the saved state', async () => {
   _setJitterForTesting(() => 0);
   const db = await openStore();
