@@ -5,7 +5,6 @@ import { flushPendingPersists, getDbRef, persistEvent, EVENTS_STORE } from '../i
 import { compareHlc, observeRemote } from './hlc.js';
 import { validateEvent } from './event-validation.js';
 import { GRACE_WINDOW_MS, loadEventsAfter, loadSnapshot, saveSnapshot, snapshotKeyForEvent } from './snapshot.js';
-import { applyEvents } from '../reducer.js';
 
 export const EVENT_ORIGIN = Object.freeze({ LOCAL: 'local', REMOTE: 'remote' });
 export const EVENT_ORDER = Object.freeze({ APPLIED: 'applied', IN_ORDER: 'in-order', LATE: 'late' });
@@ -81,8 +80,9 @@ async function foldIntoCoveringSnapshot(event) {
   const key = snapshotKeyForEvent(event);
   const snapshot = await loadSnapshot(key);
   if (!snapshot || compareHlc(event.hlc, snapshot.hlc) > 0) return true;
-  if (snapshot.state.appliedEventIds.has(event.id)) return false;
-  await saveSnapshot(key, applyEvents(snapshot.state, [event]), snapshot.hlc);
+  const folded = projector.foldOntoSnapshot(key, snapshot, event);
+  if (!folded) return false;
+  await saveSnapshot(key, folded, snapshot.hlc);
   return true;
 }
 

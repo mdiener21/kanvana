@@ -218,9 +218,15 @@ export function createReadModelProjector(ctx) {
     writeAppliedIds(boardId, projected.appliedEventIds);
   }
 
+  // Null when the snapshot already holds the event.
+  function foldOntoSnapshot(key, snapshot, event) {
+    if (snapshot.state.appliedEventIds.has(event.id)) return null;
+    return fold(key, snapshot, [event]);
+  }
+
   function register() {
     if (disconnect) return;
-    disconnect = connectProjector({ classify, project, rebuild });
+    disconnect = connectProjector({ classify, project, rebuild, foldOntoSnapshot });
   }
 
   function reset() {
