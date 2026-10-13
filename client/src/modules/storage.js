@@ -6,7 +6,7 @@ import { openStore, KV_STORE, READ_MODEL_STORE, schedulePersist, scheduleDelete,
 import { normalizeBoardModelIds } from './board-serializer.js';
 import { initHlc } from './event-sourcing/hlc.js';
 import { _flushDomainEventsForTesting, scheduleDomainEvent } from './event-sourcing/emitter.js';
-import { checkAndScheduleSnapshot, _resetSnapshotSchedulerForTesting } from './event-sourcing/snapshot.js';
+import { checkAndScheduleSnapshot, loadSnapshot, _resetSnapshotSchedulerForTesting } from './event-sourcing/snapshot.js';
 import { createReadModelProjector } from './event-sourcing/read-model-projector.js';
 import { backfillEventLog } from './event-sourcing/backfill.js';
 import { createTimeTrackingState } from './reducer.js';
@@ -43,6 +43,9 @@ const state = {
   columns: {},  // { [boardId]: column[] | null }
   labels: {},   // { [boardId]: label[] | null }
   settings: {},  // { [boardId]: object | null }
+  taskTombstones: {},  // { [boardId]: taskId[] } — task delete records (#178)
+  appliedEventIds: {},  // { [boardId]: eventId[] } — applied ids not yet held by a snapshot (#178)
+  snapshotAppliedIds: {},  // { [boardId]: Set<eventId> } — applied ids held by the board's latest snapshot
   globalSettings: null,
   timeTracking: null
 };
@@ -458,6 +461,9 @@ export async function initStorage() {
     state.columns[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'columns'))) ?? null;
     state.labels[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'labels'))) ?? null;
     state.settings[board.id] = (await db.get(KV_STORE, keyFor(board.id, 'settings'))) ?? null;
+    state.taskTombstones[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'taskTombstones'))) ?? [];
+    state.appliedEventIds[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'appliedEventIds'))) ?? [];
+    state.snapshotAppliedIds[board.id] = (await loadSnapshot(board.id))?.state.appliedEventIds ?? new Set();
   }
 
   // One-shot: give pre-event-sourcing state an event log so it can sync at all.
@@ -510,6 +516,9 @@ export function _resetStorageForTesting() {
   for (const k in state.columns) delete state.columns[k];
   for (const k in state.labels) delete state.labels[k];
   for (const k in state.settings) delete state.settings[k];
+  for (const k in state.taskTombstones) delete state.taskTombstones[k];
+  for (const k in state.appliedEventIds) delete state.appliedEventIds[k];
+  for (const k in state.snapshotAppliedIds) delete state.snapshotAppliedIds[k];
   state.globalSettings = null;
   state.timeTracking = null;
   taskCacheByBoard.clear();

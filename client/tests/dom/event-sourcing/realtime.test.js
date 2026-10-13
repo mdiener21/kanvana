@@ -16,6 +16,7 @@ import {
 import {
   initStorage,
   listBoards,
+  renameBoard,
   _flushPersistsForTesting,
   _resetStorageForTesting,
 } from '../../../src/modules/storage.js';
@@ -134,6 +135,21 @@ describe('applyRemoteEvent', () => {
     await applyRemoteEvent(rec);
     expect(listBoards().filter(b => b.id === 'board-1')).toHaveLength(1);
     expect(await getUnsyncedEvents()).toHaveLength(0);
+  });
+
+  it('AC-004 after a reload: an SSE echo of an edit applied before the reload does not undo a newer edit (#178)', async () => {
+    const board = 'b0a4d000-0000-4000-8000-000000000178';
+    await applyRemoteEvent(record({ local_id: 'r-create', board, h: hlc(1), payload: { board: { name: 'Shared' } } }));
+    const e1 = record({ local_id: 'r-e1', type: 'board.updated', board, h: hlc(2), payload: { fields: { name: 'E1' } } });
+    await applyRemoteEvent(e1);
+    await _flushPersistsForTesting();
+    _resetStorageForTesting();
+    await initStorage();
+
+    renameBoard(board, 'E2');
+    await applyRemoteEvent(e1);
+
+    expect(listBoards().find(b => b.id === board).name).toBe('E2');
   });
 
   it('projects a live timetracking event into the time-tracking slot, never into a board', async () => {

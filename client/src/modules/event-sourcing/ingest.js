@@ -4,7 +4,7 @@
 // projection, DATA_CHANGED and persistence are shared.
 
 import { DATA_CHANGED, EVENT_EMITTED, emit } from '../events.js';
-import { flushPendingPersists, getDbRef, persistEvent } from '../idb-store.js';
+import { EVENTS_STORE, flushPendingPersists, getDbRef, persistEvent } from '../idb-store.js';
 import { observeRemote } from './hlc.js';
 
 export const EVENT_ORIGIN = Object.freeze({ LOCAL: 'local', REMOTE: 'remote' });
@@ -29,10 +29,22 @@ function validate(event) {
 // the event is persisted; it rejects if persistence fails.
 export function ingestEvent(event, { origin = EVENT_ORIGIN.LOCAL } = {}) {
   if (!validate(event)) return Promise.resolve();
-  if (origin === EVENT_ORIGIN.REMOTE && event.hlc) {
-    return observeRemote(event.hlc).then(() => commit(event, origin));
-  }
+  if (origin === EVENT_ORIGIN.REMOTE) return ingestRemote(event);
   return commit(event, origin);
+}
+
+// A remote event already in the event store was applied before, maybe before
+// a reload; the store, unlike session memory, survives one (#178). Events a
+// snapshot has collected are answered by the projector from the snapshot.
+async function ingestRemote(event) {
+  if (await isStored(event.id)) return;
+  if (event.hlc) await observeRemote(event.hlc);
+  return commit(event, EVENT_ORIGIN.REMOTE);
+}
+
+async function isStored(id) {
+  const db = getDbRef();
+  return Boolean(db && await db.get(EVENTS_STORE, id));
 }
 
 function commit(event, origin) {
