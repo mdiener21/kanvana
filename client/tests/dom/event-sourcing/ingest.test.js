@@ -4,7 +4,7 @@ import { deleteDB } from 'idb';
 import { DATA_CHANGED, EVENT_EMITTED, emit, off, on } from '../../../src/modules/events.js';
 import { openStore, EVENTS_STORE } from '../../../src/modules/idb-store.js';
 import {
-  initStorage, createBoard, loadTasksForBoard,
+  initStorage, createBoard, loadTasksForBoard, loadTimeTracking,
   _flushPersistsForTesting, _resetStorageForTesting,
 } from '../../../src/modules/storage.js';
 import { scheduleDomainEvent } from '../../../src/modules/event-sourcing/emitter.js';
@@ -36,6 +36,20 @@ function taskCreated(id, overrides = {}) {
     board_id: boardId,
     entity_id: id,
     payload: { task: { id, title: overrides.title || 'Remote task', column: 'todo' } },
+  };
+}
+
+function timetracking(type, entityId, payload) {
+  return {
+    id: `evt-${type}-${entityId}`,
+    type,
+    hlc: { wallTime: Date.now(), counter: 0, nodeId: 'remote-node' },
+    at: '2026-10-12T00:00:00.000Z',
+    actor: { type: 'human', id: null },
+    scope: 'timetracking',
+    board_id: null,
+    entity_id: entityId,
+    payload,
   };
 }
 
@@ -106,12 +120,14 @@ describe('rejected events', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     const changes = captureDataChanged();
     const tasksBefore = loadTasksForBoard(boardId);
+    const timeTrackingBefore = loadTimeTracking();
     await expect(ingestEvent(event, { origin })).resolves.toBeUndefined();
     await _flushPersistsForTesting();
     changes.stop();
 
     expect(changes.seen).toEqual([]);
     expect(loadTasksForBoard(boardId)).toEqual(tasksBefore);
+    expect(loadTimeTracking()).toEqual(timeTrackingBefore);
     if (event?.id) expect(await storedEvent(event.id)).toBeUndefined();
     expect(error).toHaveBeenCalledTimes(1);
     error.mockRestore();
@@ -141,5 +157,28 @@ describe('rejected events', () => {
 
   test('a malformed local event is rejected too', async () => {
     await expectRejected({ ...taskCreated('bad-local'), scope: 'nowhere' }, EVENT_ORIGIN.LOCAL);
+  });
+
+  test.each([
+    ['customer.created', undefined],
+    ['customer.created', null],
+    ['customer.created', {}],
+    ['customer.created', { customer: 'Acme' }],
+    ['project.created', {}],
+    ['project.created', { project: null }],
+    ['time_entry.created', {}],
+    ['time_entry.created', { timeEntry: [] }],
+  ])('%s with payload %j', async (type, payload) => {
+    await expectRejected({ ...timetracking(type, `bad-${JSON.stringify(payload)}`, payload) });
+  });
+
+  test.each([null, 'payload', ['task'], 7])('a payload that is not an object (%j)', async (payload) => {
+    await expectRejected({ ...taskCreated('bad-payload'), id: `evt-payload-${JSON.stringify(payload)}`, payload });
+  });
+
+  test('types that carry no payload data still accept an empty payload', async () => {
+    await ingestEvent(timetracking('customer.created', 'cust-1', { customer: { name: 'Acme', color: '#03a9f4', archived: false } }), { origin: EVENT_ORIGIN.REMOTE });
+    await ingestEvent(timetracking('customer.archived', 'cust-1', {}), { origin: EVENT_ORIGIN.REMOTE });
+    expect(loadTimeTracking().customers).toMatchObject([{ id: 'cust-1', archived: true }]);
   });
 });

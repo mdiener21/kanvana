@@ -30,21 +30,22 @@ const EVENT_TYPES = new Map([
   ['board.updated', {}],
   ['board.deleted', {}],
   ['settings.updated', {}],
-  ['customer.created', {}],
+  ['customer.created', { requires: 'customer' }],
   ['customer.archived', {}],
   ['customer.unarchived', {}],
   ['customer.deleted', {}],
-  ['project.created', {}],
+  ['project.created', { requires: 'project' }],
   ['project.archived', {}],
   ['project.unarchived', {}],
   ['project.deleted', {}],
-  ['time_entry.created', {}],
+  ['time_entry.created', { requires: 'timeEntry' }],
   ['time_entry.updated', {}],
   ['time_entry.deleted', {}]
 ]);
 
 const SCOPES = new Set(Object.values(EVENT_SCOPE));
 
+const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
 const isNonEmptyString = (value) => typeof value === 'string' && value.length > 0;
 
 // The shape compareHlc() needs to order events.
@@ -64,6 +65,9 @@ function findProblem(event) {
   if (!isValidHlc(event.hlc)) return 'malformed hlc';
   if (!SCOPES.has(event.scope)) return 'unknown scope';
   if (event.scope === EVENT_SCOPE.BOARD && !isNonEmptyString(event.board_id)) return 'board event without board_id';
+  if (!isPlainObject(event.payload)) return 'payload is not an object';
+  const { requires } = EVENT_TYPES.get(event.type);
+  if (requires && !isPlainObject(event.payload[requires])) return `payload.${requires} is not an object`;
   return null;
 }
 
