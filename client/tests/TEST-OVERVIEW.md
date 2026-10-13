@@ -247,8 +247,6 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/unit/event-sourcing/snapshot.test.js:39` loadSnapshot returns null when no snapshot exists
 - `tests/unit/event-sourcing/snapshot.test.js:43` saveSnapshot and loadSnapshot round-trip preserves projection state
 - `tests/unit/event-sourcing/snapshot.test.js:67` gcEvents removes events at or before snapshotHlc and leaves later ones
-- `tests/unit/event-sourcing/snapshot.test.js:84` hydrateFromSnapshot with no snapshot replays all events from zero
-- `tests/unit/event-sourcing/snapshot.test.js:94` hydrateFromSnapshot equals replay-from-zero when snapshot covers earlier events
 - `tests/unit/event-sourcing/snapshot.test.js:120` checkAndScheduleSnapshot schedules snapshot after 500 events with jitter delay
 - `tests/unit/event-sourcing/snapshot.test.js:137` checkAndScheduleSnapshot does not schedule when event count is below threshold
 - `tests/unit/event-sourcing/snapshot.test.js:151` checkAndScheduleSnapshot schedules when snapshot age exceeds 14 days

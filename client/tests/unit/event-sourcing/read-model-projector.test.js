@@ -146,17 +146,6 @@ describe('createReadModelProjector', () => {
     expect(h.ctx.checkAndScheduleSnapshot).toHaveBeenCalledWith(TIMETRACKING_SNAPSHOT_KEY, { fold: expect.any(Function) });
   });
 
-  test('hydrate() with the timetracking key adopts only the time-tracking slot', () => {
-    const tasksBefore = h.state.tasks[BOARD_ID];
-    const slot = { customers: [{ id: 'c1', name: 'Acme' }], projects: [], timeEntries: [], tombstones: { customers: {}, projects: {} } };
-    h.projector.hydrate(TIMETRACKING_SNAPSHOT_KEY, { timeTracking: slot, boards: [{ id: 'other' }] });
-
-    expect(h.state.timeTracking).toEqual(slot);
-    expect(h.state.tasks[BOARD_ID]).toBe(tasksBefore);
-    expect(h.state.boards.map((b) => b.id)).toEqual([BOARD_ID]);
-    expect(h.ctx.schedulePersist).toHaveBeenCalledWith(TIME_TRACKING_KEY, slot);
-  });
-
   test('register() is idempotent — a single ingest projects once', () => {
     h.projector.register();
     ingest(boardEvent({ id: 'once' }));

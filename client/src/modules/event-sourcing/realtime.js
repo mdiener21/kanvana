@@ -7,9 +7,9 @@
 import { openStore, KV_STORE, EVENTS_STORE } from '../idb-store.js';
 import { getPb, isAuthenticated, getUser } from '../sync.js';
 import { compareHlc } from './hlc.js';
-import { EVENT_ORIGIN, ingestEvent, rebuildScope } from './ingest.js';
+import { EVENT_ORIGIN, adoptSnapshot, ingestEvent } from './ingest.js';
 import { validateEvent } from './event-validation.js';
-import { snapshotKeyForEvent, saveSnapshot } from './snapshot.js';
+import { snapshotKeyForEvent } from './snapshot.js';
 import { downloadAllSnapshots } from './snapshot-sync.js';
 import { EVENT_SCOPE } from '../constants.js';
 
@@ -102,8 +102,7 @@ async function hydrateFromRemoteSnapshots() {
   for (const snapshot of await downloadAllSnapshots()) {
     const seen = await getLastSeen(snapshot.key);
     if (seen && compareHlc(snapshot.hlc, seen) <= 0) continue;
-    await saveSnapshot(snapshot.key, snapshot.state, snapshot.hlc);
-    await rebuildScope(snapshot.key);
+    await adoptSnapshot(snapshot.key, snapshot.state, snapshot.hlc);
     await setLastSeen(snapshot.key, snapshot.hlc);
   }
 }

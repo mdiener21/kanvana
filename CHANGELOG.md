@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A deleted task stays deleted, even when an older change to it arrives from another device later or after a reload. After a reload, a change from this device that the server echoes back no longer overwrites a newer edit.
 - Edits made offline are no longer lost when you keep working long enough for Kanvana to tidy up local history. Changes that have not reached the server yet are kept and sent once you are back online.
 - Two devices that edit the same thing now show the same result, whatever order the changes arrive in (#179). A change that arrives late, for example from a device that was offline, is put in its place by time instead of overwriting newer edits. Changes up to 30 days old are kept for this on the device and on the server; a change older than that is ignored the same way on every device and logged. The live update and the catch-up after reconnecting now treat late changes the same way.
+- Changes you have not synced yet no longer disappear from the board, the global settings or Time Tracking when this device picks up a newer saved state from the server at launch or after reconnecting (#180). They stay visible and are still sent. When the server's saved state is newer than all your changes, the board shows exactly that state, without items it has since removed.
 
 ## [3.1.7] - 2026-10-05
 

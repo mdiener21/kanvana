@@ -189,6 +189,15 @@ manual push/pull); the header **sync-state indicator** shows `Live` / `Syncing�
 operations. The `auth-changed` window event fires on auth state change; the queue, realtime, and UI
 all subscribe.
 
+**Snapshot adoption = snapshot + replay (#180).** At launch and on every reconnect, catch-up
+(`realtime.js` `catchUp()`) first adopts each server snapshot newer than the key's last-seen HLC, for
+board, `__global__` and `__timetracking__` keys alike. `adoptSnapshot(key, state, hlc)` (`ingest.js`)
+saves it and rebuilds the key's view as the snapshot plus this device's stored events newer than it, in
+HLC order (`rebuildScope`, §9 Ordering); it never replaces the view wholesale. So an unsynced local edit
+newer than the snapshot stays on screen and stays queued for push, and a snapshot newer than every local
+event becomes the view: tasks, columns and labels the replaced snapshot held, or that stored events it
+covers created, are dropped unless the new snapshot has them.
+
 > **⚠️ Legacy LWW path (deprecated, being removed).** `sync.js` still exports `pushBoardFull()` /
 > `pullAllBoards()` (whole-record last-write-wins, PR #89) and `autosync.js` still calls
 > `pushBoardFull()` on `kanban-local-change`. These target the legacy per-entity PocketBase collections,
@@ -312,6 +321,7 @@ inspectImportPayload → buildImportConfirmationMessage → importTasks
 [local mutation] → scheduleDomainEvent() (stamp UUID + sync HLC) → ingestEvent(event, { origin: 'local' })
 [remote event]   → realtime.js SSE / catchUp() → ingestEvent(event, { origin: 'remote' })
                                                    (remote only: await observeRemote(hlc) first)
+[server snapshot]→ catchUp(), before its events → adoptSnapshot(key, state, hlc) → save + rebuildScope(key)
 
 ingestEvent (event-sourcing/ingest.js) — one path, origin is a parameter:
    1. validate                         (drops malformed events, #181)
@@ -374,8 +384,8 @@ during a rebuild are folded into it.
 
 A rebuild is the reducer's fold, with three exceptions so it does not lose state no event carries yet:
 board and global settings start from the live value under the snapshot's (they merge field by field);
-task delete records are kept (deletes are permanent); and tasks, columns and labels that no snapshot or
-replayed event knows of (written by import or column sort, which emit no event yet) are kept as they are.
+task delete records are kept (deletes are permanent); and tasks, columns and labels that no snapshot,
+replayed event or (on adoption) replaced snapshot or covered stored event knows of (written by import or column sort, which emit no event yet) are kept as they are.
 A snapshot is folded from events alone. Known limit until those writes emit events: a setting written
 without an event (swimlane grouping) is reset by a rebuild to the last replayed `settings.updated` that
 carries it, and a column sort of known tasks is replaced by the replayed order.
@@ -393,8 +403,8 @@ collection that catch-up pulls in full, to about a month of history.
   older than the window. **Server cleanup** (`gcServerEvents`) skips events inside the window, and the
   PocketBase hook `backend/pb_hooks/events_grace_window.pb.js` refuses API deletes of them, which also
   holds clients from before #179 to the window. The hook repeats the constant; keep both equal.
-- **Adopting a server snapshot** (catch-up) saves it and calls `rebuildScope(key)`, so the device keeps
-  its stored events newer than the snapshot.
+- **Adopting a server snapshot** (catch-up, `adoptSnapshot`) saves it and rebuilds the key, so the device
+  keeps its stored events newer than the snapshot (§4 Snapshot adoption).
 - An event older than the window is lost only if a snapshot already covers it; a device that has never
   snapshotted a key still applies its whole history.
 

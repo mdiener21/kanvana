@@ -2,7 +2,6 @@ import { applyEvent, applyEvents, createProjectionState, createTimeTrackingState
 import { keyFor } from '../idb-store.js';
 import { scopeForSnapshotKey, snapshotKeyForEvent } from './snapshot.js';
 import { EVENT_SCOPE } from '../constants.js';
-import { DATA_CHANGED, emit } from '../events.js';
 import { EVENT_ORDER, connectProjector } from './ingest.js';
 import { compareHlc } from './hlc.js';
 
@@ -149,7 +148,8 @@ export function createReadModelProjector(ctx) {
   // Replaces the key's view with fold(). Delete records are permanent, so the
   // board's own are kept. Entities no event or snapshot knows of come from
   // writes that emit no event yet (import, column sort); they are kept as is.
-  function rebuild(key, snapshot, events) {
+  // `superseded` holds the snapshots and events an adopted snapshot replaced.
+  function rebuild(key, snapshot, events, superseded = { snapshots: [], events: [] }) {
     const projected = fold(key, snapshot, events, { live: true });
     const newest = [snapshot?.hlc, ...events.map((event) => event.hlc)]
       .filter(Boolean)
@@ -164,7 +164,10 @@ export function createReadModelProjector(ctx) {
     }
 
     const live = liveBoard(key);
-    const mentioned = new Set(events.map((event) => event.entity_id));
+    const mentioned = new Set([...events, ...superseded.events].map((event) => event.entity_id));
+    for (const { state: held } of superseded.snapshots) {
+      for (const item of [...held.tasks, ...held.columns, ...held.labels]) mentioned.add(item?.id);
+    }
     const taskTombstones = new Set([...boardMemory(key).taskTombstones, ...projected.taskTombstones]);
     const keepUnknown = (rebuilt, current) => [
       ...rebuilt,
@@ -237,39 +240,6 @@ export function createReadModelProjector(ctx) {
     writeAppliedIds(boardId, projected.appliedEventIds);
   }
 
-  // Adopt a snapshot's projected state as the read model. Kept here rather than
-  // in the sync layer so the projector stays the sole writer (ADR-0005). Boards
-  // merge only the snapshot's own board: older snapshots include unrelated
-  // board metadata without the corresponding columns, tasks or settings.
-  function hydrate(key, snapshotState) {
-    const slot = boardlessSlots.get(scopeForSnapshotKey(key));
-    if (slot) {
-      writeBoardless(slot, slot.normalize(snapshotState[slot.field]));
-      emit(DATA_CHANGED, { hydrated: key });
-      return;
-    }
-
-    const known = new Map((state.boards || []).map((board) => [board.id, board]));
-    for (const board of snapshotState.boards || []) {
-      if (board.id === key) known.set(board.id, board);
-    }
-
-    // Delete records are permanent, so the snapshot's are added to the board's.
-    // The adopted snapshot now holds its applied ids; ours that it lacks stay live.
-    const memory = boardMemory(key);
-    state.snapshotAppliedIds[key] = new Set(snapshotState.appliedEventIds || []);
-    writeBoard(key, {
-      boards: [...known.values()],
-      tasks: snapshotState.tasks || [],
-      columns: snapshotState.columns || [],
-      labels: snapshotState.labels || [],
-      settings: snapshotState.settings || {},
-      taskTombstones: new Set([...memory.taskTombstones, ...(snapshotState.taskTombstones || [])]),
-      appliedEventIds: memory.appliedEventIds
-    });
-    emit(DATA_CHANGED, { hydrated: key });
-  }
-
   function register() {
     if (disconnect) return;
     disconnect = connectProjector({ classify, project, rebuild });
@@ -281,5 +251,5 @@ export function createReadModelProjector(ctx) {
     disconnect = null;
   }
 
-  return { register, reset, hydrate };
+  return { register, reset };
 }

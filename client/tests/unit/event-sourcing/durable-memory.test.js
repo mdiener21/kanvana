@@ -10,10 +10,10 @@ import {
   createBoard,
   loadTasksForBoard,
   loadColumnsForBoard,
-  hydrateFromSnapshotState,
   loadGlobalSettings
 } from '../../../src/modules/storage.js';
-import { EVENT_ORIGIN, ingestEvent } from '../../../src/modules/event-sourcing/ingest.js';
+import { EVENT_ORIGIN, adoptSnapshot, ingestEvent } from '../../../src/modules/event-sourcing/ingest.js';
+import { createProjectionState } from '../../../src/modules/reducer.js';
 import { loadSnapshot, _setJitterForTesting } from '../../../src/modules/event-sourcing/snapshot.js';
 import { openStore, READ_MODEL_STORE, SNAPSHOTS_STORE } from '../../../src/modules/idb-store.js';
 
@@ -82,15 +82,12 @@ test('a delete record in an adopted snapshot makes later edits of that task a no
   await ingestLocal(taskEvent('task.created', { id: 'e-create', counter: 1, payload: { task: { title: 'T', column: column() } } }));
 
   // Another device deleted the task; its snapshot carries the delete record.
-  hydrateFromSnapshotState(boardId, {
+  await adoptSnapshot(boardId, createProjectionState({
     boards: [{ id: boardId, name: 'Durable' }],
-    tasks: [],
     columns: loadColumnsForBoard(boardId),
-    labels: [],
-    settings: {},
     appliedEventIds: new Set(['e-create', 'e-delete-elsewhere']),
     taskTombstones: new Set([TASK_ID])
-  });
+  }), { wallTime: 10_001, counter: 1, nodeId: 'node-z' });
 
   await ingestRemote(taskEvent('task.created', { id: 'e-recreate', counter: 2, payload: { task: { title: 'Zombie', column: column() } } }));
   await ingestRemote(taskEvent('task.updated', { id: 'e-update', counter: 3, payload: { fields: { title: 'Edited' } } }));
