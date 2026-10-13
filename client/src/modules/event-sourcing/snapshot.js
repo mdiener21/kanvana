@@ -1,5 +1,5 @@
 import { openStore, EVENTS_STORE, SNAPSHOTS_STORE } from '../idb-store.js';
-import { createProjectionState, createTimeTrackingState, applyEvents } from '../reducer.js';
+import { createProjectionState, createTimeTrackingState } from '../reducer.js';
 import { compareHlc } from './hlc.js';
 import { EVENT_SCOPE } from '../constants.js';
 
@@ -128,12 +128,8 @@ async function takeSnapshot(key, fold) {
   return { state, hlc };
 }
 
-function foldFromSnapshot(snapshot, events) {
-  return applyEvents(snapshot?.state ?? createProjectionState(), events);
-}
-
 // `onSaved` lets the caller prune what the snapshot now holds (applied ids, #178).
-export function checkAndScheduleSnapshot(key, { fold = foldFromSnapshot, onSaved } = {}) {
+export function checkAndScheduleSnapshot(key, { fold, onSaved }) {
   if (_pendingSnapshots.has(key) || Date.now() <= (_notDueBefore.get(key) ?? -Infinity)) return;
   const jitter = _getJitter();
   const id = setTimeout(async () => {
