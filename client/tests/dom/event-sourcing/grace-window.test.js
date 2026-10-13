@@ -1,6 +1,6 @@
 // #179: a late event inside the grace window is ordered in on both inbound
-// paths (SSE and catch-up); one its snapshot already covers is older than the
-// window and dropped on both, with one log line.
+// paths (SSE and catch-up); one that reached the server more than a window
+// after it was stamped is dropped on both, with one log line.
 import { http, HttpResponse } from 'msw';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { deleteDB } from 'idb';
@@ -15,7 +15,7 @@ import {
 } from '../../../src/modules/storage.js';
 import { _resetHlcForTesting } from '../../../src/modules/event-sourcing/hlc.js';
 import { applyRemoteEvent, catchUp, recordToEvent, _resetRealtimeForTesting } from '../../../src/modules/event-sourcing/realtime.js';
-import { saveSnapshot } from '../../../src/modules/event-sourcing/snapshot.js';
+import { GRACE_WINDOW_MS, saveSnapshot } from '../../../src/modules/event-sourcing/snapshot.js';
 import { applyEvents, createProjectionState } from '../../../src/modules/reducer.js';
 
 const EVT_LIST = '*/api/collections/events/records';
@@ -35,11 +35,14 @@ function record(local_id, type, counter, payload, entity_id = TASK) {
   };
 }
 
+// PocketBase's autodate format: the time the server received the event.
+const receivedAfter = (ms) => new Date(1000 + ms).toISOString().replace('T', ' ');
+
 const boardCreated = record('e-board', 'board.created', 10, { board: { name: 'Grace' } }, BOARD);
 const taskCreated = record('e-task', 'task.created', 20, { task: { title: 'T0', column: 'todo', priority: 'none' } });
 const newerEdit = record('e-new', 'task.updated', 40, { fields: { title: 'New' } });
 const lateInsideWindow = record('e-late', 'task.updated', 30, { fields: { title: 'Mid', priority: 'high' } });
-const olderThanWindow = record('e-ancient', 'task.updated', 15, { fields: { priority: 'low' } });
+const olderThanWindow = { ...record('e-ancient', 'task.updated', 15, { fields: { priority: 'low' } }), created: receivedAfter(GRACE_WINDOW_MS + 1) };
 
 const task = () => loadTasksForBoard(BOARD).find((t) => t.id === TASK);
 
@@ -54,9 +57,9 @@ function serveEvents(records) {
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 afterAll(() => server.close());
 
-// The device has applied the board up to e-new. Its snapshot covers e-board
-// and e-task (taken more than a grace window ago); e-new is newer than it.
-beforeEach(async () => {
+// The device has applied the board up to e-new. With `snapshot`, its snapshot
+// covers up to hlc 25 and holds e-board and e-task; e-new is newer.
+async function startDevice({ snapshot }) {
   await _resetRealtimeForTesting();
   _resetStorageForTesting();
   _resetIdbForTesting();
@@ -67,15 +70,19 @@ beforeEach(async () => {
 
   await applyRemoteEvent(boardCreated);
   await applyRemoteEvent(taskCreated);
-  const covered = [boardCreated, taskCreated].map(recordToEvent);
-  await saveSnapshot(BOARD, applyEvents(createProjectionState(), covered), hlc(20));
-  const db = await openStore();
-  for (const event of covered) await db.delete(EVENTS_STORE, event.id);
+  if (snapshot) {
+    const covered = [boardCreated, taskCreated].map(recordToEvent);
+    await saveSnapshot(BOARD, applyEvents(createProjectionState(), covered), hlc(25));
+    const db = await openStore();
+    for (const event of covered) await db.delete(EVENTS_STORE, event.id);
+  }
   await applyRemoteEvent(newerEdit);
 
   server.use(http.get(SNAP_LIST, () => HttpResponse.json({ page: 1, perPage: 500, totalItems: 0, totalPages: 1, items: [] })));
   getPb().authStore.save('test-token', { id: 'user1', email: 't@e.st' });
-});
+}
+
+beforeEach(() => startDevice({ snapshot: true }));
 
 afterEach(async () => {
   await _flushPersistsForTesting();
@@ -126,6 +133,37 @@ describe('adopting a server snapshot', () => {
     await catchUp();
 
     expect(task()).toMatchObject({ title: 'New' });
+  });
+});
+
+describe('the drop decision', () => {
+  const lateOnTime = { ...record('e-on-time', 'task.updated', 22, { fields: { priority: 'high' } }), created: receivedAfter(GRACE_WINDOW_MS - 1) };
+  const tooLate = { ...record('e-too-late', 'task.updated', 23, { fields: { priority: 'low' } }), created: receivedAfter(GRACE_WINDOW_MS + 1) };
+
+  async function viewAfterLateEvents({ snapshot }) {
+    await startDevice({ snapshot });
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await applyRemoteEvent(lateOnTime);
+    await applyRemoteEvent(tooLate);
+    await _flushPersistsForTesting();
+    return { task: task(), onTime: Boolean(await stored('e-on-time')), tooLate: Boolean(await stored('e-too-late')) };
+  }
+
+  it('is the same on devices with different snapshot histories', async () => {
+    const withSnapshot = await viewAfterLateEvents({ snapshot: true });
+    const withoutSnapshot = await viewAfterLateEvents({ snapshot: false });
+
+    expect(withSnapshot).toEqual(withoutSnapshot);
+    expect(withSnapshot.task).toMatchObject({ title: 'New', priority: 'high' });
+    expect(withSnapshot).toMatchObject({ onTime: true, tooLate: false });
+  });
+
+  it('applies an event without a server receipt time on every device', async () => {
+    const unstamped = record('e-unstamped', 'task.updated', 19, { fields: { priority: 'low' } });
+
+    await applyRemoteEvent(unstamped);
+
+    expect(task()).toMatchObject({ title: 'New', priority: 'low' });
   });
 });
 

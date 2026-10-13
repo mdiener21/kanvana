@@ -45,12 +45,12 @@ async function setLastSeen(key, hlc) {
   await db.put(KV_STORE, hlc, LAST_SEEN_PREFIX + key);
 }
 
-function ingest(event) {
-  return ingestEvent(event, { origin: EVENT_ORIGIN.REMOTE });
+function ingest(event, record) {
+  return ingestEvent(event, { origin: EVENT_ORIGIN.REMOTE, receivedAt: record.created });
 }
 
 export async function applyRemoteEvent(record) {
-  await ingest(recordToEvent(record));
+  await ingest(recordToEvent(record), record);
 }
 
 export async function startRealtime() {
@@ -131,19 +131,18 @@ async function pullRemoteState() {
   // Rejected events are dropped before sorting (a malformed HLC cannot be
   // ordered) and never advance a watermark (#181). Ingest validates again.
   const events = records
-    .map(recordToEvent)
-    .map(validateEvent)
-    .filter(Boolean)
-    .sort((a, b) => compareHlc(a.hlc, b.hlc));
+    .map((record) => ({ record, event: validateEvent(recordToEvent(record)) }))
+    .filter(({ event }) => event)
+    .sort((a, b) => compareHlc(a.event.hlc, b.event.hlc));
 
   const maxByKey = new Map();
   const db = await openStore();
 
-  // Ingest decides late versus covered by the same rule as for SSE (#179).
-  for (const event of events) {
+  // Ingest decides late versus dropped by the same rule as for SSE (#179).
+  for (const { record, event } of events) {
     const key = snapshotKeyForEvent(event);
     if (await db.get(EVENTS_STORE, event.id)) continue;
-    await ingest(event);
+    await ingest(event, record);
     const max = maxByKey.get(key);
     if (!max || compareHlc(event.hlc, max) > 0) maxByKey.set(key, event.hlc);
   }

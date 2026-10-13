@@ -19,3 +19,14 @@ test('latest backend migrations defensively keep events.board as text', () => {
   expect(defensiveBoardMigration).toContain('name: "board"');
   expect(defensiveBoardMigration).not.toContain('new RelationField');
 });
+
+test('events record the time the server received them (grace-window drop rule, #179)', () => {
+  const source = readdirSync(migrationsDir)
+    .filter((name) => /^\d+_.*\.js$/.test(name))
+    .map((name) => readFileSync(join(migrationsDir, name), 'utf8'))
+    .find((text) => text.includes('new AutodateField') && text.includes('"events"'));
+
+  expect(source).toBeDefined();
+  expect(source).toContain('name: "created"');
+  expect(source).toContain('onCreate: true');
+});

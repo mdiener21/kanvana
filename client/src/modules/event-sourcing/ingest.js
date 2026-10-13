@@ -11,7 +11,8 @@ import { DATA_CHANGED, EVENT_EMITTED, emit } from '../events.js';
 import { flushPendingPersists, getDbRef, persistEvent, EVENTS_STORE } from '../idb-store.js';
 import { compareHlc, observeRemote } from './hlc.js';
 import { validateEvent } from './event-validation.js';
-import { loadEventsAfter, loadSnapshot, saveSnapshot, snapshotKeyForEvent } from './snapshot.js';
+import { GRACE_WINDOW_MS, loadEventsAfter, loadSnapshot, saveSnapshot, snapshotKeyForEvent } from './snapshot.js';
+import { applyEvents } from '../reducer.js';
 
 export const EVENT_ORIGIN = Object.freeze({ LOCAL: 'local', REMOTE: 'remote' });
 export const EVENT_ORDER = Object.freeze({ APPLIED: 'applied', IN_ORDER: 'in-order', LATE: 'late' });
@@ -37,21 +38,34 @@ export function connectProjector(next) {
 // render sees them (ADR-0005 instant UI). The returned promise settles once
 // the event is persisted, and for a late event once the view is rebuilt; it
 // rejects if persistence fails.
-export function ingestEvent(input, { origin = EVENT_ORIGIN.LOCAL } = {}) {
+export function ingestEvent(input, { origin = EVENT_ORIGIN.LOCAL, receivedAt } = {}) {
   const event = validateEvent(input);
   if (!event) return Promise.resolve();
-  if (origin === EVENT_ORIGIN.REMOTE) return ingestRemote(event);
+  if (origin === EVENT_ORIGIN.REMOTE) return ingestRemote(event, receivedAt);
   return commit(event, origin);
 }
 
 // A remote event already in the event store was applied before, maybe before
-// a reload; the store, unlike session memory, survives one (#178). Events a
-// snapshot has collected are answered by the projector from the snapshot.
-async function ingestRemote(event) {
+// a reload; the store, unlike session memory, survives one (#178).
+async function ingestRemote(event, receivedAt) {
   if (await isStored(event.id)) return;
-  if (projector?.classify(event) === EVENT_ORDER.LATE && await isCoveredBySnapshot(event)) return;
+  if (reachedServerTooLate(event, receivedAt)) return logDrop(event);
+  if (projector?.classify(event) === EVENT_ORDER.LATE && !await foldIntoCoveringSnapshot(event)) return;
   if (event.hlc) await observeRemote(event.hlc);
   return commit(event, EVENT_ORIGIN.REMOTE);
+}
+
+// The server's receipt time is the same on every device, so the drop does not
+// depend on what this device has snapshotted (CONTEXT.md §9). Unstamped: kept.
+function reachedServerTooLate(event, receivedAt) {
+  const received = Date.parse(String(receivedAt ?? '').replace(' ', 'T'));
+  return Number.isFinite(received) && received - event.hlc.wallTime > GRACE_WINDOW_MS;
+}
+
+function logDrop(event) {
+  if (loggedDrops.has(event.id)) return;
+  loggedDrops.add(event.id);
+  console.warn(`[Kanvana] Dropped event ${event.id}: it reached the server later than the sync grace window.`);
 }
 
 async function isStored(id) {
@@ -59,15 +73,14 @@ async function isStored(id) {
   return Boolean(db && await db.get(EVENTS_STORE, id));
 }
 
-// A snapshot covers only events older than the grace window, so an event it
-// covers can no longer be ordered in. Every device drops it by the same rule.
-async function isCoveredBySnapshot(event) {
-  const snapshot = await loadSnapshot(snapshotKeyForEvent(event));
-  if (!snapshot || compareHlc(event.hlc, snapshot.hlc) > 0) return false;
-  if (!snapshot.state.appliedEventIds.has(event.id) && !loggedDrops.has(event.id)) {
-    loggedDrops.add(event.id);
-    console.warn(`[Kanvana] Dropped event ${event.id}: it is older than the sync grace window.`);
-  }
+// An event this device's snapshot covers but lacks is folded onto the snapshot,
+// since the events before it may be gone. False when the snapshot holds it.
+async function foldIntoCoveringSnapshot(event) {
+  const key = snapshotKeyForEvent(event);
+  const snapshot = await loadSnapshot(key);
+  if (!snapshot || compareHlc(event.hlc, snapshot.hlc) > 0) return true;
+  if (snapshot.state.appliedEventIds.has(event.id)) return false;
+  await saveSnapshot(key, applyEvents(snapshot.state, [event]), snapshot.hlc);
   return true;
 }
 

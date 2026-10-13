@@ -376,9 +376,12 @@ re-sorts by HLC on replay, so server insertion order is irrelevant. Node id pers
 | Already applied (id in the key's memory) | No-op |
 | Newer than the key's newest applied event | Folded incrementally onto the live view. No event-store read: the common path never scans the store. |
 | Older (a **late** event) | Persisted, then the key's view is **rebuilt**: `rebuildScope(key)` (`ingest.js`) folds the key's stored snapshot plus every stored event newer than it, in HLC order, and the projector replaces the view (`DATA_CHANGED {rebuilt: key}`). A late *local* edit is shown at once and then reordered by the same rebuild. |
-| Covered by the key's snapshot (HLC ≤ snapshot HLC) | Older than the grace window: dropped and logged once (silently if the snapshot already holds its id). |
+| Remote, reached the server more than the grace window after its HLC (`record.created − hlc.wallTime > GRACE_WINDOW_MS`) | **Dropped** and logged once. The server's receipt time is the same on every device, so every device drops the same events whatever it has snapshotted. A record without `created` (servers before migration `1746100013`) is never dropped. |
+| Late, covered by this device's snapshot (HLC ≤ snapshot HLC) but not held by it | Folded onto the snapshot (which is saved again), then the key is rebuilt; the events before it may be gone. If the snapshot already holds its id: no-op. |
 
 The rule lives only in `ingest.js`, so SSE and catch-up apply or drop a late event the same way.
+Known limit: an event folded onto a snapshot is applied after the events the snapshot holds, so a device
+whose snapshot covers it can order it differently from one that never snapshotted; it is still applied on both.
 Rebuilds of one key run one at a time; requests made while one waits share it, and events committed
 during a rebuild are folded into it.
 
@@ -405,8 +408,9 @@ collection that catch-up pulls in full, to about a month of history.
   holds clients from before #179 to the window. The hook repeats the constant; keep both equal.
 - **Adopting a server snapshot** (catch-up, `adoptSnapshot`) saves it and rebuilds the key, so the device
   keeps its stored events newer than the snapshot (§4 Snapshot adoption).
-- An event older than the window is lost only if a snapshot already covers it; a device that has never
-  snapshotted a key still applies its whole history.
+- The drop decision does not depend on local snapshots: only an event that reached the server more than
+  a window after it was stamped is dropped, on every device. Its originating device keeps it, since local
+  events are never dropped.
 
 ### Event Envelope
 
