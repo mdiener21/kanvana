@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Internal: local edits and events from other devices now enter the event log through one ingest interface (`event-sourcing/ingest.js`, #177). The unused `dispatcher.js` is removed. No behaviour change.
 - The Time Tracking page now opens on the Time Tracker instead of Projects.
 - The Time Tracking page background now follows dark mode.
 - In dark mode, the Time Tracking page's hovered and selected rows, active sidebar item and blue accents (links, `+1 day`, focus rings) now use dark-theme colours that stay readable, instead of light-grey highlights.

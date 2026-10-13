@@ -104,7 +104,7 @@ The storage layer is split into three modules:
 | `idb-store.js` | IDB connection singleton, key helpers, fire-and-forget `schedulePersist()` / `scheduleReadModelPersist()` / `scheduleDelete()`, plus event helpers (`persistEvent`, `getUnsyncedEvents`, `markEventSynced`) |
 | `board-serializer.js` | Board import normalizer — remaps non-UUID IDs, coerces fields on import or IDB migration |
 | `storage.js` | In-memory `state` + all public CRUD functions. Imports from both above. Owns `state`/schedulers; wires them into the read-model projector. |
-| `event-sourcing/read-model-projector.js` | `createReadModelProjector()` — the read-model projection host, extracted from `storage.js` ([#119](docs/adr/0005-reducer-sole-read-model-writer.md)). Subscribes to `EVENT_EMITTED` and folds domain events into the injected `state` via the pure reducer (the sole writer). |
+| `event-sourcing/read-model-projector.js` | `createReadModelProjector()` — the read-model projection host, extracted from `storage.js` ([#119](docs/adr/0005-reducer-sole-read-model-writer.md)). Connects to the ingest interface on `register()` and folds each ingested domain event into the injected `state` via the pure reducer (the sole writer). |
 
 **Main `kv` keys:**
 
@@ -123,7 +123,8 @@ in-memory `state` → fire-and-forget IDB writes via `scheduleReadModelPersist()
 **Single write path into the read model** ([ADR-0005](docs/adr/0005-reducer-sole-read-model-writer.md)):
 a local mutation in `tasks.js`/`columns.js`/`labels.js` emits domain events and does **not** write the
 read model directly. The read-model projector (`read-model-projector.js`, the reducer projection) is
-the sole writer of `state`/`read_model`, for **both** local and remote (SSE/catch-up) events. Local events are emitted
+the sole writer of `state`/`read_model`, for **both** local and remote (SSE/catch-up) events, and the only way an event
+reaches it is `ingestEvent()` (`event-sourcing/ingest.js`). Local events are ingested
 **synchronously** by `scheduleDomainEvent()`, so the in-memory projection is updated before the
 mutation returns / `renderBoard()` runs (instant UI); only the IDB event persist and the PocketBase
 push are async. Each mutation's events are self-complete — they encode every read-model effect
@@ -166,7 +167,8 @@ manual push/pull); the header **sync-state indicator** shows `Live` / `Syncing�
 | `sync.js` | PocketBase SDK instance + auth functions (`isAuthenticated`, `ensureAuthenticated`, `loginUser`, `registerUser`, `logoutUser`, `loginWithProvider`) |
 | `authsync.js` | Auth UI — login modal, OAuth2 (Google/Apple/Microsoft), logout, backend health probe |
 | `event-sourcing/sync-queue.js` | **Outbound** — drains unsynced events to the PB `events` collection in HLC order (debounce, in-flight cap, three-tier retry, no rollback); `getSyncStatus()` |
-| `event-sourcing/realtime.js` | **Inbound** — SSE subscription + launch/reconnect catch-up pull; remote events feed the same projection pipeline (deduped by id) |
+| `event-sourcing/ingest.js` | **Ingest interface** — `ingestEvent(event, { origin })`, the single entry point of the event log for local and remote events: validate (pass-through for now), observe the remote HLC (remote only), project, `DATA_CHANGED`, `EVENT_EMITTED`, persist (`synced` = origin is `remote`) |
+| `event-sourcing/realtime.js` | **Inbound** — SSE subscription + launch/reconnect catch-up pull; remote events go through `ingestEvent(…, { origin: 'remote' })` (deduped by id) |
 | `event-sourcing/hlc.js` | Hybrid Logical Clock — `emitLocal()`, `observeRemote()`, `compareHlc()` |
 | `event-sourcing/snapshot.js`, `snapshot-sync.js` | Client snapshots + upload + event GC |
 | `event-sourcing/sync-indicator.js` | Header sync-state indicator (#115) |
@@ -206,7 +208,7 @@ Development runs without a service worker. Production lifecycle tests run with `
 | `emit(event, detail)` | Publish |
 | `BOARD_CHANGED` | `'board:changed'` — board-level structure changed |
 | `DATA_CHANGED` | `'data:changed'` — projection changed (a domain event was applied); UI re-render trigger |
-| `EVENT_EMITTED` | `'event:emitted'` — a domain event was persisted (local or remote); wakes the outbound queue and the reducer |
+| `EVENT_EMITTED` | `'event:emitted'` — a domain event was ingested (local or remote), after projection; wakes the outbound queue. Notification only: emitting it does not project anything |
 
 ---
 
@@ -233,8 +235,8 @@ Development runs without a service worker. Production lifecycle tests run with `
 | `reports.js` | ECharts: lead time, daily completions, cumulative flow diagram |
 | `calendar.js` | Monthly calendar view; groups tasks by `dueDate` |
 | `reducer.js` | Pure event reducer — `applyEvent(state, event)` folds a domain event into projection state |
-| `event-sourcing/emitter.js` | `emitDomainEvent()` / `scheduleDomainEvent()` — stamp (UUID + HLC), persist, emit `EVENT_EMITTED` |
-| `event-sourcing/dispatcher.js` | `reduceEventAndNotify()` — runs the reducer and signals re-render |
+| `event-sourcing/emitter.js` | `scheduleDomainEvent()` — stamp (UUID + HLC) and hand the event to `ingestEvent()` with origin `local` |
+| `event-sourcing/ingest.js` | `ingestEvent(event, { origin })` — single ingest path for local and remote events (see §4) |
 | `event-sourcing/{hlc,sync-queue,realtime,snapshot,snapshot-sync,sync-indicator}.js` | Sync layer — see §4 |
 | `notifications.js` | Due-date notification banner/modal |
 | `dateutils.js` | Date calculation utilities (`calculateDaysUntilDue`, `formatCountdown`) |
@@ -295,14 +297,16 @@ inspectImportPayload → buildImportConfirmationMessage → importTasks
 
 ### Sync Flow (event-sourced)
 ```
-[local mutation] → scheduleDomainEvent() (stamp UUID + sync HLC)
-                 → emit(EVENT_EMITTED)  [synchronous]
-   │             → persistEvent (synced=false)  [async, fire-and-forget]
-   ├─ reducer: read-model-projector folds event into state (sole writer) → emit(DATA_CHANGED) → renderBoard()
-   └─ outbound: sync-queue drains unsynced events to PB `events` (HLC order)
+[local mutation] → scheduleDomainEvent() (stamp UUID + sync HLC) → ingestEvent(event, { origin: 'local' })
+[remote event]   → realtime.js SSE / catchUp() → ingestEvent(event, { origin: 'remote' })
+                                                   (remote only: await observeRemote(hlc) first)
 
-[remote event] → realtime.js SSE / catchUp() → persist (synced=true) → emit(EVENT_EMITTED)
-              → reducer projects into state → renderBoard()
+ingestEvent (event-sourcing/ingest.js) — one path, origin is a parameter:
+   1. validate                         (pass-through for now; drops events without an id)
+   2. project: read-model-projector folds event into state (sole writer, deduped by id)
+              → emit(DATA_CHANGED) → renderBoard()      [synchronous for local events]
+   3. emit(EVENT_EMITTED) → outbound sync-queue schedules a drain (HLC order, unsynced only)
+   4. persistEvent (synced = origin === 'remote')        [async; the returned promise settles here]
 ```
 
 ---

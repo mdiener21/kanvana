@@ -2,7 +2,8 @@ import { applyEvent, createProjectionState, createTimeTrackingState } from '../r
 import { keyFor } from '../idb-store.js';
 import { scopeForSnapshotKey, snapshotKeyForEvent } from './snapshot.js';
 import { EVENT_SCOPE } from '../constants.js';
-import { DATA_CHANGED, EVENT_EMITTED, emit, off, on } from '../events.js';
+import { DATA_CHANGED, emit } from '../events.js';
+import { connectProjector } from './ingest.js';
 
 // Sole writer of the IDB read model (ADR-0005). Extracted from storage.js so the
 // projection layer owns the read model independent of CRUD. storage.js wires the
@@ -41,11 +42,11 @@ export function createReadModelProjector(ctx) {
   ]);
 
   const appliedDomainEventIds = new Set();
-  let registered = false;
-  let handler = null;
+  let disconnect = null;
 
+  // Called only by the ingest interface. Returns true when the read model changed.
   function project(event) {
-    if (!event?.id || appliedDomainEventIds.has(event.id)) return;
+    if (!event?.id || appliedDomainEventIds.has(event.id)) return false;
     appliedDomainEventIds.add(event.id);
 
     const slot = boardlessSlots.get(event.scope);
@@ -53,12 +54,11 @@ export function createReadModelProjector(ctx) {
       const projected = applyEvent(createProjectionState({ [slot.field]: slot.seed() }), event);
       writeBoardless(slot, projected[slot.field]);
       checkAndScheduleSnapshot(snapshotKeyForEvent(event), projected, event.hlc);
-      emit(DATA_CHANGED, { event });
-      return;
+      return true;
     }
 
     const boardId = event.board_id;
-    if (typeof boardId !== 'string' || !boardId) return;
+    if (typeof boardId !== 'string' || !boardId) return false;
 
     const projected = applyEvent(createProjectionState({
       boards: state.boards,
@@ -70,7 +70,7 @@ export function createReadModelProjector(ctx) {
 
     writeBoard(boardId, projected);
     checkAndScheduleSnapshot(boardId, projected, event.hlc);
-    emit(DATA_CHANGED, { event });
+    return true;
   }
 
   function writeBoardless(slot, value) {
@@ -120,18 +120,15 @@ export function createReadModelProjector(ctx) {
   }
 
   function register() {
-    if (registered) return;
-    registered = true;
-    handler = (event) => project(event.detail);
-    on(EVENT_EMITTED, handler);
+    if (disconnect) return;
+    disconnect = connectProjector(project);
   }
 
   function reset() {
     appliedDomainEventIds.clear();
-    if (handler) off(EVENT_EMITTED, handler);
-    handler = null;
-    registered = false;
+    disconnect?.();
+    disconnect = null;
   }
 
-  return { register, reset, project, hydrate };
+  return { register, reset, hydrate };
 }
