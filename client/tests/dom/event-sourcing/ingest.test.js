@@ -1,10 +1,10 @@
 // One ingest interface for local and remote events (#177).
-import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { deleteDB } from 'idb';
 import { DATA_CHANGED, EVENT_EMITTED, emit, off, on } from '../../../src/modules/events.js';
 import { openStore, EVENTS_STORE } from '../../../src/modules/idb-store.js';
 import {
-  initStorage, createBoard, loadTasksForBoard,
+  initStorage, createBoard, loadTasksForBoard, loadTimeTracking, loadLabelsForBoard,
   _flushPersistsForTesting, _resetStorageForTesting,
 } from '../../../src/modules/storage.js';
 import { scheduleDomainEvent } from '../../../src/modules/event-sourcing/emitter.js';
@@ -36,6 +36,20 @@ function taskCreated(id, overrides = {}) {
     board_id: boardId,
     entity_id: id,
     payload: { task: { id, title: overrides.title || 'Remote task', column: 'todo' } },
+  };
+}
+
+function timetracking(type, entityId, payload) {
+  return {
+    id: `evt-${type}-${entityId}`,
+    type,
+    hlc: { wallTime: Date.now(), counter: 0, nodeId: 'remote-node' },
+    at: '2026-10-12T00:00:00.000Z',
+    actor: { type: 'human', id: null },
+    scope: 'timetracking',
+    board_id: null,
+    entity_id: entityId,
+    payload,
   };
 }
 
@@ -96,5 +110,158 @@ describe('single path', () => {
 
     expect(changes.seen).toEqual([]);
     expect(loadTasksForBoard(boardId).filter((t) => t.id === 'echoed').map((t) => t.title)).toEqual(['Remote task']);
+  });
+});
+
+// #181: malformed or hostile events are rejected before they are persisted or
+// projected, for both origins. Rejection resolves (never throws) and logs once.
+describe('rejected events', () => {
+  async function expectRejected(event, origin = EVENT_ORIGIN.REMOTE) {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const changes = captureDataChanged();
+    const tasksBefore = loadTasksForBoard(boardId);
+    const timeTrackingBefore = loadTimeTracking();
+    await expect(ingestEvent(event, { origin })).resolves.toBeUndefined();
+    await _flushPersistsForTesting();
+    changes.stop();
+
+    expect(changes.seen).toEqual([]);
+    expect(loadTasksForBoard(boardId)).toEqual(tasksBefore);
+    expect(loadTimeTracking()).toEqual(timeTrackingBefore);
+    if (event?.id) expect(await storedEvent(event.id)).toBeUndefined();
+    expect(error).toHaveBeenCalledTimes(1);
+    error.mockRestore();
+  }
+
+  test.each(['unknown.event', 'toString', 'constructor', '__proto__', 'hasOwnProperty'])(
+    'an unknown type %s',
+    async (type) => {
+      await expectRejected({ ...taskCreated('bad-type'), id: `evt-type-${type}`, type });
+    }
+  );
+
+  test.each([
+    ['a missing id', { id: undefined }],
+    ['an empty id', { id: '' }],
+    ['a missing hlc', { hlc: undefined }],
+    ['a string hlc', { hlc: '1000-0-node' }],
+    ['an hlc with a non-numeric wallTime', { hlc: { wallTime: 'soon', counter: 0, nodeId: 'n' } }],
+    ['an hlc with an infinite counter', { hlc: { wallTime: 1000, counter: Infinity, nodeId: 'n' } }],
+    ['an hlc without a nodeId', { hlc: { wallTime: 1000, counter: 0, nodeId: '' } }],
+    ['a scope outside board/global/timetracking', { scope: 'admin' }],
+    ['a board-scope event without a board_id', { board_id: null }],
+    ['a board-scope event with a non-string board_id', { board_id: 42 }],
+  ])('%s', async (label, overrides) => {
+    await expectRejected({ ...taskCreated('bad-envelope'), id: `evt-${label}`, ...overrides });
+  });
+
+  test('a malformed local event is rejected too', async () => {
+    await expectRejected({ ...taskCreated('bad-local'), scope: 'nowhere' }, EVENT_ORIGIN.LOCAL);
+  });
+
+  test.each([
+    ['customer.created', undefined],
+    ['customer.created', null],
+    ['customer.created', {}],
+    ['customer.created', { customer: 'Acme' }],
+    ['project.created', {}],
+    ['project.created', { project: null }],
+    ['time_entry.created', {}],
+    ['time_entry.created', { timeEntry: [] }],
+  ])('%s with payload %j', async (type, payload) => {
+    await expectRejected({ ...timetracking(type, `bad-${JSON.stringify(payload)}`, payload) });
+  });
+
+  test.each([null, 'payload', ['task'], 7])('a payload that is not an object (%j)', async (payload) => {
+    await expectRejected({ ...taskCreated('bad-payload'), id: `evt-payload-${JSON.stringify(payload)}`, payload });
+  });
+
+  test('types that carry no payload data still accept an empty payload', async () => {
+    await ingestEvent(timetracking('customer.created', 'cust-1', { customer: { name: 'Acme', color: '#03a9f4', archived: false } }), { origin: EVENT_ORIGIN.REMOTE });
+    await ingestEvent(timetracking('customer.archived', 'cust-1', {}), { origin: EVENT_ORIGIN.REMOTE });
+    expect(loadTimeTracking().customers).toMatchObject([{ id: 'cust-1', archived: true }]);
+  });
+});
+
+// #181: entity fields are allow-listed per entity type before projection.
+describe('payload entity fields', () => {
+  const remote = (event) => ingestEvent(event, { origin: EVENT_ORIGIN.REMOTE });
+
+  test('unknown task keys are dropped from task.created and task.updated', async () => {
+    const created = taskCreated('allow-1');
+    created.payload.task = { ...created.payload.task, isAdmin: true, onclick: 'alert(1)' };
+    await remote(created);
+    await remote({
+      ...taskCreated('allow-1'), id: 'evt-allow-1-update', type: 'task.updated',
+      payload: { fields: { title: 'Renamed', innerHTML: '<img src=x>' } },
+    });
+
+    const task = loadTasksForBoard(boardId).find((t) => t.id === 'allow-1');
+    expect(task).toMatchObject({ title: 'Renamed', column: 'todo' });
+    expect(task).not.toHaveProperty('isAdmin');
+    expect(task).not.toHaveProperty('onclick');
+    expect(task).not.toHaveProperty('innerHTML');
+  });
+
+  test('known task keys that are not factory defaults survive (doneDate, swimlaneLabelGroup)', async () => {
+    const created = taskCreated('allow-2');
+    created.payload.task = { ...created.payload.task, doneDate: '2026-10-12T00:00:00.000Z', swimlaneLabelGroup: 'Type' };
+    await remote(created);
+    expect(loadTasksForBoard(boardId).find((t) => t.id === 'allow-2'))
+      .toMatchObject({ doneDate: '2026-10-12T00:00:00.000Z', swimlaneLabelGroup: 'Type' });
+  });
+
+  test('unknown customer, project and time entry keys are dropped', async () => {
+    await remote(timetracking('customer.created', 'c-1', { customer: { name: 'Acme', color: '#03a9f4', archived: false, owner: 'x' } }));
+    await remote(timetracking('project.created', 'p-1', { project: { customerId: 'c-1', name: 'Web', color: '#e91e63', archived: false, billing: 'x' } }));
+    await remote(timetracking('time_entry.created', 't-1', {
+      timeEntry: { projectId: 'p-1', description: 'Work', start: '2026-10-12T08:00:00.000Z', end: '2026-10-12T09:00:00.000Z', rate: 999 },
+    }));
+
+    const tt = loadTimeTracking();
+    expect(tt.customers[0]).toEqual({ id: 'c-1', name: 'Acme', color: '#03a9f4', archived: false });
+    expect(tt.projects[0]).toEqual({ id: 'p-1', customerId: 'c-1', name: 'Web', color: '#e91e63', archived: false });
+    expect(tt.timeEntries[0]).not.toHaveProperty('rate');
+  });
+
+  test('the persisted event carries the sanitised payload', async () => {
+    const created = taskCreated('allow-3');
+    created.payload.task = { ...created.payload.task, isAdmin: true };
+    await remote(created);
+    expect((await storedEvent('evt-allow-3')).payload.task).not.toHaveProperty('isAdmin');
+  });
+});
+
+// #181: colours reach style attributes, so they must be hex.
+describe('entity colours', () => {
+  const remote = (event) => ingestEvent(event, { origin: EVENT_ORIGIN.REMOTE });
+  const HOSTILE = 'red;position:fixed';
+  const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+  function boardEvent(type, entityId, payload) {
+    return { ...taskCreated(entityId), id: `evt-${type}-${entityId}`, type, payload };
+  }
+
+  test('a non-hex customer or project colour is normalised to a hex colour', async () => {
+    await remote(timetracking('customer.created', 'c-red', { customer: { name: 'Acme', color: HOSTILE, archived: false } }));
+    await remote(timetracking('project.created', 'p-red', { project: { customerId: 'c-red', name: 'Web', color: HOSTILE, archived: false } }));
+
+    const tt = loadTimeTracking();
+    expect(tt.customers.find((c) => c.id === 'c-red').color).toMatch(HEX);
+    expect(tt.projects.find((p) => p.id === 'p-red').color).toMatch(HEX);
+  });
+
+  test('a valid colour is kept (trimmed)', async () => {
+    await remote(timetracking('customer.created', 'c-ok', { customer: { name: 'Ok', color: ' #abc ', archived: false } }));
+    expect(loadTimeTracking().customers.find((c) => c.id === 'c-ok').color).toBe('#abc');
+  });
+
+  test('a non-hex label colour is normalised on create and ignored on update', async () => {
+    await remote(boardEvent('label.created', 'l-red', { label: { name: 'Bug', color: HOSTILE, group: '' } }));
+    expect(loadLabelsForBoard(boardId).find((l) => l.id === 'l-red').color).toMatch(HEX);
+
+    await remote(boardEvent('label.created', 'l-ok', { label: { name: 'Ok', color: '#ff0000', group: '' } }));
+    await remote(boardEvent('label.updated', 'l-ok', { fields: { name: 'Renamed', color: HOSTILE } }));
+    expect(loadLabelsForBoard(boardId).find((l) => l.id === 'l-ok')).toMatchObject({ name: 'Renamed', color: '#ff0000' });
   });
 });

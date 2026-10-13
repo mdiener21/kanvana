@@ -425,7 +425,7 @@ const handlers = {
 export function applyEvent(state, event) {
   if (state.appliedEventIds.has(event.id)) return state;
 
-  const handler = handlers[event.type];
+  const handler = Object.hasOwn(handlers, event.type) ? handlers[event.type] : null;
   if (!handler) {
     console.warn(`Unknown event type: ${event.type}`);
     return state;

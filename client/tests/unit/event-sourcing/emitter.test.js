@@ -46,7 +46,7 @@ test('a timetracking-scope event carries no board_id even if one is passed', asy
     scope: 'timetracking',
     boardId: 'board-a',
     entityId: 'customer-a',
-    payload: { fields: { name: 'Acme' } }
+    payload: { customer: { name: 'Acme' } }
   });
   off(EVENT_EMITTED, handler);
   await _flushDomainEventsForTesting();

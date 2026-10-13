@@ -8,6 +8,7 @@ import { openStore, KV_STORE, EVENTS_STORE } from '../idb-store.js';
 import { getPb, isAuthenticated, getUser } from '../sync.js';
 import { compareHlc } from './hlc.js';
 import { EVENT_ORIGIN, ingestEvent } from './ingest.js';
+import { validateEvent } from './event-validation.js';
 import { snapshotKeyForEvent, saveSnapshot, loadSnapshot } from './snapshot.js';
 import { downloadAllSnapshots } from './snapshot-sync.js';
 import { hydrateFromSnapshotState } from '../storage.js';
@@ -126,9 +127,12 @@ async function pullRemoteState() {
     requestKey: null,
   });
 
+  // Rejected events are dropped before sorting (a malformed HLC cannot be
+  // ordered) and never advance a watermark (#181). Ingest validates again.
   const events = records
     .map(recordToEvent)
-    .filter(e => e.id && e.hlc)
+    .map(validateEvent)
+    .filter(Boolean)
     .sort((a, b) => compareHlc(a.hlc, b.hlc));
 
   const seenByKey = new Map();

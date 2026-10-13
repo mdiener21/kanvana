@@ -115,6 +115,19 @@ test('unknown event types warn and leave projection unchanged', () => {
   expect(warn).toHaveBeenCalledWith('Unknown event type: unknown.event');
 });
 
+test.each(['toString', 'constructor', '__proto__', 'hasOwnProperty'])(
+  'an inherited object key %s is an unknown event type, not a handler (#181)',
+  (type) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const state = createProjectionState({ tasks: [{ id: 'task-a', title: 'Before', column: 'todo' }] });
+
+    const next = applyEvent(state, event({ id: `inherited-${type}`, type }));
+
+    expect(next).toEqual(state);
+    expect(warn).toHaveBeenCalledWith(`Unknown event type: ${type}`);
+  }
+);
+
 test('label events create update and tombstone labels', () => {
   const created = applyEvent(createProjectionState(), event({
     id: 'label-create',
