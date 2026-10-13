@@ -73,12 +73,25 @@ test('gcEvents removes events at or before snapshotHlc and leaves later ones', a
     makeEvent('e2', 'task.updated', makeHlc(200)),
     makeEvent('e3', 'task.updated', makeHlc(300))
   ];
-  for (const ev of eventsToWrite) await db.put('events', { ...ev, synced: false });
+  for (const ev of eventsToWrite) await db.put('events', { ...ev, synced: true });
 
   await gcEvents('board-a', makeHlc(200));
 
   const remaining = await db.getAll('events');
   expect(remaining.map(e => e.id)).toEqual(['e3']);
+});
+
+test('gcEvents never deletes an event that has not been pushed, whatever its HLC', async () => {
+  const db = await openStore();
+  await db.put('events', { ...makeEvent('pushed', 'task.updated', makeHlc(100)), synced: true });
+  await db.put('events', { ...makeEvent('queued-old', 'task.updated', makeHlc(50)), synced: false });
+  await db.put('events', { ...makeEvent('queued-at', 'task.updated', makeHlc(200)), synced: false });
+  await db.put('events', { ...makeEvent('queued-legacy', 'task.updated', makeHlc(150)) });
+
+  await gcEvents('board-a', makeHlc(200));
+
+  const remaining = await db.getAll('events');
+  expect(remaining.map(e => e.id).sort()).toEqual(['queued-at', 'queued-legacy', 'queued-old']);
 });
 
 test('gcEvents for a board snapshot does not delete unrelated boards\' events', async () => {
@@ -89,7 +102,7 @@ test('gcEvents for a board snapshot does not delete unrelated boards\' events', 
     makeEvent('b1', 'board.created', makeHlc(150), 'board-b', 'board-b'),
     makeEvent('b2', 'task.updated', makeHlc(180), 'board-b', 'task-b')
   ];
-  for (const ev of eventsToWrite) await db.put('events', { ...ev, synced: false });
+  for (const ev of eventsToWrite) await db.put('events', { ...ev, synced: true });
 
   await gcEvents('board-a', makeHlc(200));
 
@@ -106,7 +119,7 @@ test('gcEvents scopes timetracking, global and board snapshots independently', a
     gl('g1', 100),
     makeEvent('b1', 'task.updated', makeHlc(100))
   ];
-  for (const ev of eventsToWrite) await db.put('events', { ...ev, synced: false });
+  for (const ev of eventsToWrite) await db.put('events', { ...ev, synced: true });
 
   await gcEvents(TIMETRACKING_SNAPSHOT_KEY, makeHlc(200));
   expect((await db.getAll('events')).map(e => e.id).sort()).toEqual(['b1', 'g1', 't2']);
@@ -256,7 +269,7 @@ test('rehydration after GC produces the same projection as before GC', async () 
     makeEvent('e2', 'task.updated', makeHlc(200), 'board-a', 'task-1', { fields: { title: 'B' } }),
     makeEvent('e3', 'task.updated', makeHlc(300), 'board-a', 'task-1', { fields: { title: 'C' } })
   ];
-  for (const ev of events) await db.put('events', { ...ev, synced: false });
+  for (const ev of events) await db.put('events', { ...ev, synced: true });
 
   const preGcProjection = applyEvents(createProjectionState(), events);
   await saveSnapshot('board-a', preGcProjection, makeHlc(300));

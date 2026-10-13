@@ -74,11 +74,15 @@ export async function loadSnapshot(key) {
   return { state, hlc, at };
 }
 
+// Deletes an event only when it is synced AND covered by the snapshot. An event
+// still in the outbound queue must survive: the snapshot covers it locally, but
+// the server has never seen it (#176).
 export async function gcEvents(key, snapshotHlc) {
   const db = await openStore();
   const all = await db.getAll(EVENTS_STORE);
   const tx = db.transaction(EVENTS_STORE, 'readwrite');
   for (const event of all) {
+    if (event.synced !== true) continue;
     if (eventMatchesSnapshotScope(key, event) && compareHlc(event.hlc, snapshotHlc) <= 0) tx.store.delete(event.id);
   }
   await tx.done;
