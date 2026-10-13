@@ -72,6 +72,7 @@ Run local pocketbase without docker on windows for development
 
 ```bash
 .\pocketbase.exe serve --migrationsDir ../backend/pb_migrations --hooksDir ../backend/pb_hook
+.\pocketbase.exe migrate up --dir ./pb_data --migrationsDir ../backend/pb_migration
 ```
 
 
