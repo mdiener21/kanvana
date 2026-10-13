@@ -111,15 +111,6 @@ export async function gcEvents(key, snapshotHlc, now = Date.now()) {
   await tx.done;
 }
 
-export async function hydrateFromSnapshot(key, events) {
-  const snapshot = await loadSnapshot(key);
-  const baseState = snapshot ? snapshot.state : createProjectionState();
-  const toReplay = snapshot
-    ? events.filter(e => compareHlc(e.hlc, snapshot.hlc) > 0)
-    : events;
-  return applyEvents(baseState, toReplay);
-}
-
 function isSnapshotDue(snapshot, eventsSinceSnapshot) {
   if (snapshot && Date.now() - new Date(snapshot.at).getTime() >= SNAPSHOT_AGE_MS) return true;
   return eventsSinceSnapshot >= SNAPSHOT_EVENT_THRESHOLD;
