@@ -70,7 +70,7 @@ function applyTaskCreated(state, event) {
   if (state.taskTombstones.has(event.entity_id) || state.tasks.some((task) => task.id === event.entity_id)) return state;
   return {
     ...state,
-    tasks: [...state.tasks, { id: event.entity_id, ...(event.payload?.task || event.payload?.fields || {}) }]
+    tasks: [...state.tasks, { ...(event.payload?.task || event.payload?.fields || {}), id: event.entity_id }]
   };
 }
 
@@ -80,7 +80,7 @@ function applyTaskUpdated(state, event) {
   return {
     ...state,
     tasks: state.tasks.map((task) => (
-      task.id === event.entity_id ? { ...task, ...fields } : task
+      task.id === event.entity_id ? { ...task, ...fields, id: task.id } : task
     ))
   };
 }
@@ -223,7 +223,7 @@ function applyLabelCreated(state, event) {
   if (state.labels.some((label) => label.id === event.entity_id)) return state;
   return {
     ...state,
-    labels: [...state.labels, { id: event.entity_id, ...(event.payload?.label || event.payload?.fields || {}) }]
+    labels: [...state.labels, { ...(event.payload?.label || event.payload?.fields || {}), id: event.entity_id }]
   };
 }
 
@@ -231,7 +231,7 @@ function applyLabelUpdated(state, event) {
   const fields = event.payload?.fields && typeof event.payload.fields === 'object' ? event.payload.fields : {};
   return {
     ...state,
-    labels: state.labels.map((label) => (label.id === event.entity_id ? { ...label, ...fields } : label))
+    labels: state.labels.map((label) => (label.id === event.entity_id ? { ...label, ...fields, id: label.id } : label))
   };
 }
 
@@ -246,7 +246,7 @@ function applyColumnCreated(state, event) {
   if (state.columns.some((column) => column.id === event.entity_id)) return state;
   return {
     ...state,
-    columns: [...state.columns, { id: event.entity_id, ...(event.payload?.column || event.payload?.fields || {}) }]
+    columns: [...state.columns, { ...(event.payload?.column || event.payload?.fields || {}), id: event.entity_id }]
   };
 }
 
@@ -254,7 +254,7 @@ function applyColumnUpdated(state, event) {
   const fields = event.payload?.fields && typeof event.payload.fields === 'object' ? event.payload.fields : {};
   return {
     ...state,
-    columns: state.columns.map((column) => (column.id === event.entity_id ? { ...column, ...fields } : column))
+    columns: state.columns.map((column) => (column.id === event.entity_id ? { ...column, ...fields, id: column.id } : column))
   };
 }
 
@@ -280,7 +280,7 @@ function applyBoardCreated(state, event) {
   if (state.boards.some((board) => board.id === event.entity_id)) return state;
   return {
     ...state,
-    boards: [...state.boards, { id: event.entity_id, ...(event.payload?.board || event.payload?.fields || {}) }]
+    boards: [...state.boards, { ...(event.payload?.board || event.payload?.fields || {}), id: event.entity_id }]
   };
 }
 
@@ -288,7 +288,7 @@ function applyBoardUpdated(state, event) {
   const fields = event.payload?.fields && typeof event.payload.fields === 'object' ? event.payload.fields : {};
   return {
     ...state,
-    boards: state.boards.map((board) => (board.id === event.entity_id ? { ...board, ...fields } : board))
+    boards: state.boards.map((board) => (board.id === event.entity_id ? { ...board, ...fields, id: board.id } : board))
   };
 }
 
@@ -312,7 +312,7 @@ function applySettingsUpdated(state, event) {
 function applyCustomerCreated(state, event) {
   if (state.timeTracking.customers.some((c) => c.id === event.entity_id)) return state;
   const tt = cloneTimeTracking(state.timeTracking);
-  return { ...state, timeTracking: { ...tt, customers: [...tt.customers, { id: event.entity_id, ...event.payload.customer }] } };
+  return { ...state, timeTracking: { ...tt, customers: [...tt.customers, { ...event.payload.customer, id: event.entity_id }] } };
 }
 
 // Brings a tombstoned item back as archived; a no-op when it exists or was never deleted.
@@ -332,7 +332,7 @@ function restoreProjectAndCustomer(tt, projectId) {
 function applyProjectCreated(state, event) {
   if (state.timeTracking.projects.some((p) => p.id === event.entity_id)) return state;
   const tt = cloneTimeTracking(state.timeTracking);
-  const project = { id: event.entity_id, ...event.payload.project };
+  const project = { ...event.payload.project, id: event.entity_id };
   restoreArchived(tt, 'customers', project.customerId);
   tt.projects.push(project);
   return { ...state, timeTracking: tt };
@@ -425,7 +425,7 @@ const handlers = {
 export function applyEvent(state, event) {
   if (state.appliedEventIds.has(event.id)) return state;
 
-  const handler = handlers[event.type];
+  const handler = Object.hasOwn(handlers, event.type) ? handlers[event.type] : null;
   if (!handler) {
     console.warn(`Unknown event type: ${event.type}`);
     return state;

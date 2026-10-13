@@ -7,8 +7,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { server } from '../../mocks/server.js';
 import { getPb } from '../../../src/modules/sync.js';
 import { createProjectionState } from '../../../src/modules/reducer.js';
-import { GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY } from '../../../src/modules/event-sourcing/snapshot.js';
-import { uploadSnapshot, buildSnapshotForm } from '../../../src/modules/event-sourcing/snapshot-sync.js';
+import { GLOBAL_SNAPSHOT_KEY, GRACE_WINDOW_MS, TIMETRACKING_SNAPSHOT_KEY } from '../../../src/modules/event-sourcing/snapshot.js';
+import { SERVER_CLOCK_MARGIN_MS, uploadSnapshot, buildSnapshotForm } from '../../../src/modules/event-sourcing/snapshot-sync.js';
 
 const SNAP_LIST = '*/api/collections/snapshots/records';
 const SNAP_DELETE = '*/api/collections/snapshots/records/:id';
@@ -112,6 +112,64 @@ describe('snapshot upload', () => {
     setAuth();
     await uploadSnapshot('board-1', state, hlc(30));
     expect(deleted.sort()).toEqual(['e-eq', 'e-old']);
+  });
+
+  it('AC-010 (#179): keeps covered PB events that are younger than the grace window', async () => {
+    const deleted = [];
+    const now = Date.now();
+    const oldWall = now - GRACE_WINDOW_MS - SERVER_CLOCK_MARGIN_MS - 1_000;
+    const youngWall = now - GRACE_WINDOW_MS + 60_000;
+    server.use(
+      http.get(SNAP_LIST, () => listResponse([])),
+      http.get(EVT_LIST, () => listResponse([
+        { id: 'e-old', hlc: hlc(0, oldWall) },
+        { id: 'e-young', hlc: hlc(0, youngWall) },
+      ])),
+      http.post(SNAP_LIST, () => HttpResponse.json({ id: 'snap-new' })),
+      http.delete(EVT_DELETE, ({ params }) => { deleted.push(params.id); return HttpResponse.json({}); }),
+    );
+    setAuth();
+    await uploadSnapshot('board-1', state, hlc(0, now));
+    expect(deleted).toEqual(['e-old']);
+  });
+
+  // #179: the server hook judges the window by its own clock, which may lag this device's.
+  it('keeps covered PB events within a clock-skew margin of the grace window', async () => {
+    const deleted = [];
+    const now = Date.now();
+    server.use(
+      http.get(SNAP_LIST, () => listResponse([])),
+      http.get(EVT_LIST, () => listResponse([
+        { id: 'e-borderline', hlc: hlc(0, now - GRACE_WINDOW_MS - 1_000) },
+      ])),
+      http.post(SNAP_LIST, () => HttpResponse.json({ id: 'snap-new' })),
+      http.delete(EVT_DELETE, ({ params }) => { deleted.push(params.id); return HttpResponse.json({}); }),
+    );
+    setAuth();
+    await uploadSnapshot('board-1', state, hlc(0, now));
+    expect(deleted).toEqual([]);
+  });
+
+  it('a delete the server refuses is skipped: the other events are still deleted and the upload succeeds', async () => {
+    const deleted = [];
+    const oldWall = Date.now() - GRACE_WINDOW_MS - SERVER_CLOCK_MARGIN_MS - 1_000;
+    server.use(
+      http.get(SNAP_LIST, () => listResponse([])),
+      http.get(EVT_LIST, () => listResponse([
+        { id: 'e-refused', hlc: hlc(0, oldWall) },
+        { id: 'e-ok', hlc: hlc(1, oldWall) },
+      ])),
+      http.post(SNAP_LIST, () => HttpResponse.json({ id: 'snap-new' })),
+      http.delete(EVT_DELETE, ({ params }) => {
+        if (params.id === 'e-refused') return HttpResponse.json({ message: 'inside the grace window' }, { status: 400 });
+        deleted.push(params.id);
+        return HttpResponse.json({});
+      }),
+    );
+    setAuth();
+    const res = await uploadSnapshot('board-1', state, hlc(5, oldWall));
+    expect(res.uploaded).toBe('snap-new');
+    expect(deleted).toEqual(['e-ok']);
   });
 
   it('global snapshot filters events by scope=global and uses empty board_id', async () => {

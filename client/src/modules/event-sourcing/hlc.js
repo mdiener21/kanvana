@@ -77,8 +77,14 @@ export function emitLocalSync() {
 export async function observeRemote(remoteHlc) {
   const nodeId = await ensureNodeId();
   const now = Date.now();
-  const remoteWall = Number.isFinite(remoteHlc?.wallTime) ? remoteHlc.wallTime : 0;
-  const remoteCounter = Number.isFinite(remoteHlc?.counter) ? remoteHlc.counter : 0;
+  const claimedWall = Number.isFinite(remoteHlc?.wallTime) ? remoteHlc.wallTime : 0;
+  // A remote clock far in the future (a skewed or hostile device) may pull the
+  // local clock ahead by at most MAX_DRIFT_MS (#181).
+  const maxWall = now + MAX_DRIFT_MS;
+  const clamped = claimedWall > maxWall;
+  if (clamped) console.warn('[Kanvana] Remote HLC is more than 60000ms ahead; clamping.');
+  const remoteWall = clamped ? maxWall : claimedWall;
+  const remoteCounter = !clamped && Number.isFinite(remoteHlc?.counter) ? remoteHlc.counter : 0;
   const newWall = Math.max(now, current.wallTime, remoteWall);
 
   if (now - current.wallTime > MAX_DRIFT_MS && current.wallTime > 0) {
@@ -103,6 +109,12 @@ export function compareHlc(a, b) {
   if (a.wallTime !== b.wallTime) return a.wallTime - b.wallTime;
   if (a.counter !== b.counter) return a.counter - b.counter;
   return a.nodeId < b.nodeId ? -1 : a.nodeId > b.nodeId ? 1 : 0;
+}
+
+export function laterHlc(a, b) {
+  if (!a) return b ?? null;
+  if (!b) return a;
+  return compareHlc(b, a) > 0 ? b : a;
 }
 
 export function _resetHlcForTesting() {

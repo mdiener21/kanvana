@@ -1,7 +1,6 @@
-import { emit, EVENT_EMITTED } from '../events.js';
-import { flushPendingPersists, getDbRef, persistEvent } from '../idb-store.js';
 import { generateUUID } from '../utils.js';
 import { emitLocalSync } from './hlc.js';
+import { EVENT_ORIGIN, ingestEvent } from './ingest.js';
 
 const DEFAULT_ACTOR = { type: 'human', id: null };
 const pendingDomainEvents = new Set();
@@ -21,19 +20,12 @@ function buildDomainEvent({ type, scope = 'board', boardId = null, entityId = ''
 }
 
 export function scheduleDomainEvent(input) {
-  const event = buildDomainEvent(input);
-  // Project synchronously: the read-model projection listens on EVENT_EMITTED, so
-  // emitting here updates the in-memory read model before the caller's
-  // renderBoard() runs (instant UI). The reducer/projection remains the sole
-  // writer of the read model (ADR-0005); persistence to IDB is deferred and async.
-  emit(EVENT_EMITTED, event);
-  if (!getDbRef()) return Promise.resolve();
-  const pending = persistEvent(event).catch((err) => {
+  const pending = ingestEvent(buildDomainEvent(input), { origin: EVENT_ORIGIN.LOCAL }).catch((err) => {
     console.error('[Kanvana] Event persistence failed', err);
   });
   pendingDomainEvents.add(pending);
   pending.finally(() => pendingDomainEvents.delete(pending));
-  return pending.then(() => flushPendingPersists());
+  return pending;
 }
 
 export async function flushDomainEvents() {

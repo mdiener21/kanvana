@@ -25,14 +25,16 @@ ADR-0004 for the rationale; this spec documents the mechanics.
 
 ### Local emission → projection
 
-1. A feature module calls `emitDomainEvent({ type, scope, boardId, entityId, payload, actor })`
+1. A feature module calls `scheduleDomainEvent({ type, scope, boardId, entityId, payload, actor })`
    (`event-sourcing/emitter.js`).
-2. The emitter stamps a UUID `id`, an HLC (`emitLocal()`), and `at`, then **persists the event to IDB**
-   (`synced=false`) and fires the `EVENT_EMITTED` bus event.
-3. The reducer (`reduceEventAndNotify`, `event-sourcing/dispatcher.js`) folds the event into the read
-   model — the reducer is the **sole writer** of the projection. Feature modules never write
+2. The emitter stamps a UUID `id`, an HLC (`emitLocalSync()`), and `at`, and hands the event to
+   `ingestEvent(event, { origin: 'local' })` (`event-sourcing/ingest.js`), the single ingest path for
+   local and remote events.
+3. Ingest projects the event synchronously through the read-model projector — the reducer is the
+   **sole writer** of the projection — and emits `DATA_CHANGED`. Feature modules never write
    projections directly.
-4. `EVENT_EMITTED` also wakes the outbound queue.
+4. Ingest then fires `EVENT_EMITTED` (wakes the outbound queue) and **persists the event to IDB**
+   (`synced=false`) asynchronously.
 
 `scope` is `board` (carries a `board_id`) or `global` (settings shared across boards; no board id).
 
@@ -60,10 +62,10 @@ Drains IDB events where `synced=false` to the PocketBase `events` collection, th
 
 - **SSE subscription**: `startRealtime()` subscribes to the `events` collection filtered by
   `owner = "<id>"`; each `create` runs `applyRemoteEvent`.
-- **Ingest**: a remote record is mapped to an event, `observeRemote(hlc)` advances the local clock, the
-  event is **persisted as `synced=true`** (so the outbound queue never echoes it back), and
-  `EVENT_EMITTED` is fired — feeding the *same* projection pipeline as local events.
-- **Dedup for free**: the reducer keys on the event UUID, so SSE/catch-up overlap and self-echoes are
+- **Ingest**: a remote record is mapped to an event and passed to `ingestEvent(event, { origin: 'remote' })`
+  — the *same* ingest path as local events. Remote origin first runs `observeRemote(hlc)` to advance the
+  local clock, and the event is **persisted as `synced=true`** (so the outbound queue never echoes it back).
+- **Dedup for free**: the projector keys on the event UUID, so SSE/catch-up overlap and self-echoes are
   idempotent no-ops.
 - **Catch-up pull** (`catchUp()`, on launch / reconnect / login): fetch owner-scoped events, sort by
   HLC, skip events at or below the per-scope `lastSeenHlc` watermark, ingest the rest, then advance
@@ -156,8 +158,8 @@ in #116. New sync work goes through the event stream only.
 | `src/modules/sync.js` | PocketBase SDK init (`getPb`) + auth fns (`isAuthenticated`, `loginUser`, `registerUser`, `logoutUser`, `loginWithProvider`, `ensureAuthenticated`) |
 | `src/modules/authsync.js` | Auth/sync UI orchestration, login modal, backend health probe |
 | `src/modules/autosync.js` | ⚠️ Legacy LWW auto-push (`kanban-local-change` → `pushBoardFull`) — deprecated, targets write-locked collections; removed with #116 |
-| `src/modules/event-sourcing/emitter.js` | `emitDomainEvent` / `scheduleDomainEvent` — stamp, persist, emit |
-| `src/modules/event-sourcing/dispatcher.js` | `reduceEventAndNotify` — fold events into the projection (sole writer) |
+| `src/modules/event-sourcing/emitter.js` | `scheduleDomainEvent` — stamp, then ingest with origin `local` |
+| `src/modules/event-sourcing/ingest.js` | `ingestEvent(event, { origin })` — single ingest path: validate, project (sole writer), `DATA_CHANGED`, persist |
 | `src/modules/event-sourcing/hlc.js` | Hybrid Logical Clock + `compareHlc` |
 | `src/modules/event-sourcing/sync-queue.js` | Outbound push queue; `getSyncStatus` |
 | `src/modules/event-sourcing/realtime.js` | Inbound SSE subscription + catch-up pull; `isRealtimeActive` |

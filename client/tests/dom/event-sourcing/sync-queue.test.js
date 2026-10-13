@@ -23,7 +23,16 @@ import {
   _settleForTesting,
   getSyncStatus,
 } from '../../../src/modules/event-sourcing/sync-queue.js';
+import {
+  SNAPSHOT_EVENT_THRESHOLD,
+  checkAndScheduleSnapshot,
+  loadSnapshot,
+  _resetSnapshotSchedulerForTesting,
+  _setJitterForTesting,
+} from '../../../src/modules/event-sourcing/snapshot.js';
+import { applyEvents, createProjectionState } from '../../../src/modules/reducer.js';
 
+const replayFold = (snapshot, events) => applyEvents(snapshot?.state ?? createProjectionState(), events);
 const EVENTS_URL = '*/api/collections/events/records';
 
 function setAuth(id = 'user1') {
@@ -59,6 +68,41 @@ beforeEach(async () => {
   await deleteDB('kanvana-db');
   getPb().authStore.clear();
   _setTimingForTesting({ debounceMs: 1 });
+});
+
+describe('sync-queue across a local snapshot (#176)', () => {
+  afterEach(() => _resetSnapshotSchedulerForTesting());
+
+  // Editing offline past the snapshot threshold used to GC the still-queued
+  // events, so they never reached the server once the user reconnected.
+  it('pushes every event queued offline even after a snapshot covered them', async () => {
+    const received = [];
+    server.use(http.post(EVENTS_URL, async ({ request }) => {
+      received.push((await request.json()).local_id);
+      return HttpResponse.json({ id: 'rec' });
+    }));
+    _setTimingForTesting({ debounceMs: 1, maxInFlight: 20 });
+    _setJitterForTesting(() => 0);
+
+    initSyncQueue(); // signed out = offline: nothing drains
+    const ids = [];
+    for (let counter = 0; counter < SNAPSHOT_EVENT_THRESHOLD; counter++) {
+      const event = makeEvent({ counter });
+      ids.push(event.id);
+      await persistEvent(event);
+      emit(EVENT_EMITTED, event);
+    }
+
+    checkAndScheduleSnapshot('board-1', { fold: replayFold });
+    await waitFor(async () => expect(await loadSnapshot('board-1')).not.toBeNull());
+    expect(received).toHaveLength(0);
+
+    setAuth();
+    window.dispatchEvent(new Event('auth-changed'));
+
+    await waitFor(async () => expect((await getUnsyncedEvents()).length).toBe(0), { timeout: 10000 });
+    expect(received.sort()).toEqual(ids.sort());
+  }, 20000);
 });
 
 describe('sync-queue startup', () => {
