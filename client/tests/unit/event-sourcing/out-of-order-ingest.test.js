@@ -1,6 +1,6 @@
 // #179: the live projection converges to the HLC-ordered result whatever order
 // events arrive in. The oracle is the pure reducer over the sorted events.
-import { beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { deleteDB } from 'idb';
 import { resetLocalStorage } from '../setup.js';
 import {
@@ -15,6 +15,8 @@ import {
 } from '../../../src/modules/storage.js';
 import { EVENT_ORIGIN, ingestEvent } from '../../../src/modules/event-sourcing/ingest.js';
 import { applyEvents, createProjectionState } from '../../../src/modules/reducer.js';
+import { _setJitterForTesting } from '../../../src/modules/event-sourcing/snapshot.js';
+import { DATA_CHANGED, off, on } from '../../../src/modules/events.js';
 
 // Ids must be UUIDs: initStorage() remaps non-UUID ids on load.
 const TASK_ID = '7a5c0d2e-1b3f-4c6d-8e9f-0a1b2c3d4e5f';
@@ -71,6 +73,63 @@ describe('board scope', () => {
     const expected = applyEvents(createProjectionState(), events).tasks[0];
     const task = loadTasksForBoard(boardId).find((t) => t.id === TASK_ID);
     expect(task).toMatchObject({ title: expected.title, priority: expected.priority, column: expected.column });
+  });
+});
+
+describe('in-order ingest stays incremental', () => {
+  // Counts every bulk read of the events store, through the store or an index.
+  function spyOnEventStoreReads() {
+    const storeName = (target) => (target.objectStore ? target.objectStore.name : target.name);
+    const spies = [IDBObjectStore.prototype, IDBIndex.prototype].flatMap((proto) => (
+      ['getAll', 'getAllKeys', 'openCursor', 'openKeyCursor'].map((method) => vi.spyOn(proto, method))
+    ));
+    return () => spies.flatMap((spy) => spy.mock.contexts).filter((target) => storeName(target) === 'events').length;
+  }
+
+  function rebuilds() {
+    const seen = [];
+    const handler = (e) => { if (e.detail?.rebuilt) seen.push(e.detail.rebuilt); };
+    on(DATA_CHANGED, handler);
+    return { seen, stop: () => off(DATA_CHANGED, handler) };
+  }
+
+  beforeEach(() => {
+    _setJitterForTesting(() => 60_000);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('a stream of newer events never reads the event store in bulk and never rebuilds', async () => {
+    const base = Date.now() + 1_000;
+    await ingestRemote(boardEvent('task.created', { id: 'e-0', wallTime: base, payload: { task: { title: 'T0', column: todoColumn } } }));
+    const scans = spyOnEventStoreReads();
+    const watch = rebuilds();
+
+    for (let i = 1; i <= 50; i++) {
+      await ingestRemote(boardEvent('task.updated', { id: `e-${i}`, wallTime: base + i, payload: { fields: { title: `T${i}` } } }));
+    }
+    watch.stop();
+
+    expect(loadTasksForBoard(boardId).find((t) => t.id === TASK_ID).title).toBe('T50');
+    expect(scans()).toBe(0);
+    expect(watch.seen).toEqual([]);
+  });
+
+  test('a late event is the one that reads the store and rebuilds', async () => {
+    const base = Date.now() + 1_000;
+    await ingestRemote(boardEvent('task.created', { id: 'e-0', wallTime: base, payload: { task: { title: 'T0', column: todoColumn } } }));
+    await ingestRemote(boardEvent('task.updated', { id: 'e-2', wallTime: base + 2, payload: { fields: { title: 'T2' } } }));
+    const scans = spyOnEventStoreReads();
+    const watch = rebuilds();
+
+    await ingestRemote(boardEvent('task.updated', { id: 'e-1', wallTime: base + 1, payload: { fields: { title: 'T1' } } }));
+    watch.stop();
+
+    expect(loadTasksForBoard(boardId).find((t) => t.id === TASK_ID).title).toBe('T2');
+    expect(scans()).toBe(1);
+    expect(watch.seen).toEqual([boardId]);
   });
 });
 
