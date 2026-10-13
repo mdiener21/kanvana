@@ -1,5 +1,5 @@
 // One ingest interface for local and remote events (#177).
-import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { deleteDB } from 'idb';
 import { DATA_CHANGED, EVENT_EMITTED, emit, off, on } from '../../../src/modules/events.js';
 import { openStore, EVENTS_STORE } from '../../../src/modules/idb-store.js';
@@ -97,4 +97,30 @@ describe('single path', () => {
     expect(changes.seen).toEqual([]);
     expect(loadTasksForBoard(boardId).filter((t) => t.id === 'echoed').map((t) => t.title)).toEqual(['Remote task']);
   });
+});
+
+// #181: malformed or hostile events are rejected before they are persisted or
+// projected, for both origins. Rejection resolves (never throws) and logs once.
+describe('rejected events', () => {
+  async function expectRejected(event, origin = EVENT_ORIGIN.REMOTE) {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const changes = captureDataChanged();
+    const tasksBefore = loadTasksForBoard(boardId);
+    await expect(ingestEvent(event, { origin })).resolves.toBeUndefined();
+    await _flushPersistsForTesting();
+    changes.stop();
+
+    expect(changes.seen).toEqual([]);
+    expect(loadTasksForBoard(boardId)).toEqual(tasksBefore);
+    if (event?.id) expect(await storedEvent(event.id)).toBeUndefined();
+    expect(error).toHaveBeenCalledTimes(1);
+    error.mockRestore();
+  }
+
+  test.each(['unknown.event', 'toString', 'constructor', '__proto__', 'hasOwnProperty'])(
+    'an unknown type %s',
+    async (type) => {
+      await expectRejected({ ...taskCreated('bad-type'), id: `evt-type-${type}`, type });
+    }
+  );
 });

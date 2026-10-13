@@ -6,6 +6,7 @@
 import { DATA_CHANGED, EVENT_EMITTED, emit } from '../events.js';
 import { flushPendingPersists, getDbRef, persistEvent } from '../idb-store.js';
 import { observeRemote } from './hlc.js';
+import { validateEvent } from './event-validation.js';
 
 export const EVENT_ORIGIN = Object.freeze({ LOCAL: 'local', REMOTE: 'remote' });
 
@@ -20,15 +21,12 @@ export function connectProjector(project) {
   };
 }
 
-function validate(event) {
-  return Boolean(event?.id);
-}
-
 // Local events project synchronously, before this returns, so the caller's
 // render sees them (ADR-0005 instant UI). The returned promise settles once
 // the event is persisted; it rejects if persistence fails.
-export function ingestEvent(event, { origin = EVENT_ORIGIN.LOCAL } = {}) {
-  if (!validate(event)) return Promise.resolve();
+export function ingestEvent(input, { origin = EVENT_ORIGIN.LOCAL } = {}) {
+  const event = validateEvent(input);
+  if (!event) return Promise.resolve();
   if (origin === EVENT_ORIGIN.REMOTE && event.hlc) {
     return observeRemote(event.hlc).then(() => commit(event, origin));
   }
