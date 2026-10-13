@@ -96,15 +96,16 @@ export async function loadSnapshot(key) {
   return { state, hlc, at };
 }
 
-// Deletes an event only when it is synced AND covered by the snapshot. An event
-// still in the outbound queue must survive: the snapshot covers it locally, but
-// the server has never seen it (#176).
-export async function gcEvents(key, snapshotHlc) {
+// Deletes an event only when it is synced, covered by the snapshot AND older
+// than the grace window. An event still in the outbound queue must survive: the
+// snapshot covers it locally, but the server has never seen it (#176). An event
+// inside the window may still be needed to rebuild around a late one (#179).
+export async function gcEvents(key, snapshotHlc, now = Date.now()) {
   const db = await openStore();
   const all = await db.getAll(EVENTS_STORE);
   const tx = db.transaction(EVENTS_STORE, 'readwrite');
   for (const event of all) {
-    if (event.synced !== true) continue;
+    if (event.synced !== true || !isOlderThanGraceWindow(event.hlc, now)) continue;
     if (eventMatchesSnapshotScope(key, event) && compareHlc(event.hlc, snapshotHlc) <= 0) tx.store.delete(event.id);
   }
   await tx.done;

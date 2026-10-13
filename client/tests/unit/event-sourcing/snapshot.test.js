@@ -6,6 +6,7 @@ import {
   SNAPSHOT_EVENT_THRESHOLD,
   SNAPSHOT_AGE_MS,
   MAX_JITTER_MS,
+  GRACE_WINDOW_MS,
   GLOBAL_SNAPSHOT_KEY,
   TIMETRACKING_SNAPSHOT_KEY,
   snapshotKeyForEvent,
@@ -92,6 +93,19 @@ test('gcEvents never deletes an event that has not been pushed, whatever its HLC
 
   const remaining = await db.getAll('events');
   expect(remaining.map(e => e.id).sort()).toEqual(['queued-at', 'queued-legacy', 'queued-old']);
+});
+
+test('gcEvents keeps covered, pushed events that are younger than the grace window', async () => {
+  const db = await openStore();
+  const now = Date.now();
+  const old = makeHlc(now - GRACE_WINDOW_MS - 1_000);
+  const young = makeHlc(now - GRACE_WINDOW_MS + 60_000);
+  await db.put('events', { ...makeEvent('old', 'task.updated', old), synced: true });
+  await db.put('events', { ...makeEvent('young', 'task.updated', young), synced: true });
+
+  await gcEvents('board-a', makeHlc(now));
+
+  expect((await db.getAll('events')).map(e => e.id)).toEqual(['young']);
 });
 
 test('gcEvents for a board snapshot does not delete unrelated boards\' events', async () => {
