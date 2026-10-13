@@ -10,7 +10,8 @@ import {
   createBoard,
   loadTasksForBoard,
   loadColumnsForBoard,
-  hydrateFromSnapshotState
+  hydrateFromSnapshotState,
+  loadGlobalSettings
 } from '../../../src/modules/storage.js';
 import { EVENT_ORIGIN, ingestEvent } from '../../../src/modules/event-sourcing/ingest.js';
 import { loadSnapshot, _setJitterForTesting } from '../../../src/modules/event-sourcing/snapshot.js';
@@ -130,4 +131,26 @@ test('a snapshot holds the board memory and the live applied set is pruned of wh
   await ingestRemote(taskEvent('task.created', { id: 'e-create', counter: 1, payload: { task: { title: 'T', column: column() } } }));
   expect(task(TASK_ID)).toBeUndefined();
   expect(await (await openStore()).get(READ_MODEL_STORE, `${boardId}:taskTombstones`)).toEqual([TASK_ID]);
+});
+
+test('a global-scope echo of an event stored before a reload is answered as applied from the event store', async () => {
+  const globalEvent = (id, counter, theme) => ({
+    id,
+    type: 'settings.updated',
+    hlc: { wallTime: 10_000 + counter, counter, nodeId: 'node-a' },
+    at: '2026-10-01T00:00:00.000Z',
+    actor: { type: 'human', id: null },
+    scope: 'global',
+    board_id: null,
+    entity_id: 'global',
+    payload: { fields: { timeTracking: { theme } } }
+  });
+  const g1 = globalEvent('g1', 1, 'dark');
+  await ingestLocal(g1);
+  await reload();
+
+  await ingestLocal(globalEvent('g2', 2, 'light'));
+  await ingestRemote({ ...g1 });
+
+  expect(loadGlobalSettings().timeTracking.theme).toBe('light');
 });
