@@ -93,7 +93,7 @@ added three object stores alongside the original `kv`:
 | Object store | Content |
 |---|---|
 | `kv` | Coordination + small values: board list, active board, global settings, HLC node id, catch-up watermarks |
-| `read_model` | Per-board projections (tasks / columns / labels / settings), keyed `{boardId}:{kind}` — what the UI renders. Also the board's event-log memory: `{boardId}:taskTombstones` (task delete records) and `{boardId}:appliedEventIds` (applied event ids not yet held by a snapshot) |
+| `read_model` | Per-board projections (tasks / columns / labels / settings), keyed `{boardId}:{kind}` — what the UI renders. Also the board's event-log memory: `{boardId}:taskTombstones` (task delete records) and `{boardId}:appliedEventIds` (applied event ids not yet held by a snapshot). `deleteBoard()` removes all of a board's keys, these two included |
 | `events` | The domain-event log, keyed by event `id`; the `synced` flag drives the outbound queue |
 | `snapshots` | Local projection snapshots that bound replay and event GC |
 

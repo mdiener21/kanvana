@@ -757,19 +757,6 @@ export function deleteBoard(boardId) {
   const remaining = boards.filter((b) => b.id !== id);
   saveBoards(remaining);
 
-  // Remove per-board state
-  delete state.tasks[id];
-  delete state.columns[id];
-  delete state.labels[id];
-  delete state.settings[id];
-  taskCacheByBoard.delete(id);
-
-  // Remove from IDB
-  scheduleReadModelDelete(id, 'tasks');
-  scheduleReadModelDelete(id, 'columns');
-  scheduleReadModelDelete(id, 'labels');
-  scheduleDelete(keyFor(id, 'settings'));
-
   if (state.activeBoardId === id) {
     state.activeBoardId = remaining[0].id;
     schedulePersist(ACTIVE_BOARD_KEY, remaining[0].id);
@@ -781,6 +768,14 @@ export function deleteBoard(boardId) {
     entityId: id,
     payload: {}
   });
+
+  // After the event: projecting it writes the board's read model once more.
+  for (const slot of [state.tasks, state.columns, state.labels, state.settings, state.taskTombstones, state.appliedEventIds, state.snapshotAppliedIds]) {
+    delete slot[id];
+  }
+  taskCacheByBoard.delete(id);
+  for (const kind of ['tasks', 'columns', 'labels', 'taskTombstones', 'appliedEventIds']) scheduleReadModelDelete(id, kind);
+  scheduleDelete(keyFor(id, 'settings'));
   return true;
 }
 
