@@ -39,6 +39,8 @@ function makeHarness() {
     labels: { [BOARD_ID]: [] },
     settings: { [BOARD_ID]: {} },
     taskTombstones: {},
+    appliedEventIds: {},
+    snapshotAppliedIds: {},
     globalSettings: null,
     timeTracking: null
   };
@@ -96,7 +98,7 @@ describe('createReadModelProjector', () => {
     ingest(ev);
     off(DATA_CHANGED, handler);
 
-    expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(4); // tasks/columns/labels/taskTombstones, once
+    expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(5); // tasks/columns/labels/taskTombstones/appliedEventIds, once
     expect(seen).toEqual(['event-dup']);
   });
 
@@ -158,21 +160,22 @@ describe('createReadModelProjector', () => {
     h.projector.register();
     ingest(boardEvent({ id: 'once' }));
 
-    expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(4);
+    expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(5);
   });
 
-  test('reset() disconnects the projector from ingest and clears dedup state', () => {
+  test('reset() disconnects the projector from ingest; applied ids live in state, not the projector', () => {
     const ev = boardEvent({ id: 'seen' });
     ingest(ev);
-    expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(4);
+    expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(5);
 
     h.projector.reset();
     ingest(boardEvent({ id: 'after-reset' }));
-    expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(4);
+    expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(5);
 
-    // dedup set cleared: an id seen before reset projects again once reconnected
+    // The board's applied ids are durable state, so a reconnected projector still skips the seen id.
     h.projector.register();
     ingest(ev);
-    expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(8);
+    expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(5);
+    expect(h.state.appliedEventIds[BOARD_ID]).toEqual(['seen']);
   });
 });

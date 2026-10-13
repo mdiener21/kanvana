@@ -114,7 +114,9 @@ async function shouldTakeSnapshot(key) {
   return { should: false };
 }
 
-export function checkAndScheduleSnapshot(key, state, hlc) {
+// `onSaved(key, state)` runs once the snapshot is stored, so the caller can
+// prune what the snapshot now holds (applied ids, #178).
+export function checkAndScheduleSnapshot(key, state, hlc, onSaved) {
   if (_pendingSnapshots.has(key)) return;
   const jitter = _getJitter();
   const id = setTimeout(async () => {
@@ -124,6 +126,7 @@ export function checkAndScheduleSnapshot(key, state, hlc) {
       if (!should) return;
       await saveSnapshot(key, state, hlc);
       await gcEvents(key, hlc);
+      onSaved?.(key, state);
       if (_afterSnapshotSaved) await _afterSnapshotSaved(key, state, hlc);
     } catch (err) {
       if (err?.code !== 11) console.error('[Kanvana] Snapshot failed', err);
