@@ -4,7 +4,7 @@ import { deleteDB } from 'idb';
 import { DATA_CHANGED, EVENT_EMITTED, emit, off, on } from '../../../src/modules/events.js';
 import { openStore, EVENTS_STORE } from '../../../src/modules/idb-store.js';
 import {
-  initStorage, createBoard, loadTasksForBoard, loadTimeTracking,
+  initStorage, createBoard, loadTasksForBoard, loadTimeTracking, loadLabelsForBoard,
   _flushPersistsForTesting, _resetStorageForTesting,
 } from '../../../src/modules/storage.js';
 import { scheduleDomainEvent } from '../../../src/modules/event-sourcing/emitter.js';
@@ -229,5 +229,39 @@ describe('payload entity fields', () => {
     created.payload.task = { ...created.payload.task, isAdmin: true };
     await remote(created);
     expect((await storedEvent('evt-allow-3')).payload.task).not.toHaveProperty('isAdmin');
+  });
+});
+
+// #181: colours reach style attributes, so they must be hex.
+describe('entity colours', () => {
+  const remote = (event) => ingestEvent(event, { origin: EVENT_ORIGIN.REMOTE });
+  const HOSTILE = 'red;position:fixed';
+  const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+  function boardEvent(type, entityId, payload) {
+    return { ...taskCreated(entityId), id: `evt-${type}-${entityId}`, type, payload };
+  }
+
+  test('a non-hex customer or project colour is normalised to a hex colour', async () => {
+    await remote(timetracking('customer.created', 'c-red', { customer: { name: 'Acme', color: HOSTILE, archived: false } }));
+    await remote(timetracking('project.created', 'p-red', { project: { customerId: 'c-red', name: 'Web', color: HOSTILE, archived: false } }));
+
+    const tt = loadTimeTracking();
+    expect(tt.customers.find((c) => c.id === 'c-red').color).toMatch(HEX);
+    expect(tt.projects.find((p) => p.id === 'p-red').color).toMatch(HEX);
+  });
+
+  test('a valid colour is kept (trimmed)', async () => {
+    await remote(timetracking('customer.created', 'c-ok', { customer: { name: 'Ok', color: ' #abc ', archived: false } }));
+    expect(loadTimeTracking().customers.find((c) => c.id === 'c-ok').color).toBe('#abc');
+  });
+
+  test('a non-hex label colour is normalised on create and ignored on update', async () => {
+    await remote(boardEvent('label.created', 'l-red', { label: { name: 'Bug', color: HOSTILE, group: '' } }));
+    expect(loadLabelsForBoard(boardId).find((l) => l.id === 'l-red').color).toMatch(HEX);
+
+    await remote(boardEvent('label.created', 'l-ok', { label: { name: 'Ok', color: '#ff0000', group: '' } }));
+    await remote(boardEvent('label.updated', 'l-ok', { fields: { name: 'Renamed', color: HOSTILE } }));
+    expect(loadLabelsForBoard(boardId).find((l) => l.id === 'l-ok')).toMatchObject({ name: 'Renamed', color: '#ff0000' });
   });
 });

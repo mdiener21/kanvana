@@ -4,7 +4,8 @@
 // client) cannot break the view, and a bug in a feature module surfaces at
 // once. Synchronous, because local projection is (ADR-0005).
 
-import { EVENT_SCOPE } from '../constants.js';
+import { DEFAULT_COLUMN_COLOR, EVENT_SCOPE, TT_COLOR_PALETTE } from '../constants.js';
+import { isHexColor, normalizeHexColor } from '../normalize.js';
 import {
   createBoard, createColumn, createCustomer, createLabel, createProject, createTask, createTimeEntry
 } from '../schema.js';
@@ -23,13 +24,22 @@ const ENTITY_FIELDS = {
   timeEntry: keysOf(createTimeEntry)
 };
 
-// type -> spec. `entities` maps a payload key to the entity whose fields it
-// carries; `requires` names a payload entity the reducer dereferences without
+// Colours end up in style attributes (e.g. timetracking colorDotHtml), and
+// escapeHtml does not stop CSS injection, so they must be hex.
+const COLOR_FALLBACK = {
+  column: DEFAULT_COLUMN_COLOR,
+  label: DEFAULT_COLUMN_COLOR,
+  customer: TT_COLOR_PALETTE[0],
+  project: TT_COLOR_PALETTE[0]
+};
+
+// type -> spec. `entities` maps a payload key to the entity it carries in full;
+// `patches` maps a payload key to the entity it partially updates. `requires` names a payload entity the reducer dereferences without
 // a guard. Lookup is through a Map, so inherited keys such as `toString` or
 // `__proto__` are unknown types.
 const EVENT_TYPES = new Map([
   ['task.created', { entities: { task: 'task', fields: 'task' } }],
-  ['task.updated', { entities: { fields: 'task' } }],
+  ['task.updated', { patches: { fields: 'task' } }],
   ['task.moved', {}],
   ['task.deleted', {}],
   ['subtask.added', {}],
@@ -41,14 +51,14 @@ const EVENT_TYPES = new Map([
   ['label.added_to_task', {}],
   ['label.removed_from_task', {}],
   ['label.created', { entities: { label: 'label', fields: 'label' } }],
-  ['label.updated', { entities: { fields: 'label' } }],
+  ['label.updated', { patches: { fields: 'label' } }],
   ['label.deleted', {}],
   ['column.created', { entities: { column: 'column', fields: 'column' } }],
-  ['column.updated', { entities: { fields: 'column' } }],
+  ['column.updated', { patches: { fields: 'column' } }],
   ['column.deleted', {}],
   ['column.reordered', {}],
   ['board.created', { entities: { board: 'board', fields: 'board' } }],
-  ['board.updated', { entities: { fields: 'board' } }],
+  ['board.updated', { patches: { fields: 'board' } }],
   ['board.deleted', {}],
   ['settings.updated', {}],
   ['customer.created', { requires: 'customer', entities: { customer: 'customer' } }],
@@ -60,7 +70,7 @@ const EVENT_TYPES = new Map([
   ['project.unarchived', {}],
   ['project.deleted', { entities: { project: 'project' } }],
   ['time_entry.created', { requires: 'timeEntry', entities: { timeEntry: 'timeEntry' } }],
-  ['time_entry.updated', { entities: { fields: 'timeEntry' } }],
+  ['time_entry.updated', { patches: { fields: 'timeEntry' } }],
   ['time_entry.deleted', { entities: { timeEntry: 'timeEntry' } }]
 ]);
 
@@ -90,17 +100,29 @@ function findProblem(event) {
   return null;
 }
 
-function pickFields(entity, source) {
+// A full entity gets a hex fallback for a bad colour; a patch drops it, so the
+// current colour stays.
+function pickFields(entity, source, { patch }) {
   const allowed = ENTITY_FIELDS[entity];
-  return Object.fromEntries(Object.entries(source).filter(([key]) => allowed.has(key)));
+  const fields = Object.fromEntries(Object.entries(source).filter(([key]) => allowed.has(key)));
+  const fallback = COLOR_FALLBACK[entity];
+  if (fallback && 'color' in fields) {
+    if (patch && !isHexColor(fields.color)) delete fields.color;
+    else fields.color = normalizeHexColor(fields.color, fallback);
+  }
+  return fields;
 }
 
 function sanitise(event) {
-  const { entities } = EVENT_TYPES.get(event.type);
-  if (!entities) return event;
+  const { entities = {}, patches = {} } = EVENT_TYPES.get(event.type);
+  const targets = [
+    ...Object.entries(entities).map(([key, entity]) => [key, entity, false]),
+    ...Object.entries(patches).map(([key, entity]) => [key, entity, true])
+  ];
+  if (targets.length === 0) return event;
   const payload = { ...event.payload };
-  for (const [key, entity] of Object.entries(entities)) {
-    if (isPlainObject(payload[key])) payload[key] = pickFields(entity, payload[key]);
+  for (const [key, entity, patch] of targets) {
+    if (isPlainObject(payload[key])) payload[key] = pickFields(entity, payload[key], { patch });
   }
   return { ...event, payload };
 }
