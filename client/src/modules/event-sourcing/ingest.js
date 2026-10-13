@@ -29,17 +29,34 @@ export function connectProjector(next) {
 export function ingestEvent(input, { origin = EVENT_ORIGIN.LOCAL, receivedAt } = {}) {
   const event = validateEvent(input);
   if (!event) return Promise.resolve();
-  if (origin === EVENT_ORIGIN.REMOTE) return ingestRemote(event, receivedAt);
+  if (origin === EVENT_ORIGIN.REMOTE) return ingestRemote(event, receivedAt).then(() => {});
   return commit(event, origin);
+}
+
+// Catch-up's path: validated and sorted once; resolves to the events not stored before, for its watermark.
+export async function ingestRemoteBatch(items) {
+  const valid = items
+    .map(({ event, receivedAt }) => ({ event: validateEvent(event), receivedAt }))
+    .filter(({ event }) => event)
+    .sort((a, b) => compareHlc(a.event.hlc, b.event.hlc));
+  const fresh = [];
+  for (const { event, receivedAt } of valid) {
+    if (await ingestRemote(event, receivedAt)) fresh.push(event);
+  }
+  return fresh;
 }
 
 // The event store, unlike session memory, survives a reload (#178).
 async function ingestRemote(event, receivedAt) {
-  if (await isStored(event.id)) return;
-  if (reachedServerTooLate(event, receivedAt)) return logDrop(event);
-  if (projector?.classify(event) === EVENT_ORDER.LATE && !await foldIntoCoveringSnapshot(event)) return;
-  if (event.hlc) await observeRemote(event.hlc);
-  return commit(event, EVENT_ORIGIN.REMOTE);
+  if (await isStored(event.id)) return false;
+  if (reachedServerTooLate(event, receivedAt)) {
+    logDrop(event);
+    return true;
+  }
+  if (projector?.classify(event) === EVENT_ORDER.LATE && !await foldIntoCoveringSnapshot(event)) return true;
+  await observeRemote(event.hlc);
+  await commit(event, EVENT_ORIGIN.REMOTE);
+  return true;
 }
 
 // The server's receipt time is the same on every device, so the drop ignores local snapshots (CONTEXT.md §9).

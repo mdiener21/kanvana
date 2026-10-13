@@ -4,11 +4,10 @@
 // makes echoes and catch-up/SSE overlap no-ops. Remote events are persisted as
 // already-synced so the outbound queue never pushes them back.
 
-import { openStore, KV_STORE, EVENTS_STORE } from '../idb-store.js';
+import { openStore, KV_STORE } from '../idb-store.js';
 import { getPb, isAuthenticated, getUser } from '../sync.js';
 import { compareHlc } from './hlc.js';
-import { EVENT_ORIGIN, adoptSnapshot, ingestEvent } from './ingest.js';
-import { validateEvent } from './event-validation.js';
+import { EVENT_ORIGIN, adoptSnapshot, ingestEvent, ingestRemoteBatch } from './ingest.js';
 import { snapshotKeyForEvent } from './snapshot.js';
 import { downloadAllSnapshots } from './snapshot-sync.js';
 import { EVENT_SCOPE } from '../constants.js';
@@ -116,20 +115,12 @@ async function pullRemoteState() {
     requestKey: null,
   });
 
-  // A malformed HLC cannot be sorted, and a rejected event must not advance a watermark (#181).
-  const events = records
-    .map((record) => ({ record, event: validateEvent(recordToEvent(record)) }))
-    .filter(({ event }) => event)
-    .sort((a, b) => compareHlc(a.event.hlc, b.event.hlc));
+  // A rejected event must not advance a watermark (#181).
+  const fresh = await ingestRemoteBatch(records.map((record) => ({ event: recordToEvent(record), receivedAt: record.created })));
 
   const maxByKey = new Map();
-  const db = await openStore();
-
-  // Ingest decides late versus dropped by the same rule as for SSE (#179).
-  for (const { record, event } of events) {
+  for (const event of fresh) {
     const key = snapshotKeyForEvent(event);
-    if (await db.get(EVENTS_STORE, event.id)) continue;
-    await ingestEvent(event, { origin: EVENT_ORIGIN.REMOTE, receivedAt: record.created });
     const max = maxByKey.get(key);
     if (!max || compareHlc(event.hlc, max) > 0) maxByKey.set(key, event.hlc);
   }

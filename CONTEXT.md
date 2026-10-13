@@ -179,7 +179,7 @@ manual push/pull); the header **sync-state indicator** shows `Live` / `Syncing�
 | `sync.js` | PocketBase SDK instance + auth functions (`isAuthenticated`, `ensureAuthenticated`, `loginUser`, `registerUser`, `logoutUser`, `loginWithProvider`) |
 | `authsync.js` | Auth UI — login modal, OAuth2 (Google/Apple/Microsoft), logout, backend health probe |
 | `event-sourcing/sync-queue.js` | **Outbound** — drains unsynced events to the PB `events` collection in HLC order (debounce, in-flight cap, three-tier retry, no rollback); `getSyncStatus()` |
-| `event-sourcing/ingest.js` | **Ingest interface** — `ingestEvent(event, { origin })`, the single entry point of the event log for local and remote events: validate (pass-through for now), observe the remote HLC (remote only), project, `DATA_CHANGED`, `EVENT_EMITTED`, persist (`synced` = origin is `remote`) |
+| `event-sourcing/ingest.js` | **Ingest interface** — `ingestEvent(event, { origin, receivedAt })`, the single entry point of the event log for local and remote events (catch-up uses `ingestRemoteBatch(items)`, which validates and sorts once and returns the events not stored before): validate, observe the remote HLC (remote only), project, `DATA_CHANGED`, `EVENT_EMITTED`, persist (`synced` = origin is `remote`) |
 | `event-sourcing/realtime.js` | **Inbound** — SSE subscription + launch/reconnect catch-up pull; remote events go through `ingestEvent(…, { origin: 'remote' })` (deduped by id) |
 | `event-sourcing/hlc.js` | Hybrid Logical Clock — `emitLocal()`, `observeRemote()`, `compareHlc()` |
 | `event-sourcing/snapshot.js`, `snapshot-sync.js` | Client snapshots + upload + event GC |
@@ -319,7 +319,8 @@ inspectImportPayload → buildImportConfirmationMessage → importTasks
 ### Sync Flow (event-sourced)
 ```
 [local mutation] → scheduleDomainEvent() (stamp UUID + sync HLC) → ingestEvent(event, { origin: 'local' })
-[remote event]   → realtime.js SSE / catchUp() → ingestEvent(event, { origin: 'remote', receivedAt: record.created })
+[remote event]   → realtime.js SSE → ingestEvent(event, { origin: 'remote', receivedAt: record.created })
+                   catchUp() → ingestRemoteBatch([{ event, receivedAt }]) → the same remote path per event
                                                    (remote only: await observeRemote(hlc) first)
 [server snapshot]→ catchUp(), before its events → adoptSnapshot(key, state, hlc) → save + rebuildScope(key)
 
