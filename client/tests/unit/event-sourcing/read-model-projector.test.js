@@ -143,7 +143,7 @@ describe('createReadModelProjector', () => {
     expect(h.state.timeTracking).toEqual({ customers: [], projects: [], timeEntries: [], tombstones: { customers: {}, projects: {} } });
     expect(h.ctx.scheduleReadModelPersist).not.toHaveBeenCalled();
     expect(h.ctx.schedulePersist).toHaveBeenCalledWith(TIME_TRACKING_KEY, h.state.timeTracking);
-    expect(h.ctx.checkAndScheduleSnapshot).toHaveBeenCalledWith(TIMETRACKING_SNAPSHOT_KEY, expect.anything(), { wallTime: 5, counter: 0, nodeId: 'n' });
+    expect(h.ctx.checkAndScheduleSnapshot).toHaveBeenCalledWith(TIMETRACKING_SNAPSHOT_KEY, { fold: expect.any(Function) });
   });
 
   test('hydrate() with the timetracking key adopts only the time-tracking slot', () => {

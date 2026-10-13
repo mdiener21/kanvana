@@ -30,7 +30,6 @@ import {
   _resetSnapshotSchedulerForTesting,
   _setJitterForTesting,
 } from '../../../src/modules/event-sourcing/snapshot.js';
-import { createProjectionState } from '../../../src/modules/reducer.js';
 
 const EVENTS_URL = '*/api/collections/events/records';
 
@@ -92,8 +91,7 @@ describe('sync-queue across a local snapshot (#176)', () => {
       emit(EVENT_EMITTED, event);
     }
 
-    const lastHlc = { wallTime: 1000, counter: SNAPSHOT_EVENT_THRESHOLD - 1, nodeId: 'node-a' };
-    checkAndScheduleSnapshot('board-1', createProjectionState(), lastHlc);
+    checkAndScheduleSnapshot('board-1');
     await waitFor(async () => expect(await loadSnapshot('board-1')).not.toBeNull());
     expect(received).toHaveLength(0);
 

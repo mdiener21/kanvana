@@ -86,8 +86,9 @@ export function createReadModelProjector(ctx) {
       appliedBoardlessIds.add(event.id);
       const projected = applyEvent(createProjectionState({ [slot.field]: slot.seed() }), event);
       writeBoardless(slot, projected[slot.field]);
-      noteApplied(snapshotKeyForEvent(event), event.hlc);
-      checkAndScheduleSnapshot(snapshotKeyForEvent(event), projected, event.hlc);
+      const key = snapshotKeyForEvent(event);
+      noteApplied(key, event.hlc);
+      checkAndScheduleSnapshot(key, { fold: (snapshot, events) => fold(key, snapshot, events) });
       return true;
     }
 
@@ -105,7 +106,10 @@ export function createReadModelProjector(ctx) {
 
     writeBoard(boardId, projected);
     noteApplied(boardId, event.hlc);
-    checkAndScheduleSnapshot(boardId, projected, event.hlc, onBoardSnapshotSaved);
+    checkAndScheduleSnapshot(boardId, {
+      fold: (snapshot, events) => fold(boardId, snapshot, events),
+      onSaved: onBoardSnapshotSaved
+    });
     return true;
   }
 

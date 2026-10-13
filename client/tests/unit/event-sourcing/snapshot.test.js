@@ -195,21 +195,61 @@ function settle() {
   return new Promise(resolve => setTimeout(resolve, 20));
 }
 
-test('checkAndScheduleSnapshot schedules snapshot after 500 events with jitter delay', async () => {
+// A snapshot covers only events older than the grace window (#179), so an
+// event that arrives late but inside the window is newer than the snapshot.
+test('checkAndScheduleSnapshot snapshots after 500 events, covering the ones older than the grace window', async () => {
+  _setJitterForTesting(() => 0);
+  const db = await openStore();
+  const youngWall = Date.now() - GRACE_WINDOW_MS + 60_000;
+  const created = makeEvent('e-create', 'task.created', makeHlc(1), 'board-a', 'task-1', { task: { title: 'T0', column: 'todo', columnHistory: [] } });
+  await db.put('events', { ...created, synced: true });
+  for (let i = 1; i < SNAPSHOT_EVENT_THRESHOLD; i++) {
+    const wall = i < 300 ? i + 1 : youngWall + i;
+    await db.put('events', { ...makeEvent(`e${i}`, 'task.updated', makeHlc(wall), 'board-a', 'task-1', { fields: { title: `T${i}` } }), synced: true });
+  }
+
+  checkAndScheduleSnapshot('board-a');
+  await vi.waitFor(async () => expect(await db.count('events')).toBe(SNAPSHOT_EVENT_THRESHOLD - 300));
+
+  const snapshot = await loadSnapshot('board-a');
+  expect(snapshot.hlc).toEqual(makeHlc(300));
+  expect(snapshot.state.tasks[0].title).toBe('T299');
+  const remaining = (await db.getAll('events')).map(e => e.id);
+  expect(remaining).not.toContain('e299');
+  expect(remaining).toHaveLength(SNAPSHOT_EVENT_THRESHOLD - 300);
+});
+
+test('checkAndScheduleSnapshot takes no snapshot while every event is inside the grace window', async () => {
+  _setJitterForTesting(() => 0);
+  const db = await openStore();
+  const youngWall = Date.now() - GRACE_WINDOW_MS + 60_000;
+  for (let i = 0; i < SNAPSHOT_EVENT_THRESHOLD; i++) {
+    await db.put('events', { ...makeEvent(`e${i}`, 'task.updated', makeHlc(youngWall + i)), synced: true });
+  }
+
+  checkAndScheduleSnapshot('board-a');
+  await settle();
+
+  expect(await loadSnapshot('board-a')).toBeNull();
+});
+
+test('checkAndScheduleSnapshot folds with the supplied fold and reports the saved state', async () => {
   _setJitterForTesting(() => 0);
   const db = await openStore();
   for (let i = 0; i < SNAPSHOT_EVENT_THRESHOLD; i++) {
     await db.put('events', { ...makeEvent(`e${i}`, 'task.updated', makeHlc(i + 1)), synced: false });
   }
+  const folded = createProjectionState({ tasks: [{ id: 'task-1', title: 'Folded', column: 'todo', columnHistory: [] }] });
+  const fold = vi.fn(() => folded);
+  const onSaved = vi.fn();
 
-  const state = createProjectionState({ tasks: [{ id: 'task-1', title: 'T', column: 'todo', columnHistory: [] }] });
-  const hlc = makeHlc(SNAPSHOT_EVENT_THRESHOLD);
-  checkAndScheduleSnapshot('board-a', state, hlc);
-  await settle();
+  checkAndScheduleSnapshot('board-a', { fold, onSaved });
+  await vi.waitFor(() => expect(onSaved).toHaveBeenCalled());
 
-  const snapshot = await loadSnapshot('board-a');
-  expect(snapshot).not.toBeNull();
-  expect(snapshot.hlc).toEqual(hlc);
+  expect(fold).toHaveBeenCalledWith(null, expect.any(Array));
+  expect(fold.mock.calls[0][1]).toHaveLength(SNAPSHOT_EVENT_THRESHOLD);
+  expect((await loadSnapshot('board-a')).state.tasks[0].title).toBe('Folded');
+  expect(onSaved).toHaveBeenCalledWith('board-a', folded);
 });
 
 test('checkAndScheduleSnapshot does not schedule when event count is below threshold', async () => {
@@ -219,8 +259,7 @@ test('checkAndScheduleSnapshot does not schedule when event count is below thres
     await db.put('events', { ...makeEvent(`e${i}`, 'task.updated', makeHlc(i + 1)), synced: false });
   }
 
-  const state = createProjectionState();
-  checkAndScheduleSnapshot('board-a', state, makeHlc(SNAPSHOT_EVENT_THRESHOLD - 1));
+  checkAndScheduleSnapshot('board-a');
   await settle();
 
   expect(await loadSnapshot('board-a')).toBeNull();
@@ -233,8 +272,7 @@ test('checkAndScheduleSnapshot ignores other boards when counting events', async
     await db.put('events', { ...makeEvent(`b${i}`, 'task.updated', makeHlc(i + 1), 'board-b', `task-${i}`), synced: false });
   }
 
-  const state = createProjectionState({ tasks: [{ id: 'task-1', title: 'T', column: 'todo', columnHistory: [] }] });
-  checkAndScheduleSnapshot('board-a', state, makeHlc(SNAPSHOT_EVENT_THRESHOLD + 1));
+  checkAndScheduleSnapshot('board-a');
   await settle();
 
   expect(await loadSnapshot('board-a')).toBeNull();
@@ -245,15 +283,13 @@ test('checkAndScheduleSnapshot schedules when snapshot age exceeds 14 days', asy
   const oldAt = new Date(Date.now() - SNAPSHOT_AGE_MS - 1).toISOString();
   const db = await openStore();
   await db.put('snapshots', { payload: { tasks: [], columns: [], labels: [], settings: {}, globalSettings: {}, appliedEventIds: [], taskTombstones: [] }, hlc: makeHlc(1), at: oldAt }, 'board-a');
+  await db.put('events', { ...makeEvent('e2', 'task.updated', makeHlc(2)), synced: true });
 
-  const state = createProjectionState({ tasks: [{ id: 'task-1', title: 'T', column: 'todo', columnHistory: [] }] });
-  const hlc = makeHlc(2);
-  checkAndScheduleSnapshot('board-a', state, hlc);
-  await settle();
+  checkAndScheduleSnapshot('board-a');
+  await vi.waitFor(async () => expect((await loadSnapshot('board-a')).hlc).toEqual(makeHlc(2)));
 
   const snapshot = await loadSnapshot('board-a');
-  expect(snapshot).not.toBeNull();
-  expect(snapshot.hlc).toEqual(hlc);
+  expect(snapshot.at).not.toBe(oldAt);
 });
 
 // ── Global scope ───────────────────────────────────────────────────────────────

@@ -120,34 +120,47 @@ export async function hydrateFromSnapshot(key, events) {
   return applyEvents(baseState, toReplay);
 }
 
-async function shouldTakeSnapshot(key) {
-  const db = await openStore();
-  const snapshot = await loadSnapshot(key);
-  const scopedEvents = (await db.getAll(EVENTS_STORE)).filter((event) => eventMatchesSnapshotScope(key, event));
-
-  if (snapshot) {
-    const age = Date.now() - new Date(snapshot.at).getTime();
-    if (age >= SNAPSHOT_AGE_MS) return { should: true, reason: 'age' };
-    const since = scopedEvents.filter(e => compareHlc(e.hlc, snapshot.hlc) > 0).length;
-    if (since >= SNAPSHOT_EVENT_THRESHOLD) return { should: true, reason: 'count' };
-    return { should: false };
-  }
-
-  if (scopedEvents.length >= SNAPSHOT_EVENT_THRESHOLD) return { should: true, reason: 'count' };
-  return { should: false };
+function isSnapshotDue(snapshot, eventsSinceSnapshot) {
+  if (snapshot && Date.now() - new Date(snapshot.at).getTime() >= SNAPSHOT_AGE_MS) return true;
+  return eventsSinceSnapshot >= SNAPSHOT_EVENT_THRESHOLD;
 }
 
+// A snapshot covers only events older than the grace window (#179): every
+// event still inside the window is then newer than every snapshot, so a late
+// one can be ordered in by rebuilding from the snapshot. The state is folded
+// from the stored events at save time rather than captured when scheduled.
+async function takeSnapshot(key, fold) {
+  const db = await openStore();
+  const snapshot = await loadSnapshot(key);
+  const since = (await db.getAll(EVENTS_STORE)).filter((event) => (
+    eventMatchesSnapshotScope(key, event) && (!snapshot || compareHlc(event.hlc, snapshot.hlc) > 0)
+  ));
+  if (!isSnapshotDue(snapshot, since.length)) return null;
+
+  const covered = since.filter((event) => isOlderThanGraceWindow(event.hlc)).sort((a, b) => compareHlc(a.hlc, b.hlc));
+  if (!covered.length) return null;
+  const hlc = covered.at(-1).hlc;
+  const state = fold(snapshot, covered);
+  await saveSnapshot(key, state, hlc);
+  return { state, hlc };
+}
+
+function foldFromSnapshot(snapshot, events) {
+  return applyEvents(snapshot?.state ?? createProjectionState(), events);
+}
+
+// `fold(snapshot, events)` builds the snapshot's state (the projector's fold).
 // `onSaved(key, state)` runs once the snapshot is stored, so the caller can
 // prune what the snapshot now holds (applied ids, #178).
-export function checkAndScheduleSnapshot(key, state, hlc, onSaved) {
+export function checkAndScheduleSnapshot(key, { fold = foldFromSnapshot, onSaved } = {}) {
   if (_pendingSnapshots.has(key)) return;
   const jitter = _getJitter();
   const id = setTimeout(async () => {
     _pendingSnapshots.delete(key);
     try {
-      const { should } = await shouldTakeSnapshot(key);
-      if (!should) return;
-      await saveSnapshot(key, state, hlc);
+      const taken = await takeSnapshot(key, fold);
+      if (!taken) return;
+      const { state, hlc } = taken;
       await gcEvents(key, hlc);
       onSaved?.(key, state);
       if (_afterSnapshotSaved) await _afterSnapshotSaved(key, state, hlc);
