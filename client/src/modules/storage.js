@@ -4,7 +4,7 @@ import { DONE_COLUMN_ID, DONE_COLUMN_ROLE, isDoneColumn } from './constants.js';
 import { openStore, KV_STORE, READ_MODEL_STORE, EVENTS_STORE, SNAPSHOTS_STORE, schedulePersist, scheduleDelete, scheduleReadModelPersist, scheduleReadModelDelete, keyFor, readModelKeyFor, _flushPersistsForTesting as _flushIdbPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
 // Re-export IDB helpers that tests import from this module for backward compatibility.
 import { normalizeBoardModelIds } from './board-serializer.js';
-import { compareHlc, initHlc } from './event-sourcing/hlc.js';
+import { initHlc, laterHlc } from './event-sourcing/hlc.js';
 import { _flushDomainEventsForTesting, scheduleDomainEvent } from './event-sourcing/emitter.js';
 import { checkAndScheduleSnapshot, loadSnapshot, snapshotKeyForEvent, _resetSnapshotSchedulerForTesting } from './event-sourcing/snapshot.js';
 import { createReadModelProjector } from './event-sourcing/read-model-projector.js';
@@ -434,7 +434,7 @@ async function loadNewestAppliedHlc(db) {
 
   const newest = {};
   const note = (key, hlc) => {
-    if (key && hlc && (!newest[key] || compareHlc(hlc, newest[key]) > 0)) newest[key] = hlc;
+    if (key && hlc) newest[key] = laterHlc(newest[key], hlc);
   };
   for (const event of await db.getAll(EVENTS_STORE)) note(snapshotKeyForEvent(event), event.hlc);
   for (const key of await db.getAllKeys(SNAPSHOTS_STORE)) note(key, (await db.get(SNAPSHOTS_STORE, key))?.hlc);

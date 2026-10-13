@@ -3,7 +3,7 @@ import { keyFor } from '../idb-store.js';
 import { scopeForSnapshotKey, snapshotKeyForEvent } from './snapshot.js';
 import { EVENT_SCOPE } from '../constants.js';
 import { EVENT_ORDER, connectProjector } from './ingest.js';
-import { compareHlc } from './hlc.js';
+import { compareHlc, laterHlc } from './hlc.js';
 
 // Sole writer of the IDB read model (ADR-0005). Extracted from storage.js so the
 // projection layer owns the read model independent of CRUD. storage.js wires the
@@ -62,9 +62,9 @@ export function createReadModelProjector(ctx) {
   }
 
   function noteApplied(key, hlc) {
-    const newest = state.newestAppliedHlc[key];
-    if (!hlc || (newest && compareHlc(newest, hlc) >= 0)) return;
-    state.newestAppliedHlc[key] = hlc;
+    const newest = laterHlc(state.newestAppliedHlc[key], hlc);
+    if (!newest || newest === state.newestAppliedHlc[key]) return;
+    state.newestAppliedHlc[key] = newest;
     schedulePersist(newestAppliedKey, { ...state.newestAppliedHlc });
   }
 
@@ -137,9 +137,7 @@ export function createReadModelProjector(ctx) {
   // Entities nothing in the event log knows of come from writes that emit no event yet (import), so they stay.
   function rebuild(key, snapshot, events, superseded = { snapshots: [], events: [] }) {
     const projected = fold(key, snapshot, events, { live: true });
-    const newest = [snapshot?.hlc, ...events.map((event) => event.hlc)]
-      .filter(Boolean)
-      .reduce((max, hlc) => (!max || compareHlc(hlc, max) > 0 ? hlc : max), null);
+    const newest = [snapshot?.hlc, ...events.map((event) => event.hlc)].reduce(laterHlc, null);
 
     const slot = boardlessSlots.get(scopeForSnapshotKey(key));
     if (slot) {

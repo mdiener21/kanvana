@@ -1,7 +1,7 @@
 import { beforeEach, expect, test, vi } from 'vitest';
 import { deleteDB } from 'idb';
 import { resetLocalStorage } from '../setup.js';
-import { compareHlc, emitLocal, observeRemote, MAX_DRIFT_MS, _resetHlcForTesting, _setHlcForTesting } from '../../../src/modules/event-sourcing/hlc.js';
+import { compareHlc, laterHlc, emitLocal, observeRemote, MAX_DRIFT_MS, _resetHlcForTesting, _setHlcForTesting } from '../../../src/modules/event-sourcing/hlc.js';
 
 const DB_NAME = 'kanvana-db';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -105,4 +105,15 @@ test('observeRemote still adopts a remote clock ahead by less than the drift lim
 
   await expect(observeRemote({ wallTime: 1005 + MAX_DRIFT_MS, counter: 3, nodeId: 'node-b' }))
     .resolves.toEqual({ wallTime: 1005 + MAX_DRIFT_MS, counter: 4, nodeId: 'node-a' });
+});
+
+test('laterHlc picks the later stamp and ignores a missing one', () => {
+  const a = { wallTime: 1000, counter: 0, nodeId: 'node-a' };
+  const b = { wallTime: 1000, counter: 1, nodeId: 'node-a' };
+  expect(laterHlc(a, b)).toBe(b);
+  expect(laterHlc(b, a)).toBe(b);
+  expect(laterHlc(null, a)).toBe(a);
+  expect(laterHlc(a, undefined)).toBe(a);
+  expect([a, null, b].reduce(laterHlc, null)).toBe(b);
+  expect(laterHlc(null, null)).toBeNull();
 });

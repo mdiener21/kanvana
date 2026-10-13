@@ -6,7 +6,7 @@
 
 import { openStore, KV_STORE } from '../idb-store.js';
 import { getPb, isAuthenticated, getUser } from '../sync.js';
-import { compareHlc } from './hlc.js';
+import { compareHlc, laterHlc } from './hlc.js';
 import { EVENT_ORIGIN, adoptSnapshot, ingestEvent, ingestRemoteBatch } from './ingest.js';
 import { snapshotKeyForEvent } from './snapshot.js';
 import { downloadAllSnapshots } from './snapshot-sync.js';
@@ -121,8 +121,7 @@ async function pullRemoteState() {
   const maxByKey = new Map();
   for (const event of fresh) {
     const key = snapshotKeyForEvent(event);
-    const max = maxByKey.get(key);
-    if (!max || compareHlc(event.hlc, max) > 0) maxByKey.set(key, event.hlc);
+    maxByKey.set(key, laterHlc(maxByKey.get(key), event.hlc));
   }
 
   for (const [key, hlc] of maxByKey) {
