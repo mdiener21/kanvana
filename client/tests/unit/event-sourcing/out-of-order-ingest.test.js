@@ -11,7 +11,9 @@ import {
   loadTasksForBoard,
   loadColumnsForBoard,
   loadGlobalSettings,
-  loadTimeTracking
+  loadTimeTracking,
+  saveTasks,
+  setActiveBoardId
 } from '../../../src/modules/storage.js';
 import { EVENT_ORIGIN, ingestEvent } from '../../../src/modules/event-sourcing/ingest.js';
 import { applyEvents, createProjectionState } from '../../../src/modules/reducer.js';
@@ -73,6 +75,24 @@ describe('board scope', () => {
     const expected = applyEvents(createProjectionState(), events).tasks[0];
     const task = loadTasksForBoard(boardId).find((t) => t.id === TASK_ID);
     expect(task).toMatchObject({ title: expected.title, priority: expected.priority, column: expected.column });
+  });
+});
+
+describe('rebuild', () => {
+  // Import and column sort write the read model without an event yet (the rest
+  // of ADR-0005, a follow-up); a rebuild must not erase what they wrote.
+  test('keeps a task that no event knows of, such as an imported one', async () => {
+    const imported = { id: '9c8b7a6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d', title: 'Imported', column: todoColumn };
+    setActiveBoardId(boardId);
+    saveTasks([...loadTasksForBoard(boardId), imported]);
+    const base = Date.now() + 1_000;
+    await ingestRemote(boardEvent('task.created', { id: 'e-create', wallTime: base, payload: { task: { title: 'T0', column: todoColumn } } }));
+    await ingestRemote(boardEvent('task.updated', { id: 'e-2', wallTime: base + 2, payload: { fields: { title: 'T2' } } }));
+    await ingestRemote(boardEvent('task.updated', { id: 'e-1', wallTime: base + 1, payload: { fields: { title: 'T1' } } }));
+
+    const titles = loadTasksForBoard(boardId).map((t) => t.title);
+    expect(titles).toContain('Imported');
+    expect(titles).toContain('T2');
   });
 });
 
