@@ -404,7 +404,8 @@ collection that catch-up pulls in full, to about a month of history.
   snapshot, at save time. Every event inside the window is therefore newer than every snapshot and can
   be ordered in by a rebuild from it ("the snapshot taken before it").
 - **Local cleanup** (`gcEvents`) deletes an event only when it is pushed, covered by the snapshot *and*
-  older than the window. **Server cleanup** (`gcServerEvents`) skips events inside the window, and the
+  older than the window. **Server cleanup** (`gcServerEvents`) skips events inside the window plus a one-hour clock-skew margin
+  (`SERVER_CLOCK_MARGIN_MS`), and skips a delete the server still refuses instead of failing the upload; the
   PocketBase hook `backend/pb_hooks/events_grace_window.pb.js` refuses API deletes of them, which also
   holds clients from before #179 to the window. The hook repeats the constant; keep both equal.
 - **Adopting a server snapshot** (catch-up, `adoptSnapshot`) saves it and rebuilds the key, so the device
