@@ -93,7 +93,7 @@ added three object stores alongside the original `kv`:
 | Object store | Content |
 |---|---|
 | `kv` | Coordination + small values: board list, active board, global settings, HLC node id, catch-up watermarks |
-| `read_model` | Per-board projections (tasks / columns / labels / settings), keyed `{boardId}:{kind}` — what the UI renders |
+| `read_model` | Per-board projections (tasks / columns / labels / settings), keyed `{boardId}:{kind}` — what the UI renders. Also the board's event-log memory: `{boardId}:taskTombstones` (task delete records) and `{boardId}:appliedEventIds` (applied event ids not yet held by a snapshot) |
 | `events` | The domain-event log, keyed by event `id`; the `synced` flag drives the outbound queue |
 | `snapshots` | Local projection snapshots that bound replay and event GC |
 
@@ -129,8 +129,20 @@ reaches it is `ingestEvent()` (`event-sourcing/ingest.js`). Local events are ing
 mutation returns / `renderBoard()` runs (instant UI); only the IDB event persist and the PocketBase
 push are async. Each mutation's events are self-complete — they encode every read-model effect
 (relationship inverses on target tasks, sibling reordering, derived `doneDate`, swimlane reassignment)
-so the projection reproduces the change from events alone. Deletes are hard removals via `task.deleted`
-(no read-model tombstone).
+so the projection reproduces the change from events alone. Deletes are hard removals via `task.deleted`.
+
+**Delete records and applied ids** (#178): the event log's memory of "deleted" and
+"already applied" is durable, so it survives a reload and a snapshot adoption.
+
+| Memory | Where it lives |
+|---|---|
+| Board task delete records | `read_model` `{boardId}:taskTombstones`, and the board snapshot's `taskTombstones`. Adopting a snapshot adds its delete records to the board's (deletes are permanent). A `task.created` / `task.updated` / `task.moved` for a deleted task is a no-op, in any arrival order. |
+| Board applied event ids | The board's latest snapshot's `appliedEventIds`, plus the live set `read_model` `{boardId}:appliedEventIds`. Each board event is projected from state seeded with both, so a snapshot taken from it holds them all; once saved, the ids it holds are pruned from the live set (no unbounded growth of the live set). |
+| Any scope, remote origin | `ingestEvent()` skips a remote event whose id is already in the `events` store (SSE echo, catch-up overlap). Events GC'd from the store are covered by a snapshot (see above; catch-up also skips events at or below a snapshot's HLC). |
+| Time-tracking delete records | Inside the `kanvana:timetracking` slot (`tombstones`), as before. |
+
+`initStorage()` loads the board memory into `state` (`taskTombstones`, `appliedEventIds`, and the latest
+snapshot's ids as `snapshotAppliedIds`), so local projection stays synchronous (ADR-0005).
 
 **Key public functions:**
 
