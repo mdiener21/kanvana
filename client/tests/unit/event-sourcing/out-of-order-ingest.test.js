@@ -9,7 +9,9 @@ import {
   _flushPersistsForTesting,
   createBoard,
   loadTasksForBoard,
-  loadColumnsForBoard
+  loadColumnsForBoard,
+  loadGlobalSettings,
+  loadTimeTracking
 } from '../../../src/modules/storage.js';
 import { EVENT_ORIGIN, ingestEvent } from '../../../src/modules/event-sourcing/ingest.js';
 import { applyEvents, createProjectionState } from '../../../src/modules/reducer.js';
@@ -69,5 +71,62 @@ describe('board scope', () => {
     const expected = applyEvents(createProjectionState(), events).tasks[0];
     const task = loadTasksForBoard(boardId).find((t) => t.id === TASK_ID);
     expect(task).toMatchObject({ title: expected.title, priority: expected.priority, column: expected.column });
+  });
+});
+
+function boardlessEvent(scope, type, { id, wallTime, entityId, payload = {} }) {
+  return {
+    id,
+    type,
+    hlc: { wallTime, counter: 0, nodeId: 'node-r' },
+    at: '2026-10-01T00:00:00.000Z',
+    actor: { type: 'human', id: null },
+    scope,
+    board_id: null,
+    entity_id: entityId,
+    payload
+  };
+}
+
+describe('global scope', () => {
+  function globalEvents() {
+    const base = Date.now() + 1_000;
+    const set = (id, offset, timeTracking) => boardlessEvent('global', 'settings.updated', {
+      id, wallTime: base + offset, entityId: 'global', payload: { fields: { timeTracking } }
+    });
+    return [set('g1', 0, { rounding: 5 }), set('g2', 1, { rounding: 15 }), set('g3', 2, { rounding: 30, week: 'mon' })];
+  }
+
+  test.each(permutations([0, 1, 2]).map((order) => [order.join('')]))('arrival order %s converges to the HLC-ordered view', async (order) => {
+    const events = globalEvents();
+    for (const i of order) await ingestRemote(events[Number(i)]);
+
+    const expected = applyEvents(createProjectionState(), events).globalSettings;
+    expect(loadGlobalSettings().timeTracking).toEqual(expected.timeTracking);
+  });
+});
+
+describe('time-tracking scope', () => {
+  const CUSTOMER_ID = '3f2b1c0d-9e8f-4a7b-8c6d-5e4f3a2b1c0d';
+
+  function timeTrackingEvents() {
+    const base = Date.now() + 1_000;
+    const customer = (type, id, offset, payload) => boardlessEvent('timetracking', type, {
+      id, wallTime: base + offset, entityId: CUSTOMER_ID, payload
+    });
+    return [
+      customer('customer.created', 'c-create', 0, { customer: { name: 'Acme', color: '#3b82f6' } }),
+      customer('customer.archived', 'c-archive', 1),
+      customer('customer.unarchived', 'c-unarchive', 2),
+      customer('customer.archived', 'c-archive-again', 3)
+    ];
+  }
+
+  test.each(permutations([0, 1, 2, 3]).map((order) => [order.join('')]))('arrival order %s converges to the HLC-ordered view', async (order) => {
+    const events = timeTrackingEvents();
+    for (const i of order) await ingestRemote(events[Number(i)]);
+
+    const expected = applyEvents(createProjectionState(), events).timeTracking;
+    expect(loadTimeTracking()).toEqual(expected);
   });
 });
