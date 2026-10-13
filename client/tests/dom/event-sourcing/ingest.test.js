@@ -123,4 +123,23 @@ describe('rejected events', () => {
       await expectRejected({ ...taskCreated('bad-type'), id: `evt-type-${type}`, type });
     }
   );
+
+  test.each([
+    ['a missing id', { id: undefined }],
+    ['an empty id', { id: '' }],
+    ['a missing hlc', { hlc: undefined }],
+    ['a string hlc', { hlc: '1000-0-node' }],
+    ['an hlc with a non-numeric wallTime', { hlc: { wallTime: 'soon', counter: 0, nodeId: 'n' } }],
+    ['an hlc with an infinite counter', { hlc: { wallTime: 1000, counter: Infinity, nodeId: 'n' } }],
+    ['an hlc without a nodeId', { hlc: { wallTime: 1000, counter: 0, nodeId: '' } }],
+    ['a scope outside board/global/timetracking', { scope: 'admin' }],
+    ['a board-scope event without a board_id', { board_id: null }],
+    ['a board-scope event with a non-string board_id', { board_id: 42 }],
+  ])('%s', async (label, overrides) => {
+    await expectRejected({ ...taskCreated('bad-envelope'), id: `evt-${label}`, ...overrides });
+  });
+
+  test('a malformed local event is rejected too', async () => {
+    await expectRejected({ ...taskCreated('bad-local'), scope: 'nowhere' }, EVENT_ORIGIN.LOCAL);
+  });
 });

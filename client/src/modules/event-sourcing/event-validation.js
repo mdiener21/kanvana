@@ -4,6 +4,8 @@
 // client) cannot break the view, and a bug in a feature module surfaces at
 // once. Synchronous, because local projection is (ADR-0005).
 
+import { EVENT_SCOPE } from '../constants.js';
+
 const EVENT_TYPES = new Map([
   ['task.created', {}],
   ['task.updated', {}],
@@ -41,10 +43,27 @@ const EVENT_TYPES = new Map([
   ['time_entry.deleted', {}]
 ]);
 
+const SCOPES = new Set(Object.values(EVENT_SCOPE));
+
+const isNonEmptyString = (value) => typeof value === 'string' && value.length > 0;
+
+// The shape compareHlc() needs to order events.
+function isValidHlc(hlc) {
+  return !!hlc && typeof hlc === 'object'
+    && Number.isFinite(hlc.wallTime)
+    && Number.isFinite(hlc.counter)
+    && isNonEmptyString(hlc.nodeId);
+}
+
 const loggedRejections = new Set();
 
 function findProblem(event) {
-  if (typeof event?.type !== 'string' || !EVENT_TYPES.has(event.type)) return 'unknown type';
+  if (!event || typeof event !== 'object') return 'not an object';
+  if (!isNonEmptyString(event.id)) return 'missing id';
+  if (typeof event.type !== 'string' || !EVENT_TYPES.has(event.type)) return 'unknown type';
+  if (!isValidHlc(event.hlc)) return 'malformed hlc';
+  if (!SCOPES.has(event.scope)) return 'unknown scope';
+  if (event.scope === EVENT_SCOPE.BOARD && !isNonEmptyString(event.board_id)) return 'board event without board_id';
   return null;
 }
 
