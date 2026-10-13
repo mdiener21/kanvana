@@ -14,6 +14,11 @@ const unpersisted = new Map();
 const committedDuringRebuild = new Map();
 const rebuilds = new Map();
 const superseded = new Map();
+
+// What an adopted snapshot replaced: the old snapshots and the stored events the new one covers.
+export function createSuperseded() {
+  return { snapshots: [], events: [] };
+}
 const loggedDrops = new Set();
 
 // Until the projector (ADR-0005) connects, events are only persisted, which is what boot-time backfill needs.
@@ -109,7 +114,7 @@ export async function adoptSnapshot(key, state, hlc) {
   const replaced = await loadSnapshot(key);
   const covered = (await loadEventsAfter(key, replaced?.hlc ?? null)).filter((event) => compareHlc(event.hlc, hlc) <= 0);
   await saveSnapshot(key, state, hlc);
-  const entry = superseded.get(key) ?? { snapshots: [], events: [] };
+  const entry = superseded.get(key) ?? createSuperseded();
   if (replaced) entry.snapshots.push(replaced);
   entry.events.push(...covered);
   superseded.set(key, entry);

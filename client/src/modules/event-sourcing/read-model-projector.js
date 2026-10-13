@@ -2,7 +2,7 @@ import { applyEvent, applyEvents, createProjectionState, createTimeTrackingState
 import { keyFor } from '../idb-store.js';
 import { scopeForSnapshotKey, snapshotKeyForEvent } from './snapshot.js';
 import { EVENT_SCOPE } from '../constants.js';
-import { EVENT_ORDER, connectProjector } from './ingest.js';
+import { EVENT_ORDER, connectProjector, createSuperseded } from './ingest.js';
 import { compareHlc, laterHlc } from './hlc.js';
 
 // Sole writer of the IDB read model (ADR-0005). Extracted from storage.js so the
@@ -131,7 +131,7 @@ export function createReadModelProjector(ctx) {
   }
 
   // Entities nothing in the event log knows of come from writes that emit no event yet (import), so they stay.
-  function rebuild(key, snapshot, events, superseded = { snapshots: [], events: [] }) {
+  function rebuild(key, snapshot, events, superseded = createSuperseded()) {
     const projected = fold(key, snapshot, events, { live: true });
     const newest = [snapshot?.hlc, ...events.map((event) => event.hlc)].reduce(laterHlc, null);
 
