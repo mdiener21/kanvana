@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A deleted task stays deleted, even when an older change to it arrives from another device later or after a reload. After a reload, a change from this device that the server echoes back no longer overwrites a newer edit.
 - Edits made offline are no longer lost when you keep working long enough for Kanvana to tidy up local history. Changes that have not reached the server yet are kept and sent once you are back online.
 
 ## [3.1.7] - 2026-10-05
