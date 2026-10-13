@@ -7,11 +7,10 @@
 import { openStore, KV_STORE, EVENTS_STORE } from '../idb-store.js';
 import { getPb, isAuthenticated, getUser } from '../sync.js';
 import { compareHlc } from './hlc.js';
-import { EVENT_ORIGIN, ingestEvent } from './ingest.js';
+import { EVENT_ORIGIN, ingestEvent, rebuildScope } from './ingest.js';
 import { validateEvent } from './event-validation.js';
-import { snapshotKeyForEvent, saveSnapshot, loadSnapshot } from './snapshot.js';
+import { snapshotKeyForEvent, saveSnapshot } from './snapshot.js';
 import { downloadAllSnapshots } from './snapshot-sync.js';
-import { hydrateFromSnapshotState } from '../storage.js';
 import { EVENT_SCOPE } from '../constants.js';
 
 const LAST_SEEN_PREFIX = 'kanvana:sync:lastSeenHlc:';
@@ -96,12 +95,15 @@ export async function stopRealtime() {
 // replaying events. uploadSnapshot() deletes the events a snapshot covers, so for
 // a device that joined afterwards the snapshot is the only surviving history.
 // The saved snapshot's HLC excludes events already represented by its state.
+// Adopting it rebuilds the key from it plus this device's stored newer events:
+// a snapshot covers only events older than the grace window (#179), so
+// replacing the view with it would drop everything since.
 async function hydrateFromRemoteSnapshots() {
   for (const snapshot of await downloadAllSnapshots()) {
     const seen = await getLastSeen(snapshot.key);
     if (seen && compareHlc(snapshot.hlc, seen) <= 0) continue;
     await saveSnapshot(snapshot.key, snapshot.state, snapshot.hlc);
-    hydrateFromSnapshotState(snapshot.key, snapshot.state);
+    await rebuildScope(snapshot.key);
     await setLastSeen(snapshot.key, snapshot.hlc);
   }
 }
@@ -135,17 +137,12 @@ async function pullRemoteState() {
     .filter(Boolean)
     .sort((a, b) => compareHlc(a.hlc, b.hlc));
 
-  const seenByKey = new Map();
   const maxByKey = new Map();
   const db = await openStore();
 
+  // Ingest decides late versus covered by the same rule as for SSE (#179).
   for (const event of events) {
     const key = snapshotKeyForEvent(event);
-    if (!seenByKey.has(key)) seenByKey.set(key, (await loadSnapshot(key))?.hlc);
-    const seen = seenByKey.get(key);
-    // A later HLC arriving first does not cover missing earlier events. Only a
-    // snapshot covers history; otherwise deduplicate by the persisted event id.
-    if (seen && compareHlc(event.hlc, seen) <= 0) continue;
     if (await db.get(EVENTS_STORE, event.id)) continue;
     await ingest(event);
     const max = maxByKey.get(key);

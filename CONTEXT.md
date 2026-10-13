@@ -138,7 +138,7 @@ so the projection reproduces the change from events alone. Deletes are hard remo
 |---|---|
 | Board task delete records | `read_model` `{boardId}:taskTombstones`, and the board snapshot's `taskTombstones`. Adopting a snapshot adds its delete records to the board's (deletes are permanent). A `task.created` / `task.updated` / `task.moved` for a deleted task is a no-op, in any arrival order. |
 | Board applied event ids | The board's latest snapshot's `appliedEventIds`, plus the live set `read_model` `{boardId}:appliedEventIds`. Each board event is projected from state seeded with both, so a snapshot taken from it holds them all; once saved, the ids it holds are pruned from the live set (no unbounded growth of the live set). |
-| Any scope, remote origin | `ingestEvent()` skips a remote event whose id is already in the `events` store (SSE echo, catch-up overlap). Events GC'd from the store are covered by a snapshot (see above; catch-up also skips events at or below a snapshot's HLC). |
+| Any scope, remote origin | `ingestEvent()` skips a remote event whose id is already in the `events` store (SSE echo, catch-up overlap). Events GC'd from the store are covered by a snapshot (see above), and ingest drops an event at or below its key's snapshot HLC (§9 Ordering). |
 | Time-tracking delete records | Inside the `kanvana:timetracking` slot (`tombstones`), as before. |
 
 `initStorage()` loads the board memory into `state` (`taskTombstones`, `appliedEventIds`, and the latest
@@ -314,11 +314,13 @@ inspectImportPayload → buildImportConfirmationMessage → importTasks
                                                    (remote only: await observeRemote(hlc) first)
 
 ingestEvent (event-sourcing/ingest.js) — one path, origin is a parameter:
-   1. validate                         (pass-through for now; drops events without an id)
-   2. project: read-model-projector folds event into state (sole writer, deduped by id)
-              → emit(DATA_CHANGED) → renderBoard()      [synchronous for local events]
-   3. emit(EVENT_EMITTED) → outbound sync-queue schedules a drain (HLC order, unsynced only)
-   4. persistEvent (synced = origin === 'remote')        [async; the returned promise settles here]
+   1. validate                         (drops malformed events, #181)
+   2. classify against the key's newest applied HLC (§9 Ordering); remote only: drop if a snapshot covers it
+   3. project: read-model-projector folds event into state (sole writer, deduped by id)
+              → emit(DATA_CHANGED) → renderBoard()      [synchronous for local events; skipped for a late remote one]
+   4. emit(EVENT_EMITTED) → outbound sync-queue schedules a drain (HLC order, unsynced only)
+   5. persistEvent (synced = origin === 'remote')        [async; the returned promise settles here]
+   6. late event only: rebuildScope(key)                  [the promise settles after the rebuild]
 ```
 
 ---
@@ -354,6 +356,47 @@ mechanics: `docs/spec/backend-storage-pb.md`.
 Each event carries an HLC stamp (`hlc`). `compareHlc()` gives a total order across devices; the reducer
 re-sorts by HLC on replay, so server insertion order is irrelevant. Node id persisted at
 `kanvana:hlc:node`; drift past 60 s is logged.
+
+**Live ingest folds in HLC order** (#179). The projector records the newest HLC it has folded into each
+**scope key** (board id, `__global__`, `__timetracking__`) in kv `kanvana:ingest:newestAppliedHlc`
+(derived once from the stored events on devices that predate it). `ingestEvent()` classifies each event:
+
+| Event | What happens |
+|---|---|
+| Already applied (id in the key's memory) | No-op |
+| Newer than the key's newest applied event | Folded incrementally onto the live view. No event-store read: the common path never scans the store. |
+| Older (a **late** event) | Persisted, then the key's view is **rebuilt**: `rebuildScope(key)` (`ingest.js`) folds the key's stored snapshot plus every stored event newer than it, in HLC order, and the projector replaces the view (`DATA_CHANGED {rebuilt: key}`). A late *local* edit is shown at once and then reordered by the same rebuild. |
+| Covered by the key's snapshot (HLC ≤ snapshot HLC) | Older than the grace window: dropped and logged once (silently if the snapshot already holds its id). |
+
+The rule lives only in `ingest.js`, so SSE and catch-up apply or drop a late event the same way.
+Rebuilds of one key run one at a time; requests made while one waits share it, and events committed
+during a rebuild are folded into it.
+
+A rebuild is the reducer's fold, with three exceptions so it does not lose state no event carries yet:
+board and global settings start from the live value under the snapshot's (they merge field by field);
+task delete records are kept (deletes are permanent); and tasks, columns and labels that no snapshot or
+replayed event knows of (written by import or column sort, which emit no event yet) are kept as they are.
+A snapshot is folded from events alone. Known limit until those writes emit events: a setting written
+without an event (swimlane grouping) is reset by a rebuild to the last replayed `settings.updated` that
+carries it, and a column sort of known tasks is replaced by the replayed order.
+
+**Grace window.** `GRACE_WINDOW_MS` (`snapshot.js`) is **30 days**. It must exceed a realistic offline
+period: a laptop left closed over a two- to three-week holiday, plus a week of margin for a late return
+or a spare device. 30 days covers that while keeping the event store, and the server's events
+collection that catch-up pulls in full, to about a month of history.
+
+- A **snapshot covers only events older than the window**: when one is due (500 events or 14 days, see
+  `checkAndScheduleSnapshot`), it folds the stored events older than the window onto the previous
+  snapshot, at save time. Every event inside the window is therefore newer than every snapshot and can
+  be ordered in by a rebuild from it ("the snapshot taken before it").
+- **Local cleanup** (`gcEvents`) deletes an event only when it is pushed, covered by the snapshot *and*
+  older than the window. **Server cleanup** (`gcServerEvents`) skips events inside the window, and the
+  PocketBase hook `backend/pb_hooks/events_grace_window.pb.js` refuses API deletes of them, which also
+  holds clients from before #179 to the window. The hook repeats the constant; keep both equal.
+- **Adopting a server snapshot** (catch-up) saves it and calls `rebuildScope(key)`, so the device keeps
+  its stored events newer than the snapshot.
+- An event older than the window is lost only if a snapshot already covers it; a device that has never
+  snapshotted a key still applies its whole history.
 
 ### Event Envelope
 

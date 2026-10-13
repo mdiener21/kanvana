@@ -6,6 +6,13 @@ import { EVENT_SCOPE } from '../constants.js';
 export const SNAPSHOT_EVENT_THRESHOLD = 500;
 export const SNAPSHOT_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 export const MAX_JITTER_MS = 60_000;
+// How long an event stays orderable after it was stamped (#179). It must exceed
+// a realistic offline period: a laptop left closed over a two- to three-week
+// holiday, plus a week of margin for a late return or a device kept as a spare.
+// 30 days does that while bounding the event store (and the server's events
+// collection, which catch-up pulls in full) to about a month of history.
+// backend/pb_hooks/events_grace_window.pb.js repeats the value; keep both equal.
+export const GRACE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 export const GLOBAL_SNAPSHOT_KEY = '__global__';
 export const TIMETRACKING_SNAPSHOT_KEY = '__timetracking__';
 
@@ -36,6 +43,21 @@ function eventMatchesSnapshotScope(key, event) {
   const scope = scopeForSnapshotKey(key);
   if ((event.scope ?? EVENT_SCOPE.BOARD) !== scope) return false;
   return scope !== EVENT_SCOPE.BOARD || event.board_id === key;
+}
+
+export function isOlderThanGraceWindow(hlc, now = Date.now()) {
+  return Number.isFinite(hlc?.wallTime) && hlc.wallTime < now - GRACE_WINDOW_MS;
+}
+
+// The key's stored events with an HLC after `afterHlc` (all of them when null),
+// read through the hlc index so a snapshot bounds the read.
+export async function loadEventsAfter(key, afterHlc) {
+  const db = await openStore();
+  const range = afterHlc
+    ? IDBKeyRange.lowerBound([afterHlc.wallTime, afterHlc.counter, afterHlc.nodeId], true)
+    : undefined;
+  const events = await db.getAllFromIndex(EVENTS_STORE, 'hlc', range);
+  return events.filter((event) => eventMatchesSnapshotScope(key, event));
 }
 
 export function serializeState(state) {
@@ -74,15 +96,16 @@ export async function loadSnapshot(key) {
   return { state, hlc, at };
 }
 
-// Deletes an event only when it is synced AND covered by the snapshot. An event
-// still in the outbound queue must survive: the snapshot covers it locally, but
-// the server has never seen it (#176).
-export async function gcEvents(key, snapshotHlc) {
+// Deletes an event only when it is synced, covered by the snapshot AND older
+// than the grace window. An event still in the outbound queue must survive: the
+// snapshot covers it locally, but the server has never seen it (#176). An event
+// inside the window may still be needed to rebuild around a late one (#179).
+export async function gcEvents(key, snapshotHlc, now = Date.now()) {
   const db = await openStore();
   const all = await db.getAll(EVENTS_STORE);
   const tx = db.transaction(EVENTS_STORE, 'readwrite');
   for (const event of all) {
-    if (event.synced !== true) continue;
+    if (event.synced !== true || !isOlderThanGraceWindow(event.hlc, now)) continue;
     if (eventMatchesSnapshotScope(key, event) && compareHlc(event.hlc, snapshotHlc) <= 0) tx.store.delete(event.id);
   }
   await tx.done;
@@ -97,34 +120,47 @@ export async function hydrateFromSnapshot(key, events) {
   return applyEvents(baseState, toReplay);
 }
 
-async function shouldTakeSnapshot(key) {
-  const db = await openStore();
-  const snapshot = await loadSnapshot(key);
-  const scopedEvents = (await db.getAll(EVENTS_STORE)).filter((event) => eventMatchesSnapshotScope(key, event));
-
-  if (snapshot) {
-    const age = Date.now() - new Date(snapshot.at).getTime();
-    if (age >= SNAPSHOT_AGE_MS) return { should: true, reason: 'age' };
-    const since = scopedEvents.filter(e => compareHlc(e.hlc, snapshot.hlc) > 0).length;
-    if (since >= SNAPSHOT_EVENT_THRESHOLD) return { should: true, reason: 'count' };
-    return { should: false };
-  }
-
-  if (scopedEvents.length >= SNAPSHOT_EVENT_THRESHOLD) return { should: true, reason: 'count' };
-  return { should: false };
+function isSnapshotDue(snapshot, eventsSinceSnapshot) {
+  if (snapshot && Date.now() - new Date(snapshot.at).getTime() >= SNAPSHOT_AGE_MS) return true;
+  return eventsSinceSnapshot >= SNAPSHOT_EVENT_THRESHOLD;
 }
 
+// A snapshot covers only events older than the grace window (#179): every
+// event still inside the window is then newer than every snapshot, so a late
+// one can be ordered in by rebuilding from the snapshot. The state is folded
+// from the stored events at save time rather than captured when scheduled.
+async function takeSnapshot(key, fold) {
+  const db = await openStore();
+  const snapshot = await loadSnapshot(key);
+  const since = (await db.getAll(EVENTS_STORE)).filter((event) => (
+    eventMatchesSnapshotScope(key, event) && (!snapshot || compareHlc(event.hlc, snapshot.hlc) > 0)
+  ));
+  if (!isSnapshotDue(snapshot, since.length)) return null;
+
+  const covered = since.filter((event) => isOlderThanGraceWindow(event.hlc)).sort((a, b) => compareHlc(a.hlc, b.hlc));
+  if (!covered.length) return null;
+  const hlc = covered.at(-1).hlc;
+  const state = fold(snapshot, covered);
+  await saveSnapshot(key, state, hlc);
+  return { state, hlc };
+}
+
+function foldFromSnapshot(snapshot, events) {
+  return applyEvents(snapshot?.state ?? createProjectionState(), events);
+}
+
+// `fold(snapshot, events)` builds the snapshot's state (the projector's fold).
 // `onSaved(key, state)` runs once the snapshot is stored, so the caller can
 // prune what the snapshot now holds (applied ids, #178).
-export function checkAndScheduleSnapshot(key, state, hlc, onSaved) {
+export function checkAndScheduleSnapshot(key, { fold = foldFromSnapshot, onSaved } = {}) {
   if (_pendingSnapshots.has(key)) return;
   const jitter = _getJitter();
   const id = setTimeout(async () => {
     _pendingSnapshots.delete(key);
     try {
-      const { should } = await shouldTakeSnapshot(key);
-      if (!should) return;
-      await saveSnapshot(key, state, hlc);
+      const taken = await takeSnapshot(key, fold);
+      if (!taken) return;
+      const { state, hlc } = taken;
       await gcEvents(key, hlc);
       onSaved?.(key, state);
       if (_afterSnapshotSaved) await _afterSnapshotSaved(key, state, hlc);

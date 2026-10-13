@@ -7,7 +7,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { server } from '../../mocks/server.js';
 import { getPb } from '../../../src/modules/sync.js';
 import { createProjectionState } from '../../../src/modules/reducer.js';
-import { GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY } from '../../../src/modules/event-sourcing/snapshot.js';
+import { GLOBAL_SNAPSHOT_KEY, GRACE_WINDOW_MS, TIMETRACKING_SNAPSHOT_KEY } from '../../../src/modules/event-sourcing/snapshot.js';
 import { uploadSnapshot, buildSnapshotForm } from '../../../src/modules/event-sourcing/snapshot-sync.js';
 
 const SNAP_LIST = '*/api/collections/snapshots/records';
@@ -112,6 +112,25 @@ describe('snapshot upload', () => {
     setAuth();
     await uploadSnapshot('board-1', state, hlc(30));
     expect(deleted.sort()).toEqual(['e-eq', 'e-old']);
+  });
+
+  it('AC-010 (#179): keeps covered PB events that are younger than the grace window', async () => {
+    const deleted = [];
+    const now = Date.now();
+    const oldWall = now - GRACE_WINDOW_MS - 1_000;
+    const youngWall = now - GRACE_WINDOW_MS + 60_000;
+    server.use(
+      http.get(SNAP_LIST, () => listResponse([])),
+      http.get(EVT_LIST, () => listResponse([
+        { id: 'e-old', hlc: hlc(0, oldWall) },
+        { id: 'e-young', hlc: hlc(0, youngWall) },
+      ])),
+      http.post(SNAP_LIST, () => HttpResponse.json({ id: 'snap-new' })),
+      http.delete(EVT_DELETE, ({ params }) => { deleted.push(params.id); return HttpResponse.json({}); }),
+    );
+    setAuth();
+    await uploadSnapshot('board-1', state, hlc(0, now));
+    expect(deleted).toEqual(['e-old']);
   });
 
   it('global snapshot filters events by scope=global and uses empty board_id', async () => {

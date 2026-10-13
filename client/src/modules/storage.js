@@ -1,12 +1,12 @@
 import { generateUUID } from './utils.js';
 import { normalizePriority as sharedNormalizePriority, isHexColor, defaultColumnColor, normalizeStringKeys, normalizeRelationships, normalizeSubTasks } from './normalize.js';
 import { DONE_COLUMN_ID, DONE_COLUMN_ROLE, isDoneColumn } from './constants.js';
-import { openStore, KV_STORE, READ_MODEL_STORE, schedulePersist, scheduleDelete, scheduleReadModelPersist, scheduleReadModelDelete, keyFor, readModelKeyFor, _flushPersistsForTesting as _flushIdbPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
+import { openStore, KV_STORE, READ_MODEL_STORE, EVENTS_STORE, SNAPSHOTS_STORE, schedulePersist, scheduleDelete, scheduleReadModelPersist, scheduleReadModelDelete, keyFor, readModelKeyFor, _flushPersistsForTesting as _flushIdbPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
 // Re-export IDB helpers that tests import from this module for backward compatibility.
 import { normalizeBoardModelIds } from './board-serializer.js';
-import { initHlc } from './event-sourcing/hlc.js';
+import { compareHlc, initHlc } from './event-sourcing/hlc.js';
 import { _flushDomainEventsForTesting, scheduleDomainEvent } from './event-sourcing/emitter.js';
-import { checkAndScheduleSnapshot, loadSnapshot, _resetSnapshotSchedulerForTesting } from './event-sourcing/snapshot.js';
+import { checkAndScheduleSnapshot, loadSnapshot, snapshotKeyForEvent, _resetSnapshotSchedulerForTesting } from './event-sourcing/snapshot.js';
 import { createReadModelProjector } from './event-sourcing/read-model-projector.js';
 import { backfillEventLog } from './event-sourcing/backfill.js';
 import { createTimeTrackingState } from './reducer.js';
@@ -17,6 +17,7 @@ const BOARDS_KEY = 'kanbanBoards';
 const ACTIVE_BOARD_KEY = 'kanbanActiveBoardId';
 const GLOBAL_SETTINGS_KEY = 'kanvana:settings:global';
 const TIME_TRACKING_KEY = 'kanvana:timetracking';
+const NEWEST_APPLIED_KEY = 'kanvana:ingest:newestAppliedHlc';
 
 const LEGACY_COLUMNS_KEY = 'kanbanColumns';
 const LEGACY_TASKS_KEY = 'kanbanTasks';
@@ -46,6 +47,7 @@ const state = {
   taskTombstones: {},  // { [boardId]: taskId[] } — task delete records (#178)
   appliedEventIds: {},  // { [boardId]: eventId[] } — applied ids not yet held by a snapshot (#178)
   snapshotAppliedIds: {},  // { [boardId]: Set<eventId> } — applied ids held by the board's latest snapshot
+  newestAppliedHlc: {},  // { [scopeKey]: hlc } — newest event folded into each key's view (#179)
   globalSettings: null,
   timeTracking: null
 };
@@ -67,7 +69,8 @@ const readModelProjector = createReadModelProjector({
   checkAndScheduleSnapshot,
   boardsKey: BOARDS_KEY,
   globalSettingsKey: GLOBAL_SETTINGS_KEY,
-  timeTrackingKey: TIME_TRACKING_KEY
+  timeTrackingKey: TIME_TRACKING_KEY,
+  newestAppliedKey: NEWEST_APPLIED_KEY
 });
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -424,6 +427,22 @@ async function migrateFromLocalStorage(db) {
   localStorage.removeItem(ACTIVE_BOARD_KEY);
 }
 
+// Devices from before #179 never recorded it, so it is derived once from the
+// stored events and snapshots (which only hold events already applied).
+async function loadNewestAppliedHlc(db) {
+  const stored = safeParseObject(await db.get(KV_STORE, NEWEST_APPLIED_KEY));
+  if (stored) return { ...stored };
+
+  const newest = {};
+  const note = (key, hlc) => {
+    if (key && hlc && (!newest[key] || compareHlc(hlc, newest[key]) > 0)) newest[key] = hlc;
+  };
+  for (const event of await db.getAll(EVENTS_STORE)) note(snapshotKeyForEvent(event), event.hlc);
+  for (const key of await db.getAllKeys(SNAPSHOTS_STORE)) note(key, (await db.get(SNAPSHOTS_STORE, key))?.hlc);
+  await db.put(KV_STORE, newest, NEWEST_APPLIED_KEY);
+  return newest;
+}
+
 // ── Public initialisation ──────────────────────────────────────────────────────
 
 /**
@@ -465,6 +484,7 @@ export async function initStorage() {
     state.appliedEventIds[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'appliedEventIds'))) ?? [];
     state.snapshotAppliedIds[board.id] = (await loadSnapshot(board.id))?.state.appliedEventIds ?? new Set();
   }
+  state.newestAppliedHlc = await loadNewestAppliedHlc(db);
 
   // One-shot: give pre-event-sourcing state an event log so it can sync at all.
   await backfillEventLog({
@@ -519,6 +539,7 @@ export function _resetStorageForTesting() {
   for (const k in state.taskTombstones) delete state.taskTombstones[k];
   for (const k in state.appliedEventIds) delete state.appliedEventIds[k];
   for (const k in state.snapshotAppliedIds) delete state.snapshotAppliedIds[k];
+  state.newestAppliedHlc = {};
   state.globalSettings = null;
   state.timeTracking = null;
   taskCacheByBoard.clear();
