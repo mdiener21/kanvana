@@ -43,6 +43,7 @@ const state = {
   columns: {},  // { [boardId]: column[] | null }
   labels: {},   // { [boardId]: label[] | null }
   settings: {},  // { [boardId]: object | null }
+  taskTombstones: {},  // { [boardId]: taskId[] } — task delete records (#178)
   globalSettings: null,
   timeTracking: null
 };
@@ -458,6 +459,7 @@ export async function initStorage() {
     state.columns[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'columns'))) ?? null;
     state.labels[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'labels'))) ?? null;
     state.settings[board.id] = (await db.get(KV_STORE, keyFor(board.id, 'settings'))) ?? null;
+    state.taskTombstones[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'taskTombstones'))) ?? [];
   }
 
   // One-shot: give pre-event-sourcing state an event log so it can sync at all.
@@ -510,6 +512,7 @@ export function _resetStorageForTesting() {
   for (const k in state.columns) delete state.columns[k];
   for (const k in state.labels) delete state.labels[k];
   for (const k in state.settings) delete state.settings[k];
+  for (const k in state.taskTombstones) delete state.taskTombstones[k];
   state.globalSettings = null;
   state.timeTracking = null;
   taskCacheByBoard.clear();

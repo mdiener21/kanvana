@@ -65,7 +65,8 @@ export function createReadModelProjector(ctx) {
       tasks: safeParseArray(state.tasks[boardId]) || [],
       columns: safeParseArray(state.columns[boardId]) || [],
       labels: safeParseArray(state.labels[boardId]) || [],
-      settings: safeParseObject(state.settings[boardId]) || {}
+      settings: safeParseObject(state.settings[boardId]) || {},
+      taskTombstones: new Set(safeParseArray(state.taskTombstones[boardId]) || [])
     }), event);
 
     writeBoard(boardId, projected);
@@ -84,12 +85,14 @@ export function createReadModelProjector(ctx) {
     state.columns[boardId] = projected.columns;
     state.labels[boardId] = projected.labels;
     state.settings[boardId] = projected.settings;
+    state.taskTombstones[boardId] = [...projected.taskTombstones];
     taskCacheByBoard.set(boardId, projected.tasks);
     schedulePersist(boardsKey, state.boards);
     scheduleReadModelPersist(boardId, 'tasks', projected.tasks);
     scheduleReadModelPersist(boardId, 'columns', projected.columns);
     scheduleReadModelPersist(boardId, 'labels', projected.labels);
     schedulePersist(keyFor(boardId, 'settings'), projected.settings);
+    scheduleReadModelPersist(boardId, 'taskTombstones', state.taskTombstones[boardId]);
   }
 
   // Adopt a snapshot's projected state as the read model. Kept here rather than
