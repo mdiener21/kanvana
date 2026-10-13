@@ -5,10 +5,31 @@
 // once. Synchronous, because local projection is (ADR-0005).
 
 import { EVENT_SCOPE } from '../constants.js';
+import {
+  createBoard, createColumn, createCustomer, createLabel, createProject, createTask, createTimeEntry
+} from '../schema.js';
 
+const keysOf = (factory, extra = []) => new Set([...Object.keys(factory()), ...extra]);
+
+// Entity field allow-lists, taken from the schema factories. Task keys the
+// factory leaves out by default are named explicitly.
+const ENTITY_FIELDS = {
+  task: keysOf(createTask, ['doneDate', 'swimlaneLabelGroup']),
+  column: keysOf(createColumn),
+  label: keysOf(createLabel),
+  board: keysOf(createBoard),
+  customer: keysOf(createCustomer),
+  project: keysOf(createProject),
+  timeEntry: keysOf(createTimeEntry)
+};
+
+// type -> spec. `entities` maps a payload key to the entity whose fields it
+// carries; `requires` names a payload entity the reducer dereferences without
+// a guard. Lookup is through a Map, so inherited keys such as `toString` or
+// `__proto__` are unknown types.
 const EVENT_TYPES = new Map([
-  ['task.created', {}],
-  ['task.updated', {}],
+  ['task.created', { entities: { task: 'task', fields: 'task' } }],
+  ['task.updated', { entities: { fields: 'task' } }],
   ['task.moved', {}],
   ['task.deleted', {}],
   ['subtask.added', {}],
@@ -19,28 +40,28 @@ const EVENT_TYPES = new Map([
   ['relationship.removed', {}],
   ['label.added_to_task', {}],
   ['label.removed_from_task', {}],
-  ['label.created', {}],
-  ['label.updated', {}],
+  ['label.created', { entities: { label: 'label', fields: 'label' } }],
+  ['label.updated', { entities: { fields: 'label' } }],
   ['label.deleted', {}],
-  ['column.created', {}],
-  ['column.updated', {}],
+  ['column.created', { entities: { column: 'column', fields: 'column' } }],
+  ['column.updated', { entities: { fields: 'column' } }],
   ['column.deleted', {}],
   ['column.reordered', {}],
-  ['board.created', {}],
-  ['board.updated', {}],
+  ['board.created', { entities: { board: 'board', fields: 'board' } }],
+  ['board.updated', { entities: { fields: 'board' } }],
   ['board.deleted', {}],
   ['settings.updated', {}],
-  ['customer.created', { requires: 'customer' }],
+  ['customer.created', { requires: 'customer', entities: { customer: 'customer' } }],
   ['customer.archived', {}],
   ['customer.unarchived', {}],
-  ['customer.deleted', {}],
-  ['project.created', { requires: 'project' }],
+  ['customer.deleted', { entities: { customer: 'customer' } }],
+  ['project.created', { requires: 'project', entities: { project: 'project' } }],
   ['project.archived', {}],
   ['project.unarchived', {}],
-  ['project.deleted', {}],
-  ['time_entry.created', { requires: 'timeEntry' }],
-  ['time_entry.updated', {}],
-  ['time_entry.deleted', {}]
+  ['project.deleted', { entities: { project: 'project' } }],
+  ['time_entry.created', { requires: 'timeEntry', entities: { timeEntry: 'timeEntry' } }],
+  ['time_entry.updated', { entities: { fields: 'timeEntry' } }],
+  ['time_entry.deleted', { entities: { timeEntry: 'timeEntry' } }]
 ]);
 
 const SCOPES = new Set(Object.values(EVENT_SCOPE));
@@ -50,16 +71,14 @@ const isNonEmptyString = (value) => typeof value === 'string' && value.length > 
 
 // The shape compareHlc() needs to order events.
 function isValidHlc(hlc) {
-  return !!hlc && typeof hlc === 'object'
+  return isPlainObject(hlc)
     && Number.isFinite(hlc.wallTime)
     && Number.isFinite(hlc.counter)
     && isNonEmptyString(hlc.nodeId);
 }
 
-const loggedRejections = new Set();
-
 function findProblem(event) {
-  if (!event || typeof event !== 'object') return 'not an object';
+  if (!isPlainObject(event)) return 'not an object';
   if (!isNonEmptyString(event.id)) return 'missing id';
   if (typeof event.type !== 'string' || !EVENT_TYPES.has(event.type)) return 'unknown type';
   if (!isValidHlc(event.hlc)) return 'malformed hlc';
@@ -71,16 +90,33 @@ function findProblem(event) {
   return null;
 }
 
-function logRejection(event, problem) {
-  const key = typeof event?.id === 'string' ? event.id : null;
-  if (key !== null) {
-    if (loggedRejections.has(key)) return;
-    loggedRejections.add(key);
-  }
-  console.error(`[Kanvana] Rejected event ${key ?? '(no id)'} (${String(event?.type)}): ${problem}`);
+function pickFields(entity, source) {
+  const allowed = ENTITY_FIELDS[entity];
+  return Object.fromEntries(Object.entries(source).filter(([key]) => allowed.has(key)));
 }
 
-// Returns the event to ingest (with payload entity fields sanitised), or null
+function sanitise(event) {
+  const { entities } = EVENT_TYPES.get(event.type);
+  if (!entities) return event;
+  const payload = { ...event.payload };
+  for (const [key, entity] of Object.entries(entities)) {
+    if (isPlainObject(payload[key])) payload[key] = pickFields(entity, payload[key]);
+  }
+  return { ...event, payload };
+}
+
+const loggedRejections = new Set();
+
+function logRejection(event, problem) {
+  const id = typeof event?.id === 'string' && event.id ? event.id : null;
+  if (id !== null) {
+    if (loggedRejections.has(id)) return;
+    loggedRejections.add(id);
+  }
+  console.error(`[Kanvana] Rejected event ${id ?? '(no id)'} (${String(event?.type)}): ${problem}`);
+}
+
+// Returns the event to ingest, with payload entity fields allow-listed, or null
 // when the event is rejected. A rejection is logged once per event id.
 export function validateEvent(event) {
   const problem = findProblem(event);
@@ -88,5 +124,5 @@ export function validateEvent(event) {
     logRejection(event, problem);
     return null;
   }
-  return event;
+  return sanitise(event);
 }

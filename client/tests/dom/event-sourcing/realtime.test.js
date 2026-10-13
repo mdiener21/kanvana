@@ -245,7 +245,7 @@ describe('catch-up pull', () => {
   it('ingests timetracking events under their own watermark without touching boards', async () => {
     server.use(http.get(EVT_LIST, () => listResponse([
       record({ local_id: 'b1', h: hlc(1), payload: { board: { name: 'B' } } }),
-      { ...record({ local_id: 't1', type: 'customer.created', h: hlc(3), board: '', scope: 'timetracking' }), entity_id: 'customer-1' },
+      { ...record({ local_id: 't1', type: 'customer.created', h: hlc(3), board: '', scope: 'timetracking', payload: { customer: { name: 'Acme' } } }), entity_id: 'customer-1' },
       { ...record({ local_id: 'g1', type: 'settings.updated', h: hlc(2), board: '', scope: 'global', payload: { fields: { locale: 'de-DE' } } }), entity_id: 'global' },
     ])));
     setAuth();

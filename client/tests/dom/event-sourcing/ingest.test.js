@@ -182,3 +182,52 @@ describe('rejected events', () => {
     expect(loadTimeTracking().customers).toMatchObject([{ id: 'cust-1', archived: true }]);
   });
 });
+
+// #181: entity fields are allow-listed per entity type before projection.
+describe('payload entity fields', () => {
+  const remote = (event) => ingestEvent(event, { origin: EVENT_ORIGIN.REMOTE });
+
+  test('unknown task keys are dropped from task.created and task.updated', async () => {
+    const created = taskCreated('allow-1');
+    created.payload.task = { ...created.payload.task, isAdmin: true, onclick: 'alert(1)' };
+    await remote(created);
+    await remote({
+      ...taskCreated('allow-1'), id: 'evt-allow-1-update', type: 'task.updated',
+      payload: { fields: { title: 'Renamed', innerHTML: '<img src=x>' } },
+    });
+
+    const task = loadTasksForBoard(boardId).find((t) => t.id === 'allow-1');
+    expect(task).toMatchObject({ title: 'Renamed', column: 'todo' });
+    expect(task).not.toHaveProperty('isAdmin');
+    expect(task).not.toHaveProperty('onclick');
+    expect(task).not.toHaveProperty('innerHTML');
+  });
+
+  test('known task keys that are not factory defaults survive (doneDate, swimlaneLabelGroup)', async () => {
+    const created = taskCreated('allow-2');
+    created.payload.task = { ...created.payload.task, doneDate: '2026-10-12T00:00:00.000Z', swimlaneLabelGroup: 'Type' };
+    await remote(created);
+    expect(loadTasksForBoard(boardId).find((t) => t.id === 'allow-2'))
+      .toMatchObject({ doneDate: '2026-10-12T00:00:00.000Z', swimlaneLabelGroup: 'Type' });
+  });
+
+  test('unknown customer, project and time entry keys are dropped', async () => {
+    await remote(timetracking('customer.created', 'c-1', { customer: { name: 'Acme', color: '#03a9f4', archived: false, owner: 'x' } }));
+    await remote(timetracking('project.created', 'p-1', { project: { customerId: 'c-1', name: 'Web', color: '#e91e63', archived: false, billing: 'x' } }));
+    await remote(timetracking('time_entry.created', 't-1', {
+      timeEntry: { projectId: 'p-1', description: 'Work', start: '2026-10-12T08:00:00.000Z', end: '2026-10-12T09:00:00.000Z', rate: 999 },
+    }));
+
+    const tt = loadTimeTracking();
+    expect(tt.customers[0]).toEqual({ id: 'c-1', name: 'Acme', color: '#03a9f4', archived: false });
+    expect(tt.projects[0]).toEqual({ id: 'p-1', customerId: 'c-1', name: 'Web', color: '#e91e63', archived: false });
+    expect(tt.timeEntries[0]).not.toHaveProperty('rate');
+  });
+
+  test('the persisted event carries the sanitised payload', async () => {
+    const created = taskCreated('allow-3');
+    created.payload.task = { ...created.payload.task, isAdmin: true };
+    await remote(created);
+    expect((await storedEvent('evt-allow-3')).payload.task).not.toHaveProperty('isAdmin');
+  });
+});
