@@ -427,8 +427,7 @@ async function migrateFromLocalStorage(db) {
   localStorage.removeItem(ACTIVE_BOARD_KEY);
 }
 
-// Devices from before #179 never recorded it, so it is derived once from the
-// stored events and snapshots (which only hold events already applied).
+// Devices from before #179 never recorded it, so it is derived once from the stored events and snapshots.
 async function loadNewestAppliedHlc(db) {
   const stored = safeParseObject(await db.get(KV_STORE, NEWEST_APPLIED_KEY));
   if (stored) return { ...stored };

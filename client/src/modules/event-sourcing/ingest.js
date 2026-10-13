@@ -1,11 +1,4 @@
-// The single entry point of the event log (#177): local mutations and remote
-// events (SSE and catch-up) both pass through ingestEvent(). Origin only decides
-// the `synced` flag and whether the remote HLC is observed first; validation,
-// projection, DATA_CHANGED and persistence are shared.
-//
-// Ordering (#179): an event newer than everything applied for its scope key is
-// folded incrementally. An older one makes the key's view be rebuilt from its
-// snapshot plus the stored events, in HLC order (CONTEXT.md §9).
+// The single entry point of the event log for local and remote events (#177); ordering rules: CONTEXT.md §9.
 
 import { DATA_CHANGED, EVENT_EMITTED, emit } from '../events.js';
 import { flushPendingPersists, getDbRef, persistEvent, EVENTS_STORE } from '../idb-store.js';
@@ -24,9 +17,7 @@ const rebuilds = new Map();
 const superseded = new Map();
 const loggedDrops = new Set();
 
-// The read-model projector (ADR-0005) connects itself once storage has loaded:
-// { classify(event), project(event), rebuild(key, snapshot, events, superseded) }.
-// Until then events are only persisted, which is what boot-time backfill needs.
+// Until the projector (ADR-0005) connects, events are only persisted, which is what boot-time backfill needs.
 export function connectProjector(next) {
   projector = next;
   return () => {
@@ -34,10 +25,7 @@ export function connectProjector(next) {
   };
 }
 
-// Local events project synchronously, before this returns, so the caller's
-// render sees them (ADR-0005 instant UI). The returned promise settles once
-// the event is persisted, and for a late event once the view is rebuilt; it
-// rejects if persistence fails.
+// Local events project before this returns (ADR-0005 instant UI); the promise settles once persisted, or rebuilt if late.
 export function ingestEvent(input, { origin = EVENT_ORIGIN.LOCAL, receivedAt } = {}) {
   const event = validateEvent(input);
   if (!event) return Promise.resolve();
@@ -45,8 +33,7 @@ export function ingestEvent(input, { origin = EVENT_ORIGIN.LOCAL, receivedAt } =
   return commit(event, origin);
 }
 
-// A remote event already in the event store was applied before, maybe before
-// a reload; the store, unlike session memory, survives one (#178).
+// The event store, unlike session memory, survives a reload (#178).
 async function ingestRemote(event, receivedAt) {
   if (await isStored(event.id)) return;
   if (reachedServerTooLate(event, receivedAt)) return logDrop(event);
@@ -55,8 +42,7 @@ async function ingestRemote(event, receivedAt) {
   return commit(event, EVENT_ORIGIN.REMOTE);
 }
 
-// The server's receipt time is the same on every device, so the drop does not
-// depend on what this device has snapshotted (CONTEXT.md §9). Unstamped: kept.
+// The server's receipt time is the same on every device, so the drop ignores local snapshots (CONTEXT.md §9).
 function reachedServerTooLate(event, receivedAt) {
   const received = Date.parse(String(receivedAt ?? '').replace(' ', 'T'));
   return Number.isFinite(received) && received - event.hlc.wallTime > GRACE_WINDOW_MS;
@@ -73,8 +59,7 @@ async function isStored(id) {
   return Boolean(db && await db.get(EVENTS_STORE, id));
 }
 
-// An event this device's snapshot covers but lacks is folded onto the snapshot,
-// since the events before it may be gone. False when the snapshot holds it.
+// The events before a covered event may be gone, so one the snapshot lacks is folded onto the snapshot.
 async function foldIntoCoveringSnapshot(event) {
   const key = snapshotKeyForEvent(event);
   const snapshot = await loadSnapshot(key);
@@ -102,10 +87,7 @@ function commit(event, origin) {
   return order === EVENT_ORDER.LATE ? persisted.then(() => rebuildScope(key)) : persisted;
 }
 
-// Adopts a server snapshot (#180): the key's view becomes the snapshot plus
-// this device's stored events newer than it, so unsynced local edits stay.
-// What the replaced snapshot held, and the stored events the new one covers,
-// is known to the event log; the rebuild drops it unless the snapshot has it.
+// The rebuild keeps this device's newer stored events (#180) and drops what only the replaced history knew.
 export async function adoptSnapshot(key, state, hlc) {
   const replaced = await loadSnapshot(key);
   const covered = (await loadEventsAfter(key, replaced?.hlc ?? null)).filter((event) => compareHlc(event.hlc, hlc) <= 0);
@@ -117,8 +99,6 @@ export async function adoptSnapshot(key, state, hlc) {
   return rebuildScope(key);
 }
 
-// Rebuilds a scope key's view (board id, '__global__' or '__timetracking__')
-// from its stored snapshot plus every stored event newer than it, in HLC order.
 // Requests for a key that is already waiting to rebuild share that run.
 export function rebuildScope(key) {
   const current = rebuilds.get(key);
@@ -137,8 +117,7 @@ export function rebuildScope(key) {
   return entry.promise;
 }
 
-// Events committed while the store is read are not all in the read yet, so
-// they are collected and folded in too; the reducer dedups by id.
+// Events committed while the store is read may be missing from the read; the reducer dedups by id.
 async function runRebuild(key) {
   if (!projector) return;
   const collected = new Map([...unpersisted].filter(([, event]) => snapshotKeyForEvent(event) === key));

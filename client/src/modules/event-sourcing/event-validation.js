@@ -1,8 +1,4 @@
-// Ingest-time event validation (#181). Every event, local or remote, passes
-// through validateEvent() before it is persisted or projected, so a malformed
-// or hostile remote event (stolen token, compromised device, buggy older
-// client) cannot break the view, and a bug in a feature module surfaces at
-// once. Synchronous, because local projection is (ADR-0005).
+// Synchronous, because local projection is (ADR-0005).
 
 import { DEFAULT_COLUMN_COLOR, EVENT_SCOPE, TT_COLOR_PALETTE } from '../constants.js';
 import { isHexColor, normalizeHexColor } from '../normalize.js';
@@ -14,8 +10,7 @@ import { MAX_DRIFT_MS } from './hlc.js';
 // `id` is left out: an entity's id comes only from the event's entity_id.
 const keysOf = (factory, extra = []) => new Set([...Object.keys(factory()), ...extra].filter((key) => key !== 'id'));
 
-// Entity field allow-lists, taken from the schema factories. Task keys the
-// factory leaves out by default are named explicitly.
+// Task keys the schema factory leaves out by default are named explicitly.
 const ENTITY_FIELDS = {
   task: keysOf(createTask, ['doneDate', 'swimlaneLabelGroup']),
   column: keysOf(createColumn),
@@ -26,8 +21,7 @@ const ENTITY_FIELDS = {
   timeEntry: keysOf(createTimeEntry)
 };
 
-// Colours end up in style attributes (e.g. timetracking colorDotHtml), and
-// escapeHtml does not stop CSS injection, so they must be hex.
+// Colours reach style attributes, where escapeHtml does not stop CSS injection, so they must be hex.
 const COLOR_FALLBACK = {
   column: DEFAULT_COLUMN_COLOR,
   label: DEFAULT_COLUMN_COLOR,
@@ -35,10 +29,7 @@ const COLOR_FALLBACK = {
   project: TT_COLOR_PALETTE[0]
 };
 
-// type -> spec. `entities` maps a payload key to the entity it carries in full;
-// `patches` maps a payload key to the entity it partially updates. `requires` names a payload entity the reducer dereferences without
-// a guard. Lookup is through a Map, so inherited keys such as `toString` or
-// `__proto__` are unknown types.
+// A Map, so inherited keys such as `toString` or `__proto__` are unknown types; `requires` is dereferenced unguarded.
 const EVENT_TYPES = new Map([
   ['task.created', { entities: { task: 'task', fields: 'task' } }],
   ['task.updated', { patches: { fields: 'task' } }],
@@ -103,8 +94,7 @@ function findProblem(event) {
   return null;
 }
 
-// A full entity gets a hex fallback for a bad colour; a patch drops it, so the
-// current colour stays.
+// A patch drops a bad colour, so the current one stays.
 function pickFields(entity, source, { patch }) {
   const allowed = ENTITY_FIELDS[entity];
   const fields = Object.fromEntries(Object.entries(source).filter(([key]) => allowed.has(key)));
@@ -141,8 +131,6 @@ function logRejection(event, problem) {
   console.error(`[Kanvana] Rejected event ${id ?? '(no id)'} (${String(event?.type)}): ${problem}`);
 }
 
-// Returns the event to ingest, with payload entity fields allow-listed, or null
-// when the event is rejected. A rejection is logged once per event id.
 export function validateEvent(event) {
   const problem = findProblem(event);
   if (problem) {

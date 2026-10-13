@@ -89,15 +89,7 @@ export async function stopRealtime() {
   await unsub();
 }
 
-// Catch-up pulls all owner-scoped events in HLC order. Only snapshots cover
-// earlier history; a watermark cannot exclude delayed events from other devices.
-// Adopt any server snapshot newer than what this device has already seen, before
-// replaying events. uploadSnapshot() deletes the events a snapshot covers, so for
-// a device that joined afterwards the snapshot is the only surviving history.
-// The saved snapshot's HLC excludes events already represented by its state.
-// Adopting it rebuilds the key from it plus this device's stored newer events:
-// a snapshot covers only events older than the grace window (#179), so
-// replacing the view with it would drop everything since.
+// For a device that joined after server cleanup, the snapshot is the only surviving history.
 async function hydrateFromRemoteSnapshots() {
   for (const snapshot of await downloadAllSnapshots()) {
     const seen = await getLastSeen(snapshot.key);
@@ -128,8 +120,7 @@ async function pullRemoteState() {
     requestKey: null,
   });
 
-  // Rejected events are dropped before sorting (a malformed HLC cannot be
-  // ordered) and never advance a watermark (#181). Ingest validates again.
+  // A malformed HLC cannot be sorted, and a rejected event must not advance a watermark (#181).
   const events = records
     .map((record) => ({ record, event: validateEvent(recordToEvent(record)) }))
     .filter(({ event }) => event)
