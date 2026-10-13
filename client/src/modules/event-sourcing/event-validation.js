@@ -9,6 +9,7 @@ import { isHexColor, normalizeHexColor } from '../normalize.js';
 import {
   createBoard, createColumn, createCustomer, createLabel, createProject, createTask, createTimeEntry
 } from '../schema.js';
+import { MAX_DRIFT_MS } from './hlc.js';
 
 const keysOf = (factory, extra = []) => new Set([...Object.keys(factory()), ...extra]);
 
@@ -92,6 +93,7 @@ function findProblem(event) {
   if (!isNonEmptyString(event.id)) return 'missing id';
   if (typeof event.type !== 'string' || !EVENT_TYPES.has(event.type)) return 'unknown type';
   if (!isValidHlc(event.hlc)) return 'malformed hlc';
+  if (event.hlc.wallTime > Date.now() + MAX_DRIFT_MS) return 'hlc too far in the future';
   if (!SCOPES.has(event.scope)) return 'unknown scope';
   if (event.scope === EVENT_SCOPE.BOARD && !isNonEmptyString(event.board_id)) return 'board event without board_id';
   if (!isPlainObject(event.payload)) return 'payload is not an object';

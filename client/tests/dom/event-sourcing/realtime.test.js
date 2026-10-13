@@ -130,10 +130,11 @@ describe('applyRemoteEvent', () => {
     expect((await emitLocal()).wallTime).toBe(future);
   });
 
-  it('a remote HLC far in the future advances the local clock by at most the drift limit (#181)', async () => {
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  it('a remote HLC far in the future is rejected and does not advance the local clock (#181)', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
     const before = Date.now();
     await applyRemoteEvent(record({ local_id: 'r-future', h: { wallTime: before + 365 * 86_400_000, counter: 0, nodeId: 'remote' }, payload: { board: { name: 'Future' } } }));
+    expect(listBoards().some(b => b.id === 'board-1')).toBe(false);
     expect((await emitLocal()).wallTime).toBeLessThanOrEqual(Date.now() + MAX_DRIFT_MS);
   });
 

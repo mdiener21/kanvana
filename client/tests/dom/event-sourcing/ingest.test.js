@@ -9,6 +9,7 @@ import {
 } from '../../../src/modules/storage.js';
 import { scheduleDomainEvent } from '../../../src/modules/event-sourcing/emitter.js';
 import { ingestEvent, EVENT_ORIGIN } from '../../../src/modules/event-sourcing/ingest.js';
+import { MAX_DRIFT_MS } from '../../../src/modules/event-sourcing/hlc.js';
 
 let boardId;
 
@@ -153,6 +154,18 @@ describe('rejected events', () => {
     ['a board-scope event with a non-string board_id', { board_id: 42 }],
   ])('%s', async (label, overrides) => {
     await expectRejected({ ...taskCreated('bad-envelope'), id: `evt-${label}`, ...overrides });
+  });
+
+  // #181: it would win every field forever and turn each later event into a rebuild.
+  test('an hlc more than the drift limit ahead of this device', async () => {
+    const future = { wallTime: Date.now() + MAX_DRIFT_MS + 60_000, counter: 0, nodeId: 'remote-node' };
+    await expectRejected({ ...taskCreated('from-the-future'), hlc: future });
+  });
+
+  test('an hlc ahead of this device within the drift limit is accepted', async () => {
+    const ahead = { wallTime: Date.now() + MAX_DRIFT_MS / 2, counter: 0, nodeId: 'remote-node' };
+    await ingestEvent({ ...taskCreated('slightly-ahead'), hlc: ahead }, { origin: EVENT_ORIGIN.REMOTE });
+    expect(loadTasksForBoard(boardId).some((t) => t.id === 'slightly-ahead')).toBe(true);
   });
 
   test('a malformed local event is rejected too', async () => {

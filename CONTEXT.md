@@ -324,7 +324,7 @@ inspectImportPayload → buildImportConfirmationMessage → importTasks
 [server snapshot]→ catchUp(), before its events → adoptSnapshot(key, state, hlc) → save + rebuildScope(key)
 
 ingestEvent (event-sourcing/ingest.js) — one path, origin is a parameter:
-   1. validate                         (drops malformed events, #181)
+   1. validate                         (drops malformed events and HLCs over 60 s ahead, #181)
    2. remote only: drop if it reached the server a grace window after its HLC; classify against the key's newest applied HLC (§9 Ordering)
    3. project: read-model-projector folds event into state (sole writer, deduped by id)
               → emit(DATA_CHANGED) → renderBoard()      [synchronous for local events; skipped for a late remote one]
@@ -365,7 +365,8 @@ mechanics: `docs/spec/backend-storage-pb.md`.
 
 Each event carries an HLC stamp (`hlc`). `compareHlc()` gives a total order across devices; the reducer
 re-sorts by HLC on replay, so server insertion order is irrelevant. Node id persisted at
-`kanvana:hlc:node`; drift past 60 s is logged.
+`kanvana:hlc:node`; drift past 60 s is logged. An event whose HLC is more than `MAX_DRIFT_MS` (60 s) ahead of
+this device's clock is rejected at ingest (#181): it would win every field and stay newest for its key.
 
 **Live ingest folds in HLC order** (#179). The projector records the newest HLC it has folded into each
 **scope key** (board id, `__global__`, `__timetracking__`) in kv `kanvana:ingest:newestAppliedHlc`
