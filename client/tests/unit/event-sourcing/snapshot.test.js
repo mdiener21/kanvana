@@ -20,6 +20,7 @@ import {
 import { openStore } from '../../../src/modules/idb-store.js';
 
 const DB_NAME = 'kanvana-db';
+const replayFold = (snapshot, events) => applyEvents(snapshot?.state ?? createProjectionState(), events);
 
 function makeHlc(wallTime, counter = 0, nodeId = 'node-a') {
   return { wallTime, counter, nodeId };
@@ -175,7 +176,7 @@ test('checkAndScheduleSnapshot snapshots after 500 events, covering the ones old
     await db.put('events', { ...makeEvent(`e${i}`, 'task.updated', makeHlc(wall), 'board-a', 'task-1', { fields: { title: `T${i}` } }), synced: true });
   }
 
-  checkAndScheduleSnapshot('board-a');
+  checkAndScheduleSnapshot('board-a', { fold: replayFold });
   await vi.waitFor(async () => expect(await db.count('events')).toBe(SNAPSHOT_EVENT_THRESHOLD - 300));
 
   const snapshot = await loadSnapshot('board-a');
@@ -194,10 +195,42 @@ test('checkAndScheduleSnapshot takes no snapshot while every event is inside the
     await db.put('events', { ...makeEvent(`e${i}`, 'task.updated', makeHlc(youngWall + i)), synced: true });
   }
 
-  checkAndScheduleSnapshot('board-a');
+  checkAndScheduleSnapshot('board-a', { fold: replayFold });
   await settle();
 
   expect(await loadSnapshot('board-a')).toBeNull();
+});
+
+function countEventStoreScans() {
+  const storeName = (target) => (target.objectStore ? target.objectStore.name : target.name);
+  const spies = [IDBObjectStore.prototype, IDBIndex.prototype].flatMap((proto) => (
+    ['getAll', 'getAllKeys', 'openCursor', 'openKeyCursor'].map((method) => vi.spyOn(proto, method))
+  ));
+  return () => spies.flatMap((spy) => spy.mock.contexts).filter((target) => storeName(target) === 'events').length;
+}
+
+test('a due snapshot with nothing old enough is not re-checked until the oldest event leaves the grace window', async () => {
+  _setJitterForTesting(() => 0);
+  const db = await openStore();
+  const now = Date.now();
+  const oldestWall = now - GRACE_WINDOW_MS + 60_000;
+  const created = makeEvent('e-create', 'task.created', makeHlc(oldestWall), 'board-a', 'task-1', { task: { title: 'T0', column: 'todo', columnHistory: [] } });
+  await db.put('events', { ...created, synced: true });
+  for (let i = 1; i < SNAPSHOT_EVENT_THRESHOLD; i++) {
+    await db.put('events', { ...makeEvent(`e${i}`, 'task.updated', makeHlc(oldestWall + i), 'board-a', 'task-1', { fields: { title: `T${i}` } }), synced: true });
+  }
+  checkAndScheduleSnapshot('board-a', { fold: replayFold });
+  await settle();
+  expect(await loadSnapshot('board-a')).toBeNull();
+
+  const scans = countEventStoreScans();
+  for (let i = 0; i < 5; i++) checkAndScheduleSnapshot('board-a', { fold: replayFold });
+  await settle();
+  expect(scans()).toBe(0);
+
+  vi.spyOn(Date, 'now').mockReturnValue(oldestWall + GRACE_WINDOW_MS + 1);
+  checkAndScheduleSnapshot('board-a', { fold: replayFold });
+  await vi.waitFor(async () => expect((await loadSnapshot('board-a'))?.hlc).toEqual(makeHlc(oldestWall)));
 });
 
 test('checkAndScheduleSnapshot folds with the supplied fold and reports the saved state', async () => {
@@ -226,7 +259,7 @@ test('checkAndScheduleSnapshot does not schedule when event count is below thres
     await db.put('events', { ...makeEvent(`e${i}`, 'task.updated', makeHlc(i + 1)), synced: false });
   }
 
-  checkAndScheduleSnapshot('board-a');
+  checkAndScheduleSnapshot('board-a', { fold: replayFold });
   await settle();
 
   expect(await loadSnapshot('board-a')).toBeNull();
@@ -239,7 +272,7 @@ test('checkAndScheduleSnapshot ignores other boards when counting events', async
     await db.put('events', { ...makeEvent(`b${i}`, 'task.updated', makeHlc(i + 1), 'board-b', `task-${i}`), synced: false });
   }
 
-  checkAndScheduleSnapshot('board-a');
+  checkAndScheduleSnapshot('board-a', { fold: replayFold });
   await settle();
 
   expect(await loadSnapshot('board-a')).toBeNull();
@@ -252,7 +285,7 @@ test('checkAndScheduleSnapshot schedules when snapshot age exceeds 14 days', asy
   await db.put('snapshots', { payload: { tasks: [], columns: [], labels: [], settings: {}, globalSettings: {}, appliedEventIds: [], taskTombstones: [] }, hlc: makeHlc(1), at: oldAt }, 'board-a');
   await db.put('events', { ...makeEvent('e2', 'task.updated', makeHlc(2)), synced: true });
 
-  checkAndScheduleSnapshot('board-a');
+  checkAndScheduleSnapshot('board-a', { fold: replayFold });
   await vi.waitFor(async () => expect((await loadSnapshot('board-a')).hlc).toEqual(makeHlc(2)));
 
   const snapshot = await loadSnapshot('board-a');

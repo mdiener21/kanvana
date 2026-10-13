@@ -1,19 +1,16 @@
-// Ingest-time event validation (#181). Every event, local or remote, passes
-// through validateEvent() before it is persisted or projected, so a malformed
-// or hostile remote event (stolen token, compromised device, buggy older
-// client) cannot break the view, and a bug in a feature module surfaces at
-// once. Synchronous, because local projection is (ADR-0005).
+// Synchronous, because local projection is (ADR-0005).
 
 import { DEFAULT_COLUMN_COLOR, EVENT_SCOPE, TT_COLOR_PALETTE } from '../constants.js';
 import { isHexColor, normalizeHexColor } from '../normalize.js';
 import {
   createBoard, createColumn, createCustomer, createLabel, createProject, createTask, createTimeEntry
 } from '../schema.js';
+import { MAX_DRIFT_MS } from './hlc.js';
 
-const keysOf = (factory, extra = []) => new Set([...Object.keys(factory()), ...extra]);
+// `id` is left out: an entity's id comes only from the event's entity_id.
+const keysOf = (factory, extra = []) => new Set([...Object.keys(factory()), ...extra].filter((key) => key !== 'id'));
 
-// Entity field allow-lists, taken from the schema factories. Task keys the
-// factory leaves out by default are named explicitly.
+// Task keys the schema factory leaves out by default are named explicitly.
 const ENTITY_FIELDS = {
   task: keysOf(createTask, ['doneDate', 'swimlaneLabelGroup']),
   column: keysOf(createColumn),
@@ -24,8 +21,7 @@ const ENTITY_FIELDS = {
   timeEntry: keysOf(createTimeEntry)
 };
 
-// Colours end up in style attributes (e.g. timetracking colorDotHtml), and
-// escapeHtml does not stop CSS injection, so they must be hex.
+// Colours reach style attributes, where escapeHtml does not stop CSS injection, so they must be hex.
 const COLOR_FALLBACK = {
   column: DEFAULT_COLUMN_COLOR,
   label: DEFAULT_COLUMN_COLOR,
@@ -33,13 +29,10 @@ const COLOR_FALLBACK = {
   project: TT_COLOR_PALETTE[0]
 };
 
-// type -> spec. `entities` maps a payload key to the entity it carries in full;
-// `patches` maps a payload key to the entity it partially updates. `requires` names a payload entity the reducer dereferences without
-// a guard. Lookup is through a Map, so inherited keys such as `toString` or
-// `__proto__` are unknown types.
+// A Map, so `toString`/`__proto__` are unknown types. payloadEntities/payloadPatches: payload key -> entity type, in full / as a patch.
 const EVENT_TYPES = new Map([
-  ['task.created', { entities: { task: 'task', fields: 'task' } }],
-  ['task.updated', { patches: { fields: 'task' } }],
+  ['task.created', { payloadEntities: { task: 'task', fields: 'task' } }],
+  ['task.updated', { payloadPatches: { fields: 'task' } }],
   ['task.moved', {}],
   ['task.deleted', {}],
   ['subtask.added', {}],
@@ -50,28 +43,28 @@ const EVENT_TYPES = new Map([
   ['relationship.removed', {}],
   ['label.added_to_task', {}],
   ['label.removed_from_task', {}],
-  ['label.created', { entities: { label: 'label', fields: 'label' } }],
-  ['label.updated', { patches: { fields: 'label' } }],
+  ['label.created', { payloadEntities: { label: 'label', fields: 'label' } }],
+  ['label.updated', { payloadPatches: { fields: 'label' } }],
   ['label.deleted', {}],
-  ['column.created', { entities: { column: 'column', fields: 'column' } }],
-  ['column.updated', { patches: { fields: 'column' } }],
+  ['column.created', { payloadEntities: { column: 'column', fields: 'column' } }],
+  ['column.updated', { payloadPatches: { fields: 'column' } }],
   ['column.deleted', {}],
   ['column.reordered', {}],
-  ['board.created', { entities: { board: 'board', fields: 'board' } }],
-  ['board.updated', { patches: { fields: 'board' } }],
+  ['board.created', { payloadEntities: { board: 'board', fields: 'board' } }],
+  ['board.updated', { payloadPatches: { fields: 'board' } }],
   ['board.deleted', {}],
   ['settings.updated', {}],
-  ['customer.created', { requires: 'customer', entities: { customer: 'customer' } }],
+  ['customer.created', { requires: 'customer', payloadEntities: { customer: 'customer' } }],
   ['customer.archived', {}],
   ['customer.unarchived', {}],
-  ['customer.deleted', { entities: { customer: 'customer' } }],
-  ['project.created', { requires: 'project', entities: { project: 'project' } }],
+  ['customer.deleted', { payloadEntities: { customer: 'customer' } }],
+  ['project.created', { requires: 'project', payloadEntities: { project: 'project' } }],
   ['project.archived', {}],
   ['project.unarchived', {}],
-  ['project.deleted', { entities: { project: 'project' } }],
-  ['time_entry.created', { requires: 'timeEntry', entities: { timeEntry: 'timeEntry' } }],
-  ['time_entry.updated', { patches: { fields: 'timeEntry' } }],
-  ['time_entry.deleted', { entities: { timeEntry: 'timeEntry' } }]
+  ['project.deleted', { payloadEntities: { project: 'project' } }],
+  ['time_entry.created', { requires: 'timeEntry', payloadEntities: { timeEntry: 'timeEntry' } }],
+  ['time_entry.updated', { payloadPatches: { fields: 'timeEntry' } }],
+  ['time_entry.deleted', { payloadEntities: { timeEntry: 'timeEntry' } }]
 ]);
 
 const SCOPES = new Set(Object.values(EVENT_SCOPE));
@@ -92,6 +85,7 @@ function findProblem(event) {
   if (!isNonEmptyString(event.id)) return 'missing id';
   if (typeof event.type !== 'string' || !EVENT_TYPES.has(event.type)) return 'unknown type';
   if (!isValidHlc(event.hlc)) return 'malformed hlc';
+  if (event.hlc.wallTime > Date.now() + MAX_DRIFT_MS) return 'hlc too far in the future';
   if (!SCOPES.has(event.scope)) return 'unknown scope';
   if (event.scope === EVENT_SCOPE.BOARD && !isNonEmptyString(event.board_id)) return 'board event without board_id';
   if (!isPlainObject(event.payload)) return 'payload is not an object';
@@ -100,8 +94,7 @@ function findProblem(event) {
   return null;
 }
 
-// A full entity gets a hex fallback for a bad colour; a patch drops it, so the
-// current colour stays.
+// A patch drops a bad colour, so the current one stays.
 function pickFields(entity, source, { patch }) {
   const allowed = ENTITY_FIELDS[entity];
   const fields = Object.fromEntries(Object.entries(source).filter(([key]) => allowed.has(key)));
@@ -114,10 +107,10 @@ function pickFields(entity, source, { patch }) {
 }
 
 function sanitise(event) {
-  const { entities = {}, patches = {} } = EVENT_TYPES.get(event.type);
+  const { payloadEntities = {}, payloadPatches = {} } = EVENT_TYPES.get(event.type);
   const targets = [
-    ...Object.entries(entities).map(([key, entity]) => [key, entity, false]),
-    ...Object.entries(patches).map(([key, entity]) => [key, entity, true])
+    ...Object.entries(payloadEntities).map(([key, entity]) => [key, entity, false]),
+    ...Object.entries(payloadPatches).map(([key, entity]) => [key, entity, true])
   ];
   if (targets.length === 0) return event;
   const payload = { ...event.payload };
@@ -138,8 +131,6 @@ function logRejection(event, problem) {
   console.error(`[Kanvana] Rejected event ${id ?? '(no id)'} (${String(event?.type)}): ${problem}`);
 }
 
-// Returns the event to ingest, with payload entity fields allow-listed, or null
-// when the event is rejected. A rejection is logged once per event id.
 export function validateEvent(event) {
   const problem = findProblem(event);
   if (problem) {

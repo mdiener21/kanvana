@@ -4,11 +4,12 @@ import { deleteDB } from 'idb';
 import { DATA_CHANGED, EVENT_EMITTED, emit, off, on } from '../../../src/modules/events.js';
 import { openStore, EVENTS_STORE } from '../../../src/modules/idb-store.js';
 import {
-  initStorage, createBoard, loadTasksForBoard, loadTimeTracking, loadLabelsForBoard,
+  initStorage, createBoard, listBoards, loadTasksForBoard, loadTimeTracking, loadLabelsForBoard, loadColumnsForBoard,
   _flushPersistsForTesting, _resetStorageForTesting,
 } from '../../../src/modules/storage.js';
 import { scheduleDomainEvent } from '../../../src/modules/event-sourcing/emitter.js';
 import { ingestEvent, EVENT_ORIGIN } from '../../../src/modules/event-sourcing/ingest.js';
+import { MAX_DRIFT_MS } from '../../../src/modules/event-sourcing/hlc.js';
 
 let boardId;
 
@@ -155,6 +156,18 @@ describe('rejected events', () => {
     await expectRejected({ ...taskCreated('bad-envelope'), id: `evt-${label}`, ...overrides });
   });
 
+  // #181: it would win every field forever and turn each later event into a rebuild.
+  test('an hlc more than the drift limit ahead of this device', async () => {
+    const future = { wallTime: Date.now() + MAX_DRIFT_MS + 60_000, counter: 0, nodeId: 'remote-node' };
+    await expectRejected({ ...taskCreated('from-the-future'), hlc: future });
+  });
+
+  test('an hlc ahead of this device within the drift limit is accepted', async () => {
+    const ahead = { wallTime: Date.now() + MAX_DRIFT_MS / 2, counter: 0, nodeId: 'remote-node' };
+    await ingestEvent({ ...taskCreated('slightly-ahead'), hlc: ahead }, { origin: EVENT_ORIGIN.REMOTE });
+    expect(loadTasksForBoard(boardId).some((t) => t.id === 'slightly-ahead')).toBe(true);
+  });
+
   test('a malformed local event is rejected too', async () => {
     await expectRejected({ ...taskCreated('bad-local'), scope: 'nowhere' }, EVENT_ORIGIN.LOCAL);
   });
@@ -222,6 +235,42 @@ describe('payload entity fields', () => {
     expect(tt.customers[0]).toEqual({ id: 'c-1', name: 'Acme', color: '#03a9f4', archived: false });
     expect(tt.projects[0]).toEqual({ id: 'p-1', customerId: 'c-1', name: 'Web', color: '#e91e63', archived: false });
     expect(tt.timeEntries[0]).not.toHaveProperty('rate');
+  });
+
+  test('a payload id cannot resurrect a deleted task: the id comes from entity_id', async () => {
+    await remote(taskCreated('victim'));
+    await remote({ ...taskCreated('victim'), id: 'evt-victim-deleted', type: 'task.deleted', payload: {} });
+    await remote({ ...taskCreated('fresh'), payload: { task: { id: 'victim', title: 'Back again', column: 'todo' } } });
+
+    const ids = loadTasksForBoard(boardId).map((t) => t.id);
+    expect(ids).not.toContain('victim');
+    expect(ids).toContain('fresh');
+  });
+
+  test('a task.updated field cannot change the task id', async () => {
+    await remote(taskCreated('keep-id'));
+    await remote({ ...taskCreated('keep-id'), id: 'evt-keep-id-update', type: 'task.updated', payload: { fields: { id: 'other', title: 'Renamed' } } });
+
+    expect(loadTasksForBoard(boardId).find((t) => t.id === 'keep-id')).toMatchObject({ title: 'Renamed' });
+  });
+
+  test.each([
+    ['label.created', 'label', () => loadLabelsForBoard(boardId)],
+    ['column.created', 'column', () => loadColumnsForBoard(boardId)],
+  ])('%s takes its id from entity_id, not the payload', async (type, key, load) => {
+    await remote({ ...taskCreated(`${key}-fresh`), id: `evt-${type}-id`, type, payload: { [key]: { id: `${key}-forged`, name: 'Forged' } } });
+
+    const ids = load().map((item) => item.id);
+    expect(ids).toContain(`${key}-fresh`);
+    expect(ids).not.toContain(`${key}-forged`);
+  });
+
+  test('board.created takes its id from entity_id, not the payload', async () => {
+    await remote({ ...taskCreated('board-fresh'), id: 'evt-board-id', type: 'board.created', board_id: 'board-fresh', payload: { board: { id: 'board-forged', name: 'Forged' } } });
+
+    const ids = listBoards().map((board) => board.id);
+    expect(ids).toContain('board-fresh');
+    expect(ids).not.toContain('board-forged');
   });
 
   test('the persisted event carries the sanitised payload', async () => {

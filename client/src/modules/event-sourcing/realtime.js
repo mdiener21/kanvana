@@ -4,11 +4,10 @@
 // makes echoes and catch-up/SSE overlap no-ops. Remote events are persisted as
 // already-synced so the outbound queue never pushes them back.
 
-import { openStore, KV_STORE, EVENTS_STORE } from '../idb-store.js';
+import { openStore, KV_STORE } from '../idb-store.js';
 import { getPb, isAuthenticated, getUser } from '../sync.js';
-import { compareHlc } from './hlc.js';
-import { EVENT_ORIGIN, adoptSnapshot, ingestEvent } from './ingest.js';
-import { validateEvent } from './event-validation.js';
+import { compareHlc, laterHlc } from './hlc.js';
+import { EVENT_ORIGIN, adoptSnapshot, ingestEvent, ingestRemoteBatch } from './ingest.js';
 import { snapshotKeyForEvent } from './snapshot.js';
 import { downloadAllSnapshots } from './snapshot-sync.js';
 import { EVENT_SCOPE } from '../constants.js';
@@ -45,12 +44,8 @@ async function setLastSeen(key, hlc) {
   await db.put(KV_STORE, hlc, LAST_SEEN_PREFIX + key);
 }
 
-function ingest(event) {
-  return ingestEvent(event, { origin: EVENT_ORIGIN.REMOTE });
-}
-
 export async function applyRemoteEvent(record) {
-  await ingest(recordToEvent(record));
+  await ingestEvent(recordToEvent(record), { origin: EVENT_ORIGIN.REMOTE, receivedAt: record.created });
 }
 
 export async function startRealtime() {
@@ -89,15 +84,7 @@ export async function stopRealtime() {
   await unsub();
 }
 
-// Catch-up pulls all owner-scoped events in HLC order. Only snapshots cover
-// earlier history; a watermark cannot exclude delayed events from other devices.
-// Adopt any server snapshot newer than what this device has already seen, before
-// replaying events. uploadSnapshot() deletes the events a snapshot covers, so for
-// a device that joined afterwards the snapshot is the only surviving history.
-// The saved snapshot's HLC excludes events already represented by its state.
-// Adopting it rebuilds the key from it plus this device's stored newer events:
-// a snapshot covers only events older than the grace window (#179), so
-// replacing the view with it would drop everything since.
+// For a device that joined after server cleanup, the snapshot is the only surviving history.
 async function hydrateFromRemoteSnapshots() {
   for (const snapshot of await downloadAllSnapshots()) {
     const seen = await getLastSeen(snapshot.key);
@@ -128,24 +115,13 @@ async function pullRemoteState() {
     requestKey: null,
   });
 
-  // Rejected events are dropped before sorting (a malformed HLC cannot be
-  // ordered) and never advance a watermark (#181). Ingest validates again.
-  const events = records
-    .map(recordToEvent)
-    .map(validateEvent)
-    .filter(Boolean)
-    .sort((a, b) => compareHlc(a.hlc, b.hlc));
+  // A rejected event must not advance a watermark (#181).
+  const fresh = await ingestRemoteBatch(records.map((record) => ({ event: recordToEvent(record), receivedAt: record.created })));
 
   const maxByKey = new Map();
-  const db = await openStore();
-
-  // Ingest decides late versus covered by the same rule as for SSE (#179).
-  for (const event of events) {
+  for (const event of fresh) {
     const key = snapshotKeyForEvent(event);
-    if (await db.get(EVENTS_STORE, event.id)) continue;
-    await ingest(event);
-    const max = maxByKey.get(key);
-    if (!max || compareHlc(event.hlc, max) > 0) maxByKey.set(key, event.hlc);
+    maxByKey.set(key, laterHlc(maxByKey.get(key), event.hlc));
   }
 
   for (const [key, hlc] of maxByKey) {

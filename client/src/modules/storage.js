@@ -4,7 +4,7 @@ import { DONE_COLUMN_ID, DONE_COLUMN_ROLE, isDoneColumn } from './constants.js';
 import { openStore, KV_STORE, READ_MODEL_STORE, EVENTS_STORE, SNAPSHOTS_STORE, schedulePersist, scheduleDelete, scheduleReadModelPersist, scheduleReadModelDelete, keyFor, readModelKeyFor, _flushPersistsForTesting as _flushIdbPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
 // Re-export IDB helpers that tests import from this module for backward compatibility.
 import { normalizeBoardModelIds } from './board-serializer.js';
-import { compareHlc, initHlc } from './event-sourcing/hlc.js';
+import { initHlc, laterHlc } from './event-sourcing/hlc.js';
 import { _flushDomainEventsForTesting, scheduleDomainEvent } from './event-sourcing/emitter.js';
 import { checkAndScheduleSnapshot, loadSnapshot, snapshotKeyForEvent, _resetSnapshotSchedulerForTesting } from './event-sourcing/snapshot.js';
 import { createReadModelProjector } from './event-sourcing/read-model-projector.js';
@@ -427,15 +427,14 @@ async function migrateFromLocalStorage(db) {
   localStorage.removeItem(ACTIVE_BOARD_KEY);
 }
 
-// Devices from before #179 never recorded it, so it is derived once from the
-// stored events and snapshots (which only hold events already applied).
+// Devices from before #179 never recorded it, so it is derived once from the stored events and snapshots.
 async function loadNewestAppliedHlc(db) {
   const stored = safeParseObject(await db.get(KV_STORE, NEWEST_APPLIED_KEY));
   if (stored) return { ...stored };
 
   const newest = {};
   const note = (key, hlc) => {
-    if (key && hlc && (!newest[key] || compareHlc(hlc, newest[key]) > 0)) newest[key] = hlc;
+    if (key && hlc) newest[key] = laterHlc(newest[key], hlc);
   };
   for (const event of await db.getAll(EVENTS_STORE)) note(snapshotKeyForEvent(event), event.hlc);
   for (const key of await db.getAllKeys(SNAPSHOTS_STORE)) note(key, (await db.get(SNAPSHOTS_STORE, key))?.hlc);
@@ -757,19 +756,6 @@ export function deleteBoard(boardId) {
   const remaining = boards.filter((b) => b.id !== id);
   saveBoards(remaining);
 
-  // Remove per-board state
-  delete state.tasks[id];
-  delete state.columns[id];
-  delete state.labels[id];
-  delete state.settings[id];
-  taskCacheByBoard.delete(id);
-
-  // Remove from IDB
-  scheduleReadModelDelete(id, 'tasks');
-  scheduleReadModelDelete(id, 'columns');
-  scheduleReadModelDelete(id, 'labels');
-  scheduleDelete(keyFor(id, 'settings'));
-
   if (state.activeBoardId === id) {
     state.activeBoardId = remaining[0].id;
     schedulePersist(ACTIVE_BOARD_KEY, remaining[0].id);
@@ -781,6 +767,14 @@ export function deleteBoard(boardId) {
     entityId: id,
     payload: {}
   });
+
+  // After the event: projecting it writes the board's read model once more.
+  for (const slot of [state.tasks, state.columns, state.labels, state.settings, state.taskTombstones, state.appliedEventIds, state.snapshotAppliedIds]) {
+    delete slot[id];
+  }
+  taskCacheByBoard.delete(id);
+  for (const kind of ['tasks', 'columns', 'labels', 'taskTombstones', 'appliedEventIds']) scheduleReadModelDelete(id, kind);
+  scheduleDelete(keyFor(id, 'settings'));
   return true;
 }
 

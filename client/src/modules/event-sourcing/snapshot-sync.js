@@ -91,18 +91,21 @@ export async function uploadSnapshot(key, state, hlc) {
   return { uploaded: created.id };
 }
 
-// Like local cleanup, keeps events younger than the grace window (#179): another
-// device may still need them to rebuild around a late event.
-// backend/pb_hooks/events_grace_window.pb.js enforces the same rule server-side.
+export const SERVER_CLOCK_MARGIN_MS = 60 * 60 * 1000;
+
+// The server hook judges the grace window by its own clock: keep a margin, and skip a delete it still refuses.
 async function gcServerEvents(pb, ownerId, key, snapshotHlc) {
   const events = await pb.collection('events').getFullList({
     filter: eventFilter(ownerId, key),
     requestKey: null,
   });
-  const now = Date.now();
+  const cutoff = Date.now() - SERVER_CLOCK_MARGIN_MS;
   for (const e of events) {
-    if (e.hlc && compareHlc(e.hlc, snapshotHlc) <= 0 && isOlderThanGraceWindow(e.hlc, now)) {
+    if (!e.hlc || compareHlc(e.hlc, snapshotHlc) > 0 || !isOlderThanGraceWindow(e.hlc, cutoff)) continue;
+    try {
       await pb.collection('events').delete(e.id, { requestKey: null });
+    } catch (err) {
+      if (err?.status !== 400) throw err;
     }
   }
 }

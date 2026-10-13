@@ -93,7 +93,7 @@ added three object stores alongside the original `kv`:
 | Object store | Content |
 |---|---|
 | `kv` | Coordination + small values: board list, active board, global settings, HLC node id, catch-up watermarks |
-| `read_model` | Per-board projections (tasks / columns / labels / settings), keyed `{boardId}:{kind}` — what the UI renders. Also the board's event-log memory: `{boardId}:taskTombstones` (task delete records) and `{boardId}:appliedEventIds` (applied event ids not yet held by a snapshot) |
+| `read_model` | Per-board projections (tasks / columns / labels / settings), keyed `{boardId}:{kind}` — what the UI renders. Also the board's event-log memory: `{boardId}:taskTombstones` (task delete records) and `{boardId}:appliedEventIds` (applied event ids not yet held by a snapshot). `deleteBoard()` removes all of a board's keys, these two included |
 | `events` | The domain-event log, keyed by event `id`; the `synced` flag drives the outbound queue |
 | `snapshots` | Local projection snapshots that bound replay and event GC |
 
@@ -179,7 +179,7 @@ manual push/pull); the header **sync-state indicator** shows `Live` / `Syncing�
 | `sync.js` | PocketBase SDK instance + auth functions (`isAuthenticated`, `ensureAuthenticated`, `loginUser`, `registerUser`, `logoutUser`, `loginWithProvider`) |
 | `authsync.js` | Auth UI — login modal, OAuth2 (Google/Apple/Microsoft), logout, backend health probe |
 | `event-sourcing/sync-queue.js` | **Outbound** — drains unsynced events to the PB `events` collection in HLC order (debounce, in-flight cap, three-tier retry, no rollback); `getSyncStatus()` |
-| `event-sourcing/ingest.js` | **Ingest interface** — `ingestEvent(event, { origin })`, the single entry point of the event log for local and remote events: validate (pass-through for now), observe the remote HLC (remote only), project, `DATA_CHANGED`, `EVENT_EMITTED`, persist (`synced` = origin is `remote`) |
+| `event-sourcing/ingest.js` | **Ingest interface** — `ingestEvent(event, { origin, receivedAt })`, the single entry point of the event log for local and remote events (catch-up uses `ingestRemoteBatch(items)`, which validates and sorts once and returns the events not stored before): validate, observe the remote HLC (remote only), project, `DATA_CHANGED`, `EVENT_EMITTED`, persist (`synced` = origin is `remote`) |
 | `event-sourcing/realtime.js` | **Inbound** — SSE subscription + launch/reconnect catch-up pull; remote events go through `ingestEvent(…, { origin: 'remote' })` (deduped by id) |
 | `event-sourcing/hlc.js` | Hybrid Logical Clock — `emitLocal()`, `observeRemote()`, `compareHlc()` |
 | `event-sourcing/snapshot.js`, `snapshot-sync.js` | Client snapshots + upload + event GC |
@@ -319,13 +319,14 @@ inspectImportPayload → buildImportConfirmationMessage → importTasks
 ### Sync Flow (event-sourced)
 ```
 [local mutation] → scheduleDomainEvent() (stamp UUID + sync HLC) → ingestEvent(event, { origin: 'local' })
-[remote event]   → realtime.js SSE / catchUp() → ingestEvent(event, { origin: 'remote' })
+[remote event]   → realtime.js SSE → ingestEvent(event, { origin: 'remote', receivedAt: record.created })
+                   catchUp() → ingestRemoteBatch([{ event, receivedAt }]) → the same remote path per event
                                                    (remote only: await observeRemote(hlc) first)
 [server snapshot]→ catchUp(), before its events → adoptSnapshot(key, state, hlc) → save + rebuildScope(key)
 
 ingestEvent (event-sourcing/ingest.js) — one path, origin is a parameter:
-   1. validate                         (drops malformed events, #181)
-   2. classify against the key's newest applied HLC (§9 Ordering); remote only: drop if a snapshot covers it
+   1. validate                         (drops malformed events and HLCs over 60 s ahead, #181)
+   2. remote only: drop if it reached the server a grace window after its HLC; classify against the key's newest applied HLC (§9 Ordering)
    3. project: read-model-projector folds event into state (sole writer, deduped by id)
               → emit(DATA_CHANGED) → renderBoard()      [synchronous for local events; skipped for a late remote one]
    4. emit(EVENT_EMITTED) → outbound sync-queue schedules a drain (HLC order, unsynced only)
@@ -365,7 +366,8 @@ mechanics: `docs/spec/backend-storage-pb.md`.
 
 Each event carries an HLC stamp (`hlc`). `compareHlc()` gives a total order across devices; the reducer
 re-sorts by HLC on replay, so server insertion order is irrelevant. Node id persisted at
-`kanvana:hlc:node`; drift past 60 s is logged.
+`kanvana:hlc:node`; drift past 60 s is logged. An event whose HLC is more than `MAX_DRIFT_MS` (60 s) ahead of
+this device's clock is rejected at ingest (#181): it would win every field and stay newest for its key.
 
 **Live ingest folds in HLC order** (#179). The projector records the newest HLC it has folded into each
 **scope key** (board id, `__global__`, `__timetracking__`) in kv `kanvana:ingest:newestAppliedHlc`
@@ -376,9 +378,12 @@ re-sorts by HLC on replay, so server insertion order is irrelevant. Node id pers
 | Already applied (id in the key's memory) | No-op |
 | Newer than the key's newest applied event | Folded incrementally onto the live view. No event-store read: the common path never scans the store. |
 | Older (a **late** event) | Persisted, then the key's view is **rebuilt**: `rebuildScope(key)` (`ingest.js`) folds the key's stored snapshot plus every stored event newer than it, in HLC order, and the projector replaces the view (`DATA_CHANGED {rebuilt: key}`). A late *local* edit is shown at once and then reordered by the same rebuild. |
-| Covered by the key's snapshot (HLC ≤ snapshot HLC) | Older than the grace window: dropped and logged once (silently if the snapshot already holds its id). |
+| Remote, reached the server more than the grace window after its HLC (`record.created − hlc.wallTime > GRACE_WINDOW_MS`) | **Dropped** and logged once. The server's receipt time is the same on every device, so every device drops the same events whatever it has snapshotted. A record without `created` (servers before migration `1746100013`) is never dropped. |
+| Late, covered by this device's snapshot (HLC ≤ snapshot HLC) but not held by it | Folded onto the snapshot (which is saved again), then the key is rebuilt; the events before it may be gone. If the snapshot already holds its id: no-op. |
 
 The rule lives only in `ingest.js`, so SSE and catch-up apply or drop a late event the same way.
+Known limit: an event folded onto a snapshot is applied after the events the snapshot holds, so a device
+whose snapshot covers it can order it differently from one that never snapshotted; it is still applied on both.
 Rebuilds of one key run one at a time; requests made while one waits share it, and events committed
 during a rebuild are folded into it.
 
@@ -397,16 +402,19 @@ collection that catch-up pulls in full, to about a month of history.
 
 - A **snapshot covers only events older than the window**: when one is due (500 events or 14 days, see
   `checkAndScheduleSnapshot`), it folds the stored events older than the window onto the previous
-  snapshot, at save time. Every event inside the window is therefore newer than every snapshot and can
+  snapshot, at save time. When one is due but no event is old enough yet, the key is not checked again until its
+  oldest stored event leaves the window, so a busy board does not rescan the store on every event. Every event inside the window is therefore newer than every snapshot and can
   be ordered in by a rebuild from it ("the snapshot taken before it").
 - **Local cleanup** (`gcEvents`) deletes an event only when it is pushed, covered by the snapshot *and*
-  older than the window. **Server cleanup** (`gcServerEvents`) skips events inside the window, and the
+  older than the window. **Server cleanup** (`gcServerEvents`) skips events inside the window plus a one-hour clock-skew margin
+  (`SERVER_CLOCK_MARGIN_MS`), and skips a delete the server still refuses instead of failing the upload; the
   PocketBase hook `backend/pb_hooks/events_grace_window.pb.js` refuses API deletes of them, which also
   holds clients from before #179 to the window. The hook repeats the constant; keep both equal.
 - **Adopting a server snapshot** (catch-up, `adoptSnapshot`) saves it and rebuilds the key, so the device
   keeps its stored events newer than the snapshot (§4 Snapshot adoption).
-- An event older than the window is lost only if a snapshot already covers it; a device that has never
-  snapshotted a key still applies its whole history.
+- The drop decision does not depend on local snapshots: only an event that reached the server more than
+  a window after it was stamped is dropped, on every device. Its originating device keeps it, since local
+  events are never dropped.
 
 ### Event Envelope
 

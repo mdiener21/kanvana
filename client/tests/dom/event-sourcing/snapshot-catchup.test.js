@@ -158,8 +158,8 @@ describe('catch-up with a server snapshot', () => {
     expect(loadTasksForBoard(BOARD)).toHaveLength(3);
   });
 
-  it('ignores events the snapshot already covers', async () => {
-    const bytes = await gzip(SNAPSHOT_BODY);
+  it('ignores events the snapshot already holds', async () => {
+    const bytes = await gzip({ ...SNAPSHOT_BODY, appliedEventIds: ['evt-stale'] });
     server.use(
       http.get(SNAP_LIST, () => listResponse([snapRecord(hlc(100))])),
       http.get(SNAP_FILE, () => new HttpResponse(bytes)),

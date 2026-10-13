@@ -111,6 +111,12 @@ export function compareHlc(a, b) {
   return a.nodeId < b.nodeId ? -1 : a.nodeId > b.nodeId ? 1 : 0;
 }
 
+export function laterHlc(a, b) {
+  if (!a) return b ?? null;
+  if (!b) return a;
+  return compareHlc(b, a) > 0 ? b : a;
+}
+
 export function _resetHlcForTesting() {
   current = { wallTime: 0, counter: 0, nodeId: null };
 }

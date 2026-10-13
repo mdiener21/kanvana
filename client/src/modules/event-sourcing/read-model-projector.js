@@ -2,8 +2,8 @@ import { applyEvent, applyEvents, createProjectionState, createTimeTrackingState
 import { keyFor } from '../idb-store.js';
 import { scopeForSnapshotKey, snapshotKeyForEvent } from './snapshot.js';
 import { EVENT_SCOPE } from '../constants.js';
-import { EVENT_ORDER, connectProjector } from './ingest.js';
-import { compareHlc } from './hlc.js';
+import { EVENT_ORDER, connectProjector, createSuperseded } from './ingest.js';
+import { compareHlc, laterHlc } from './hlc.js';
 
 // Sole writer of the IDB read model (ADR-0005). Extracted from storage.js so the
 // projection layer owns the read model independent of CRUD. storage.js wires the
@@ -25,10 +25,7 @@ export function createReadModelProjector(ctx) {
     newestAppliedKey
   } = ctx;
 
-  // Board-less scopes each own one read-model slot. `normalize` applies only at
-  // the snapshot boundary; projected slots are already normalised by the reducer.
-  // `foldBase` is the slot a fold starts from; with `live`, global settings,
-  // which merge field by field, keep live fields under the snapshot's.
+  // With `live`, global settings (merged field by field) keep live fields under the snapshot's.
   const boardlessSlots = new Map([
     [EVENT_SCOPE.GLOBAL, {
       field: 'globalSettings',
@@ -46,13 +43,10 @@ export function createReadModelProjector(ctx) {
     }]
   ]);
 
-  // Board-less scopes keep a session-only applied-id guard; board scopes answer
-  // "already applied" from the board's durable memory (#178, CONTEXT.md §3).
+  // Board scopes answer "already applied" from durable memory instead (#178, CONTEXT.md §3).
   const appliedBoardlessIds = new Set();
   let disconnect = null;
 
-  // Whether the event was applied already, is newer than everything applied for
-  // its scope key, or is late and needs the key rebuilt (#179).
   function classify(event) {
     if (hasApplied(event)) return EVENT_ORDER.APPLIED;
     const newest = state.newestAppliedHlc[snapshotKeyForEvent(event)];
@@ -63,25 +57,21 @@ export function createReadModelProjector(ctx) {
     if (boardlessSlots.has(event.scope)) return appliedBoardlessIds.has(event.id);
     const boardId = event.board_id;
     if (typeof boardId !== 'string' || !boardId) return false;
-    return snapshotAppliedIds(boardId).has(event.id)
-      || (safeParseArray(state.appliedEventIds[boardId]) || []).includes(event.id);
+    return boardMemory(boardId).appliedEventIds.has(event.id);
   }
 
   function noteApplied(key, hlc) {
-    const newest = state.newestAppliedHlc[key];
-    if (!hlc || (newest && compareHlc(newest, hlc) >= 0)) return;
-    state.newestAppliedHlc[key] = hlc;
+    const newest = laterHlc(state.newestAppliedHlc[key], hlc);
+    if (!newest || newest === state.newestAppliedHlc[key]) return;
+    state.newestAppliedHlc[key] = newest;
     schedulePersist(newestAppliedKey, { ...state.newestAppliedHlc });
   }
 
-  // Called only by the ingest interface. Folds one event onto the live view.
-  // Returns true when the read model changed.
   function project(event) {
-    if (!event?.id) return false;
+    if (!event?.id || hasApplied(event)) return false;
 
     const slot = boardlessSlots.get(event.scope);
     if (slot) {
-      if (appliedBoardlessIds.has(event.id)) return false;
       appliedBoardlessIds.add(event.id);
       const projected = applyEvent(createProjectionState({ [slot.field]: slot.seed() }), event);
       writeBoardless(slot, projected[slot.field]);
@@ -95,8 +85,6 @@ export function createReadModelProjector(ctx) {
     if (typeof boardId !== 'string' || !boardId) return false;
 
     const memory = boardMemory(boardId);
-    if (memory.appliedEventIds.has(event.id)) return false;
-
     const projected = applyEvent(createProjectionState({
       boards: state.boards,
       ...liveBoard(boardId),
@@ -121,10 +109,7 @@ export function createReadModelProjector(ctx) {
     };
   }
 
-  // The key's state as `snapshot` plus `events` in HLC order. A snapshot is
-  // folded from events alone; a rebuild (`live`) starts board and global
-  // settings from the live value under the snapshot's, so settings written
-  // without an event (swimlanes) survive it.
+  // A rebuild (`live`) keeps settings written without an event (swimlanes) under the snapshot's.
   function fold(key, snapshot, events, { live = false } = {}) {
     const base = snapshot?.state;
     const slot = boardlessSlots.get(scopeForSnapshotKey(key));
@@ -145,15 +130,10 @@ export function createReadModelProjector(ctx) {
     }), events);
   }
 
-  // Replaces the key's view with fold(). Delete records are permanent, so the
-  // board's own are kept. Entities no event or snapshot knows of come from
-  // writes that emit no event yet (import, column sort); they are kept as is.
-  // `superseded` holds the snapshots and events an adopted snapshot replaced.
-  function rebuild(key, snapshot, events, superseded = { snapshots: [], events: [] }) {
+  // Entities nothing in the event log knows of come from writes that emit no event yet (import), so they stay.
+  function rebuild(key, snapshot, events, superseded = createSuperseded()) {
     const projected = fold(key, snapshot, events, { live: true });
-    const newest = [snapshot?.hlc, ...events.map((event) => event.hlc)]
-      .filter(Boolean)
-      .reduce((max, hlc) => (!max || compareHlc(hlc, max) > 0 ? hlc : max), null);
+    const newest = [snapshot?.hlc, ...events.map((event) => event.hlc)].reduce(laterHlc, null);
 
     const slot = boardlessSlots.get(scopeForSnapshotKey(key));
     if (slot) {
@@ -193,8 +173,6 @@ export function createReadModelProjector(ctx) {
     return true;
   }
 
-  // The board's delete records and applied ids: the live set plus the ids its
-  // latest snapshot holds. A snapshot taken from this state holds them all.
   function boardMemory(boardId) {
     return {
       taskTombstones: new Set(safeParseArray(state.taskTombstones[boardId]) || []),
@@ -240,9 +218,15 @@ export function createReadModelProjector(ctx) {
     writeAppliedIds(boardId, projected.appliedEventIds);
   }
 
+  // Null when the snapshot already holds the event.
+  function foldOntoSnapshot(key, snapshot, event) {
+    if (snapshot.state.appliedEventIds.has(event.id)) return null;
+    return fold(key, snapshot, [event]);
+  }
+
   function register() {
     if (disconnect) return;
-    disconnect = connectProjector({ classify, project, rebuild });
+    disconnect = connectProjector({ classify, project, rebuild, foldOntoSnapshot });
   }
 
   function reset() {

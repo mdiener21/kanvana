@@ -39,7 +39,7 @@ import {
   loadLabelsForBoard,
   loadSettingsForBoard,
 } from '../../src/modules/storage.js';
-import { openStore } from '../../src/modules/idb-store.js';
+import { openStore, READ_MODEL_STORE } from '../../src/modules/idb-store.js';
 import { scheduleDomainEvent } from '../../src/modules/event-sourcing/emitter.js';
 
 const DB_NAME = 'kanvana-db';
@@ -235,6 +235,26 @@ test('deleteBoard removes per-board data from IDB', async () => {
   // Board-scoped helpers should return empty arrays for the deleted board.
   expect(loadTasksForBoard(other.id)).toEqual([]);
   expect(loadColumnsForBoard(other.id)).toEqual([]);
+});
+
+test('deleteBoard leaves no read-model record of the board, delete records and applied ids included (#178)', async () => {
+  await initStorage();
+  ensureBoardsInitialized();
+  const defaultId = getActiveBoardId();
+  const other = createBoard('Doomed');
+  setActiveBoardId(other.id);
+  saveTasks([{ id: 't1', title: 'Doomed task', column: 'todo', priority: 'none', order: 1 }]);
+  scheduleDomainEvent({ type: 'task.deleted', boardId: other.id, entityId: 't1', payload: {} });
+  await _flushPersistsForTesting();
+  const db = await openStore();
+  const keysOf = async () => (await db.getAllKeys(READ_MODEL_STORE)).filter((key) => String(key).startsWith(`${other.id}:`));
+  expect(await keysOf()).toEqual(expect.arrayContaining([`${other.id}:taskTombstones`, `${other.id}:appliedEventIds`]));
+
+  setActiveBoardId(defaultId);
+  deleteBoard(other.id);
+  await _flushPersistsForTesting();
+
+  expect(await keysOf()).toEqual([]);
 });
 
 test('v2 migration rehomes board read models and removes legacy kv keys', async () => {
