@@ -41,6 +41,7 @@ function makeHarness() {
     taskTombstones: {},
     appliedEventIds: {},
     snapshotAppliedIds: {},
+    newestAppliedHlc: {},
     globalSettings: null,
     timeTracking: null
   };

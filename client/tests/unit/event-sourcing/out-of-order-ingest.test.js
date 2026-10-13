@@ -1,0 +1,73 @@
+// #179: the live projection converges to the HLC-ordered result whatever order
+// events arrive in. The oracle is the pure reducer over the sorted events.
+import { beforeEach, describe, expect, test } from 'vitest';
+import { deleteDB } from 'idb';
+import { resetLocalStorage } from '../setup.js';
+import {
+  initStorage,
+  _resetStorageForTesting,
+  _flushPersistsForTesting,
+  createBoard,
+  loadTasksForBoard,
+  loadColumnsForBoard
+} from '../../../src/modules/storage.js';
+import { EVENT_ORIGIN, ingestEvent } from '../../../src/modules/event-sourcing/ingest.js';
+import { applyEvents, createProjectionState } from '../../../src/modules/reducer.js';
+
+// Ids must be UUIDs: initStorage() remaps non-UUID ids on load.
+const TASK_ID = '7a5c0d2e-1b3f-4c6d-8e9f-0a1b2c3d4e5f';
+let boardId;
+let doneColumn;
+let todoColumn;
+
+const ingestRemote = (event) => ingestEvent(event, { origin: EVENT_ORIGIN.REMOTE });
+
+function permutations(items) {
+  if (items.length <= 1) return [items];
+  return items.flatMap((item, i) => permutations([...items.slice(0, i), ...items.slice(i + 1)]).map((rest) => [item, ...rest]));
+}
+
+function boardEvent(type, { id, wallTime, nodeId = 'node-r', entityId = TASK_ID, payload = {} }) {
+  return {
+    id,
+    type,
+    hlc: { wallTime, counter: 0, nodeId },
+    at: '2026-10-01T00:00:00.000Z',
+    actor: { type: 'human', id: null },
+    scope: 'board',
+    board_id: boardId,
+    entity_id: entityId,
+    payload
+  };
+}
+
+beforeEach(async () => {
+  _resetStorageForTesting();
+  resetLocalStorage();
+  await deleteDB('kanvana-db');
+  await initStorage();
+  boardId = createBoard('Ordering').id;
+  [todoColumn, doneColumn] = [loadColumnsForBoard(boardId)[0].id, loadColumnsForBoard(boardId).at(-1).id];
+  await _flushPersistsForTesting();
+});
+
+describe('board scope', () => {
+  function boardEvents() {
+    const base = Date.now() + 1_000;
+    return [
+      boardEvent('task.created', { id: 'e-create', wallTime: base, payload: { task: { title: 'T0', column: todoColumn, priority: 'low' } } }),
+      boardEvent('task.updated', { id: 'e-title-a', wallTime: base + 1, nodeId: 'node-a', payload: { fields: { title: 'A' } } }),
+      boardEvent('task.updated', { id: 'e-title-b', wallTime: base + 2, nodeId: 'node-b', payload: { fields: { title: 'B', priority: 'high' } } }),
+      boardEvent('task.moved', { id: 'e-move', wallTime: base + 3, payload: { order: [{ id: TASK_ID, column: doneColumn, order: 0 }] } })
+    ];
+  }
+
+  test.each(permutations([0, 1, 2, 3]).map((order) => [order.join('')]))('arrival order %s converges to the HLC-ordered view', async (order) => {
+    const events = boardEvents();
+    for (const i of order) await ingestRemote(events[Number(i)]);
+
+    const expected = applyEvents(createProjectionState(), events).tasks[0];
+    const task = loadTasksForBoard(boardId).find((t) => t.id === TASK_ID);
+    expect(task).toMatchObject({ title: expected.title, priority: expected.priority, column: expected.column });
+  });
+});
