@@ -74,6 +74,51 @@ describe('board scope', () => {
   });
 });
 
+// ADR-0005: a local edit and a remote event on the same field converge to the
+// HLC-ordered result through the projector. Each context is a fresh storage
+// lifecycle (one device); device A makes edit L and receives R, device B makes
+// R and receives L, so each sees the two in the opposite order.
+describe('two-context race on one field (ADR-0005)', () => {
+  const SHARED_BOARD = '0b6f3a1e-2c4d-4e5f-8a9b-1c2d3e4f5a6b';
+
+  async function freshDevice() {
+    await _flushPersistsForTesting();
+    _resetStorageForTesting();
+    await deleteDB('kanvana-db');
+    await initStorage();
+    boardId = SHARED_BOARD;
+    const base = Date.now();
+    await ingestRemote(boardEvent('board.created', { id: 'e-board', wallTime: base, entityId: SHARED_BOARD, payload: { board: { name: 'Shared' } } }));
+    await ingestRemote(boardEvent('column.created', { id: 'e-col', wallTime: base + 1, entityId: 'todo-col', payload: { column: { name: 'To Do' } } }));
+    await ingestRemote(boardEvent('task.created', { id: 'e-task', wallTime: base + 2, payload: { task: { title: 'Start', column: 'todo-col' } } }));
+  }
+
+  async function deviceSees(first, second) {
+    await freshDevice();
+    await ingestEvent(first.event, { origin: first.origin });
+    await ingestEvent(second.event, { origin: second.origin });
+    await _flushPersistsForTesting();
+    return loadTasksForBoard(SHARED_BOARD).find((t) => t.id === TASK_ID).title;
+  }
+
+  test.each([
+    ['the remote edit is newer', 20, 10],
+    ['the local edit is newer', 10, 20]
+  ])('%s: both devices end with the HLC winner', async (_label, remoteOffset, localOffset) => {
+    const base = Date.now() + 1_000;
+    boardId = SHARED_BOARD;
+    const local = boardEvent('task.updated', { id: 'e-local', wallTime: base + localOffset, nodeId: 'node-a', payload: { fields: { title: 'Local' } } });
+    const remote = boardEvent('task.updated', { id: 'e-remote', wallTime: base + remoteOffset, nodeId: 'node-b', payload: { fields: { title: 'Remote' } } });
+    const winner = remoteOffset > localOffset ? 'Remote' : 'Local';
+
+    const deviceA = await deviceSees({ event: local, origin: EVENT_ORIGIN.LOCAL }, { event: remote, origin: EVENT_ORIGIN.REMOTE });
+    const deviceB = await deviceSees({ event: remote, origin: EVENT_ORIGIN.LOCAL }, { event: local, origin: EVENT_ORIGIN.REMOTE });
+
+    expect(deviceA).toBe(winner);
+    expect(deviceB).toBe(winner);
+  });
+});
+
 function boardlessEvent(scope, type, { id, wallTime, entityId, payload = {} }) {
   return {
     id,
