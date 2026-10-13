@@ -31,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Sync now carries a separate time-tracking data stream alongside boards and global settings, in preparation for Time Tracking. No visible change.
 
+### Security
+
+- A malformed or hostile event from another device can no longer break the board or Time Tracking view (#181). Every event, local or synced, is checked before it is saved or shown. Events with an unknown type, a missing id, a malformed timestamp, an unknown scope, a board event without a board, or a missing payload are rejected and logged once, and sync skips them and carries on with the rest. Unknown entity fields are dropped, customer, project, label and column colours must be hex colours (anything else falls back to a default colour, or is ignored in an update), and a clock far in the future can move this device's clock ahead by at most 60 seconds.
+
 ### Fixed
 
 - Edits made offline are no longer lost when you keep working long enough for Kanvana to tidy up local history. Changes that have not reached the server yet are kept and sent once you are back online.

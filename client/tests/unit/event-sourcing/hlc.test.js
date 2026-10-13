@@ -1,7 +1,7 @@
 import { beforeEach, expect, test, vi } from 'vitest';
 import { deleteDB } from 'idb';
 import { resetLocalStorage } from '../setup.js';
-import { compareHlc, emitLocal, observeRemote, _resetHlcForTesting, _setHlcForTesting } from '../../../src/modules/event-sourcing/hlc.js';
+import { compareHlc, emitLocal, observeRemote, MAX_DRIFT_MS, _resetHlcForTesting, _setHlcForTesting } from '../../../src/modules/event-sourcing/hlc.js';
 
 const DB_NAME = 'kanvana-db';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -86,4 +86,23 @@ test('observeRemote advances counter from the remote HLC when remote wallTime wi
     counter: 5,
     nodeId: 'node-a'
   });
+});
+
+test('observeRemote does not advance the local clock beyond the drift limit (#181)', async () => {
+  _setHlcForTesting({ wallTime: 1000, counter: 0, nodeId: 'node-a' });
+  vi.spyOn(Date, 'now').mockReturnValue(1005);
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+  const observed = await observeRemote({ wallTime: 1005 + 10 * MAX_DRIFT_MS, counter: 7, nodeId: 'node-b' });
+
+  expect(observed.wallTime).toBe(1005 + MAX_DRIFT_MS);
+  expect((await emitLocal()).wallTime).toBeLessThanOrEqual(1005 + MAX_DRIFT_MS);
+});
+
+test('observeRemote still adopts a remote clock ahead by less than the drift limit', async () => {
+  _setHlcForTesting({ wallTime: 1000, counter: 0, nodeId: 'node-a' });
+  vi.spyOn(Date, 'now').mockReturnValue(1005);
+
+  await expect(observeRemote({ wallTime: 1005 + MAX_DRIFT_MS, counter: 3, nodeId: 'node-b' }))
+    .resolves.toEqual({ wallTime: 1005 + MAX_DRIFT_MS, counter: 4, nodeId: 'node-a' });
 });
