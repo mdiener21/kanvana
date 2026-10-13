@@ -11,7 +11,7 @@ import { DATA_CHANGED, EVENT_EMITTED, emit } from '../events.js';
 import { flushPendingPersists, getDbRef, persistEvent, EVENTS_STORE } from '../idb-store.js';
 import { compareHlc, observeRemote } from './hlc.js';
 import { validateEvent } from './event-validation.js';
-import { loadEventsAfter, loadSnapshot, snapshotKeyForEvent } from './snapshot.js';
+import { loadEventsAfter, loadSnapshot, saveSnapshot, snapshotKeyForEvent } from './snapshot.js';
 
 export const EVENT_ORIGIN = Object.freeze({ LOCAL: 'local', REMOTE: 'remote' });
 export const EVENT_ORDER = Object.freeze({ APPLIED: 'applied', IN_ORDER: 'in-order', LATE: 'late' });
@@ -20,10 +20,11 @@ let projector = null;
 const unpersisted = new Map();
 const committedDuringRebuild = new Map();
 const rebuilds = new Map();
+const superseded = new Map();
 const loggedDrops = new Set();
 
 // The read-model projector (ADR-0005) connects itself once storage has loaded:
-// { classify(event), project(event), rebuild(key, snapshot, events) }.
+// { classify(event), project(event), rebuild(key, snapshot, events, superseded) }.
 // Until then events are only persisted, which is what boot-time backfill needs.
 export function connectProjector(next) {
   projector = next;
@@ -88,6 +89,21 @@ function commit(event, origin) {
   return order === EVENT_ORDER.LATE ? persisted.then(() => rebuildScope(key)) : persisted;
 }
 
+// Adopts a server snapshot (#180): the key's view becomes the snapshot plus
+// this device's stored events newer than it, so unsynced local edits stay.
+// What the replaced snapshot held, and the stored events the new one covers,
+// is known to the event log; the rebuild drops it unless the snapshot has it.
+export async function adoptSnapshot(key, state, hlc) {
+  const replaced = await loadSnapshot(key);
+  const covered = (await loadEventsAfter(key, replaced?.hlc ?? null)).filter((event) => compareHlc(event.hlc, hlc) <= 0);
+  await saveSnapshot(key, state, hlc);
+  const entry = superseded.get(key) ?? { snapshots: [], events: [] };
+  if (replaced) entry.snapshots.push(replaced);
+  entry.events.push(...covered);
+  superseded.set(key, entry);
+  return rebuildScope(key);
+}
+
 // Rebuilds a scope key's view (board id, '__global__' or '__timetracking__')
 // from its stored snapshot plus every stored event newer than it, in HLC order.
 // Requests for a key that is already waiting to rebuild share that run.
@@ -113,12 +129,14 @@ export function rebuildScope(key) {
 async function runRebuild(key) {
   if (!projector) return;
   const collected = new Map([...unpersisted].filter(([, event]) => snapshotKeyForEvent(event) === key));
+  const replaced = superseded.get(key);
+  superseded.delete(key);
   committedDuringRebuild.set(key, collected);
   try {
     const snapshot = await loadSnapshot(key);
     const stored = await loadEventsAfter(key, snapshot?.hlc ?? null);
     const pending = [...collected.values()].filter((event) => !snapshot || compareHlc(event.hlc, snapshot.hlc) > 0);
-    if (projector?.rebuild(key, snapshot, [...stored, ...pending])) emit(DATA_CHANGED, { rebuilt: key });
+    if (projector?.rebuild(key, snapshot, [...stored, ...pending], replaced)) emit(DATA_CHANGED, { rebuilt: key });
   } finally {
     committedDuringRebuild.delete(key);
   }

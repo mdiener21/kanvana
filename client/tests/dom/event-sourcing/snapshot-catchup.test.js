@@ -7,17 +7,21 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { deleteDB } from 'idb';
 import { server } from '../../mocks/server.js';
 import { getPb } from '../../../src/modules/sync.js';
-import { _resetIdbForTesting, openStore, KV_STORE } from '../../../src/modules/idb-store.js';
+import { _resetIdbForTesting, openStore, getUnsyncedEvents, KV_STORE } from '../../../src/modules/idb-store.js';
 import {
   initStorage,
   listBoards,
   loadTasksForBoard,
   loadColumnsForBoard,
+  loadLabelsForBoard,
+  loadGlobalSettings,
+  loadTimeTracking,
   _flushPersistsForTesting,
   _resetStorageForTesting,
 } from '../../../src/modules/storage.js';
 import { _resetHlcForTesting } from '../../../src/modules/event-sourcing/hlc.js';
 import { catchUp, LAST_SEEN_PREFIX, _resetRealtimeForTesting } from '../../../src/modules/event-sourcing/realtime.js';
+import { scheduleDomainEvent } from '../../../src/modules/event-sourcing/emitter.js';
 
 const SNAP_LIST = '*/api/collections/snapshots/records';
 const SNAP_FILE = '*/api/files/:collection/:record/:filename';
@@ -214,5 +218,141 @@ describe('catch-up with a server snapshot', () => {
     await catchUp();
 
     expect(listBoards().map((b) => b.name)).toContain('prod dev');
+  });
+});
+
+// #180: adopting a server snapshot rebuilds the key from the snapshot plus this
+// device's stored newer events, so unsynced local edits stay on screen.
+describe('adopting a snapshot keeps newer local edits', () => {
+  const TT_SLOT = { customers: [{ id: 'c-remote', name: 'Remote Co' }], projects: [], timeEntries: [], tombstones: { customers: {}, projects: {} } };
+  const EMPTY = { ...SNAPSHOT_BODY, boards: [], tasks: [], columns: [], labels: [] };
+
+  function serveSnapshots(snapshots) {
+    const bytes = new Map(snapshots.map((s) => [s.id, s.bytes]));
+    server.use(
+      http.get(SNAP_LIST, () => listResponse(snapshots.map((s) => ({ ...snapRecord(s.hlc), id: s.id, board_id: s.key })))),
+      http.get(SNAP_FILE, ({ params }) => new HttpResponse(bytes.get(params.record))),
+      http.get(EVT_LIST, () => listResponse([])),
+    );
+  }
+
+  async function localEdit(input) {
+    await scheduleDomainEvent(input);
+    await _flushPersistsForTesting();
+    const [event] = (await getUnsyncedEvents()).filter((e) => e.type === input.type);
+    return event;
+  }
+
+  async function queuedIds() {
+    return (await getUnsyncedEvents()).map((e) => e.id);
+  }
+
+  function later(h) {
+    return { ...h, wallTime: h.wallTime + 60_000 };
+  }
+
+  it('board: a reconnect adopting a snapshot older than an unsynced edit keeps the edit visible and queued', async () => {
+    serveSnapshots([{ id: 'snap-1', key: BOARD, hlc: hlc(100), bytes: await gzip(SNAPSHOT_BODY) }]);
+    setAuth();
+    await catchUp();
+
+    const edit = await localEdit({
+      type: 'task.created', boardId: BOARD, entityId: 'task-local',
+      payload: { task: { title: 'Unsynced local task', column: 'todo', order: 2 } },
+    });
+
+    const remote = { ...SNAPSHOT_BODY, tasks: [...SNAPSHOT_BODY.tasks, { id: 'task-remote', title: 'From another device', column: 'todo', order: 3 }] };
+    serveSnapshots([{ id: 'snap-2', key: BOARD, hlc: hlc(200), bytes: await gzip(remote) }]);
+    await catchUp();
+
+    expect(loadTasksForBoard(BOARD).map((t) => t.title)).toEqual(expect.arrayContaining([
+      'TU Invoice number for bill', 'UNIVIE Offer decision', 'From another device', 'Unsynced local task',
+    ]));
+    expect(await queuedIds()).toContain(edit.id);
+  });
+
+  it('board: a snapshot newer than every local event becomes the view', async () => {
+    serveSnapshots([{ id: 'snap-1', key: BOARD, hlc: hlc(100), bytes: await gzip(SNAPSHOT_BODY) }]);
+    setAuth();
+    await catchUp();
+    const edit = await localEdit({
+      type: 'task.created', boardId: BOARD, entityId: 'task-local',
+      payload: { task: { title: 'Local task', column: 'todo', order: 2 } },
+    });
+
+    const tasks = [{ id: 'task-local', title: 'Local task, renamed remotely', column: 'todo', order: 0 }];
+    const snapshot = { ...SNAPSHOT_BODY, tasks, appliedEventIds: [edit.id] };
+    serveSnapshots([{ id: 'snap-2', key: BOARD, hlc: later(edit.hlc), bytes: await gzip(snapshot) }]);
+    await catchUp();
+
+    expect(loadTasksForBoard(BOARD)).toEqual(tasks);
+    expect(loadColumnsForBoard(BOARD)).toEqual(SNAPSHOT_BODY.columns);
+  });
+
+  it('board: an entity a stored event created but the newer snapshot dropped is gone', async () => {
+    serveSnapshots([{ id: 'snap-1', key: BOARD, hlc: hlc(100), bytes: await gzip(SNAPSHOT_BODY) }]);
+    server.use(http.get(EVT_LIST, () => listResponse([
+      eventRecord({ local_id: 'evt-label', type: 'label.created', h: hlc(150), entity_id: 'label-2', payload: { label: { name: 'later', color: '#123456' } } }),
+    ])));
+    setAuth();
+    await catchUp();
+    expect(loadLabelsForBoard(BOARD).map((l) => l.id)).toContain('label-2');
+
+    serveSnapshots([{ id: 'snap-2', key: BOARD, hlc: hlc(200), bytes: await gzip({ ...SNAPSHOT_BODY, appliedEventIds: ['evt-label'] }) }]);
+    await catchUp();
+
+    expect(loadLabelsForBoard(BOARD)).toEqual(SNAPSHOT_BODY.labels);
+  });
+
+  it('global: adopting a snapshot older than an unsynced settings edit keeps the edit', async () => {
+    const edit = await localEdit({
+      type: 'settings.updated', scope: 'global', entityId: 'timeTracking', payload: { fields: { timeTracking: { dateFormat: 'local' } } },
+    });
+
+    serveSnapshots([{ id: 'snap-g', key: '', hlc: hlc(100), bytes: await gzip({ ...EMPTY, globalSettings: { timeTracking: { dateFormat: 'remote', timezone: 'Europe/Vienna' } } }) }]);
+    setAuth();
+    await catchUp();
+
+    expect(loadGlobalSettings().timeTracking).toEqual({ dateFormat: 'local' });
+    expect(await queuedIds()).toContain(edit.id);
+  });
+
+  it('global: a snapshot newer than every local event becomes the view', async () => {
+    const edit = await localEdit({
+      type: 'settings.updated', scope: 'global', entityId: 'timeTracking', payload: { fields: { timeTracking: { dateFormat: 'local' } } },
+    });
+
+    serveSnapshots([{ id: 'snap-g', key: '', hlc: later(edit.hlc), bytes: await gzip({ ...EMPTY, globalSettings: { timeTracking: { dateFormat: 'remote', timezone: 'Europe/Vienna' } }, appliedEventIds: [edit.id] }) }]);
+    setAuth();
+    await catchUp();
+
+    expect(loadGlobalSettings().timeTracking).toEqual({ dateFormat: 'remote', timezone: 'Europe/Vienna' });
+  });
+
+  it('time tracking: adopting a snapshot older than an unsynced edit keeps the edit', async () => {
+    const edit = await localEdit({
+      type: 'customer.created', scope: 'timetracking', entityId: 'c-local',
+      payload: { customer: { id: 'c-local', name: 'Local Co' } },
+    });
+
+    serveSnapshots([{ id: 'snap-tt', key: '__timetracking__', hlc: hlc(100), bytes: await gzip({ ...EMPTY, timeTracking: TT_SLOT }) }]);
+    setAuth();
+    await catchUp();
+
+    expect(loadTimeTracking().customers.map((c) => c.name)).toEqual(expect.arrayContaining(['Remote Co', 'Local Co']));
+    expect(await queuedIds()).toContain(edit.id);
+  });
+
+  it('time tracking: a snapshot newer than every local event becomes the view', async () => {
+    const edit = await localEdit({
+      type: 'customer.created', scope: 'timetracking', entityId: 'c-local',
+      payload: { customer: { id: 'c-local', name: 'Local Co' } },
+    });
+
+    serveSnapshots([{ id: 'snap-tt', key: '__timetracking__', hlc: later(edit.hlc), bytes: await gzip({ ...EMPTY, timeTracking: TT_SLOT, appliedEventIds: [edit.id] }) }]);
+    setAuth();
+    await catchUp();
+
+    expect(loadTimeTracking()).toEqual(TT_SLOT);
   });
 });

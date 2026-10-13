@@ -149,7 +149,8 @@ export function createReadModelProjector(ctx) {
   // Replaces the key's view with fold(). Delete records are permanent, so the
   // board's own are kept. Entities no event or snapshot knows of come from
   // writes that emit no event yet (import, column sort); they are kept as is.
-  function rebuild(key, snapshot, events) {
+  // `superseded` holds the snapshots and events an adopted snapshot replaced.
+  function rebuild(key, snapshot, events, superseded = { snapshots: [], events: [] }) {
     const projected = fold(key, snapshot, events, { live: true });
     const newest = [snapshot?.hlc, ...events.map((event) => event.hlc)]
       .filter(Boolean)
@@ -164,7 +165,10 @@ export function createReadModelProjector(ctx) {
     }
 
     const live = liveBoard(key);
-    const mentioned = new Set(events.map((event) => event.entity_id));
+    const mentioned = new Set([...events, ...superseded.events].map((event) => event.entity_id));
+    for (const { state: held } of superseded.snapshots) {
+      for (const item of [...held.tasks, ...held.columns, ...held.labels]) mentioned.add(item?.id);
+    }
     const taskTombstones = new Set([...boardMemory(key).taskTombstones, ...projected.taskTombstones]);
     const keepUnknown = (rebuilt, current) => [
       ...rebuilt,
