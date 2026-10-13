@@ -28,21 +28,21 @@ export function createReadModelProjector(ctx) {
 
   // Board-less scopes each own one read-model slot. `normalize` applies only at
   // the snapshot boundary; projected slots are already normalised by the reducer.
-  // `rebuildBase` is the slot a rebuild starts from. Global settings merge field
-  // by field, so the live value under the snapshot's keeps fields no event set.
+  // `foldBase` is the slot a fold starts from; with `live`, global settings,
+  // which merge field by field, keep live fields under the snapshot's.
   const boardlessSlots = new Map([
     [EVENT_SCOPE.GLOBAL, {
       field: 'globalSettings',
       persistKey: globalSettingsKey,
       seed: loadGlobalSettings,
-      rebuildBase: (snapshotState) => ({ ...loadGlobalSettings(), ...(snapshotState?.globalSettings || {}) }),
+      foldBase: (snapshotState, live) => ({ ...(live ? loadGlobalSettings() : {}), ...(snapshotState?.globalSettings || {}) }),
       normalize: (value) => value || {}
     }],
     [EVENT_SCOPE.TIMETRACKING, {
       field: 'timeTracking',
       persistKey: timeTrackingKey,
       seed: () => state.timeTracking,
-      rebuildBase: (snapshotState) => snapshotState?.timeTracking,
+      foldBase: (snapshotState) => snapshotState?.timeTracking,
       normalize: createTimeTrackingState
     }]
   ]);
@@ -122,14 +122,16 @@ export function createReadModelProjector(ctx) {
     };
   }
 
-  // The key's state as `snapshot` plus `events` in HLC order, from the reducer
-  // alone. Board settings merge field by field, like global settings.
-  function fold(key, snapshot, events) {
+  // The key's state as `snapshot` plus `events` in HLC order. A snapshot is
+  // folded from events alone; a rebuild (`live`) starts board and global
+  // settings from the live value under the snapshot's, so settings written
+  // without an event (swimlanes) survive it.
+  function fold(key, snapshot, events, { live = false } = {}) {
     const base = snapshot?.state;
     const slot = boardlessSlots.get(scopeForSnapshotKey(key));
     if (slot) {
       return applyEvents(createProjectionState({
-        [slot.field]: slot.rebuildBase(base),
+        [slot.field]: slot.foldBase(base, live),
         appliedEventIds: base?.appliedEventIds
       }), events);
     }
@@ -138,7 +140,7 @@ export function createReadModelProjector(ctx) {
       tasks: base?.tasks,
       columns: base?.columns,
       labels: base?.labels,
-      settings: { ...liveBoard(key).settings, ...(base?.settings || {}) },
+      settings: { ...(live ? liveBoard(key).settings : {}), ...(base?.settings || {}) },
       appliedEventIds: base?.appliedEventIds,
       taskTombstones: base?.taskTombstones
     }), events);
@@ -148,7 +150,7 @@ export function createReadModelProjector(ctx) {
   // board's own are kept. Entities no event or snapshot knows of come from
   // writes that emit no event yet (import, column sort); they are kept as is.
   function rebuild(key, snapshot, events) {
-    const projected = fold(key, snapshot, events);
+    const projected = fold(key, snapshot, events, { live: true });
     const newest = [snapshot?.hlc, ...events.map((event) => event.hlc)]
       .filter(Boolean)
       .reduce((max, hlc) => (!max || compareHlc(hlc, max) > 0 ? hlc : max), null);

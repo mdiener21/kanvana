@@ -376,6 +376,9 @@ A rebuild is the reducer's fold, with three exceptions so it does not lose state
 board and global settings start from the live value under the snapshot's (they merge field by field);
 task delete records are kept (deletes are permanent); and tasks, columns and labels that no snapshot or
 replayed event knows of (written by import or column sort, which emit no event yet) are kept as they are.
+A snapshot is folded from events alone. Known limit until those writes emit events: a setting written
+without an event (swimlane grouping) is reset by a rebuild to the last replayed `settings.updated` that
+carries it, and a column sort of known tasks is replaced by the replayed order.
 
 **Grace window.** `GRACE_WINDOW_MS` (`snapshot.js`) is **30 days**. It must exceed a realistic offline
 period: a laptop left closed over a two- to three-week holiday, plus a week of margin for a late return
