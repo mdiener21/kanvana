@@ -15,7 +15,9 @@ import {
   createBoard,
   listBoards
 } from '../../../src/modules/storage.js';
-import { emit, EVENT_EMITTED } from '../../../src/modules/events.js';
+import { EVENT_ORIGIN, ingestEvent } from '../../../src/modules/event-sourcing/ingest.js';
+
+const ingestRemote = (event) => ingestEvent(event, { origin: EVENT_ORIGIN.REMOTE });
 
 const REMOTE_BOARD = 'c0ffee00-0000-4000-8000-00000000beef';
 
@@ -43,12 +45,12 @@ beforeEach(async () => {
 test('a board deleted elsewhere does not come back when its events replay', async () => {
   createBoard('Local board');
 
-  emit(EVENT_EMITTED, remoteEvent('board.created', REMOTE_BOARD, {
+  await ingestRemote(remoteEvent('board.created', REMOTE_BOARD, {
     board: { id: REMOTE_BOARD, name: 'Shared', createdAt: '2026-06-07T20:17:33.372Z' }
   }, 1));
   expect(listBoards().map((b) => b.name)).toContain('Shared');
 
-  emit(EVENT_EMITTED, remoteEvent('board.deleted', REMOTE_BOARD, {}, 2));
+  await ingestRemote(remoteEvent('board.deleted', REMOTE_BOARD, {}, 2));
   await _flushPersistsForTesting();
 
   expect(listBoards().map((b) => b.name)).not.toContain('Shared');
@@ -57,10 +59,10 @@ test('a board deleted elsewhere does not come back when its events replay', asyn
 
 test('the tombstone survives a reload rather than resurrecting from IDB', async () => {
   createBoard('Local board');
-  emit(EVENT_EMITTED, remoteEvent('board.created', REMOTE_BOARD, {
+  await ingestRemote(remoteEvent('board.created', REMOTE_BOARD, {
     board: { id: REMOTE_BOARD, name: 'Shared' }
   }, 1));
-  emit(EVENT_EMITTED, remoteEvent('board.deleted', REMOTE_BOARD, {}, 2));
+  await ingestRemote(remoteEvent('board.deleted', REMOTE_BOARD, {}, 2));
   await _flushPersistsForTesting();
 
   _resetStorageForTesting();

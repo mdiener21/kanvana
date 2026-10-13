@@ -1,14 +1,13 @@
 // Inbound sync: PocketBase realtime SSE subscription + launch/reconnect
-// catch-up pull (issue #114, PRD §4.8). Every remote event runs through the
-// same projection pipeline as local events (emit EVENT_EMITTED), so the
-// reducer's UUID dedup makes echoes and catch-up/SSE overlap no-ops for free.
-// Remote events are persisted as already-synced so the outbound queue never
-// pushes them back.
+// catch-up pull (issue #114, PRD §4.8). Every remote event goes through the
+// same ingest interface as local events (#177), so the projector's id dedup
+// makes echoes and catch-up/SSE overlap no-ops. Remote events are persisted as
+// already-synced so the outbound queue never pushes them back.
 
-import { emit, EVENT_EMITTED } from '../events.js';
-import { persistEvent, openStore, KV_STORE, EVENTS_STORE } from '../idb-store.js';
+import { openStore, KV_STORE, EVENTS_STORE } from '../idb-store.js';
 import { getPb, isAuthenticated, getUser } from '../sync.js';
-import { observeRemote, compareHlc } from './hlc.js';
+import { compareHlc } from './hlc.js';
+import { EVENT_ORIGIN, ingestEvent } from './ingest.js';
 import { snapshotKeyForEvent, saveSnapshot, loadSnapshot } from './snapshot.js';
 import { downloadAllSnapshots } from './snapshot-sync.js';
 import { hydrateFromSnapshotState } from '../storage.js';
@@ -46,12 +45,8 @@ async function setLastSeen(key, hlc) {
   await db.put(KV_STORE, hlc, LAST_SEEN_PREFIX + key);
 }
 
-// Feed a remote event through the local projection pipeline.
-async function ingest(event) {
-  if (!event.id) return;
-  if (event.hlc) await observeRemote(event.hlc);
-  await persistEvent({ ...event, synced: true });
-  emit(EVENT_EMITTED, event);
+function ingest(event) {
+  return ingestEvent(event, { origin: EVENT_ORIGIN.REMOTE });
 }
 
 export async function applyRemoteEvent(record) {
