@@ -9,7 +9,8 @@ import {
   _flushPersistsForTesting,
   createBoard,
   loadTasksForBoard,
-  loadColumnsForBoard
+  loadColumnsForBoard,
+  hydrateFromSnapshotState
 } from '../../../src/modules/storage.js';
 import { EVENT_ORIGIN, ingestEvent } from '../../../src/modules/event-sourcing/ingest.js';
 
@@ -72,4 +73,28 @@ test('the remote echo of an edit applied before a reload does not overwrite a ne
   await ingestRemote({ ...e1 });
 
   expect(task(TASK_ID).title).toBe('E2');
+});
+
+test('a delete record in an adopted snapshot makes later edits of that task a no-op, also after a reload', async () => {
+  await ingestLocal(taskEvent('task.created', { id: 'e-create', counter: 1, payload: { task: { title: 'T', column: column() } } }));
+
+  // Another device deleted the task; its snapshot carries the delete record.
+  hydrateFromSnapshotState(boardId, {
+    boards: [{ id: boardId, name: 'Durable' }],
+    tasks: [],
+    columns: loadColumnsForBoard(boardId),
+    labels: [],
+    settings: {},
+    appliedEventIds: new Set(['e-create', 'e-delete-elsewhere']),
+    taskTombstones: new Set([TASK_ID])
+  });
+
+  await ingestRemote(taskEvent('task.created', { id: 'e-recreate', counter: 2, payload: { task: { title: 'Zombie', column: column() } } }));
+  await ingestRemote(taskEvent('task.updated', { id: 'e-update', counter: 3, payload: { fields: { title: 'Edited' } } }));
+  expect(task(TASK_ID)).toBeUndefined();
+
+  await reload();
+  await ingestRemote(taskEvent('task.created', { id: 'e-recreate-2', counter: 4, payload: { task: { title: 'Zombie', column: column() } } }));
+  await ingestRemote(taskEvent('task.updated', { id: 'e-update-2', counter: 5, payload: { fields: { title: 'Edited' } } }));
+  expect(task(TASK_ID)).toBeUndefined();
 });
