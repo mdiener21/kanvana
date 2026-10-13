@@ -4,7 +4,7 @@ import { deleteDB } from 'idb';
 import { DATA_CHANGED, EVENT_EMITTED, emit, off, on } from '../../../src/modules/events.js';
 import { openStore, EVENTS_STORE } from '../../../src/modules/idb-store.js';
 import {
-  initStorage, createBoard, loadTasksForBoard, loadTimeTracking, loadLabelsForBoard,
+  initStorage, createBoard, listBoards, loadTasksForBoard, loadTimeTracking, loadLabelsForBoard, loadColumnsForBoard,
   _flushPersistsForTesting, _resetStorageForTesting,
 } from '../../../src/modules/storage.js';
 import { scheduleDomainEvent } from '../../../src/modules/event-sourcing/emitter.js';
@@ -235,6 +235,42 @@ describe('payload entity fields', () => {
     expect(tt.customers[0]).toEqual({ id: 'c-1', name: 'Acme', color: '#03a9f4', archived: false });
     expect(tt.projects[0]).toEqual({ id: 'p-1', customerId: 'c-1', name: 'Web', color: '#e91e63', archived: false });
     expect(tt.timeEntries[0]).not.toHaveProperty('rate');
+  });
+
+  test('a payload id cannot resurrect a deleted task: the id comes from entity_id', async () => {
+    await remote(taskCreated('victim'));
+    await remote({ ...taskCreated('victim'), id: 'evt-victim-deleted', type: 'task.deleted', payload: {} });
+    await remote({ ...taskCreated('fresh'), payload: { task: { id: 'victim', title: 'Back again', column: 'todo' } } });
+
+    const ids = loadTasksForBoard(boardId).map((t) => t.id);
+    expect(ids).not.toContain('victim');
+    expect(ids).toContain('fresh');
+  });
+
+  test('a task.updated field cannot change the task id', async () => {
+    await remote(taskCreated('keep-id'));
+    await remote({ ...taskCreated('keep-id'), id: 'evt-keep-id-update', type: 'task.updated', payload: { fields: { id: 'other', title: 'Renamed' } } });
+
+    expect(loadTasksForBoard(boardId).find((t) => t.id === 'keep-id')).toMatchObject({ title: 'Renamed' });
+  });
+
+  test.each([
+    ['label.created', 'label', () => loadLabelsForBoard(boardId)],
+    ['column.created', 'column', () => loadColumnsForBoard(boardId)],
+  ])('%s takes its id from entity_id, not the payload', async (type, key, load) => {
+    await remote({ ...taskCreated(`${key}-fresh`), id: `evt-${type}-id`, type, payload: { [key]: { id: `${key}-forged`, name: 'Forged' } } });
+
+    const ids = load().map((item) => item.id);
+    expect(ids).toContain(`${key}-fresh`);
+    expect(ids).not.toContain(`${key}-forged`);
+  });
+
+  test('board.created takes its id from entity_id, not the payload', async () => {
+    await remote({ ...taskCreated('board-fresh'), id: 'evt-board-id', type: 'board.created', board_id: 'board-fresh', payload: { board: { id: 'board-forged', name: 'Forged' } } });
+
+    const ids = listBoards().map((board) => board.id);
+    expect(ids).toContain('board-fresh');
+    expect(ids).not.toContain('board-forged');
   });
 
   test('the persisted event carries the sanitised payload', async () => {

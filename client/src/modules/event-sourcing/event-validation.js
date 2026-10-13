@@ -11,7 +11,8 @@ import {
 } from '../schema.js';
 import { MAX_DRIFT_MS } from './hlc.js';
 
-const keysOf = (factory, extra = []) => new Set([...Object.keys(factory()), ...extra]);
+// `id` is left out: an entity's id comes only from the event's entity_id.
+const keysOf = (factory, extra = []) => new Set([...Object.keys(factory()), ...extra].filter((key) => key !== 'id'));
 
 // Entity field allow-lists, taken from the schema factories. Task keys the
 // factory leaves out by default are named explicitly.
