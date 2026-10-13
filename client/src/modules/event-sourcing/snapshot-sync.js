@@ -7,7 +7,7 @@
 
 import { getPb, isAuthenticated, getUser } from '../sync.js';
 import { compareHlc } from './hlc.js';
-import { serializeState, GLOBAL_SNAPSHOT_KEY, scopeForSnapshotKey, setAfterSnapshotSaved } from './snapshot.js';
+import { serializeState, GLOBAL_SNAPSHOT_KEY, isOlderThanGraceWindow, scopeForSnapshotKey, setAfterSnapshotSaved } from './snapshot.js';
 import { createProjectionState } from '../reducer.js';
 import { EVENT_SCOPE } from '../constants.js';
 
@@ -91,13 +91,17 @@ export async function uploadSnapshot(key, state, hlc) {
   return { uploaded: created.id };
 }
 
+// Like local cleanup, keeps events younger than the grace window (#179): another
+// device may still need them to rebuild around a late event.
+// backend/pb_hooks/events_grace_window.pb.js enforces the same rule server-side.
 async function gcServerEvents(pb, ownerId, key, snapshotHlc) {
   const events = await pb.collection('events').getFullList({
     filter: eventFilter(ownerId, key),
     requestKey: null,
   });
+  const now = Date.now();
   for (const e of events) {
-    if (e.hlc && compareHlc(e.hlc, snapshotHlc) <= 0) {
+    if (e.hlc && compareHlc(e.hlc, snapshotHlc) <= 0 && isOlderThanGraceWindow(e.hlc, now)) {
       await pb.collection('events').delete(e.id, { requestKey: null });
     }
   }
