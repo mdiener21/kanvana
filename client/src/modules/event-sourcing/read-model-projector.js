@@ -57,8 +57,7 @@ export function createReadModelProjector(ctx) {
     if (boardlessSlots.has(event.scope)) return appliedBoardlessIds.has(event.id);
     const boardId = event.board_id;
     if (typeof boardId !== 'string' || !boardId) return false;
-    return snapshotAppliedIds(boardId).has(event.id)
-      || (safeParseArray(state.appliedEventIds[boardId]) || []).includes(event.id);
+    return boardMemory(boardId).appliedEventIds.has(event.id);
   }
 
   function noteApplied(key, hlc) {
@@ -69,11 +68,10 @@ export function createReadModelProjector(ctx) {
   }
 
   function project(event) {
-    if (!event?.id) return false;
+    if (!event?.id || hasApplied(event)) return false;
 
     const slot = boardlessSlots.get(event.scope);
     if (slot) {
-      if (appliedBoardlessIds.has(event.id)) return false;
       appliedBoardlessIds.add(event.id);
       const projected = applyEvent(createProjectionState({ [slot.field]: slot.seed() }), event);
       writeBoardless(slot, projected[slot.field]);
@@ -87,8 +85,6 @@ export function createReadModelProjector(ctx) {
     if (typeof boardId !== 'string' || !boardId) return false;
 
     const memory = boardMemory(boardId);
-    if (memory.appliedEventIds.has(event.id)) return false;
-
     const projected = applyEvent(createProjectionState({
       boards: state.boards,
       ...liveBoard(boardId),
