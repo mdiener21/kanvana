@@ -319,13 +319,13 @@ inspectImportPayload → buildImportConfirmationMessage → importTasks
 ### Sync Flow (event-sourced)
 ```
 [local mutation] → scheduleDomainEvent() (stamp UUID + sync HLC) → ingestEvent(event, { origin: 'local' })
-[remote event]   → realtime.js SSE / catchUp() → ingestEvent(event, { origin: 'remote' })
+[remote event]   → realtime.js SSE / catchUp() → ingestEvent(event, { origin: 'remote', receivedAt: record.created })
                                                    (remote only: await observeRemote(hlc) first)
 [server snapshot]→ catchUp(), before its events → adoptSnapshot(key, state, hlc) → save + rebuildScope(key)
 
 ingestEvent (event-sourcing/ingest.js) — one path, origin is a parameter:
    1. validate                         (drops malformed events, #181)
-   2. classify against the key's newest applied HLC (§9 Ordering); remote only: drop if a snapshot covers it
+   2. remote only: drop if it reached the server a grace window after its HLC; classify against the key's newest applied HLC (§9 Ordering)
    3. project: read-model-projector folds event into state (sole writer, deduped by id)
               → emit(DATA_CHANGED) → renderBoard()      [synchronous for local events; skipped for a late remote one]
    4. emit(EVENT_EMITTED) → outbound sync-queue schedules a drain (HLC order, unsynced only)
