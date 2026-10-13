@@ -29,10 +29,10 @@ const COLOR_FALLBACK = {
   project: TT_COLOR_PALETTE[0]
 };
 
-// A Map, so inherited keys such as `toString` or `__proto__` are unknown types; `requires` is dereferenced unguarded.
+// A Map, so `toString`/`__proto__` are unknown types. payloadEntities/payloadPatches: payload key -> entity type, in full / as a patch.
 const EVENT_TYPES = new Map([
-  ['task.created', { entities: { task: 'task', fields: 'task' } }],
-  ['task.updated', { patches: { fields: 'task' } }],
+  ['task.created', { payloadEntities: { task: 'task', fields: 'task' } }],
+  ['task.updated', { payloadPatches: { fields: 'task' } }],
   ['task.moved', {}],
   ['task.deleted', {}],
   ['subtask.added', {}],
@@ -43,28 +43,28 @@ const EVENT_TYPES = new Map([
   ['relationship.removed', {}],
   ['label.added_to_task', {}],
   ['label.removed_from_task', {}],
-  ['label.created', { entities: { label: 'label', fields: 'label' } }],
-  ['label.updated', { patches: { fields: 'label' } }],
+  ['label.created', { payloadEntities: { label: 'label', fields: 'label' } }],
+  ['label.updated', { payloadPatches: { fields: 'label' } }],
   ['label.deleted', {}],
-  ['column.created', { entities: { column: 'column', fields: 'column' } }],
-  ['column.updated', { patches: { fields: 'column' } }],
+  ['column.created', { payloadEntities: { column: 'column', fields: 'column' } }],
+  ['column.updated', { payloadPatches: { fields: 'column' } }],
   ['column.deleted', {}],
   ['column.reordered', {}],
-  ['board.created', { entities: { board: 'board', fields: 'board' } }],
-  ['board.updated', { patches: { fields: 'board' } }],
+  ['board.created', { payloadEntities: { board: 'board', fields: 'board' } }],
+  ['board.updated', { payloadPatches: { fields: 'board' } }],
   ['board.deleted', {}],
   ['settings.updated', {}],
-  ['customer.created', { requires: 'customer', entities: { customer: 'customer' } }],
+  ['customer.created', { requires: 'customer', payloadEntities: { customer: 'customer' } }],
   ['customer.archived', {}],
   ['customer.unarchived', {}],
-  ['customer.deleted', { entities: { customer: 'customer' } }],
-  ['project.created', { requires: 'project', entities: { project: 'project' } }],
+  ['customer.deleted', { payloadEntities: { customer: 'customer' } }],
+  ['project.created', { requires: 'project', payloadEntities: { project: 'project' } }],
   ['project.archived', {}],
   ['project.unarchived', {}],
-  ['project.deleted', { entities: { project: 'project' } }],
-  ['time_entry.created', { requires: 'timeEntry', entities: { timeEntry: 'timeEntry' } }],
-  ['time_entry.updated', { patches: { fields: 'timeEntry' } }],
-  ['time_entry.deleted', { entities: { timeEntry: 'timeEntry' } }]
+  ['project.deleted', { payloadEntities: { project: 'project' } }],
+  ['time_entry.created', { requires: 'timeEntry', payloadEntities: { timeEntry: 'timeEntry' } }],
+  ['time_entry.updated', { payloadPatches: { fields: 'timeEntry' } }],
+  ['time_entry.deleted', { payloadEntities: { timeEntry: 'timeEntry' } }]
 ]);
 
 const SCOPES = new Set(Object.values(EVENT_SCOPE));
@@ -107,10 +107,10 @@ function pickFields(entity, source, { patch }) {
 }
 
 function sanitise(event) {
-  const { entities = {}, patches = {} } = EVENT_TYPES.get(event.type);
+  const { payloadEntities = {}, payloadPatches = {} } = EVENT_TYPES.get(event.type);
   const targets = [
-    ...Object.entries(entities).map(([key, entity]) => [key, entity, false]),
-    ...Object.entries(patches).map(([key, entity]) => [key, entity, true])
+    ...Object.entries(payloadEntities).map(([key, entity]) => [key, entity, false]),
+    ...Object.entries(payloadPatches).map(([key, entity]) => [key, entity, true])
   ];
   if (targets.length === 0) return event;
   const payload = { ...event.payload };
