@@ -29,7 +29,17 @@ Experience it firsthand: **[Try the Live Demo](https://kanvana.com)**
 
 ## ✨ Key Features
 
-### ✅ Sub-tasks (New!)
+### Time Tracking (New!)
+
+Log time against customers and projects on a dedicated page, opened from the board menu:
+
+- **Fast entry**: type a description, pick a project, and set start, end or duration using shorthand like `930`, `90m` or `1.5`
+- **Daily log**: entries grouped by day with totals, editable from the keyboard
+- **Monthly reports**: totals, a daily bar chart stacked by project, and a customer/project breakdown
+- **Projects and settings**: archive customers and projects, and choose the date, time, timezone and duration formats
+- **Syncs**: time data syncs to your other signed-in devices
+
+### ✅ Sub-tasks
 
 Break complex tasks into smaller, trackable steps without leaving the board:
 
