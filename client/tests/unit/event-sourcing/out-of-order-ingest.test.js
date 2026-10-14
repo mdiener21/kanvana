@@ -79,8 +79,8 @@ describe('board scope', () => {
 });
 
 describe('rebuild', () => {
-  // Import and column sort write the read model without an event yet (the rest
-  // of ADR-0005, a follow-up); a rebuild must not erase what they wrote.
+  // Import writes the read model without an event yet (the rest of ADR-0005,
+  // a follow-up); a rebuild must not erase what it wrote.
   test('keeps a task that no event knows of, such as an imported one', async () => {
     const imported = { id: '9c8b7a6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d', title: 'Imported', column: todoColumn };
     setActiveBoardId(boardId);

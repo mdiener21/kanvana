@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Sorting a column by due date or priority now stays sorted when a late change from another device arrives, and the new order shows on your other signed-in devices too (#184).
+
 ## [3.2.0] - 2026-10-14
 
 ### Added
