@@ -115,6 +115,19 @@ test('unknown event types warn and leave projection unchanged', () => {
   expect(warn).toHaveBeenCalledWith('Unknown event type: unknown.event');
 });
 
+test.each(['toString', 'constructor', '__proto__', 'hasOwnProperty'])(
+  'an inherited object key %s is an unknown event type, not a handler (#181)',
+  (type) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const state = createProjectionState({ tasks: [{ id: 'task-a', title: 'Before', column: 'todo' }] });
+
+    const next = applyEvent(state, event({ id: `inherited-${type}`, type }));
+
+    expect(next).toEqual(state);
+    expect(warn).toHaveBeenCalledWith(`Unknown event type: ${type}`);
+  }
+);
+
 test('label events create update and tombstone labels', () => {
   const created = applyEvent(createProjectionState(), event({
     id: 'label-create',
@@ -206,6 +219,28 @@ test('settings.updated handles board and global settings', () => {
 
   expect(boardSettings.settings).toEqual({ showPriority: false });
   expect(globalSettings.globalSettings).toEqual({ locale: 'de-DE' });
+});
+
+test('settings.updated in the timetracking scope touches neither board nor global settings', () => {
+  const next = applyEvent(createProjectionState(), event({
+    id: 'settings-tt',
+    type: 'settings.updated',
+    scope: 'timetracking',
+    board_id: null,
+    payload: { fields: { locale: 'de-DE' } }
+  }));
+
+  expect(next.settings).toEqual({});
+  expect(next.globalSettings).toEqual({});
+  expect(next.appliedEventIds.has('settings-tt')).toBe(true);
+});
+
+test('projection state carries an empty time-tracking slot that survives events', () => {
+  const state = createProjectionState();
+  expect(state.timeTracking).toEqual({ customers: [], projects: [], timeEntries: [], tombstones: { customers: {}, projects: {} } });
+
+  const next = applyEvent(state, event({ id: 'board-ev', type: 'settings.updated', payload: { fields: { a: 1 } } }));
+  expect(next.timeTracking).toEqual({ customers: [], projects: [], timeEntries: [], tombstones: { customers: {}, projects: {} } });
 });
 
 test('subtask and relationship events update embedded task collections', () => {

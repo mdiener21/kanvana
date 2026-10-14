@@ -19,6 +19,8 @@ import {
   HelpCircle,
   EllipsisVertical,
   Trash2,
+  Archive,
+  ArchiveRestore,
   GripVertical,
   Pencil,
   Fullscreen,
@@ -44,7 +46,13 @@ import {
   Apple,
   LayoutGrid,
   Scale,
-  ListChecks
+  ListChecks,
+  ArrowLeft,
+  Clock,
+  Folder,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Copy
 } from 'lucide';
 
 // Map of all icons used in the app (PascalCase keys for createIcons)
@@ -64,6 +72,8 @@ const icons = {
   HelpCircle,
   EllipsisVertical,
   Trash2,
+  Archive,
+  ArchiveRestore,
   GripVertical,
   Pencil,
   Fullscreen,
@@ -89,7 +99,13 @@ const icons = {
   Apple,
   LayoutGrid,
   Scale,
-  ListChecks
+  ListChecks,
+  ArrowLeft,
+  Clock,
+  Folder,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Copy
 };
 
 /**

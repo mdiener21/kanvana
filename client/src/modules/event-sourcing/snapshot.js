@@ -1,20 +1,58 @@
 import { openStore, EVENTS_STORE, SNAPSHOTS_STORE } from '../idb-store.js';
-import { createProjectionState, applyEvents } from '../reducer.js';
+import { createProjectionState, createTimeTrackingState } from '../reducer.js';
 import { compareHlc } from './hlc.js';
+import { EVENT_SCOPE } from '../constants.js';
 
 export const SNAPSHOT_EVENT_THRESHOLD = 500;
 export const SNAPSHOT_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 export const MAX_JITTER_MS = 60_000;
+// Why 30 days: CONTEXT.md §9 Grace window. backend/pb_hooks/events_grace_window.pb.js repeats it; keep both equal.
+export const GRACE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 export const GLOBAL_SNAPSHOT_KEY = '__global__';
+export const TIMETRACKING_SNAPSHOT_KEY = '__timetracking__';
+
+// The one scope -> snapshot/watermark key mapping. Board-less scopes have a
+// sentinel key; board scope (or none, on legacy events) is keyed by board_id.
+const SNAPSHOT_KEY_BY_SCOPE = new Map([
+  [EVENT_SCOPE.GLOBAL, GLOBAL_SNAPSHOT_KEY],
+  [EVENT_SCOPE.TIMETRACKING, TIMETRACKING_SNAPSHOT_KEY]
+]);
+
+const SCOPE_BY_SNAPSHOT_KEY = new Map([...SNAPSHOT_KEY_BY_SCOPE].map(([scope, key]) => [key, scope]));
 
 const _pendingSnapshots = new Map();
+const _notDueBefore = new Map();
 let _getJitter = () => Math.floor(Math.random() * (MAX_JITTER_MS + 1));
 let _afterSnapshotSaved = null;
 
+export function snapshotKeyForEvent(event) {
+  return SNAPSHOT_KEY_BY_SCOPE.get(event?.scope) ?? (event?.board_id || '');
+}
+
+// Inverse of snapshotKeyForEvent: any non-sentinel key is a board id.
+export function scopeForSnapshotKey(key) {
+  return SCOPE_BY_SNAPSHOT_KEY.get(key) ?? EVENT_SCOPE.BOARD;
+}
+
 function eventMatchesSnapshotScope(key, event) {
   if (!event || typeof event !== 'object') return false;
-  if (key === GLOBAL_SNAPSHOT_KEY) return event.scope === 'global';
-  return (event.scope ?? 'board') === 'board' && event.board_id === key;
+  const scope = scopeForSnapshotKey(key);
+  if ((event.scope ?? EVENT_SCOPE.BOARD) !== scope) return false;
+  return scope !== EVENT_SCOPE.BOARD || event.board_id === key;
+}
+
+export function isOlderThanGraceWindow(hlc, now = Date.now()) {
+  return Number.isFinite(hlc?.wallTime) && hlc.wallTime < now - GRACE_WINDOW_MS;
+}
+
+// Read through the hlc index so a snapshot bounds the read.
+export async function loadEventsAfter(key, afterHlc) {
+  const db = await openStore();
+  const range = afterHlc
+    ? IDBKeyRange.lowerBound([afterHlc.wallTime, afterHlc.counter, afterHlc.nodeId], true)
+    : undefined;
+  const events = await db.getAllFromIndex(EVENTS_STORE, 'hlc', range);
+  return events.filter((event) => eventMatchesSnapshotScope(key, event));
 }
 
 export function serializeState(state) {
@@ -25,6 +63,7 @@ export function serializeState(state) {
     labels: Array.isArray(state.labels) ? state.labels : [],
     settings: state.settings && typeof state.settings === 'object' ? state.settings : {},
     globalSettings: state.globalSettings && typeof state.globalSettings === 'object' ? state.globalSettings : {},
+    timeTracking: createTimeTrackingState(state.timeTracking),
     appliedEventIds: [...(state.appliedEventIds instanceof Set ? state.appliedEventIds : [])],
     taskTombstones: [...(state.taskTombstones instanceof Set ? state.taskTombstones : [])]
   };
@@ -52,52 +91,55 @@ export async function loadSnapshot(key) {
   return { state, hlc, at };
 }
 
-export async function gcEvents(key, snapshotHlc) {
+// An unpushed event was never seen by the server (#176); one inside the window may order a late one in (#179).
+export async function gcEvents(key, snapshotHlc, now = Date.now()) {
   const db = await openStore();
   const all = await db.getAll(EVENTS_STORE);
   const tx = db.transaction(EVENTS_STORE, 'readwrite');
   for (const event of all) {
+    if (event.synced !== true || !isOlderThanGraceWindow(event.hlc, now)) continue;
     if (eventMatchesSnapshotScope(key, event) && compareHlc(event.hlc, snapshotHlc) <= 0) tx.store.delete(event.id);
   }
   await tx.done;
 }
 
-export async function hydrateFromSnapshot(key, events) {
-  const snapshot = await loadSnapshot(key);
-  const baseState = snapshot ? snapshot.state : createProjectionState();
-  const toReplay = snapshot
-    ? events.filter(e => compareHlc(e.hlc, snapshot.hlc) > 0)
-    : events;
-  return applyEvents(baseState, toReplay);
+function isSnapshotDue(snapshot, eventsSinceSnapshot) {
+  if (snapshot && Date.now() - new Date(snapshot.at).getTime() >= SNAPSHOT_AGE_MS) return true;
+  return eventsSinceSnapshot >= SNAPSHOT_EVENT_THRESHOLD;
 }
 
-async function shouldTakeSnapshot(key) {
+// Covers only events older than the grace window, so a late one inside it can be ordered in (#179).
+async function takeSnapshot(key, fold) {
   const db = await openStore();
   const snapshot = await loadSnapshot(key);
-  const scopedEvents = (await db.getAll(EVENTS_STORE)).filter((event) => eventMatchesSnapshotScope(key, event));
+  const since = (await db.getAll(EVENTS_STORE)).filter((event) => (
+    eventMatchesSnapshotScope(key, event) && (!snapshot || compareHlc(event.hlc, snapshot.hlc) > 0)
+  ));
+  if (!isSnapshotDue(snapshot, since.length)) return null;
 
-  if (snapshot) {
-    const age = Date.now() - new Date(snapshot.at).getTime();
-    if (age >= SNAPSHOT_AGE_MS) return { should: true, reason: 'age' };
-    const since = scopedEvents.filter(e => compareHlc(e.hlc, snapshot.hlc) > 0).length;
-    if (since >= SNAPSHOT_EVENT_THRESHOLD) return { should: true, reason: 'count' };
-    return { should: false };
+  const covered = since.filter((event) => isOlderThanGraceWindow(event.hlc)).sort((a, b) => compareHlc(a.hlc, b.hlc));
+  if (!covered.length) {
+    _notDueBefore.set(key, since.reduce((min, event) => Math.min(min, event.hlc.wallTime), Infinity) + GRACE_WINDOW_MS);
+    return null;
   }
-
-  if (scopedEvents.length >= SNAPSHOT_EVENT_THRESHOLD) return { should: true, reason: 'count' };
-  return { should: false };
+  const hlc = covered.at(-1).hlc;
+  const state = fold(snapshot, covered);
+  await saveSnapshot(key, state, hlc);
+  return { state, hlc };
 }
 
-export function checkAndScheduleSnapshot(key, state, hlc) {
-  if (_pendingSnapshots.has(key)) return;
+// `onSaved` lets the caller prune what the snapshot now holds (applied ids, #178).
+export function checkAndScheduleSnapshot(key, { fold, onSaved }) {
+  if (_pendingSnapshots.has(key) || Date.now() <= (_notDueBefore.get(key) ?? -Infinity)) return;
   const jitter = _getJitter();
   const id = setTimeout(async () => {
     _pendingSnapshots.delete(key);
     try {
-      const { should } = await shouldTakeSnapshot(key);
-      if (!should) return;
-      await saveSnapshot(key, state, hlc);
+      const taken = await takeSnapshot(key, fold);
+      if (!taken) return;
+      const { state, hlc } = taken;
       await gcEvents(key, hlc);
+      onSaved?.(key, state);
       if (_afterSnapshotSaved) await _afterSnapshotSaved(key, state, hlc);
     } catch (err) {
       if (err?.code !== 11) console.error('[Kanvana] Snapshot failed', err);
@@ -113,6 +155,7 @@ export function setAfterSnapshotSaved(fn) {
 export function _resetSnapshotSchedulerForTesting() {
   for (const id of _pendingSnapshots.values()) clearTimeout(id);
   _pendingSnapshots.clear();
+  _notDueBefore.clear();
   _getJitter = () => Math.floor(Math.random() * (MAX_JITTER_MS + 1));
   _afterSnapshotSaved = null;
 }

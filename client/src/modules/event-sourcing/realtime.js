@@ -1,17 +1,16 @@
 // Inbound sync: PocketBase realtime SSE subscription + launch/reconnect
-// catch-up pull (issue #114, PRD §4.8). Every remote event runs through the
-// same projection pipeline as local events (emit EVENT_EMITTED), so the
-// reducer's UUID dedup makes echoes and catch-up/SSE overlap no-ops for free.
-// Remote events are persisted as already-synced so the outbound queue never
-// pushes them back.
+// catch-up pull (issue #114, PRD §4.8). Every remote event goes through the
+// same ingest interface as local events (#177), so the projector's id dedup
+// makes echoes and catch-up/SSE overlap no-ops. Remote events are persisted as
+// already-synced so the outbound queue never pushes them back.
 
-import { emit, EVENT_EMITTED } from '../events.js';
-import { persistEvent, openStore, KV_STORE, EVENTS_STORE } from '../idb-store.js';
+import { openStore, KV_STORE } from '../idb-store.js';
 import { getPb, isAuthenticated, getUser } from '../sync.js';
-import { observeRemote, compareHlc } from './hlc.js';
-import { GLOBAL_SNAPSHOT_KEY, saveSnapshot, loadSnapshot } from './snapshot.js';
+import { compareHlc, laterHlc } from './hlc.js';
+import { EVENT_ORIGIN, adoptSnapshot, ingestEvent, ingestRemoteBatch } from './ingest.js';
+import { snapshotKeyForEvent } from './snapshot.js';
 import { downloadAllSnapshots } from './snapshot-sync.js';
-import { hydrateFromSnapshotState } from '../storage.js';
+import { EVENT_SCOPE } from '../constants.js';
 
 const LAST_SEEN_PREFIX = 'kanvana:sync:lastSeenHlc:';
 
@@ -28,15 +27,11 @@ function recordToEvent(r) {
     hlc: r.hlc,
     at: r.at,
     actor: { type: r.actor_type ?? 'human', id: r.actor_id ?? null },
-    scope: r.scope ?? 'board',
+    scope: r.scope ?? EVENT_SCOPE.BOARD,
     board_id: r.board || null,
     entity_id: r.entity_id ?? '',
     payload: r.payload ?? {},
   };
-}
-
-function scopeKey(event) {
-  return event.scope === 'global' ? GLOBAL_SNAPSHOT_KEY : (event.board_id || '');
 }
 
 async function getLastSeen(key) {
@@ -49,16 +44,8 @@ async function setLastSeen(key, hlc) {
   await db.put(KV_STORE, hlc, LAST_SEEN_PREFIX + key);
 }
 
-// Feed a remote event through the local projection pipeline.
-async function ingest(event) {
-  if (!event.id) return;
-  if (event.hlc) await observeRemote(event.hlc);
-  await persistEvent({ ...event, synced: true });
-  emit(EVENT_EMITTED, event);
-}
-
 export async function applyRemoteEvent(record) {
-  await ingest(recordToEvent(record));
+  await ingestEvent(recordToEvent(record), { origin: EVENT_ORIGIN.REMOTE, receivedAt: record.created });
 }
 
 export async function startRealtime() {
@@ -97,18 +84,12 @@ export async function stopRealtime() {
   await unsub();
 }
 
-// Catch-up pulls all owner-scoped events in HLC order. Only snapshots cover
-// earlier history; a watermark cannot exclude delayed events from other devices.
-// Adopt any server snapshot newer than what this device has already seen, before
-// replaying events. uploadSnapshot() deletes the events a snapshot covers, so for
-// a device that joined afterwards the snapshot is the only surviving history.
-// The saved snapshot's HLC excludes events already represented by its state.
+// For a device that joined after server cleanup, the snapshot is the only surviving history.
 async function hydrateFromRemoteSnapshots() {
   for (const snapshot of await downloadAllSnapshots()) {
     const seen = await getLastSeen(snapshot.key);
     if (seen && compareHlc(snapshot.hlc, seen) <= 0) continue;
-    await saveSnapshot(snapshot.key, snapshot.state, snapshot.hlc);
-    hydrateFromSnapshotState(snapshot.key, snapshot.state);
+    await adoptSnapshot(snapshot.key, snapshot.state, snapshot.hlc);
     await setLastSeen(snapshot.key, snapshot.hlc);
   }
 }
@@ -134,26 +115,13 @@ async function pullRemoteState() {
     requestKey: null,
   });
 
-  const events = records
-    .map(recordToEvent)
-    .filter(e => e.id && e.hlc)
-    .sort((a, b) => compareHlc(a.hlc, b.hlc));
+  // A rejected event must not advance a watermark (#181).
+  const fresh = await ingestRemoteBatch(records.map((record) => ({ event: recordToEvent(record), receivedAt: record.created })));
 
-  const seenByKey = new Map();
   const maxByKey = new Map();
-  const db = await openStore();
-
-  for (const event of events) {
-    const key = scopeKey(event);
-    if (!seenByKey.has(key)) seenByKey.set(key, (await loadSnapshot(key))?.hlc);
-    const seen = seenByKey.get(key);
-    // A later HLC arriving first does not cover missing earlier events. Only a
-    // snapshot covers history; otherwise deduplicate by the persisted event id.
-    if (seen && compareHlc(event.hlc, seen) <= 0) continue;
-    if (await db.get(EVENTS_STORE, event.id)) continue;
-    await ingest(event);
-    const max = maxByKey.get(key);
-    if (!max || compareHlc(event.hlc, max) > 0) maxByKey.set(key, event.hlc);
+  for (const event of fresh) {
+    const key = snapshotKeyForEvent(event);
+    maxByKey.set(key, laterHlc(maxByKey.get(key), event.hlc));
   }
 
   for (const [key, hlc] of maxByKey) {

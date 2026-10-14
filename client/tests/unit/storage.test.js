@@ -238,6 +238,11 @@ test('saveGlobalSettings drops removed settings', () => {
   expect(loadGlobalSettings()).toEqual({});
 });
 
+test('saveGlobalSettings keeps Time Tracking settings', () => {
+  saveGlobalSettings({ softDeleteEnabled: true, timeTracking: { dateFormat: 'YYYY-MM-DD' } });
+  expect(loadGlobalSettings()).toEqual({ timeTracking: { dateFormat: 'YYYY-MM-DD' } });
+});
+
 test('global settings and board settings are isolated', () => {
   createBoard('Settings Isolation');
 

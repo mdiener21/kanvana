@@ -71,6 +71,18 @@ audit UI, all with no third-party CRDT dependency.
 - **Legacy PocketBase collections** are locked read-only and scheduled for removal after a 30-day quiet
   period (issue #116).
 
+## Amendment: board-less `timetracking` scope (#164)
+
+- Events now carry one of three scopes: `board`, `global`, `timetracking`. Timetracking events have
+  no `board_id` and are never routed into a board projection; they project into their own
+  time-tracking slot (customers, projects, time entries), isolated from board and global state.
+- The scope has its own snapshot and catch-up watermark key, `__timetracking__`. PocketBase
+  `snapshots` has no scope column, so the sentinel is stored in `snapshots.board_id` (global keeps its
+  empty `board_id`). Local and server event GC for that key cover only `timetracking` events.
+- **Rollout caveat.** Clients older than this change read any non-empty `snapshots.board_id` as a
+  board id, so they would hydrate a `__timetracking__` snapshot as a phantom board. Time-tracking
+  data should only start syncing once every client of an account runs this version.
+
 ## References
 
 - Plan: `docs/plans/2026-05-25-event-driven.md`

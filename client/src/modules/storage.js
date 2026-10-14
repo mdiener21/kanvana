@@ -1,20 +1,23 @@
 import { generateUUID } from './utils.js';
 import { normalizePriority as sharedNormalizePriority, isHexColor, defaultColumnColor, normalizeStringKeys, normalizeRelationships, normalizeSubTasks } from './normalize.js';
 import { DONE_COLUMN_ID, DONE_COLUMN_ROLE, isDoneColumn } from './constants.js';
-import { openStore, KV_STORE, READ_MODEL_STORE, schedulePersist, scheduleDelete, scheduleReadModelPersist, scheduleReadModelDelete, keyFor, readModelKeyFor, _flushPersistsForTesting as _flushIdbPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
+import { openStore, KV_STORE, READ_MODEL_STORE, EVENTS_STORE, SNAPSHOTS_STORE, schedulePersist, scheduleDelete, scheduleReadModelPersist, scheduleReadModelDelete, keyFor, readModelKeyFor, _flushPersistsForTesting as _flushIdbPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
 // Re-export IDB helpers that tests import from this module for backward compatibility.
 import { normalizeBoardModelIds } from './board-serializer.js';
-import { initHlc } from './event-sourcing/hlc.js';
+import { initHlc, laterHlc } from './event-sourcing/hlc.js';
 import { _flushDomainEventsForTesting, scheduleDomainEvent } from './event-sourcing/emitter.js';
-import { checkAndScheduleSnapshot, _resetSnapshotSchedulerForTesting } from './event-sourcing/snapshot.js';
+import { checkAndScheduleSnapshot, loadSnapshot, snapshotKeyForEvent, _resetSnapshotSchedulerForTesting } from './event-sourcing/snapshot.js';
 import { createReadModelProjector } from './event-sourcing/read-model-projector.js';
 import { backfillEventLog } from './event-sourcing/backfill.js';
+import { createTimeTrackingState } from './reducer.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 const BOARDS_KEY = 'kanbanBoards';
 const ACTIVE_BOARD_KEY = 'kanbanActiveBoardId';
 const GLOBAL_SETTINGS_KEY = 'kanvana:settings:global';
+const TIME_TRACKING_KEY = 'kanvana:timetracking';
+const NEWEST_APPLIED_KEY = 'kanvana:ingest:newestAppliedHlc';
 
 const LEGACY_COLUMNS_KEY = 'kanbanColumns';
 const LEGACY_TASKS_KEY = 'kanbanTasks';
@@ -41,7 +44,12 @@ const state = {
   columns: {},  // { [boardId]: column[] | null }
   labels: {},   // { [boardId]: label[] | null }
   settings: {},  // { [boardId]: object | null }
-  globalSettings: null
+  taskTombstones: {},  // { [boardId]: taskId[] } — task delete records (#178)
+  appliedEventIds: {},  // { [boardId]: eventId[] } — applied ids not yet held by a snapshot (#178)
+  snapshotAppliedIds: {},  // { [boardId]: Set<eventId> } — applied ids held by the board's latest snapshot
+  newestAppliedHlc: {},  // { [scopeKey]: hlc } — newest event folded into each key's view (#179)
+  globalSettings: null,
+  timeTracking: null
 };
 
 // Per-board default-task cache (keeps defaults stable within a session).
@@ -60,7 +68,9 @@ const readModelProjector = createReadModelProjector({
   scheduleReadModelPersist,
   checkAndScheduleSnapshot,
   boardsKey: BOARDS_KEY,
-  globalSettingsKey: GLOBAL_SETTINGS_KEY
+  globalSettingsKey: GLOBAL_SETTINGS_KEY,
+  timeTrackingKey: TIME_TRACKING_KEY,
+  newestAppliedKey: NEWEST_APPLIED_KEY
 });
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -417,6 +427,21 @@ async function migrateFromLocalStorage(db) {
   localStorage.removeItem(ACTIVE_BOARD_KEY);
 }
 
+// Devices from before #179 never recorded it, so it is derived once from the stored events and snapshots.
+async function loadNewestAppliedHlc(db) {
+  const stored = safeParseObject(await db.get(KV_STORE, NEWEST_APPLIED_KEY));
+  if (stored) return { ...stored };
+
+  const newest = {};
+  const note = (key, hlc) => {
+    if (key && hlc) newest[key] = laterHlc(newest[key], hlc);
+  };
+  for (const event of await db.getAll(EVENTS_STORE)) note(snapshotKeyForEvent(event), event.hlc);
+  for (const key of await db.getAllKeys(SNAPSHOTS_STORE)) note(key, (await db.get(SNAPSHOTS_STORE, key))?.hlc);
+  await db.put(KV_STORE, newest, NEWEST_APPLIED_KEY);
+  return newest;
+}
+
 // ── Public initialisation ──────────────────────────────────────────────────────
 
 /**
@@ -447,13 +472,18 @@ export async function initStorage() {
   state.boards = safeParseArray(await db.get(KV_STORE, BOARDS_KEY)) || [];
   state.activeBoardId = (await db.get(KV_STORE, ACTIVE_BOARD_KEY)) || null;
   state.globalSettings = normalizeGlobalSettings(await db.get(KV_STORE, GLOBAL_SETTINGS_KEY));
+  state.timeTracking = createTimeTrackingState(await db.get(KV_STORE, TIME_TRACKING_KEY));
 
   for (const board of state.boards) {
     state.tasks[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'tasks'))) ?? null;
     state.columns[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'columns'))) ?? null;
     state.labels[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'labels'))) ?? null;
     state.settings[board.id] = (await db.get(KV_STORE, keyFor(board.id, 'settings'))) ?? null;
+    state.taskTombstones[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'taskTombstones'))) ?? [];
+    state.appliedEventIds[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'appliedEventIds'))) ?? [];
+    state.snapshotAppliedIds[board.id] = (await loadSnapshot(board.id))?.state.appliedEventIds ?? new Set();
   }
+  state.newestAppliedHlc = await loadNewestAppliedHlc(db);
 
   // One-shot: give pre-event-sourcing state an event log so it can sync at all.
   const backfillStartedAt = globalThis.__kanvanaPerfMarks ? performance.now() : null;
@@ -486,11 +516,6 @@ export async function initStorage() {
   }
 }
 
-// Adopt a downloaded snapshot as the read model (inbound catch-up, bug #4).
-export function hydrateFromSnapshotState(key, snapshotState) {
-  readModelProjector.hydrate(key, snapshotState);
-}
-
 export async function _flushPersistsForTesting() {
   await _flushDomainEventsForTesting();
   await _flushIdbPersistsForTesting();
@@ -509,7 +534,12 @@ export function _resetStorageForTesting() {
   for (const k in state.columns) delete state.columns[k];
   for (const k in state.labels) delete state.labels[k];
   for (const k in state.settings) delete state.settings[k];
+  for (const k in state.taskTombstones) delete state.taskTombstones[k];
+  for (const k in state.appliedEventIds) delete state.appliedEventIds[k];
+  for (const k in state.snapshotAppliedIds) delete state.snapshotAppliedIds[k];
+  state.newestAppliedHlc = {};
   state.globalSettings = null;
+  state.timeTracking = null;
   taskCacheByBoard.clear();
   syntheticDoneIdByBoard.clear();
   readModelProjector.reset();
@@ -730,19 +760,6 @@ export function deleteBoard(boardId) {
   const remaining = boards.filter((b) => b.id !== id);
   saveBoards(remaining);
 
-  // Remove per-board state
-  delete state.tasks[id];
-  delete state.columns[id];
-  delete state.labels[id];
-  delete state.settings[id];
-  taskCacheByBoard.delete(id);
-
-  // Remove from IDB
-  scheduleReadModelDelete(id, 'tasks');
-  scheduleReadModelDelete(id, 'columns');
-  scheduleReadModelDelete(id, 'labels');
-  scheduleDelete(keyFor(id, 'settings'));
-
   if (state.activeBoardId === id) {
     state.activeBoardId = remaining[0].id;
     schedulePersist(ACTIVE_BOARD_KEY, remaining[0].id);
@@ -754,6 +771,14 @@ export function deleteBoard(boardId) {
     entityId: id,
     payload: {}
   });
+
+  // After the event: projecting it writes the board's read model once more.
+  for (const slot of [state.tasks, state.columns, state.labels, state.settings, state.taskTombstones, state.appliedEventIds, state.snapshotAppliedIds]) {
+    delete slot[id];
+  }
+  taskCacheByBoard.delete(id);
+  for (const kind of ['tasks', 'columns', 'labels', 'taskTombstones', 'appliedEventIds']) scheduleReadModelDelete(id, kind);
+  scheduleDelete(keyFor(id, 'settings'));
   return true;
 }
 
@@ -1036,9 +1061,11 @@ function normalizeSettings(raw) {
   };
 }
 
+const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
+
 function normalizeGlobalSettings(raw) {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
-  return {};
+  if (!isPlainObject(raw)) return {};
+  return isPlainObject(raw.timeTracking) ? { timeTracking: { ...raw.timeTracking } } : {};
 }
 
 export function loadSettings() {
@@ -1065,6 +1092,10 @@ export function saveSettings(settings) {
 export function loadGlobalSettings() {
   const parsed = safeParseObject(state.globalSettings);
   return parsed ? normalizeGlobalSettings(parsed) : defaultGlobalSettings();
+}
+
+export function loadTimeTracking() {
+  return createTimeTrackingState(state.timeTracking);
 }
 
 export function saveGlobalSettings(settings) {

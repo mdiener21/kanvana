@@ -16,9 +16,12 @@ import {
 import {
   initStorage,
   listBoards,
+  renameBoard,
+  _flushPersistsForTesting,
   _resetStorageForTesting,
 } from '../../../src/modules/storage.js';
 import {
+  MAX_DRIFT_MS,
   emitLocal,
   _setHlcForTesting,
   _resetHlcForTesting,
@@ -113,7 +116,7 @@ describe('applyRemoteEvent', () => {
     const handler = (e) => emitted.push(e.detail);
     on(EVENT_EMITTED, handler);
 
-    const future = Date.now() + 100_000;
+    const future = Date.now() + 30_000; // within the drift limit
     await applyRemoteEvent(record({ local_id: 'r1', h: { wallTime: future, counter: 2, nodeId: 'remote' }, payload: { board: { name: 'Remote' } } }));
     off(EVENT_EMITTED, handler);
 
@@ -127,11 +130,46 @@ describe('applyRemoteEvent', () => {
     expect((await emitLocal()).wallTime).toBe(future);
   });
 
+  it('a remote HLC far in the future is rejected and does not advance the local clock (#181)', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const before = Date.now();
+    await applyRemoteEvent(record({ local_id: 'r-future', h: { wallTime: before + 365 * 86_400_000, counter: 0, nodeId: 'remote' }, payload: { board: { name: 'Future' } } }));
+    expect(listBoards().some(b => b.id === 'board-1')).toBe(false);
+    expect((await emitLocal()).wallTime).toBeLessThanOrEqual(Date.now() + MAX_DRIFT_MS);
+  });
+
   it('AC-004: an echo of an already-applied event is a no-op in the projection', async () => {
     const rec = record({ local_id: 'r-echo', h: hlc(1), payload: { board: { name: 'Once' } } });
     await applyRemoteEvent(rec);
     await applyRemoteEvent(rec);
     expect(listBoards().filter(b => b.id === 'board-1')).toHaveLength(1);
+    expect(await getUnsyncedEvents()).toHaveLength(0);
+  });
+
+  it('AC-004 after a reload: an SSE echo of an edit applied before the reload does not undo a newer edit (#178)', async () => {
+    const board = 'b0a4d000-0000-4000-8000-000000000178';
+    await applyRemoteEvent(record({ local_id: 'r-create', board, h: hlc(1), payload: { board: { name: 'Shared' } } }));
+    const e1 = record({ local_id: 'r-e1', type: 'board.updated', board, h: hlc(2), payload: { fields: { name: 'E1' } } });
+    await applyRemoteEvent(e1);
+    await _flushPersistsForTesting();
+    _resetStorageForTesting();
+    await initStorage();
+
+    renameBoard(board, 'E2');
+    await applyRemoteEvent(e1);
+
+    expect(listBoards().find(b => b.id === board).name).toBe('E2');
+  });
+
+  it('projects a live timetracking event into the time-tracking slot, never into a board', async () => {
+    const boardsBefore = listBoards();
+    // A board-shaped payload proves the scope, not the type, decides the projection.
+    await applyRemoteEvent(record({ local_id: 'tt1', h: hlc(1), board: '', scope: 'timetracking', payload: { board: { name: 'Leak' } } }));
+    await _flushPersistsForTesting();
+
+    expect(listBoards()).toEqual(boardsBefore);
+    const db = await openStore();
+    expect(await db.get(KV_STORE, 'kanvana:timetracking')).toEqual({ customers: [], projects: [], timeEntries: [], tombstones: { customers: {}, projects: {} } });
     expect(await getUnsyncedEvents()).toHaveLength(0);
   });
 });
@@ -227,6 +265,64 @@ describe('catch-up pull', () => {
 
     const db = await openStore();
     expect(await db.get(KV_STORE, `${LAST_SEEN_PREFIX}board-1`)).toEqual(hlc(2));
+  });
+
+  it('a poison event among good ones is skipped: good ones applied, poison not persisted, logged once (#181)', async () => {
+    server.use(http.get(EVT_LIST, () => listResponse([
+      record({ local_id: 'good-1', h: hlc(1), payload: { board: { name: 'Good' } } }),
+      record({ local_id: 'poison-type', type: 'constructor', h: hlc(2) }),
+      record({ local_id: 'poison-hlc', type: 'task.created', h: 'not-an-hlc', payload: { task: { title: 'Bad' } } }),
+      record({ local_id: 'poison-far', type: 'customer.created', h: hlc(0, 9_999_999_999_999), board: '', scope: 'timetracking' }),
+      { ...record({ local_id: 'good-2', type: 'task.created', h: hlc(3), payload: { task: { title: 'Survivor', column: 'todo' } } }), entity_id: 'task-good' },
+    ])));
+    setAuth();
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await catchUp();
+    await catchUp();
+    await _flushPersistsForTesting();
+
+    expect(listBoards().map(b => b.name)).toContain('Good');
+    const db = await openStore();
+    expect(await db.get('events', 'good-1')).toBeDefined();
+    expect(await db.get('events', 'good-2')).toBeDefined();
+    for (const id of ['poison-type', 'poison-hlc', 'poison-far']) {
+      expect(await db.get('events', id)).toBeUndefined();
+      expect(error.mock.calls.filter(([msg]) => String(msg).includes(id))).toHaveLength(1);
+    }
+    // The watermark moves past the batch, and a rejected event never sets one.
+    expect(await db.get(KV_STORE, `${LAST_SEEN_PREFIX}board-1`)).toEqual(hlc(3));
+    expect(await db.get(KV_STORE, `${LAST_SEEN_PREFIX}__timetracking__`)).toBeUndefined();
+    error.mockRestore();
+  });
+
+  it('ingests timetracking events under their own watermark without touching boards', async () => {
+    server.use(http.get(EVT_LIST, () => listResponse([
+      record({ local_id: 'b1', h: hlc(1), payload: { board: { name: 'B' } } }),
+      { ...record({ local_id: 't1', type: 'customer.created', h: hlc(3), board: '', scope: 'timetracking', payload: { customer: { name: 'Acme' } } }), entity_id: 'customer-1' },
+      { ...record({ local_id: 'g1', type: 'settings.updated', h: hlc(2), board: '', scope: 'global', payload: { fields: { locale: 'de-DE' } } }), entity_id: 'global' },
+    ])));
+    setAuth();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const emitted = [];
+    const handler = (e) => emitted.push(e.detail);
+    on(EVENT_EMITTED, handler);
+    await catchUp();
+    await catchUp(); // dedup: a second pull re-ingests nothing
+    off(EVENT_EMITTED, handler);
+    warn.mockRestore();
+
+    expect(emitted.map(e => e.id)).toEqual(['b1', 'g1', 't1']);
+    expect(emitted.find(e => e.id === 't1')).toMatchObject({ scope: 'timetracking', board_id: null });
+    expect(listBoards().map(b => b.id)).toEqual(['board-1']);
+    expect(await getUnsyncedEvents()).toHaveLength(0);
+
+    const db = await openStore();
+    expect(await db.get(KV_STORE, `${LAST_SEEN_PREFIX}__timetracking__`)).toEqual(hlc(3));
+    expect(await db.get(KV_STORE, `${LAST_SEEN_PREFIX}__global__`)).toEqual(hlc(2));
+    expect(await db.get(KV_STORE, `${LAST_SEEN_PREFIX}board-1`)).toEqual(hlc(1));
+    expect(await db.get(KV_STORE, LAST_SEEN_PREFIX)).toBeUndefined();
   });
 
   it('AC-005/AC-006: re-running catch-up applies nothing new (idempotent overlap)', async () => {

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Kanvana Time Tracking">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://pb.kanvana.com; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <title>Kanvana — Time Tracking</title>
+  <link rel="stylesheet" href="styles/index.css">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="./icons/icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
+  <meta name="theme-color" content="#3b82f6">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Kanvana">
+</head>
+<body>
+  <div class="tt-shell" id="tt-shell">
+    <!-- Top bar -->
+    <header class="tt-topbar" role="banner">
+      <a class="tt-topbar-logo" href="./index.html" aria-label="Kanvana home">
+        <span data-lucide="square-kanban" class="tt-icon-24" aria-hidden="true"></span>
+        Kanvana
+      </a>
+      <span class="tt-topbar-title">Time Tracking</span>
+      <div class="tt-topbar-spacer"></div>
+      <button id="theme-toggle-btn" class="tt-theme-btn" type="button" aria-pressed="false" aria-label="Toggle dark mode">
+        <span data-lucide="moon" class="tt-icon-18" aria-hidden="true"></span>
+      </button>
+      <a class="tt-topbar-back" href="./index.html">
+        <span data-lucide="arrow-left" class="tt-icon-14" aria-hidden="true"></span>
+        Back to Board
+      </a>
+    </header>
+
+    <!-- Sidebar -->
+    <nav id="tt-sidebar" class="tt-sidebar" aria-label="Time tracking navigation">
+      <button
+        id="tt-sidebar-toggle"
+        class="tt-sidebar-toggle"
+        type="button"
+        aria-pressed="false"
+        aria-label="Collapse sidebar"
+      >
+        <span data-lucide="panel-left-close" class="tt-icon-16" aria-hidden="true"></span>
+        <span class="tt-sidebar-toggle-label">Collapse</span>
+      </button>
+
+      <button id="tt-nav-tracker" class="tt-nav-btn" type="button" aria-current="false">
+        <span data-lucide="clock" aria-hidden="true"></span>
+        <span class="tt-nav-label">Time Tracker</span>
+      </button>
+      <button id="tt-nav-reports" class="tt-nav-btn" type="button" aria-current="false">
+        <span data-lucide="chart-column" aria-hidden="true"></span>
+        <span class="tt-nav-label">Reports</span>
+      </button>
+      <button id="tt-nav-projects" class="tt-nav-btn" type="button" aria-current="false">
+        <span data-lucide="folder" aria-hidden="true"></span>
+        <span class="tt-nav-label">Projects</span>
+      </button>
+      <button id="tt-nav-settings" class="tt-nav-btn" type="button" aria-current="false">
+        <span data-lucide="settings" aria-hidden="true"></span>
+        <span class="tt-nav-label">Settings</span>
+      </button>
+    </nav>
+
+    <!-- Main content -->
+    <main class="tt-main" id="tt-main" aria-label="Time tracking content">
+      <section id="tt-section-tracker"></section>
+
+      <section id="tt-section-reports" hidden></section>
+
+      <section id="tt-section-projects" hidden></section>
+
+      <section id="tt-section-settings" hidden></section>
+    </main>
+  </div>
+
+  <!-- Help modal -->
+  <div id="tt-help-modal" role="dialog" aria-modal="true" aria-labelledby="tt-help-title" hidden>
+    <div class="tt-help-card">
+      <h3 id="tt-help-title">Keyboard shortcuts</h3>
+      <table class="tt-help-table" aria-label="Keyboard shortcut reference">
+        <tbody id="tt-help-rows"></tbody>
+      </table>
+      <button id="tt-help-modal-close" class="tt-help-close" type="button">Close</button>
+    </div>
+  </div>
+
+  <script type="module" src="./modules/timetracking.js"></script>
+  <script type="module" src="./modules/pwa.js"></script>
+</body>
+</html>

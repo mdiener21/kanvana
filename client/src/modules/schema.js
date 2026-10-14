@@ -3,7 +3,7 @@
 // are always present and initialized to their documented defaults.
 
 import { generateUUID } from './utils.js';
-import { DEFAULT_PRIORITY, DEFAULT_COLUMN_COLOR, DONE_COLUMN_ROLE } from './constants.js';
+import { DEFAULT_PRIORITY, DEFAULT_COLUMN_COLOR, DONE_COLUMN_ROLE, TT_COLOR_PALETTE } from './constants.js';
 
 function nowIso() {
   return new Date().toISOString();
@@ -136,6 +136,40 @@ export function createRelationship(overrides = {}) {
     // One of RELATIONSHIP_TYPES.
     type: 'related',
     targetTaskId: '',
+    ...overrides,
+  };
+}
+
+// ── Time Tracking ──────────────────────────────────────────────────────────────
+
+export function createCustomer(overrides = {}, colorIndex = 0) {
+  return {
+    id: generateUUID(),
+    name: '',
+    color: TT_COLOR_PALETTE[colorIndex % TT_COLOR_PALETTE.length],
+    archived: false,
+    ...overrides,
+  };
+}
+
+export function createTimeEntry(overrides = {}) {
+  return {
+    id: generateUUID(),
+    projectId: '',
+    description: '',
+    start: '',
+    end: '',
+    ...overrides,
+  };
+}
+
+export function createProject(overrides = {}, colorIndex = 0) {
+  return {
+    id: generateUUID(),
+    customerId: '',
+    name: '',
+    color: TT_COLOR_PALETTE[colorIndex % TT_COLOR_PALETTE.length],
+    archived: false,
     ...overrides,
   };
 }

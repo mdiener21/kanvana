@@ -5,6 +5,7 @@
   "description": "A local-first personal + AI Agent kanban board for task project people anything management.",
   "scripts": {
     "dev": "vite",
+    "prototype:timetracker": "vite --open /prototype-timetracker.html",
     "build": "vite build",
     "preview": "vite preview",
     "release:prepare": "node scripts/prepare-release.mjs",

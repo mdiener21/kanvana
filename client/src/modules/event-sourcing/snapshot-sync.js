@@ -7,9 +7,12 @@
 
 import { getPb, isAuthenticated, getUser } from '../sync.js';
 import { compareHlc } from './hlc.js';
-import { serializeState, GLOBAL_SNAPSHOT_KEY, setAfterSnapshotSaved } from './snapshot.js';
+import { serializeState, GLOBAL_SNAPSHOT_KEY, isOlderThanGraceWindow, scopeForSnapshotKey, setAfterSnapshotSaved } from './snapshot.js';
 import { createProjectionState } from '../reducer.js';
+import { EVENT_SCOPE } from '../constants.js';
 
+// PB snapshots have no scope column: global keeps its legacy empty board_id,
+// every other key (board ids, the timetracking sentinel) is stored as-is.
 function boardIdFor(key) {
   return key === GLOBAL_SNAPSHOT_KEY ? '' : key;
 }
@@ -19,9 +22,10 @@ function snapshotFilter(ownerId, boardId) {
 }
 
 function eventFilter(ownerId, key) {
-  return key === GLOBAL_SNAPSHOT_KEY
-    ? `owner = "${ownerId}" && scope = "global"`
-    : `owner = "${ownerId}" && board = "${key}"`;
+  const scope = scopeForSnapshotKey(key);
+  return scope === EVENT_SCOPE.BOARD
+    ? `owner = "${ownerId}" && board = "${key}"`
+    : `owner = "${ownerId}" && scope = "${scope}"`;
 }
 
 export function buildSnapshotForm(ownerId, boardId, hlc, payloadBytes) {
@@ -87,14 +91,21 @@ export async function uploadSnapshot(key, state, hlc) {
   return { uploaded: created.id };
 }
 
+export const SERVER_CLOCK_MARGIN_MS = 60 * 60 * 1000;
+
+// The server hook judges the grace window by its own clock: keep a margin, and skip a delete it still refuses.
 async function gcServerEvents(pb, ownerId, key, snapshotHlc) {
   const events = await pb.collection('events').getFullList({
     filter: eventFilter(ownerId, key),
     requestKey: null,
   });
+  const cutoff = Date.now() - SERVER_CLOCK_MARGIN_MS;
   for (const e of events) {
-    if (e.hlc && compareHlc(e.hlc, snapshotHlc) <= 0) {
+    if (!e.hlc || compareHlc(e.hlc, snapshotHlc) > 0 || !isOlderThanGraceWindow(e.hlc, cutoff)) continue;
+    try {
       await pb.collection('events').delete(e.id, { requestKey: null });
+    } catch (err) {
+      if (err?.status !== 400) throw err;
     }
   }
 }

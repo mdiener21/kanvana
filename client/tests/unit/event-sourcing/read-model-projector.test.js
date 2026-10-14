@@ -1,10 +1,13 @@
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { createReadModelProjector } from '../../../src/modules/event-sourcing/read-model-projector.js';
-import { emit, EVENT_EMITTED } from '../../../src/modules/events.js';
+import { DATA_CHANGED, emit, EVENT_EMITTED, off, on } from '../../../src/modules/events.js';
+import { ingestEvent } from '../../../src/modules/event-sourcing/ingest.js';
+import { TIMETRACKING_SNAPSHOT_KEY } from '../../../src/modules/event-sourcing/snapshot.js';
 
 const BOARD_ID = 'board-a';
 const BOARDS_KEY = 'kanbanBoards';
 const GLOBAL_SETTINGS_KEY = 'kanvana:settings:global';
+const TIME_TRACKING_KEY = 'kanvana:timetracking';
 
 function safeParseArray(value) {
   return Array.isArray(value) ? value : null;
@@ -35,7 +38,12 @@ function makeHarness() {
     columns: { [BOARD_ID]: [{ id: 'todo', name: 'To Do' }] },
     labels: { [BOARD_ID]: [] },
     settings: { [BOARD_ID]: {} },
-    globalSettings: null
+    taskTombstones: {},
+    appliedEventIds: {},
+    snapshotAppliedIds: {},
+    newestAppliedHlc: {},
+    globalSettings: null,
+    timeTracking: null
   };
   const ctx = {
     state,
@@ -47,40 +55,56 @@ function makeHarness() {
     scheduleReadModelPersist: vi.fn(),
     checkAndScheduleSnapshot: vi.fn(),
     boardsKey: BOARDS_KEY,
-    globalSettingsKey: GLOBAL_SETTINGS_KEY
+    globalSettingsKey: GLOBAL_SETTINGS_KEY,
+    timeTrackingKey: TIME_TRACKING_KEY
   };
   return { state, ctx, projector: createReadModelProjector(ctx) };
+}
+
+function ingest(event) {
+  return ingestEvent(event, { origin: 'local' });
 }
 
 describe('createReadModelProjector', () => {
   let h;
   beforeEach(() => {
     h = makeHarness();
+    h.projector.register();
+  });
+  afterEach(() => {
+    h.projector.reset();
   });
 
-  test('register() subscribes so an emitted board event projects into state and schedules read-model persist', () => {
-    h.projector.register();
-    emit(EVENT_EMITTED, boardEvent());
+  test('an ingested board event projects into state and schedules read-model persist', () => {
+    ingest(boardEvent());
 
     expect(h.state.tasks[BOARD_ID][0].title).toBe('After');
     expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledWith(BOARD_ID, 'tasks', h.state.tasks[BOARD_ID]);
     expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledWith(BOARD_ID, 'columns', h.state.columns[BOARD_ID]);
     expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledWith(BOARD_ID, 'labels', h.state.labels[BOARD_ID]);
     expect(h.ctx.taskCacheByBoard.get(BOARD_ID)).toBe(h.state.tasks[BOARD_ID]);
-
-    h.projector.reset();
   });
 
-  test('project() is idempotent by event id (dedup)', () => {
-    const ev = boardEvent({ id: 'event-dup' });
-    h.projector.project(ev);
-    h.projector.project(ev);
+  test('an event emitted on the bus without ingest is not projected', () => {
+    emit(EVENT_EMITTED, boardEvent());
+    expect(h.ctx.scheduleReadModelPersist).not.toHaveBeenCalled();
+  });
 
-    expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(3); // tasks/columns/labels, once
+  test('ingest is idempotent by event id (dedup) and announces DATA_CHANGED once', () => {
+    const seen = [];
+    const handler = (e) => seen.push(e.detail.event.id);
+    on(DATA_CHANGED, handler);
+    const ev = boardEvent({ id: 'event-dup' });
+    ingest(ev);
+    ingest(ev);
+    off(DATA_CHANGED, handler);
+
+    expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(5); // tasks/columns/labels/taskTombstones/appliedEventIds, once
+    expect(seen).toEqual(['event-dup']);
   });
 
   test('global-scope event projects globalSettings and persists the global key only', () => {
-    h.projector.project({
+    ingest({
       id: 'g1',
       type: 'settings.updated',
       hlc: { wallTime: 1, counter: 0, nodeId: 'n' },
@@ -96,27 +120,52 @@ describe('createReadModelProjector', () => {
     expect(h.ctx.scheduleReadModelPersist).not.toHaveBeenCalled();
   });
 
-  test('register() is idempotent — a single emit projects once', () => {
-    h.projector.register();
-    h.projector.register();
-    emit(EVENT_EMITTED, boardEvent({ id: 'once' }));
+  test('timetracking-scope event is never routed into a board projection and lands in the time-tracking slot', () => {
+    const boardsBefore = h.state.boards;
+    const tasksBefore = h.state.tasks[BOARD_ID];
+    // Even a stray board_id must not pull a timetracking event into that board.
+    ingest({
+      id: 't1',
+      type: 'settings.updated',
+      hlc: { wallTime: 5, counter: 0, nodeId: 'n' },
+      at: '2026-05-26T00:00:00.000Z',
+      actor: { type: 'human', id: null },
+      scope: 'timetracking',
+      board_id: BOARD_ID,
+      entity_id: 'x',
+      payload: { fields: { showDoneTasks: true } }
+    });
 
-    expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(3);
-    h.projector.reset();
+    expect(h.state.boards).toBe(boardsBefore);
+    expect(h.state.tasks[BOARD_ID]).toBe(tasksBefore);
+    expect(h.state.settings[BOARD_ID]).toEqual({});
+    expect(h.state.globalSettings).toBeNull();
+    expect(h.state.timeTracking).toEqual({ customers: [], projects: [], timeEntries: [], tombstones: { customers: {}, projects: {} } });
+    expect(h.ctx.scheduleReadModelPersist).not.toHaveBeenCalled();
+    expect(h.ctx.schedulePersist).toHaveBeenCalledWith(TIME_TRACKING_KEY, h.state.timeTracking);
+    expect(h.ctx.checkAndScheduleSnapshot).toHaveBeenCalledWith(TIMETRACKING_SNAPSHOT_KEY, { fold: expect.any(Function) });
   });
 
-  test('reset() unsubscribes the handler and clears dedup state', () => {
+  test('register() is idempotent — a single ingest projects once', () => {
     h.projector.register();
-    h.projector.reset();
-    emit(EVENT_EMITTED, boardEvent({ id: 'after-reset' }));
-    expect(h.ctx.scheduleReadModelPersist).not.toHaveBeenCalled();
+    ingest(boardEvent({ id: 'once' }));
 
-    // dedup set cleared: an id seen before reset projects again afterwards
+    expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(5);
+  });
+
+  test('reset() disconnects the projector from ingest; applied ids live in state, not the projector', () => {
     const ev = boardEvent({ id: 'seen' });
-    h.projector.project(ev);
-    expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(3);
+    ingest(ev);
+    expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(5);
+
     h.projector.reset();
-    h.projector.project(ev);
-    expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(6);
+    ingest(boardEvent({ id: 'after-reset' }));
+    expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(5);
+
+    // The board's applied ids are durable state, so a reconnected projector still skips the seen id.
+    h.projector.register();
+    ingest(ev);
+    expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(5);
+    expect(h.state.appliedEventIds[BOARD_ID]).toEqual(['seen']);
   });
 });
