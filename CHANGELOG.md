@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-10-14
+
 ### Added
 
 - Open the new Time Tracking page from the board menu. It has a collapsible sidebar with Time Tracker, Reports, Projects and Settings sections, works on mobile, and links back to the board.
@@ -31,10 +33,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Sync now carries a separate time-tracking data stream alongside boards and global settings, in preparation for Time Tracking. No visible change.
 
-### Security
-
-- A malformed or hostile event from another device can no longer break the board or Time Tracking view (#181). Every event, local or synced, is checked before it is saved or shown. Events with an unknown type, a missing id, a malformed timestamp, an unknown scope, a board event without a board, or a missing payload are rejected and logged once, and sync skips them and carries on with the rest. Unknown entity fields are dropped, an entity's id is taken only from the event itself (so a forged id in the payload can no longer bring a deleted task back or rename an item), customer, project, label and column colours must be hex colours (anything else falls back to a default colour, or is ignored in an update), and an event stamped more than 60 seconds ahead of this device's clock is rejected (it is picked up by a later sync once that time has come), so a device with a clock far in the future can no longer override every later edit.
-
 ### Fixed
 
 - A deleted task stays deleted, even when an older change to it arrives from another device later or after a reload. After a reload, a change from this device that the server echoes back no longer overwrites a newer edit.
@@ -43,6 +41,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Deleting a board now also removes its stored delete records and sync memory instead of leaving them behind (and no longer writes the board's tasks, columns and labels back right after deleting them).
 - Uploading a saved state no longer fails part-way when the server's clock lags this device's and it refuses to clean up a change that is just inside the 30-day window; that change is kept and the rest of the cleanup goes on.
 - Changes you have not synced yet no longer disappear from the board, the global settings or Time Tracking when this device picks up a newer saved state from the server at launch or after reconnecting (#180). They stay visible and are still sent. When the server's saved state is newer than all your changes, the board shows exactly that state, without items it has since removed.
+
+### Security
+
+- A malformed or hostile event from another device can no longer break the board or Time Tracking view (#181). Every event, local or synced, is checked before it is saved or shown. Events with an unknown type, a missing id, a malformed timestamp, an unknown scope, a board event without a board, or a missing payload are rejected and logged once, and sync skips them and carries on with the rest. Unknown entity fields are dropped, an entity's id is taken only from the event itself (so a forged id in the payload can no longer bring a deleted task back or rename an item), customer, project, label and column colours must be hex colours (anything else falls back to a default colour, or is ignored in an update), and an event stamped more than 60 seconds ahead of this device's clock is rejected (it is picked up by a later sync once that time has come), so a device with a clock far in the future can no longer override every later edit.
 
 ## [3.1.7] - 2026-10-05
 
