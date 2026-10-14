@@ -1,4 +1,4 @@
-# Kanvana: The Personal + AI Agent Kanban Board
+# Kanvana: The Personal Kanban Board to Nirvana
 
 ```js
 kanvana == "Kanban" + "Nirvana" # smooth flow
@@ -13,9 +13,7 @@ kanvana == "Kanban" + "Nirvana" # smooth flow
 
 > **Transform your productivity with a sleek, local-first Kanban board.** No servers, no tracking—just pure efficiency in your browser.
 
-A beautiful, modern-designed personal + AI-Agent Kanban board that runs entirely in your browser. No backend, no cloud, no data tracking. Everything stays local with browser IndexedDB persistence. Perfect for personal task management, work tracking, and staying organized.
-
-**Building with AI agents?** Try the new **AI Agent Ops Starter** board template to track 2–5 agents in parallel, review handoffs, and improve prompts in one local-first workspace. If that sounds useful, give the repo a ⭐ and help more agent builders discover it.
+A beautiful, modern-designed personal, flexible Kanban board + Time Tracker that runs entirely in your browser. No backend, no cloud, no data tracking. Everything stays local with browser IndexedDB persistence. Perfect for personal task management, work tracking, and staying organized.
 
 ## 🚀 Live Demo
 
@@ -83,7 +81,7 @@ Organize your board into horizontal swim lanes for a powerful two-dimensional vi
 
 Configure swim lanes in **Settings** or use the quick-access toggle in the board controls menu. Lane order is customizable via drag-and-drop in Settings.
 
-### 🔄 Real-Time Multi-Device Sync (New!)
+### 🔄 Real-Time Multi-Device Sync
 
 Edit on your phone, see it on your laptop — within seconds. Kanvana uses **event-sourced sync**: every change is a domain event ordered by a Hybrid Logical Clock (HLC), so independent edits across devices converge without overwriting each other. Tasks, columns, and labels in your browser are projections rebuilt from the event stream.
 
