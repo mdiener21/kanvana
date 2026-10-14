@@ -1,5 +1,7 @@
 // #184: sorting a Column emits events, so a rebuild and other devices keep the sort.
-import { afterEach, beforeEach, expect, test } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest';
+import { http, HttpResponse } from 'msw';
+import { server } from '../../mocks/server.js';
 import { deleteDB } from 'idb';
 import { DATA_CHANGED, EVENT_EMITTED, off, on } from '../../../src/modules/events.js';
 import {
@@ -8,6 +10,12 @@ import {
 } from '../../../src/modules/storage.js';
 import { addTask, sortColumnTasks } from '../../../src/modules/tasks.js';
 import { EVENT_ORIGIN, ingestEvent } from '../../../src/modules/event-sourcing/ingest.js';
+import { getUnsyncedEvents, _resetIdbForTesting } from '../../../src/modules/idb-store.js';
+import { getPb } from '../../../src/modules/sync.js';
+import { applyRemoteEvent, catchUp, _resetRealtimeForTesting } from '../../../src/modules/event-sourcing/realtime.js';
+
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+afterAll(() => server.close());
 
 let boardId;
 let columnId;
@@ -28,6 +36,9 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await _flushPersistsForTesting();
+  await _resetRealtimeForTesting();
+  server.resetHandlers();
+  getPb().authStore.clear();
   _resetStorageForTesting();
 });
 
@@ -92,5 +103,44 @@ test('a rebuild triggered by a late remote event keeps the sorted order', async 
   off(DATA_CHANGED, handler);
 
   expect(rebuilt).toEqual([boardId]);
+  expect(columnTitles()).toEqual(['Urgent', 'High', 'Medium', 'Low']);
+});
+
+async function sortOnThisDeviceThenSwitchToAFreshOne() {
+  sortColumnTasks(columnId, 'priority');
+  await _flushPersistsForTesting();
+  const records = (await getUnsyncedEvents())
+    .filter((event) => event.board_id === boardId)
+    .map((event) => ({
+      id: `rec-${event.id}`, local_id: event.id, event_type: event.type, board: event.board_id,
+      entity_id: event.entity_id, scope: event.scope, hlc: event.hlc, at: event.at, payload: event.payload,
+      actor_type: event.actor.type, actor_id: event.actor.id, created: new Date().toISOString(),
+    }));
+
+  _resetStorageForTesting();
+  _resetIdbForTesting();
+  await deleteDB('kanvana-db');
+  await initStorage();
+  return records;
+}
+
+test('a sort reaches a second device over SSE', async () => {
+  const records = await sortOnThisDeviceThenSwitchToAFreshOne();
+  for (const record of records) await applyRemoteEvent(record);
+
+  expect(columnTitles()).toEqual(['Urgent', 'High', 'Medium', 'Low']);
+});
+
+test('a sort reaches a second device through catch-up', async () => {
+  const records = await sortOnThisDeviceThenSwitchToAFreshOne();
+  const list = (items) => HttpResponse.json({ page: 1, perPage: 500, totalItems: items.length, totalPages: 1, items });
+  server.use(
+    http.get('*/api/collections/snapshots/records', () => list([])),
+    http.get('*/api/collections/events/records', () => list([...records].reverse())),
+  );
+  getPb().authStore.save('test-token', { id: 'user1', email: 't@e.st' });
+
+  await catchUp();
+
   expect(columnTitles()).toEqual(['Urgent', 'High', 'Medium', 'Low']);
 });
