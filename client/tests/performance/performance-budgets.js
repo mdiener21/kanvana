@@ -17,16 +17,16 @@ export const PERFORMANCE_CALIBRATION = process.env.KANVANA_PERF_CALIBRATE === '1
 // The structural numbers were re-baselined on 2026-09-16, after the forceFallback
 // drag fix: swimlane boards now retain roughly half the DOM they used to, so the
 // old limits had about 2x headroom and would not have caught a real regression.
-// Timing and heap baselines are deliberately left at their 2026-08-29 values —
-// they were captured on the reference runner, and re-recording them here would
-// bake in one developer machine's speed.
+// Drop timing and heap baselines remain at their 2026-08-29 reference values.
+// Startup baselines were re-recorded after switching to the board-render mark
+// on 2026-10-07; older values included unrelated page-load and polling delays.
 export const PERFORMANCE_SCENARIOS = [
   {
     taskCount: 400,
     view: 'standard',
     baseline: {
       fixtureSeedMs: 22.4,
-      startupMs: 957.4,
+      startupMs: 303.9,
       taskDropLatencyMs: 283.3,
       jsHeapUsedMb: 5.98,
       retainedDomNodes: 17345,
@@ -56,7 +56,7 @@ export const PERFORMANCE_SCENARIOS = [
     view: 'standard',
     baseline: {
       fixtureSeedMs: 48,
-      startupMs: 1849.4,
+      startupMs: 390.5,
       taskDropLatencyMs: 537,
       jsHeapUsedMb: 7.27,
       retainedDomNodes: 32705,
@@ -86,7 +86,7 @@ export const PERFORMANCE_SCENARIOS = [
     view: 'swimlane',
     baseline: {
       fixtureSeedMs: 21.1,
-      startupMs: 708.7,
+      startupMs: 451.8,
       taskDropLatencyMs: 334.1,
       jsHeapUsedMb: 6.27,
       retainedDomNodes: 14795,
@@ -116,7 +116,7 @@ export const PERFORMANCE_SCENARIOS = [
     view: 'swimlane',
     baseline: {
       fixtureSeedMs: 40.4,
-      startupMs: 1320.8,
+      startupMs: 355.8,
       taskDropLatencyMs: 400.2,
       jsHeapUsedMb: 8.75,
       retainedDomNodes: 30155,
@@ -141,4 +141,9 @@ export const PERFORMANCE_SCENARIOS = [
       browserCrashEvents: 0,
     },
   },
+];
+
+export const PERFORMANCE_BACKFILL_SCENARIOS = [
+  { taskCount: 400, baseline: { startupMs: 343.3, backfillMs: 52.3 }, budget: { startupMs: 3000, backfillMs: 200 } },
+  { taskCount: 1000, baseline: { startupMs: 506.3, backfillMs: 127.9 }, budget: { startupMs: 4000, backfillMs: 400 } },
 ];
