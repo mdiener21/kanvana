@@ -3,6 +3,7 @@ import { getActiveBoardId, isDoneColumnId, loadColumns, loadLabels, loadSettings
 import { applySwimLaneAssignment } from './swimlanes.js';
 import { normalizePriority, normalizeRelationships, normalizeSubTasks } from './normalize.js';
 import { scheduleDomainEvent } from './event-sourcing/emitter.js';
+import { PRIORITY_ORDER } from './constants.js';
 
 const RELATIONSHIP_INVERSE = { prerequisite: 'dependent', dependent: 'prerequisite', related: 'related' };
 
@@ -576,4 +577,42 @@ export function moveTaskToTopInColumn(taskId, columnId, tasksCache) {
     return updatedTasks;
   }
   return tasks;
+}
+
+function sortTasksByDueDate(tasks) {
+  return [...tasks].sort((a, b) => {
+    const dateA = (a.dueDate || '').toString().trim();
+    const dateB = (b.dueDate || '').toString().trim();
+    if (!dateA && !dateB) return 0;
+    if (!dateA) return 1;
+    if (!dateB) return -1;
+    return dateA.localeCompare(dateB);
+  });
+}
+
+function sortTasksByPriority(tasks) {
+  return [...tasks].sort((a, b) => {
+    const prioA = PRIORITY_ORDER[a.priority] ?? 4;
+    const prioB = PRIORITY_ORDER[b.priority] ?? 4;
+    return prioA - prioB;
+  });
+}
+
+export function sortColumnTasks(columnId, sortBy) {
+  const columnTasks = loadTasks()
+    .filter((task) => task.column === columnId)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const sorted = sortBy === 'dueDate' ? sortTasksByDueDate(columnTasks) : sortTasksByPriority(columnTasks);
+  if (sorted.every((task, index) => task.order === index + 1)) return;
+
+  scheduleDomainEvent({
+    type: 'task.moved',
+    boardId: getActiveBoardId(),
+    entityId: columnId,
+    payload: {
+      from_column: columnId,
+      to_column: columnId,
+      order: sorted.map((task, index) => ({ id: task.id, column: columnId, order: index + 1 }))
+    }
+  });
 }
