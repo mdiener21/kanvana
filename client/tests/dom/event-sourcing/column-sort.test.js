@@ -1,12 +1,13 @@
 // #184: sorting a Column emits events, so a rebuild and other devices keep the sort.
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { deleteDB } from 'idb';
-import { EVENT_EMITTED, off, on } from '../../../src/modules/events.js';
+import { DATA_CHANGED, EVENT_EMITTED, off, on } from '../../../src/modules/events.js';
 import {
   initStorage, createBoard, setActiveBoardId, loadColumnsForBoard, loadTasksForBoard,
   _flushPersistsForTesting, _resetStorageForTesting,
 } from '../../../src/modules/storage.js';
 import { addTask, sortColumnTasks } from '../../../src/modules/tasks.js';
+import { EVENT_ORIGIN, ingestEvent } from '../../../src/modules/event-sourcing/ingest.js';
 
 let boardId;
 let columnId;
@@ -67,4 +68,29 @@ test('sorting a column that is already sorted emits nothing', () => {
   capture.stop();
 
   expect(capture.events).toEqual([]);
+});
+
+test('a rebuild triggered by a late remote event keeps the sorted order', async () => {
+  sortColumnTasks(columnId, 'priority');
+  await _flushPersistsForTesting();
+  const low = loadTasksForBoard(boardId).find((task) => task.title === 'Low');
+  const rebuilt = [];
+  const handler = (e) => { if (e.detail?.rebuilt) rebuilt.push(e.detail.rebuilt); };
+  on(DATA_CHANGED, handler);
+
+  await ingestEvent({
+    id: 'late-remote-edit',
+    type: 'task.updated',
+    hlc: { wallTime: Date.now() - 60_000, counter: 0, nodeId: 'remote-node' },
+    at: new Date().toISOString(),
+    actor: { type: 'human', id: null },
+    scope: 'board',
+    board_id: boardId,
+    entity_id: low.id,
+    payload: { fields: { description: 'edited elsewhere' } },
+  }, { origin: EVENT_ORIGIN.REMOTE });
+  off(DATA_CHANGED, handler);
+
+  expect(rebuilt).toEqual([boardId]);
+  expect(columnTitles()).toEqual(['Urgent', 'High', 'Medium', 'Low']);
 });
