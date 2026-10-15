@@ -7,6 +7,21 @@ import { PRIORITY_ORDER } from './constants.js';
 
 const RELATIONSHIP_INVERSE = { prerequisite: 'dependent', dependent: 'prerequisite', related: 'related' };
 
+const byOrder = (a, b) => (a.order ?? 0) - (b.order ?? 0);
+
+function emitTaskMoved(boardId, entityId, fromColumn, toColumn, tasks) {
+  scheduleDomainEvent({
+    type: 'task.moved',
+    boardId,
+    entityId,
+    payload: {
+      from_column: fromColumn,
+      to_column: toColumn,
+      order: tasks.map((task) => ({ id: task.id, column: task.column, order: task.order }))
+    }
+  });
+}
+
 function reorderColumnTasks(tasks, columnId, pinnedTaskId = null) {
   const columnTasks = tasks
     .filter((task) => task.column === columnId)
@@ -14,7 +29,7 @@ function reorderColumnTasks(tasks, columnId, pinnedTaskId = null) {
     .sort((a, b) => {
       if (a.id === pinnedTaskId) return -1;
       if (b.id === pinnedTaskId) return 1;
-      return (a.order ?? 0) - (b.order ?? 0);
+      return byOrder(a, b);
     });
 
   const orderById = new Map();
@@ -109,7 +124,7 @@ export function addTask(title, description, priority, dueDate, columnName, label
   const columnTasks = tasks
     .filter((t) => t.column === columnName)
     .slice()
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    .sort(byOrder);
 
   const nextOrderById = new Map();
   columnTasks.forEach((task, index) => {
@@ -153,18 +168,7 @@ export function addTask(title, description, priority, dueDate, columnName, label
   // Inserting at the top renumbers the column's existing tasks; emit that reorder
   // so the read model replays from events alone (ADR-0005).
   if (columnTasks.length > 0) {
-    scheduleDomainEvent({
-      type: 'task.moved',
-      boardId: activeBoardId,
-      entityId: newTask.id,
-      payload: {
-        from_column: columnName,
-        to_column: columnName,
-        order: updatedTasks
-          .filter((task) => task.column === columnName)
-          .map((task) => ({ id: task.id, column: task.column, order: task.order }))
-      }
-    });
+    emitTaskMoved(activeBoardId, newTask.id, columnName, columnName, updatedTasks.filter((task) => task.column === columnName));
   }
 }
 
@@ -249,16 +253,7 @@ export function updateTask(taskId, title, description, priority, dueDate, column
       });
     }
     if (prevColumn !== nextColumn) {
-      scheduleDomainEvent({
-        type: 'task.moved',
-        boardId,
-        entityId: taskId,
-        payload: {
-          from_column: prevColumn,
-          to_column: nextColumn,
-          order: tasks.map((task) => ({ id: task.id, column: task.column, order: task.order }))
-        }
-      });
+      emitTaskMoved(boardId, taskId, prevColumn, nextColumn, tasks);
     }
     nextLabels
       .filter((labelId) => !previousLabels.includes(labelId))
@@ -510,16 +505,7 @@ export function updateTaskPositionsFromDrop(evt) {
     : updatedTasks;
 
   const dropBoardId = getActiveBoardId();
-  scheduleDomainEvent({
-    type: 'task.moved',
-    boardId: dropBoardId,
-    entityId: movedTaskId,
-    payload: {
-      from_column: fromColumn,
-      to_column: toColumn,
-      order: finalTasks.map((task) => ({ id: task.id, column: task.column, order: task.order }))
-    }
-  });
+  emitTaskMoved(dropBoardId, movedTaskId, fromColumn, toColumn, finalTasks);
 
   // A swimlane drag reassigns the moved task's lane-defining fields (labels,
   // priority, swimlane markers). task.moved only carries column/order, so emit
@@ -564,16 +550,7 @@ export function moveTaskToTopInColumn(taskId, columnId, tasksCache) {
   const didUpdate = updatedTasks.some((task, index) => task !== tasks[index]);
 
   if (didUpdate) {
-    scheduleDomainEvent({
-      type: 'task.moved',
-      boardId: getActiveBoardId(),
-      entityId: taskId,
-      payload: {
-        from_column: columnId,
-        to_column: columnId,
-        order: updatedTasks.map((task) => ({ id: task.id, column: task.column, order: task.order }))
-      }
-    });
+    emitTaskMoved(getActiveBoardId(), taskId, columnId, columnId, updatedTasks);
     return updatedTasks;
   }
   return tasks;
@@ -605,18 +582,9 @@ export function sortColumnTasks(columnId, sortBy) {
   if (!sorter) return;
   const columnTasks = loadTasks()
     .filter((task) => task.column === columnId)
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    .sort(byOrder);
   const sorted = sorter(columnTasks);
   if (sorted.every((task, index) => task.order === index + 1)) return;
 
-  scheduleDomainEvent({
-    type: 'task.moved',
-    boardId: getActiveBoardId(),
-    entityId: columnId,
-    payload: {
-      from_column: columnId,
-      to_column: columnId,
-      order: sorted.map((task, index) => ({ id: task.id, column: columnId, order: index + 1 }))
-    }
-  });
+  emitTaskMoved(getActiveBoardId(), columnId, columnId, columnId, sorted.map((task, index) => ({ ...task, order: index + 1 })));
 }
