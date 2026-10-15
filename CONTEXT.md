@@ -432,6 +432,9 @@ collection that catch-up pulls in full, to about a month of history.
 }
 ```
 
+A column-wide `task.moved` from a column sort carries the column id as `entity_id`, so the reducer's
+per-task handling (delete-record check, `columnHistory`) does not fire for it.
+
 `payload` (formerly `details`) carries the event data; for field changes, before/after values. Locally,
 events are persisted to the `events` IDB store with a `synced` flag; on PocketBase they live in the
 `events` collection (`payload`/`board`-text/`hlc`/`scope`/`entity_id`). `scope` is `board`, `global` or
