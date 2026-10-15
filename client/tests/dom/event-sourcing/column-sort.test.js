@@ -81,6 +81,16 @@ test('sorting a column that is already sorted emits nothing', () => {
   expect(capture.events).toEqual([]);
 });
 
+test('sorting by an unknown key leaves the column unchanged and emits nothing', () => {
+  const before = columnTitles();
+  const capture = captureEmitted();
+  sortColumnTasks(columnId, 'title');
+  capture.stop();
+
+  expect(capture.events).toEqual([]);
+  expect(columnTitles()).toEqual(before);
+});
+
 test('a rebuild triggered by a late remote event keeps the sorted order', async () => {
   sortColumnTasks(columnId, 'priority');
   await _flushPersistsForTesting();

@@ -598,11 +598,15 @@ function sortTasksByPriority(tasks) {
   });
 }
 
+const COLUMN_SORTERS = { dueDate: sortTasksByDueDate, priority: sortTasksByPriority };
+
 export function sortColumnTasks(columnId, sortBy) {
+  const sorter = COLUMN_SORTERS[sortBy];
+  if (!sorter) return;
   const columnTasks = loadTasks()
     .filter((task) => task.column === columnId)
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  const sorted = sortBy === 'dueDate' ? sortTasksByDueDate(columnTasks) : sortTasksByPriority(columnTasks);
+  const sorted = sorter(columnTasks);
   if (sorted.every((task, index) => task.order === index + 1)) return;
 
   scheduleDomainEvent({
