@@ -13,7 +13,7 @@ concurrency:
 jobs:
   test:
     name: Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
@@ -26,6 +26,10 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+        working-directory: client
+
+      - name: Lint
+        run: npm run lint
         working-directory: client
 
       - name: Unit and DOM tests
@@ -47,6 +51,17 @@ jobs:
       - name: Large-board performance budgets
         run: npm run test:perf
         working-directory: client
+        env:
+          KANVANA_PERF_BUDGET: ci
+
+      - name: Upload performance measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chromium-performance-measurements
+          path: client/test-results/performance-report.json
+          if-no-files-found: ignore
+          retention-days: 14
 
   build:
     name: Build

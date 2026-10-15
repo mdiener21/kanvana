@@ -5,6 +5,7 @@ import {
   MOVES_PER_REPETITION,
   PERFORMANCE_BACKFILL_SCENARIOS,
   PERFORMANCE_CALIBRATION,
+  PERFORMANCE_CI_BUDGETS,
   PERFORMANCE_REPETITIONS,
   PERFORMANCE_SCENARIOS,
 } from './performance-budgets.js';
@@ -293,6 +294,53 @@ function rounded(metrics) {
   return Object.fromEntries(Object.entries(metrics).map(([key, value]) => [key, Number(value.toFixed(2))]));
 }
 
+test('smoke: 400-task standard board renders within startup budget', async ({ browser }) => {
+  const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
+  const scenario = PERFORMANCE_SCENARIOS.find(({ taskCount, view }) => taskCount === 400 && view === 'standard');
+  const fixture = createSyntheticBoard(scenario.taskCount, scenario.view);
+  await seedSyntheticBoard(page, fixture);
+
+  let releaseImage;
+  let imageRequested = false;
+  const imageHeld = new Promise((resolve) => { releaseImage = resolve; });
+  await page.route(/kanvana-logo-color-32x23.*\.svg$/, async (route) => {
+    imageRequested = true;
+    await imageHeld;
+    await route.continue();
+  });
+  await page.addInitScript(() => {
+    globalThis.__kanvanaPerfMarks = true;
+    globalThis.__kanvanaStartupStartedAt = performance.now();
+  });
+
+  try {
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.task')).toHaveCount(210, { timeout: 30_000 });
+    await expect.poll(async () => (await readRenderCounts(page)).full).toBe(1);
+    expect(imageRequested, 'the browser load was not delayed').toBe(true);
+
+    const timing = await page.evaluate((markName) => ({
+      renderAt: performance.getEntriesByName(markName)[0].startTime,
+      startupStartedAt: globalThis.__kanvanaStartupStartedAt,
+      loadEventEnd: performance.getEntriesByType('navigation')[0].loadEventEnd,
+    }), FULL_RENDER_MARK);
+    const startupMs = timing.renderAt - timing.startupStartedAt;
+    expect(timing.loadEventEnd, 'browser load completed before the image was released').toBe(0);
+    expect(startupMs).toBeGreaterThan(0);
+    expect(startupMs).toBeLessThanOrEqual(scenario.budget.startupMs);
+
+    releaseImage();
+    await page.waitForLoadState('load');
+    const loadEventEnd = await page.evaluate(() => performance.getEntriesByType('navigation')[0].loadEventEnd);
+    expect(loadEventEnd).toBeGreaterThan(timing.renderAt);
+    console.log(`KANVANA_PERFORMANCE_SMOKE ${JSON.stringify({ taskCount: 400, view: 'standard', repetitions: 1, startupMs: Number(startupMs.toFixed(2)), loadEventEnd: Number(loadEventEnd.toFixed(2)) })}`);
+  } finally {
+    releaseImage();
+    await context.close();
+  }
+});
+
 for (const scenario of PERFORMANCE_SCENARIOS) {
   test(`${scenario.taskCount} tasks in ${scenario.view} view stay within performance budgets`, async ({ browser }, testInfo) => {
     test.setTimeout(120_000 * PERFORMANCE_REPETITIONS);
@@ -357,7 +405,7 @@ for (const scenario of PERFORMANCE_SCENARIOS) {
       movesPerRepetition: MOVES_PER_REPETITION,
       metrics: rounded(metrics),
       baseline: scenario.baseline,
-      budget: scenario.budget,
+      budget: { ...scenario.budget, ...(PERFORMANCE_CI_BUDGETS ? {} : scenario.localBudget) },
     };
     console.log(`KANVANA_PERFORMANCE ${JSON.stringify(result)}`);
     await testInfo.attach('performance-result', {
@@ -366,7 +414,8 @@ for (const scenario of PERFORMANCE_SCENARIOS) {
     });
 
     if (!PERFORMANCE_CALIBRATION) {
-      for (const [metric, limit] of Object.entries(scenario.budget)) {
+      const budget = { ...scenario.budget, ...(PERFORMANCE_CI_BUDGETS ? {} : scenario.localBudget) };
+      for (const [metric, limit] of Object.entries(budget)) {
         expect(metrics[metric], `${metric} exceeded its ${scenario.taskCount}/${scenario.view} budget`).toBeLessThanOrEqual(limit);
       }
     }

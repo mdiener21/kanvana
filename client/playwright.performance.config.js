@@ -9,7 +9,7 @@ export default defineConfig({
   forbidOnly: true,
   retries: 0,
   workers: 1,
-  reporter: 'line',
+  reporter: [['line'], ['json', { outputFile: 'test-results/performance-report.json' }]],
   outputDir: 'test-results/performance',
   use: {
     baseURL,
