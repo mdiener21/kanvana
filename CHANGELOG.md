@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - CI now runs a Semgrep security scan (`p/security-audit` and `p/secrets`) and blocks deploy jobs until the scan passes.
 
+## [3.2.1] - 2026-10-15
+
 ### Fixed
 
 - Sorting a column by due date or priority now stays sorted when a late change from another device arrives, and the new order shows on your other signed-in devices too (#184).
