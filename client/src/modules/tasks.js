@@ -586,5 +586,5 @@ export function sortColumnTasks(columnId, sortBy) {
   const sorted = sorter(columnTasks);
   if (sorted.every((task, index) => task.order === index + 1)) return;
 
-  emitTaskMoved(getActiveBoardId(), columnId, columnId, columnId, sorted.map((task, index) => ({ ...task, order: index + 1 })));
+  emitTaskMoved(getActiveBoardId(), columnId, columnId, columnId, sorted.map((task, index) => ({ id: task.id, column: columnId, order: index + 1 })));
 }

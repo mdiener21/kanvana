@@ -101,13 +101,18 @@ test('a drop to another column emits every task on the board', async () => {
     }
   });
 
-  expect(events).toHaveLength(1);
-  expect(events[0].entity_id).toBe('b');
-  expect(events[0].payload.from_column).toBe('todo');
-  expect(events[0].payload.to_column).toBe('doing');
-  expect(events[0].payload.order).toEqual(
-    loadTasks().map((t) => ({ id: t.id, column: t.column, order: t.order }))
-  );
+  expect(events).toEqual([{
+    entity_id: 'b',
+    payload: {
+      from_column: 'todo',
+      to_column: 'doing',
+      order: [
+        { id: 'a', column: 'todo', order: 1 },
+        { id: 'b', column: 'doing', order: 2 },
+        { id: 'c', column: 'doing', order: 1 }
+      ]
+    }
+  }]);
 });
 
 test('moveTaskToTopInColumn emits every task on the board', async () => {
