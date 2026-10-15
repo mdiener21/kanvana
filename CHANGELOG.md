@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - CI now runs a Semgrep security scan (`p/security-audit` and `p/secrets`) and blocks deploy jobs until the scan passes.
 
+### Fixed
+
+- Boards and tasks now keep syncing between signed-in devices after a few days. The login is renewed at startup, hourly, and whenever you return to the tab. A login that expired while the app was closed now signs you out, so you are asked to log in again instead of the app showing "Live" while nothing synced.
+
 ## [3.2.1] - 2026-10-15
 
 ### Fixed

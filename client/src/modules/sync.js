@@ -73,6 +73,46 @@ export async function loginWithProvider(provider) {
   return pb.collection('users').authWithOAuth2({ provider });
 }
 
+const AUTH_REFRESH_INTERVAL_MS = 60 * 60 * 1000;
+let _authRefreshHandlers = null;
+
+// PocketBase serves an expired token as a guest (empty pulls, rule-rejected pushes)
+// rather than a 401, so an expired login must be cleared here or sync dies silently.
+export async function refreshAuth() {
+  if (!pb.authStore.token) return false;
+  if (!pb.authStore.isValid) {
+    pb.authStore.clear();
+    return false;
+  }
+  try {
+    await pb.collection('users').authRefresh({ requestKey: null });
+  } catch (err) {
+    if (err?.status >= 400 && err?.status < 500) pb.authStore.clear();
+  }
+  return isAuthenticated();
+}
+
+export function initAuthRefresh() {
+  if (typeof window === 'undefined' || _authRefreshHandlers) return;
+  const run = () => { refreshAuth().catch(() => {}); };
+  _authRefreshHandlers = {
+    run,
+    visibility: () => { if (document.visibilityState === 'visible') run(); },
+    interval: setInterval(run, AUTH_REFRESH_INTERVAL_MS),
+  };
+  document.addEventListener('visibilitychange', _authRefreshHandlers.visibility);
+  window.addEventListener('online', run);
+  run();
+}
+
+export function _resetAuthRefreshForTesting() {
+  if (!_authRefreshHandlers) return;
+  document.removeEventListener('visibilitychange', _authRefreshHandlers.visibility);
+  window.removeEventListener('online', _authRefreshHandlers.run);
+  clearInterval(_authRefreshHandlers.interval);
+  _authRefreshHandlers = null;
+}
+
 // ── syncMap ────────────────────────────────────────────────────────────────────
 
 function emptySyncMap() {
