@@ -1,4 +1,3 @@
-// #184: sorting a Column emits events, so a rebuild and other devices keep the sort.
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../mocks/server.js';
