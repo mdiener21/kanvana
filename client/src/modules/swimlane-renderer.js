@@ -17,6 +17,7 @@ import { emit, DATA_CHANGED } from './events.js';
 import { isDoneColumn as isPermanentDoneColumn } from './constants.js';
 import { h, cx } from './dom.js';
 import { applyWipCounter, getWipState } from './wip-limit.js';
+import { byOrder } from './utils.js';
 
 function buildSwimlaneCounter(column, taskCount) {
   const counter = h('span', { class: 'task-counter', 'data-column-id': column.id });
@@ -180,7 +181,7 @@ export function renderSwimlaneBoard(container, sortedColumns, visibleTasks, labe
 
     const cellsWrapper = h('div', { class: 'swimlane-row-cells' });
     sortedColumns.forEach((column) => {
-      const tasksInCell = (lane.cells[column.id] || []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      const tasksInCell = (lane.cells[column.id] || []).slice().sort(byOrder);
       const cellCollapsed = isSwimLaneCellCollapsed(lane.key, column.id, settings);
       const visibleTasksInCell = collapsed
         ? []

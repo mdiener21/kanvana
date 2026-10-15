@@ -20,3 +20,5 @@ export function generateUUID() {
     return v.toString(16);
   });
 }
+
+export const byOrder = (a, b) => (a.order ?? 0) - (b.order ?? 0);

@@ -11,6 +11,7 @@ import { createTaskElement, formatDisplayDate } from './task-card.js';
 import { createColumnElement, closeAllColumnMenus, initColumnMenuCloseHandler } from './column-element.js';
 import { renderSwimlaneBoard } from './swimlane-renderer.js';
 import { formatWipCount, syncColumnWip } from './wip-limit.js';
+import { byOrder } from './utils.js';
 
 // Depth of the current drag-reconcile window. While open (> 0), a projected
 // DATA_CHANGED patches the board in place via reconcileBoard() instead of the
@@ -113,7 +114,7 @@ function renderStandardBoard(container, sortedColumns, visibleTasks, settings, l
     const taskCounter = columnEl.querySelector('.task-counter');
 
     const columnTasks = visibleTasks.filter(t => t.column === column.id)
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      .sort(byOrder);
 
     const isDoneColumn = isDoneColumnId(column.id);
     const shouldVirtualize = isDoneColumn && columnTasks.length > DONE_INITIAL_BATCH_SIZE;
@@ -259,7 +260,7 @@ export function reconcileBoard() {
   });
 
   const usedIds = new Set();
-  const sortedColumns = [...columns].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const sortedColumns = [...columns].sort(byOrder);
 
   sortedColumns.forEach((column) => {
     const columnEl = container.querySelector(`.task-column[data-column="${column.id}"]`);
@@ -269,7 +270,7 @@ export function reconcileBoard() {
 
     const columnTasks = visibleTasks
       .filter((t) => t.column === column.id)
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      .sort(byOrder);
 
     // Mirror renderStandardBoard's Done virtualization so a reconcile of an
     // overfull Done column renders only the visible batch, not every card.
@@ -332,7 +333,7 @@ export function renderBoard() {
   container.dataset.swimlaneLabelGroup = settings.swimLaneLabelGroup || '';
   container.classList.toggle('board-container-swimlanes', settings.swimLanesEnabled === true);
 
-  const sortedColumns = [...columns].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const sortedColumns = [...columns].sort(byOrder);
 
   if (settings.swimLanesEnabled === true) {
     renderSwimlaneBoard(container, sortedColumns, visibleTasks, labels, settings, labelsMap, today);
