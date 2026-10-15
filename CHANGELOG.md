@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- CI now runs a Semgrep security scan (`p/security-audit` and `p/secrets`) and blocks deploy jobs until the scan passes.
+
 ## [3.2.1] - 2026-10-15
 
 ### Fixed

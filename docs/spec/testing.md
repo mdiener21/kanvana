@@ -39,6 +39,12 @@ The unit, DOM, and mocked `test:e2e` suites need **no** Docker.
 > a same-origin `/api` proxy to PB (`PB_PROXY_TARGET`) and pins `VITE_PB_URL=/`. `client/.env.local`
 > (`http://localhost:8090`) is for real `npm run dev` only — it is intentionally overridden in e2e.
 
+## CI Security Gate for Deploy
+
+- `.github/workflows/ci.yml` runs a Semgrep security scan (`p/security-audit` and `p/secrets`) on each push and pull request.
+- Deploy jobs (`ftp-deploy`, `pages-deploy`, `docker-push`) run only after the Semgrep scan passes on push events.
+- Semgrep SARIF output is uploaded to GitHub Code Scanning for centralized security findings visibility.
+
 ## IDB Unit Test Setup
 
 Storage tests are split across two files:
