@@ -1,10 +1,10 @@
 // Column element DOM construction — extracted from render.js
 
-import { isDoneColumnId, loadColumns, loadTasks, saveTasks } from './storage.js';
+import { isDoneColumnId, loadColumns, loadTasks } from './storage.js';
+import { sortColumnTasks } from './tasks.js';
 import { deleteColumn, toggleColumnCollapsed } from './columns.js';
 import { showModal, showEditColumnModal } from './modals.js';
 import { confirmDialog, alertDialog } from './dialog.js';
-import { PRIORITY_ORDER } from './constants.js';
 import { emit, DATA_CHANGED } from './events.js';
 import { h, cx } from './dom.js';
 import { formatWipCount, getWipState, wipCounterLabel, applyWipCounter } from './wip-limit.js';
@@ -22,42 +22,6 @@ function closeAllColumnMenus(exceptMenu = null) {
   document.querySelectorAll('.column-submenu').forEach((submenu) => {
     submenu.classList.add('hidden');
   });
-}
-
-function sortTasksByDueDate(tasks) {
-  return [...tasks].sort((a, b) => {
-    const dateA = (a.dueDate || '').toString().trim();
-    const dateB = (b.dueDate || '').toString().trim();
-    if (!dateA && !dateB) return 0;
-    if (!dateA) return 1;
-    if (!dateB) return -1;
-    return dateA.localeCompare(dateB);
-  });
-}
-
-function sortTasksByPriority(tasks) {
-  return [...tasks].sort((a, b) => {
-    const prioA = PRIORITY_ORDER[a.priority] ?? 4;
-    const prioB = PRIORITY_ORDER[b.priority] ?? 4;
-    return prioA - prioB;
-  });
-}
-
-function sortColumnTasks(columnId, sortBy) {
-  const tasks = loadTasks();
-  const columnTasks = tasks.filter((t) => t.column === columnId);
-  const otherTasks = tasks.filter((t) => t.column !== columnId);
-
-  const sortedColumnTasks =
-    sortBy === 'dueDate' ? sortTasksByDueDate(columnTasks) : sortTasksByPriority(columnTasks);
-
-  const updatedColumnTasks = sortedColumnTasks.map((task, index) => ({
-    ...task,
-    order: index + 1
-  }));
-
-  saveTasks([...otherTasks, ...updatedColumnTasks]);
-  emit(DATA_CHANGED);
 }
 
 export { closeAllColumnMenus };

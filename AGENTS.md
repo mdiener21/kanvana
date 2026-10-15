@@ -71,7 +71,12 @@ Run the full test suite before opening a PR. CI runs all three layers.
 Run local pocketbase without docker on windows for development
 
 ```bash
+## download here https://pocketbase.io/docs/
+## Windows
 .\pocketbase.exe serve --migrationsDir ../backend/pb_migrations --hooksDir ../backend/pb_hook
+
+## Linux
+./pocketbase serve --migrationsDir ../backend/pb_migrations --hooksDir ../backend/pb_hook
 ```
 
 
