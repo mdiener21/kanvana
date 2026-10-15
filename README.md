@@ -7,7 +7,7 @@ kanvana == "Kanban" + "Nirvana" # smooth flow
 [![GitHub stars](https://img.shields.io/github/stars/mdiener21/kanvana.svg?style=social)](https://github.com/mdiener21/kanvana/stargazers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Visit%20Now-blue)](https://kanvana.com)
-[![Version](https://img.shields.io/badge/version-1.7.1-brightgreen)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-3.2.0-brightgreen)](CHANGELOG.md)
 [![CI](https://github.com/mdiener21/kanvana/actions/workflows/ci.yml/badge.svg)](https://github.com/mdiener21/kanvana/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/tests-372%20passing-brightgreen)](https://github.com/mdiener21/kanvana/actions/workflows/ci.yml)
 
@@ -29,7 +29,17 @@ Experience it firsthand: **[Try the Live Demo](https://kanvana.com)**
 
 ## ✨ Key Features
 
-### ✅ Sub-tasks (New!)
+### Time Tracking (New!)
+
+Log time against customers and projects on a dedicated page, opened from the board menu:
+
+- **Fast entry**: type a description, pick a project, and set start, end or duration using shorthand like `930`, `90m` or `1.5`
+- **Daily log**: entries grouped by day with totals, editable from the keyboard
+- **Monthly reports**: totals, a daily bar chart stacked by project, and a customer/project breakdown
+- **Projects and settings**: archive customers and projects, and choose the date, time, timezone and duration formats
+- **Syncs**: time data syncs to your other signed-in devices
+
+### ✅ Sub-tasks
 
 Break complex tasks into smaller, trackable steps without leaving the board:
 
@@ -73,7 +83,7 @@ Organize your board into horizontal swim lanes for a powerful two-dimensional vi
 
 Configure swim lanes in **Settings** or use the quick-access toggle in the board controls menu. Lane order is customizable via drag-and-drop in Settings.
 
-### 🔄 Real-Time Multi-Device Sync (New!)
+### 🔄 Real-Time Multi-Device Sync
 
 Edit on your phone, see it on your laptop — within seconds. Kanvana uses **event-sourced sync**: every change is a domain event ordered by a Hybrid Logical Clock (HLC), so independent edits across devices converge without overwriting each other. Tasks, columns, and labels in your browser are projections rebuilt from the event stream.
 

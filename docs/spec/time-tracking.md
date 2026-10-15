@@ -13,7 +13,7 @@ Terms (Customer, Project, Time Entry, Duration, Archived, Attribution) are defin
 ## Design Reference
 
 - Layout follows prototype **Variant A ("Clockify classic")**: top bar, left sidebar nav with collapse function and mobile ui, entry bar above a day-grouped entry list, summary-style month report
-- Prototype source: `client/src/prototype-timetracker.html` + `client/src/prototypes/timetracker/`
+- Prototype source (removed after the MVP shipped): `client/src/prototype-timetracker.html` + `client/src/prototypes/timetracker/` as of v3.2.0
   (throwaway — rewrite, do not promote)
 
 ## Page and Navigation
