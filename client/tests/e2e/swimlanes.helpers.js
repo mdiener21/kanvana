@@ -96,15 +96,20 @@ export async function seedSwimlaneBoard(page, settingsOverrides = {}) {
     // Open IDB and seed data inside the onupgradeneeded transaction.
     // IDB serialises operations per database, so the app's subsequent openDB()
     // call will wait for our delete + open + seed to finish before proceeding.
-    const req = indexedDB.open('kanvana-db', 1);
+    const req = indexedDB.open('kanvana-db', 2);
     req.onupgradeneeded = () => {
       const store = req.result.createObjectStore('kv');
+      const events = req.result.createObjectStore('events', { keyPath: 'id' });
+      events.createIndex('hlc', ['hlc.wallTime', 'hlc.counter', 'hlc.nodeId']);
+      events.createIndex('synced', 'synced');
+      req.result.createObjectStore('snapshots');
+      const readModel = req.result.createObjectStore('read_model');
       const boards = [{ id: data.boardId, name: 'Swimlane Test Board', createdAt: new Date().toISOString() }];
       store.put(boards, 'kanbanBoards');
       store.put(data.boardId, 'kanbanActiveBoardId');
-      store.put(data.columns, `kanbanBoard:${data.boardId}:columns`);
-      store.put(data.tasks, `kanbanBoard:${data.boardId}:tasks`);
-      store.put(data.labels, `kanbanBoard:${data.boardId}:labels`);
+      readModel.put(data.columns, `${data.boardId}:columns`);
+      readModel.put(data.tasks, `${data.boardId}:tasks`);
+      readModel.put(data.labels, `${data.boardId}:labels`);
       store.put(data.settings, `kanbanBoard:${data.boardId}:settings`);
     };
   }, fixture);
@@ -116,7 +121,7 @@ export async function seedSwimlaneBoard(page, settingsOverrides = {}) {
 export async function readIDBValue(page, key) {
   return page.evaluate(async (k) => {
     const db = await new Promise((resolve, reject) => {
-      const req = indexedDB.open('kanvana-db', 1);
+      const req = indexedDB.open('kanvana-db', 2);
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
     });

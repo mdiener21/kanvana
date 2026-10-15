@@ -3,7 +3,7 @@
 // are always present and initialized to their documented defaults.
 
 import { generateUUID } from './utils.js';
-import { DEFAULT_PRIORITY, DEFAULT_COLUMN_COLOR, DONE_COLUMN_ROLE } from './constants.js';
+import { DEFAULT_PRIORITY, DEFAULT_COLUMN_COLOR, DONE_COLUMN_ROLE, TT_COLOR_PALETTE } from './constants.js';
 
 function nowIso() {
   return new Date().toISOString();
@@ -13,8 +13,6 @@ function nowIso() {
 
 export const RELATIONSHIP_TYPES = ['prerequisite', 'dependent', 'related'];
 
-export const ACTIVITY_ACTOR_TYPES = ['human', 'agent', 'user'];
-
 // ── Task ───────────────────────────────────────────────────────────────────────
 
 /**
@@ -22,7 +20,6 @@ export const ACTIVITY_ACTOR_TYPES = ['human', 'agent', 'user'];
  *
  * Stored flat per-board in IndexedDB; synced to PocketBase tasks collection.
  * `relationships` syncs to the task_relationships collection.
- * `activityLog` syncs to the events collection (task-scoped entries).
  *
  * @param {object} overrides
  * @returns {Task}
@@ -45,7 +42,6 @@ export function createTask(overrides = {}) {
     columnHistory: [{ column: '', at: now }],
     relationships: [],
     subTasks: [],
-    activityLog: [],
     swimlaneLabelId: '',
     deleted: false,
     ...overrides,
@@ -65,6 +61,8 @@ export function createColumn(overrides = {}) {
     color: DEFAULT_COLUMN_COLOR,
     order: 0,
     collapsed: false,
+    // 0 = unlimited. Advisory only — never blocks a task entering the column.
+    wipLimit: 0,
     // role: 'done' marks the terminal Done column; absent for regular columns.
     role: '',
     deleted: false,
@@ -142,49 +140,36 @@ export function createRelationship(overrides = {}) {
   };
 }
 
-// ── Pending hard-delete ────────────────────────────────────────────────────────
+// ── Time Tracking ──────────────────────────────────────────────────────────────
 
-/**
- * Queued when a task is permanently deleted locally before PocketBase is
- * reachable. The sync resolves localTaskId → PocketBase ID via syncMap and
- * hard-deletes the record, then clears the entry. If no PocketBase ID exists
- * (task was never synced), the entry is silently dropped.
- *
- * Stored as a global array (not per-board) under the `pendingHardDeletes` key.
- *
- * @param {object} overrides
- * @returns {{ localTaskId: string, boardId: string }}
- */
-export function createPendingHardDelete(overrides = {}) {
+export function createCustomer(overrides = {}, colorIndex = 0) {
   return {
-    localTaskId: '',
-    boardId: '',
+    id: generateUUID(),
+    name: '',
+    color: TT_COLOR_PALETTE[colorIndex % TT_COLOR_PALETTE.length],
+    archived: false,
     ...overrides,
   };
 }
 
-// ── Activity log entry ─────────────────────────────────────────────────────────
-
-/**
- * Stored in `task.activityLog[]` locally; synced to the events PocketBase
- * collection (task-scoped). Board-level events (`boardEvents` in storage) use
- * the same shape and sync to the same collection without a task reference.
- *
- * `id` is required for deduplication during sync. Entries created before this
- * field was introduced will lack an id and will not be synced.
- *
- * @param {object} overrides
- * @returns {ActivityLogEntry}
- */
-export function createActivityLogEntry(overrides = {}) {
+export function createTimeEntry(overrides = {}) {
   return {
     id: generateUUID(),
-    type: '',
-    at: nowIso(),
-    // actor.type: one of ACTIVITY_ACTOR_TYPES.
-    // actor.id: null for human, non-empty string for agent/user.
-    actor: { type: 'human', id: null },
-    details: {},
+    projectId: '',
+    description: '',
+    start: '',
+    end: '',
+    ...overrides,
+  };
+}
+
+export function createProject(overrides = {}, colorIndex = 0) {
+  return {
+    id: generateUUID(),
+    customerId: '',
+    name: '',
+    color: TT_COLOR_PALETTE[colorIndex % TT_COLOR_PALETTE.length],
+    archived: false,
     ...overrides,
   };
 }

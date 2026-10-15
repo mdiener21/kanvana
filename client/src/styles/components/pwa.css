@@ -1,0 +1,30 @@
+.pwa-banner {
+  position: fixed;
+  z-index: 1000;
+  right: 1rem;
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  left: 1rem;
+  max-width: 28rem;
+  margin-left: auto;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-md);
+}
+
+.pwa-banner p {
+  margin: 0 0 0.75rem;
+}
+
+.pwa-banner > div {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.pwa-banner button {
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+}

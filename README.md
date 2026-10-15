@@ -1,4 +1,4 @@
-# Kanvana: The Personal + AI Agent Kanban Board
+# Kanvana: The Personal Kanban Board to Nirvana
 
 ```js
 kanvana == "Kanban" + "Nirvana" # smooth flow
@@ -7,15 +7,13 @@ kanvana == "Kanban" + "Nirvana" # smooth flow
 [![GitHub stars](https://img.shields.io/github/stars/mdiener21/kanvana.svg?style=social)](https://github.com/mdiener21/kanvana/stargazers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Visit%20Now-blue)](https://kanvana.com)
-[![Version](https://img.shields.io/badge/version-1.7.1-brightgreen)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-3.2.0-brightgreen)](CHANGELOG.md)
 [![CI](https://github.com/mdiener21/kanvana/actions/workflows/ci.yml/badge.svg)](https://github.com/mdiener21/kanvana/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/tests-372%20passing-brightgreen)](https://github.com/mdiener21/kanvana/actions/workflows/ci.yml)
 
 > **Transform your productivity with a sleek, local-first Kanban board.** No servers, no tracking—just pure efficiency in your browser.
 
-A beautiful, modern-designed personal + AI-Agent Kanban board that runs entirely in your browser. No backend, no cloud, no data tracking. Everything stays local with browser IndexedDB persistence. Perfect for personal task management, work tracking, and staying organized.
-
-**Building with AI agents?** Try the new **AI Agent Ops Starter** board template to track 2–5 agents in parallel, review handoffs, and improve prompts in one local-first workspace. If that sounds useful, give the repo a ⭐ and help more agent builders discover it.
+A beautiful, modern-designed personal, flexible Kanban board + Time Tracker that runs entirely in your browser. No backend, no cloud, no data tracking. Everything stays local with browser IndexedDB persistence. Perfect for personal task management, work tracking, and staying organized.
 
 ## 🚀 Live Demo
 
@@ -29,7 +27,17 @@ Experience it firsthand: **[Try the Live Demo](https://kanvana.com)**
 
 ## ✨ Key Features
 
-### ✅ Sub-tasks (New!)
+### Time Tracking (New!)
+
+Log time against customers and projects on a dedicated page, opened from the board menu:
+
+- **Fast entry**: type a description, pick a project, and set start, end or duration using shorthand like `930`, `90m` or `1.5`
+- **Daily log**: entries grouped by day with totals, editable from the keyboard
+- **Monthly reports**: totals, a daily bar chart stacked by project, and a customer/project breakdown
+- **Projects and settings**: archive customers and projects, and choose the date, time, timezone and duration formats
+- **Syncs**: time data syncs to your other signed-in devices
+
+### ✅ Sub-tasks
 
 Break complex tasks into smaller, trackable steps without leaving the board:
 
@@ -73,15 +81,14 @@ Organize your board into horizontal swim lanes for a powerful two-dimensional vi
 
 Configure swim lanes in **Settings** or use the quick-access toggle in the board controls menu. Lane order is customizable via drag-and-drop in Settings.
 
-### Audit Trail
+### 🔄 Real-Time Multi-Device Sync
 
-Track every change on your board with a built-in two-log audit system:
+Edit on your phone, see it on your laptop — within seconds. Kanvana uses **event-sourced sync**: every change is a domain event ordered by a Hybrid Logical Clock (HLC), so independent edits across devices converge without overwriting each other. Tasks, columns, and labels in your browser are projections rebuilt from the event stream.
 
-- **Per-task activity log** — each task carries a full history of mutations: title/description/priority/due date changes, column moves, label changes, and relationship changes
-- **Board event store** — a separate log records board-level events: column creation, renaming, deletion, reordering, and task deletion
-- **Activity accordion** — collapse/expand the full task history directly in the task edit modal (newest event first)
-- **Board Activity page** — a dedicated page listing all board-level events in reverse chronological order; accessible via the Activity button in the board header
-- **Export/import** — activity logs round-trip in board JSON exports; malformed entries are silently dropped on import
+- **Opt-in, never required** — stays 100% local until you choose to sign in. No account, no cloud, no problem.
+- **Live across devices** — an optional PocketBase backend streams remote changes over Server-Sent Events in real time; a catch-up pull on launch means a just-opened device is immediately up to date.
+- **At-a-glance sync indicator** — the header shows `Live ●` (synced), `Syncing… (N)` (events draining), `⚠ N unsynced` (retrying), or `Offline` (no network / signed out).
+- **Offline-first, always** — the fully-offline experience is never compromised; the cloud is just an optional fan-out, not a dependency.
 
 ### Core Features
 
@@ -92,7 +99,7 @@ Track every change on your board with a built-in two-log audit system:
 - **📊 Productivity Reports**: Visualize your progress with Cumulative Flow Diagrams, weekly lead time, completion stats, same-day completions tracking, and an activity heatmap covering the last 365 days
 - **📅 Calendar View**: See tasks by due date on a monthly calendar with overdue highlighting
 - **🔔 Smart Notifications**: Get reminded of due dates with customizable advance notices and color-coded countdown timers (urgent/warning thresholds)
-- **💻 100% Local-First**: No servers, no backend, no cloud. Your data never leaves your device
+- **💻 Local-First**: Works fully offline with no backend required — your data lives in your browser and never leaves your device unless you opt into **Real-Time Multi-Device Sync**
 - **🎨 Drag & Drop**: Effortlessly move tasks and columns with optimized performance (handles 300+ tasks)
 - **🏷️ Custom Labels & Colors**: Organize with personalized labels, groups, and column colors — label text automatically switches between black and white for readability
 - **📋 Multiple Boards**: Create and manage multiple boards with board templates
@@ -120,6 +127,8 @@ Track every change on your board with a built-in two-log audit system:
 ## 🛡️ Data Security & Persistence
 
 Your data is stored securely in your browser's IndexedDB. It persists across sessions and page reloads. For extra safety, use the built-in export feature to save backups to your preferred cloud storage.
+
+If you opt into **Real-Time Multi-Device Sync**, your event stream is also synced to a PocketBase backend so the same boards stay in step across your devices. Sync is entirely optional — without an account, nothing leaves your browser.
 
 ## 🚀 Quick Start
 

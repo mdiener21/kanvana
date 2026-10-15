@@ -2,6 +2,7 @@
 // seed: tests/e2e/seed.spec.ts
 
 import { test, expect } from '@playwright/test';
+import { waitForBoardReady } from './board.helpers.js';
 
 test.describe('Task Creation - Edge Cases and Error Handling', () => {
   test('Attempt to create task without required title', async ({ page }) => {
@@ -9,6 +10,7 @@ test.describe('Task Creation - Edge Cases and Error Handling', () => {
 
     // Navigate to the kanban board application
     await page.goto('/');
+    await waitForBoardReady(page);
 
     // Click 'Add task to To Do' button
     await page.getByRole('button', { name: 'Add task to To Do' }).click();

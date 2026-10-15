@@ -26,4 +26,5 @@ global settings are explicitly global. Scales naturally as future cross-board pr
   `kanvana:settings:global` IDB key.
 - The Settings UI should visually separate "Board settings" from "App settings" so users
   understand which settings travel with a board and which are device-wide.
-- `softDeleteEnabled` (default `false`) is the first global setting.
+- `softDeleteEnabled` was the first global setting, then removed in issue #111. The global
+  settings layer remains available for future app-wide preferences.

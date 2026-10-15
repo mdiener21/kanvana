@@ -1,0 +1,254 @@
+const MINUTE_MS = 60 * 1000;
+const MS_PER_DAY = 24 * 60 * MINUTE_MS;
+
+export const floorToMinute = (ms) => Math.floor(ms / MINUTE_MS) * MINUTE_MS;
+
+export const TT_FALLBACK_TIMEZONE = 'Europe/Berlin';
+
+export const browserTimezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || TT_FALLBACK_TIMEZONE;
+
+// ── Display formats: the single source of options, labels and defaults ──────────
+// Each map is value → label (date formats → their layout, labelled by the value).
+// The first entry is the default.
+
+export const DATE_FORMATS = {
+  'DD.MM.YYYY': { order: ['d', 'm', 'y'], separator: '.' },
+  'MM/DD/YYYY': { order: ['m', 'd', 'y'], separator: '/' },
+  'YYYY-MM-DD': { order: ['y', 'm', 'd'], separator: '-' }
+};
+export const TIME_FORMATS = { '24h': '24-hour', '12h': '12-hour' };
+export const DURATION_FORMATS = { 'h:mm': 'h:mm (7:30)', decimal: 'Decimal (7.50 h)' };
+
+const defaultOf = (formats) => Object.keys(formats)[0];
+export const DEFAULT_DATE_FORMAT = defaultOf(DATE_FORMATS);
+export const DEFAULT_TIME_FORMAT = defaultOf(TIME_FORMATS);
+export const DEFAULT_DURATION_FORMAT = defaultOf(DURATION_FORMATS);
+
+export function timeTrackingPrefs(settings = {}, now = Date.now()) {
+  return {
+    tz: settings?.timezone ?? browserTimezone(),
+    dateFormat: settings?.dateFormat ?? DEFAULT_DATE_FORMAT,
+    timeFormat: settings?.timeFormat ?? DEFAULT_TIME_FORMAT,
+    durationFormat: settings?.durationFormat ?? DEFAULT_DURATION_FORMAT,
+    now
+  };
+}
+
+// ── Timezone ───────────────────────────────────────────────────────────────────
+
+const partsFormatters = new Map();
+
+function partsFormatter(tz) {
+  if (!partsFormatters.has(tz)) {
+    partsFormatters.set(tz, new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, hourCycle: 'h23',
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+    }));
+  }
+  return partsFormatters.get(tz);
+}
+
+export function zonedParts(ms, tz) {
+  const p = {};
+  for (const { type, value } of partsFormatter(tz).formatToParts(new Date(ms))) p[type] = value;
+  return { y: +p.year, m: +p.month, d: +p.day, minutes: (+p.hour % 24) * 60 + +p.minute };
+}
+
+function offsetAt(ms, tz) {
+  const z = zonedParts(ms, tz);
+  const wallAsUtc = Date.UTC(z.y, z.m - 1, z.d) + z.minutes * MINUTE_MS;
+  return wallAsUtc - floorToMinute(ms);
+}
+
+// Skipped wall times (spring forward) move forward by the gap; repeated wall
+// times (fall back) resolve to the first occurrence — same as Temporal's 'compatible'.
+export function fromZoned({ y, m, d }, minutes, tz) {
+  const wallAsUtc = Date.UTC(y, m - 1, d) + minutes * MINUTE_MS;
+  const before = wallAsUtc - offsetAt(wallAsUtc - MS_PER_DAY, tz);
+  const after = wallAsUtc - offsetAt(wallAsUtc + MS_PER_DAY, tz);
+  const isExact = (ms) => ms + offsetAt(ms, tz) === wallAsUtc;
+  const exact = [before, after].filter(isExact);
+  return exact.length > 0 ? Math.min(...exact) : before;
+}
+
+const ymdOf = ({ y, m, d }) => ({ y, m, d });
+
+function addDays({ y, m, d }, days) {
+  const date = new Date(Date.UTC(y, m - 1, d + days));
+  return { y: date.getUTCFullYear(), m: date.getUTCMonth() + 1, d: date.getUTCDate() };
+}
+
+// ── Parsing (shorthand) ────────────────────────────────────────────────────────
+
+export function parseTime(input) {
+  let s = String(input ?? '').trim().toLowerCase().replace(/\s+/g, '');
+  if (!s) return null;
+  let meridiem = null;
+  const suffix = s.match(/(am|pm|a|p)$/);
+  if (suffix) {
+    meridiem = suffix[1][0];
+    s = s.slice(0, -suffix[1].length);
+  }
+  let h;
+  let mi;
+  let m;
+  if ((m = s.match(/^(\d{1,2})[:.](\d{2})$/))) { h = +m[1]; mi = +m[2]; }
+  else if (/^\d{1,2}$/.test(s)) { h = +s; mi = 0; }
+  else if (/^\d{3,4}$/.test(s)) { h = +s.slice(0, -2); mi = +s.slice(-2); }
+  else return null;
+  if (meridiem) {
+    if (h < 1 || h > 12) return null;
+    h = (h % 12) + (meridiem === 'p' ? 12 : 0);
+  }
+  if (h > 23 || mi > 59) return null;
+  return h * 60 + mi;
+}
+
+export function parseDuration(input) {
+  const s = String(input ?? '').trim().toLowerCase().replace(/\s+/g, '').replace(',', '.');
+  let m;
+  if ((m = s.match(/^(\d+):(\d{2})$/))) return +m[2] < 60 ? +m[1] * 60 + +m[2] : null;
+  if ((m = s.match(/^(\d+)h(\d+)m?$/))) return +m[2] < 60 ? +m[1] * 60 + +m[2] : null;
+  if ((m = s.match(/^(\d+)m(in)?$/))) return +m[1];
+  if ((m = s.match(/^(\d+(?:\.\d+)?|\.\d+)h?$/))) return Math.round(+m[1] * 60);
+  return null;
+}
+
+const dateFormatOf = (dateFormat) => DATE_FORMATS[dateFormat] ?? DATE_FORMATS[DEFAULT_DATE_FORMAT];
+
+export function parseDate(input, { dateFormat, tz, now }) {
+  const s = String(input ?? '').trim().toLowerCase();
+  const today = ymdOf(zonedParts(now, tz));
+  if (s === 't' || s === 'today') return today;
+  if (s === 'y' || s === 'yesterday') return addDays(today, -1);
+
+  const numbers = s.split(/\D+/).filter(Boolean).map(Number);
+  if (numbers.length < 2 || numbers.length > 3 || !/^[\d\s./-]+$/.test(s)) return null;
+  const { order } = dateFormatOf(dateFormat);
+  const fields = numbers.length === 3 ? order : order.filter((f) => f !== 'y');
+  const parsed = { y: today.y };
+  fields.forEach((field, i) => { parsed[field] = numbers[i]; });
+  if (parsed.y < 100) parsed.y += 2000;
+
+  const check = new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d));
+  if (check.getUTCFullYear() !== parsed.y || check.getUTCMonth() + 1 !== parsed.m || check.getUTCDate() !== parsed.d) {
+    return null;
+  }
+  return { y: parsed.y, m: parsed.m, d: parsed.d };
+}
+
+// ── Formatting ─────────────────────────────────────────────────────────────────
+
+const pad2 = (n) => String(n).padStart(2, '0');
+
+export function formatYmd(ymd, dateFormat) {
+  const { order, separator } = dateFormatOf(dateFormat);
+  return order.map((field) => (field === 'y' ? ymd.y : pad2(ymd[field]))).join(separator);
+}
+
+export function formatMinutes(minutes, timeFormat) {
+  const h = Math.floor(minutes / 60) % 24;
+  const mi = minutes % 60;
+  if (timeFormat === '12h') return `${h % 12 || 12}:${pad2(mi)} ${h < 12 ? 'AM' : 'PM'}`;
+  return `${pad2(h)}:${pad2(mi)}`;
+}
+
+export const formatDate = (ms, { tz, dateFormat }) => formatYmd(zonedParts(ms, tz), dateFormat);
+
+export const formatTime = (ms, { tz, timeFormat }) => formatMinutes(zonedParts(ms, tz).minutes, timeFormat);
+
+export function formatDuration(ms, durationFormat = DEFAULT_DURATION_FORMAT) {
+  const minutes = Math.round(ms / MINUTE_MS);
+  if (durationFormat === 'decimal') return `${(minutes / 60).toFixed(2)} h`;
+  return `${Math.floor(minutes / 60)}:${pad2(minutes % 60)}`;
+}
+
+// ── Linked Start / End / Duration ──────────────────────────────────────────────
+
+const ymdToUtcMs = ({ y, m, d }) => Date.UTC(y, m - 1, d);
+
+export function plusDaysBetween(startMs, endMs, tz) {
+  return Math.round((ymdToUtcMs(zonedParts(endMs, tz)) - ymdToUtcMs(zonedParts(startMs, tz))) / MS_PER_DAY);
+}
+
+export function describeEntryTimes(startMs, endMs, prefs) {
+  return {
+    startMs,
+    endMs,
+    plusDays: plusDaysBetween(startMs, endMs, prefs.tz),
+    values: {
+      date: formatDate(startMs, prefs),
+      start: formatTime(startMs, prefs),
+      end: formatTime(endMs, prefs),
+      duration: formatDuration(endMs - startMs, prefs.durationFormat)
+    }
+  };
+}
+
+export function resolveLinkedFields(values, changed, prefs) {
+  const ymd = parseDate(values.date, prefs);
+  const startMinutes = parseTime(values.start);
+  if (!ymd || startMinutes === null) return null;
+  const startMs = fromZoned(ymd, startMinutes, prefs.tz);
+
+  let endMs;
+  if (changed === 'start' || changed === 'end') {
+    const endMinutes = parseTime(values.end);
+    if (endMinutes === null) return null;
+    const endYmd = endMinutes < startMinutes ? addDays(ymd, 1) : ymd;
+    endMs = fromZoned(endYmd, endMinutes, prefs.tz);
+  } else {
+    const durationMinutes = parseDuration(values.duration);
+    if (durationMinutes === null) return null;
+    endMs = startMs + durationMinutes * MINUTE_MS;
+  }
+  return describeEntryTimes(startMs, endMs, prefs);
+}
+
+// ── Day grouping (Attribution: an entry belongs wholly to the day of its start) ──
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+const dayKeyOf = ({ y, m, d }) => `${y}-${pad2(m)}-${pad2(d)}`;
+
+export const dayKey = (ms, tz) => dayKeyOf(zonedParts(ms, tz));
+
+function dayHeading(ymd, prefs) {
+  const today = ymdOf(zonedParts(prefs.now, prefs.tz));
+  const key = dayKeyOf(ymd);
+  if (key === dayKeyOf(today)) return 'Today';
+  if (key === dayKeyOf(addDays(today, -1))) return 'Yesterday';
+  return `${WEEKDAYS[new Date(ymdToUtcMs(ymd)).getUTCDay()]}, ${formatYmd(ymd, prefs.dateFormat)}`;
+}
+
+export function groupEntriesByDay(entries, prefs) {
+  const sorted = [...entries].sort((a, b) => Date.parse(b.start) - Date.parse(a.start));
+  const groups = new Map();
+  for (const entry of sorted) {
+    const startMs = Date.parse(entry.start);
+    const ymd = ymdOf(zonedParts(startMs, prefs.tz));
+    const key = dayKeyOf(ymd);
+    if (!groups.has(key)) groups.set(key, { key, heading: dayHeading(ymd, prefs), totalMs: 0, entries: [] });
+    const group = groups.get(key);
+    group.entries.push(entry);
+    group.totalMs += Date.parse(entry.end) - startMs;
+  }
+  return [...groups.values()];
+}
+
+export function adjustLinkedField(values, field, deltaMinutes, prefs) {
+  const current = resolveLinkedFields(values, field, prefs);
+  if (!current) return null;
+  const delta = deltaMinutes * MINUTE_MS;
+  const next = { ...current.values };
+  if (field === 'start') {
+    const startMs = current.startMs + delta;
+    next.date = formatDate(startMs, prefs);
+    next.start = formatTime(startMs, prefs);
+  } else if (field === 'end') {
+    next.end = formatTime(Math.max(current.startMs, current.endMs + delta), prefs);
+  } else {
+    next.duration = formatDuration(Math.max(0, current.endMs - current.startMs + delta), prefs.durationFormat);
+  }
+  return resolveLinkedFields(next, field, prefs);
+}

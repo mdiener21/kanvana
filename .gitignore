@@ -22,3 +22,8 @@ graphify-out/cache/
 .graphify_python
 
 
+dist/
+dist-perf/
+build/
+
+pocketbase_0.40.5/

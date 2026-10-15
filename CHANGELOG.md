@@ -9,12 +9,209 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- CI now runs a Semgrep security scan (`p/security-audit` and `p/secrets`) and blocks deploy jobs until the scan passes.
+
+### Fixed
+
+- Sorting a column by due date or priority now stays sorted when a late change from another device arrives, and the new order shows on your other signed-in devices too (#184).
+
+## [3.2.0] - 2026-10-14
+
+### Added
+
+- Open the new Time Tracking page from the board menu. It has a collapsible sidebar with Time Tracker, Reports, Projects and Settings sections, works on mobile, and links back to the board.
+- Add customers and their projects inline on the Projects page by pressing Enter. Each gets a colour automatically. Empty or duplicate names show a message and nothing is saved. Customers and projects sync to your other signed-in devices.
+- Keyboard shortcuts on the Time Tracking page: `g t`, `g r`, `g p` and `g s` switch sections and move focus to the section's heading, so `Tab` continues inside that section. `?` shows the shortcut list with focus inside it (`Tab` stays in the list, other shortcuts are paused) and `Esc` closes it and returns focus to where you were.
+- Log time on the Time Tracker: enter a description, pick a `Customer / Project`, and set date, start, end or duration, then press Enter. Start, End and Duration stay in sync, an end before the start counts as the next day (`+1 day`), and shorthand such as `930`, `2:30pm`, `90m`, `1.5`, `t` or `y` is understood. Entries without a project, with an archived project or with zero duration show a message and are not saved. Logged time syncs to your other signed-in devices.
+- Time entries are listed by day, newest first, under `Today`, `Yesterday` or the weekday and date, with a total per day. An entry that runs past midnight counts towards the day it started.
+- Time Tracker shortcuts: `n` jumps to a new entry, `Enter` saves, `Esc` leaves a field, and `Alt+↑` / `Alt+↓` move Start, End or Duration by 15 minutes.
+- Correct your time log from the keyboard: `j` / `k` select an entry, `e` (or double-click) opens it for editing with the same linked fields as the entry bar (`Enter` saves, `Esc` cancels), `d` duplicates it starting now with the same project, description and duration, and `Del` asks for confirmation inline (`y` deletes permanently, `Esc` keeps it). Hovering or selecting a row also shows edit, duplicate and delete buttons. An entry can keep a project that has since been archived, but cannot be moved to or duplicated on an archived project. Edits and deletions sync to your other signed-in devices.
+- Archive and unarchive customers and projects on the Projects page. Archived items are greyed out and no longer offered when logging time (archiving a customer hides all its projects), but their existing entries stay in the list and in the day totals. A project with no time entries, or a customer with no projects, can be deleted; otherwise the delete button is disabled and explains "In use — archive instead". Archiving and deleting sync to your other signed-in devices, and a delete from another device never removes an item that is still in use — it is archived instead.
+- Filter the time entry list by customer, project or both; `/` jumps to the filter and "All" resets it. Picking a customer narrows the project list to that customer's projects. Archived customers and projects can still be picked, marked as archived. Day totals, the entry count and `j` / `k` selection only cover the entries shown.
+- Configure Time Tracking on the Settings section: a default customer and project (pre-filled in the entry bar; changing the customer picks its first active project; a default that has since been archived stays shown as "(archived)" but is not pre-filled), date format (`DD.MM.YYYY`, `MM/DD/YYYY`, `YYYY-MM-DD`), 12- or 24-hour time, timezone, and duration as `7:30` or `7.50 h`, with a live preview. The entry bar, list and edit dialog follow the settings immediately, typed dates follow the chosen date format, and 24-hour and `h:mm` input keep working in the other formats. Changing the timezone re-groups entries without changing them. Settings are app-wide, separate from board settings, and sync to your other signed-in devices. Until you pick a timezone, each device uses its own browser timezone.
+- The entry bar remembers the project you last saved or duplicated an entry on and pre-fills it for the next entry, also after a reload. Editing an entry does not change it. If that project (or its customer) has been archived or deleted, the default project from Settings is used instead, otherwise the field stays empty. The last-used project is remembered on this device only and is not synced.
+- See where your month went on Reports: total time, number of entries and number of projects, a bar chart with one bar per day stacked by project colour (hover a segment for the project and duration), and a table of customers by total with their projects, share bars and a grand total. It opens on the current month and stays on it when the month rolls over or the timezone changes, until you pick another month; `‹` / `›` or `[` / `]` switch months. The same customer / project filter as the entry list applies to the whole page, and `/` jumps to it. Entries count wholly to the day and month they started, so 31 Oct 22:00 – 1 Nov 02:00 is October time. A month with no time shows "No time tracked this month". Durations follow the duration-format setting, and the chart follows light / dark mode.
+
+### Changed
+
+- Internal: local edits and events from other devices now enter the event log through one ingest interface (`event-sourcing/ingest.js`, #177). The unused `dispatcher.js` is removed. No behaviour change.
+- The Time Tracking page now opens on the Time Tracker instead of Projects.
+- The Time Tracking page background now follows dark mode.
+- In dark mode, the Time Tracking page's hovered and selected rows, active sidebar item and blue accents (links, `+1 day`, focus rings) now use dark-theme colours that stay readable, instead of light-grey highlights.
+
+- Sync now carries a separate time-tracking data stream alongside boards and global settings, in preparation for Time Tracking. No visible change.
+
+### Fixed
+
+- A deleted task stays deleted, even when an older change to it arrives from another device later or after a reload. After a reload, a change from this device that the server echoes back no longer overwrites a newer edit.
+- Edits made offline are no longer lost when you keep working long enough for Kanvana to tidy up local history. Changes that have not reached the server yet are kept and sent once you are back online.
+- Two devices that edit the same thing now show the same result, whatever order the changes arrive in (#179). A change that arrives late, for example from a device that was offline, is put in its place by time instead of overwriting newer edits. Changes up to 30 days old are kept for this on the device and on the server; a change that reaches the server more than 30 days after it was made is ignored on every other device and logged, whatever each device has saved locally. This needs the new server migration that records when the server received each change. The live update and the catch-up after reconnecting now treat late changes the same way.
+- Deleting a board now also removes its stored delete records and sync memory instead of leaving them behind (and no longer writes the board's tasks, columns and labels back right after deleting them).
+- Uploading a saved state no longer fails part-way when the server's clock lags this device's and it refuses to clean up a change that is just inside the 30-day window; that change is kept and the rest of the cleanup goes on.
+- Changes you have not synced yet no longer disappear from the board, the global settings or Time Tracking when this device picks up a newer saved state from the server at launch or after reconnecting (#180). They stay visible and are still sent. When the server's saved state is newer than all your changes, the board shows exactly that state, without items it has since removed.
+
+### Security
+
+- A malformed or hostile event from another device can no longer break the board or Time Tracking view (#181). Every event, local or synced, is checked before it is saved or shown. Events with an unknown type, a missing id, a malformed timestamp, an unknown scope, a board event without a board, or a missing payload are rejected and logged once, and sync skips them and carries on with the rest. Unknown entity fields are dropped, an entity's id is taken only from the event itself (so a forged id in the payload can no longer bring a deleted task back or rename an item), customer, project, label and column colours must be hex colours (anything else falls back to a default colour, or is ignored in an update), and an event stamped more than 60 seconds ahead of this device's clock is rejected (it is picked up by a later sync once that time has come), so a device with a clock far in the future can no longer override every later edit.
+
+## [3.1.7] - 2026-10-05
+
+### Fixed
+
+- Boards created from a template now sync their real columns, tasks and settings to other devices instead of showing only To Do, In Progress and Done.
+- Opening a board while its columns are still syncing no longer adds an extra Done column.
+- Downloading one board's snapshot no longer adds unrelated, empty boards on another device.
+
+## [3.1.6] - 2026-10-04
+
+### Added
+
+- Install Kanvana as a standalone app with its proper logo on Android and Apple devices. Cache the production app for offline launches, and offer a reload when a new version is ready while preserving local boards and tasks.
+
+## [3.1.5] - 2026-10-04
+
+### Fixed
+
+- Download all account boards on login even when the realtime connection stalls or fails. Fetch missed changes after automatic realtime reconnects, and retain delayed board events that arrive behind the catch-up watermark.
+
+## [3.1.4] - 2026-09-17
+
+### Changed
+
+- Re-baselined the large-board performance harness's structural budgets. The drag fix in 3.1.3 cut swimlane DOM retention roughly in half — a 1,000-task swimlane board now retains 30,155 nodes where it retained 55,843 — so the recorded limits carried about 2x headroom and would no longer have caught a regression. Timing and heap baselines are unchanged; they belong to the reference runner.
+- Made the E2E suite deterministic. Specs waited on `#board-container` being visible, which is static markup in `index.html` and proves nothing about the app, then ran against a board that had not rendered. Readiness is now `data-view-mode`, set by `renderBoard()`. Drag specs share one SortableJS-safe pointer-drag helper instead of three divergent copies plus `locator.dragTo()`, which cannot drive a drag now that every Sortable runs with `forceFallback`, and box measurement retries through the re-renders that fire while the board boots. The dev server now warms its module graph at start-up, so the first navigation no longer costs ~21s.
+
+### Fixed
+
+- Fixed the board controls menu (the toolbar's ellipsis button) ignoring clicks during app start-up. Its click handler was wired after `initStorage()` and the first render, leaving a window in which the button was on screen but inert; it is now wired before anything is awaited.
+
+## [3.1.3] - 2026-09-16
+
+### Fixed
+
+- All drag interactions (task moves, column reordering, sub-task reordering, swim lane ordering) now use JavaScript dragging on desktop and touch devices, avoiding native browser drag sessions and card-text `DataTransfer` writes that may interact with workplace security software. Added browser coverage for 10- and 500-task boards, collapsed columns, swimlanes, repeated moves, and persistence after reload.
+
+## [3.1.2] - 2026-09-03
+
+### Fixed
+
+- WIP colors now apply only to counter badges.
+
+## [3.1.1] - 2026-09-03
+
+### Fixed
+
+- remove top column edge wip color from the column's accent colour
+- Prevent CI-only startup render storms from event-log backfill, persist column edits before reload, and serialize consecutive drag-drop reconciliation.
+
+## [3.1.0] - 2026-09-01
+
+### Added
+
+- Added per-column WIP limits. Each column carries a `wipLimit` (0 = unlimited) set in the Add Column and Edit Column modals. The column header counter shows `count/limit`, turning amber at the limit and red above it, and a column over its limit takes a red top edge so the breach stays readable when the header is collapsed or squeezed on mobile. Being at the limit is normal operation, so it is signalled by the counter alone — no top edge to compete with the column's accent colour. Limits are advisory and never block adding, dragging, importing, or syncing a task: under event-sourced sync a remote event cannot be rejected without breaking convergence, so a hard block would be a guarantee the sync model cannot keep. The Done column is exempt, counts are measured board-wide across swimlanes, and limits ride the existing `column.updated` event with no new event type.
+
+### Changed
+
+- Simplified the mobile board header into a single top row. On Samsung S23-sized screens the visible header now stays to logo or board name plus notifications and menu, while search and account or sync controls open in the mobile menu overlay instead of stacking across three persistent rows.
+- Expanded the mobile controls menu into a full-screen overlay with an explicit close button so the search field, sync or account status, and board actions open at the top of the viewport instead of starting far down the screen.
+
+### Fixed
+
+- ci fix
+- Fixed Online Mode losing some boards across devices after local snapshots. Board snapshots now only consider and garbage-collect events from their own board scope, so one board's snapshot cannot erase unsynced history for other boards before it reaches PocketBase.
+- Fixed the legacy full-pull sync helper leaving pulled boards invisible locally by merging remote board rows into the local board list before returning.
+
+## [3.0.8] - 2026-08-31
+
+### Added
+
+- Added a deterministic real-Chromium large-board performance harness (`npm run test:perf`) for 400-task and 1,000-task standard and swimlane boards. It runs against a production build and separately budgets synthetic IndexedDB fixture seeding, startup, real SortableJS pointer-drop latency, live cards, live DOM nodes, post-GC detached and retained DOM nodes, JavaScript heap, render counts, and browser crashes locally and in CI. Board-render marks are emitted only when the harness opts in, so production sessions do not accumulate them.
+
+### Changed
+
+- The `fetch-air-lake-temperatures` cron no longer records Faaker See; it now tracks Wörthersee water temperature and Viktring air temperature only. Existing `air_lake_temperatures` rows for Faaker See are left in place.
+
+## [3.0.7] - 2026-08-02
+
+### Fixed
+
+- Fixed the `fetch-air-lake-temperatures` cron aborting with `ReferenceError: formatViennaTimestamp is not defined`. PocketBase's JSVM re-executes each hook callback in a fresh, isolated VM, so the date helpers declared at file scope in `backend/pb_hooks/air_lake_temperatures.pb.js` were never in scope at run time. They now live inside the `cronAdd` callback.
+
+## [3.0.6] - 2026-08-01
+
+### Removed
+
+- Purged pre-event-sourcing rows from the PocketBase `events` collection (migration `1746100012`). They carried no `hlc` and no `scope` and used the old activity-log vocabulary (`task.column_moved`, `task.label_added`, …), so catch-up dropped them, the projector dropped them, and the reducer logged `Unknown event type` for every one on each device that pulled.
+
+### Fixed
+
+- Fixed local boards and tasks never reaching PocketBase. Events are only emitted going forward, so anything already in IndexedDB when event sourcing landed had no event log at all — it was invisible to sync while the header still read `Live ●` (queue depth 0 means "nothing queued", which a device with zero events also satisfies). A one-shot backfill (`event-sourcing/backfill.js`, run from `initStorage()`) now emits `board.created` / `column.created` / `label.created` / `task.created` for every pre-existing entity that has no `*.created` event yet, in an order a replaying device can rebuild from. Dedup is board-scoped, since column ids like `done` repeat across boards.
+- Fixed boards deleted on one device reappearing on another. `applyBoardDeleted` records a soft-delete tombstone, but `listBoards()` returned every board regardless — unlike `loadTasksForBoard` / `loadColumnsForBoard` / `loadLabelsForBoard`, which all filter `deleted`. A device replaying `board.deleted` resurrected the board.
+- Fixed snapshots being upload-only. `uploadSnapshot()` deletes the server events a snapshot covers, but nothing ever read one back, so a device joining after that GC pulled a log with the board's history already deleted and reconstructed nothing. Catch-up now hydrates from the newest server snapshot per scope (`downloadSnapshot()` / `downloadAllSnapshots()`) before replaying newer events, advancing `lastSeenHlc` to the snapshot's HLC. The read model is written through the projector (`hydrate()`), which stays its sole writer per ADR-0005.
+- Fixed events left unsynced when a tab closes sitting in IndexedDB until the user happened to make an edit. `initSyncQueue()` now drains on startup when authenticated, matching `initRealtime()`, which already caught up on load.
+
+## [3.0.5] - 2026-07-31
+
+### Changed
+
+- Made `dragdrop-done-crash.spec.js` deterministic on headless CI: it now drags via stepped `page.mouse` events instead of `locator.dragTo()`, which fired `dragstart`/`dragover` faster than SortableJS promotes `Sortable.active` and intermittently reverted the drop before `onEnd` ran. Same fix the 300-task perf spec already used.
+
+## [3.0.4] - 2026-07-31
+
+### Changed
+
+- `render.js` now exposes two render adapters behind one read model — `renderBoard()` (full rebuild) and `reconcileBoard()` (in-place patch). The drop path's manual `syncTaskCounters`/`syncCollapsedTitles`/`syncMovedTaskDueDate` pass is gone; those helpers are now `reconcileBoard()`'s implementation, and the dead `syncTaskCounters` export was removed. Covered by `tests/dom/reconcile.test.js` (10 behaviors) plus the real-Chrome `dragdrop-done-crash.spec.js`.
+
+### Fixed
+
+- Fixed the Chrome renderer crash on drag-to-Done at its root cause instead of racing its timing. The `requestAnimationFrame`/`setTimeout` barriers of 3.0.1–3.0.3 only moved *when* the teardown fired; the crash returned because the barrier was racing Chrome's drag-finalize IPC, which is unobservable from JS. The mechanism itself is now removed: a drop opens a **drag-reconcile window** (`beginDragReconcile()`/`endDragReconcile()` in `render.js`), so the `DATA_CHANGED` the move emits is routed through the new `reconcileBoard()` adapter — a keyed, in-place DOM patch — instead of `renderBoard()`'s `innerHTML` reset. The just-dragged node Chrome still references is never detached, and Sortable is never re-initialised mid-`onEnd`. `reconcileBoard()` mirrors the full render (card moves/reorder, counters, collapsed titles, due dates, Done virtualization, board filter, notifications) and falls back to a full rebuild for swimlane mode or a structural column-set change.
+
+## [3.0.3] - 2026-07-30
+
+### Fixed
+
+- Fixed Online Mode sync getting stuck at `Syncing… (N)` after login: `auth-changed` now starts an outbound event drain for pre-existing offline events, and the sync indicator rerenders on queue status changes when events finish, retry, or pause.
+
+## [3.0.2] - 2026-07-30
+
+### Fixed
+
+- Fixed Chrome renderer crash on first drag-to-Done: the single `requestAnimationFrame` barrier was insufficient on Windows Chrome because Chrome's DnD browser-process IPC response arrives as a new task after the frame paints, not during the RAF. The barrier is now `requestAnimationFrame(() => setTimeout(resolve, 0))` — the RAF yields past `dragend`'s synchronous dispatch, and the nested `setTimeout(0)` yields past the frame paint into the next task-queue slot, after the IPC has settled and Chrome has released its references to the dragged nodes.
+- Fixed drag/drop teardown leaks when the board re-renders or reinitializes during an active drag: Sortable cleanup now clears task and column drag body classes, pointer listeners, autoscroll state, collapsed drop-zone state, and hover classes. Done-column drops also avoid a redundant top-pin event because the primary drop handler already orders Done tasks through state.
+
+## [3.0.1] - 2026-07-30
+
+### Fixed
+
+- Fixed Chrome renderer crash on second consecutive drag-to-Done: `onEnd` now defers all state mutations to the next animation frame (`requestAnimationFrame`) before calling `scheduleDomainEvent`, preventing `renderBoard()`'s synchronous `innerHTML` reset from detaching nodes that Chrome's DnD engine still holds references to.
+- Fixed `dragdrop.spec.js` `should drag task from In Progress to Done` test with the 300-task performance fixture: replaced `dragTo` with `page.mouse` events and a 50 ms yield. Playwright's `dragTo` fires `dragstart` and `dragover` via CDP in rapid succession; SortableJS defers setting `Sortable.active` to the next event-loop tick (`setTimeout(0)` in `_dragStarted`), so `_onDragOver` saw a null `Sortable.active` and reverted every drop into a non-empty Done column. The `page.mouse` approach gives the timer time to fire between moves.
+
+## [3.0.0] - 2026-07-16
+
+### Added
+
+- Event-sourced sync foundation: HLC module with persisted node IDs and IndexedDB v2 stores for events, snapshots, and reducer read models.
+- Event-sourced reducer foundation with idempotent handlers for task, label, column, board, settings, subtask, and relationship events; feature modules now emit persisted domain events while keeping offline behavior intact.
+- Snapshot module with local GC: periodic board snapshots written to IndexedDB; old events pruned after each snapshot; configurable snapshot interval.
+- Event-sourced sync backend schema and outbound push queue (issue #112): PocketBase `events` collection extended with `hlc`/`scope`/`entity_id`, nullable `board`, `details`→`payload`, immutable updates; new `snapshots` collection; legacy collections locked read-only. Client `sync-queue` drains unsynced events to PocketBase in HLC order with a 5-deep in-flight cap, 500 ms debounce, three-tier retry (network backoff, auth-pause, permanent 4xx), online-event resume, and no-rollback semantics.
+- Inbound realtime sync (issue #114): a PocketBase SSE subscription applies remote events live across devices, plus a launch/reconnect catch-up pull so a just-opened device converges without manual sync.
+- Board scaffolding now emits domain events with a stable default board id (issue #114): a new device and an existing one converge on the same default board without a board-sharing handshake.
+- Header sync-state indicator (issue #115): a single live indicator replaces the manual Sync button — `Live ●` (green) when online and synced, `Syncing… (N)` (yellow) while events drain, `⚠ N unsynced` (orange) when retrying or paused, and `Offline` (gray) when offline or signed out; updates without a page reload.
+
+### Changed
+
+- Reducer is now the sole writer of the read model (issue #118, ADR-0005): local mutations emit domain events only — the direct `save*()` read-model writes were removed. Events are projected synchronously on the local path so the UI stays instant, while remaining HLC-ordered for sync. Domain events were made self-complete so the read model reproduces from events alone: relationship inverses now emit for the target task, task creation/reorder emit the sibling-order change, `doneDate` is derived in the move reducer, swimlane drag reassignments emit their field changes, and subtask title edits propagate. This also fixes latent cross-device gaps where relationship inverses and column order never synced. Deletes are hard removals via `task.deleted` (no read-model tombstone).
+- Read-model projection extracted from the `storage.js` god module into a dedicated `event-sourcing/read-model-projector.js` (issue #119, ADR-0005): `createReadModelProjector()` receives the in-memory `state` + schedulers by injection and owns `EVENT_EMITTED` subscription and projection. Behavior-preserving — the reducer stays pure and remains the sole read-model writer; no change to projection semantics, dedup, or snapshot scheduling.
+
+### Removed
+
+- Activity log feature retired: `activity.html`, `activity-log.js`, `activity-log-ui.js`, and `activity.js` removed; navigation links and all write-paths cleaned from tasks, columns, labels, storage, import/export, and sync modules.
+- ADR-0001 (dual-log audit trail) superseded by ADR-0004 (domain-event stream).
 - Online Mode PocketBase sync PRD documenting the current Go Online, auth, manual sync, auto-sync, and no-merge V1 contract.
-- Global "Soft-delete tasks" toggle in App Settings — choose between permanent deletion (default) and soft-delete mode where deleted tasks are hidden until explicitly purged.
-- "Purge deleted tasks" button in App Settings — hard-removes all soft-deleted tasks from local storage and syncs deletions to PocketBase when online.
+- Global `softDeleteEnabled` setting and "Soft-delete tasks" toggle in App Settings.
+- "Purge deleted tasks" settings action and `runPurge` flow.
 - Settings UI now separates App-level settings from Board-level settings, making global preferences distinct from per-board configuration.
-- Sync: `pushBoardFull()` now branches on `softDeleteEnabled` — in soft-delete mode it enqueues PocketBase cleanup intents via a pending hard-delete queue; in permanent mode it removes tasks immediately.
-- CI now includes a Semgrep security scan (`p/security-audit` and `p/secrets`) and blocks deploy jobs until the scan passes.
+- Sync branching on `softDeleteEnabled` and `pendingHardDeletes`; deletion propagation now follows the domain-event stream/tombstone model.
 
 ### Fixed
 
@@ -26,13 +223,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed Impressum page overflow so the legal content can scroll vertically on desktop and mobile.
 - Fixed sub-task font size.
 - Fixed missing scale icon for the legal/impressum page.
-- Soft-deleted tasks were silently lost when adding, editing, moving, or reordering other tasks, causing the Settings purge count and button to no longer reflect them; soft-deleted tasks are now retained until an explicit purge.
-- Soft-deleted tasks were also removed from local storage on every background sync, so the Settings purge count could drop to zero while the tasks still existed in PocketBase; sync now keeps soft-deleted tasks locally until you purge.
 - Deleting a board while signed in now also deletes the mapped PocketBase board and its board-scoped columns, labels, tasks, relationships, and events before removing the local board.
-- Fixed desktop task drag autoscroll so long task lists scroll vertically while dragging a card near the list edge
-- Fixed Impressum page overflow so the legal content can scroll vertically on desktop and mobile
-- Fixed font size sub-task
-- Fixed missing scale icon for impressum
+- Board changes from another device now refresh the board selector live (issue #114): remotely created or renamed boards appear in the dropdown without a reload.
+- Event-sourced PocketBase migration fixed for PocketBase v0.38.1 (issue #114): `events.board` is stored as TEXT (a client-side local UUID, not a `kanvana_boards` relation), so board-scoped events no longer fail validation; uses the v0.38.1 field API (`removeByName`/`add`).
+- Added a follow-up PocketBase migration that defensively repairs deployed databases where `events.board` is still a relation, preventing `validation_missing_rel_records` failures when signed-in users save task changes.
+- Corrected the frontend reverse-proxy URL in the Nginx configuration.
+- Vite now loads the `client/.env.local` (dev) and `client/.env.production` (build) files: `envDir` was previously resolving to `client/src/`, so `VITE_PB_URL` was silently ignored and the app fell back to the same origin; the production build now correctly targets `https://pb.kanvana.com`. The Playwright e2e configs pin `VITE_PB_URL=/` so the sandboxed browser stays same-origin via the `/api` proxy.
 
 ## [2.0.0] - 2026-05-16
 

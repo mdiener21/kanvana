@@ -32,20 +32,20 @@ client/             Frontend app (the main product)
     index.html      Main board page
     reports.html    Analytics page
     calendar.html   Calendar view
-    activity.html   Board event log page
+    timetracking.html Time tracking page
   tests/
     unit/           Vitest pure-unit tests
     dom/            Vitest + @testing-library/dom integration tests
     mocks/          MSW API mocks shared by Vitest suites
     e2e/            Playwright end-to-end tests
 backend/            PocketBase Dockerfile + migrations (optional cloud sync)
-cli/                Go CLI tooling (TODO)
+agents/             AI-agent configuration (issue tracker, labels, domain)
 docs/
   adr/              Architecture Decision Records
-  agents/           AI-agent configuration (issue tracker, labels, domain)
   spec/             Feature specifications
   user/             User-facing documentation (guides, FAQs, etc.)
-
+  plans/            Plans for all work to be done
+  prd/              Result from plans and are now ready to create issues from PRD  issues live under prd/prd-name/issues
 CONTEXT.md          Domain model — read before working on any feature
 CHANGELOG.md        Keep updated under [Unreleased] as you work
 ```
@@ -68,6 +68,18 @@ npm run test:e2e     # Playwright E2E tests only
 
 Run the full test suite before opening a PR. CI runs all three layers.
 
+Run local pocketbase without docker on windows for development
+
+```bash
+## download here https://pocketbase.io/docs/
+## Windows
+.\pocketbase.exe serve --migrationsDir ../backend/pb_migrations --hooksDir ../backend/pb_hook
+
+## Linux
+./pocketbase serve --migrationsDir ../backend/pb_migrations --hooksDir ../backend/pb_hook
+```
+
+
 ---
 
 ## Architecture Rules
@@ -82,7 +94,7 @@ Check `docs/adr/` for recorded architectural decisions before making structural 
 | State → render | Every state change must end with `renderBoard()` or an incremental sync helper |
 | Circular dep guard | Use dynamic `await import('./render.js')` only for render calls; all other imports must be top-level static |
 | `done` column | `id === 'done'` is permanent; never delete or reorder it past the last position |
-| Entity IDs | Always `generateId()` from `utils.js` — no numeric or legacy string IDs |
+| Entity IDs | Always `generateUUID()` from `utils.js` — no numeric or legacy string IDs |
 | Keybindings | Register in `DEFAULT_APP_KEYBINDINGS` or `DEFAULT_EDITOR_KEYBINDINGS` — never hardcode key strings |
 | Storage init | `initStorage()` is async; call it once at startup before any board operation |
 | Audit trail (dual log) | Column moves write to both `columnHistory` (CFD/lead-time) **and** `activityLog` (audit). Both writes are intentional — see ADR-0001. |
@@ -117,13 +129,13 @@ due-date countdown, validation, normalization, subtasks.
 
 ### Issue tracker
 
-Issues live in GitHub Issues (`github.com/mdiener21/kanvana`). See [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md).
+Issues live in GitHub Issues (`github.com/mdiener21/kanvana`). See [`agents/issue-tracker.md`](agents/issue-tracker.md).
 
 ### Triage labels
 
-Five canonical roles mapped to label strings. See [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md).
+Five canonical roles mapped to label strings. See [`agents/triage-labels.md`](agents/triage-labels.md).
 
 ### Domain docs
 
 Single-context repo — one `CONTEXT.md` at the repo root, one `docs/adr/` directory.
-See [`docs/agents/domain.md`](docs/agents/domain.md).
+See [`agents/domain.md`](agents/domain.md).

@@ -1,6 +1,6 @@
 {
   "name": "kanvana",
-  "version": "2.0.0",
+  "version": "3.2.0",
   "type": "module",
   "description": "A local-first personal + AI Agent kanban board for task project people anything management.",
   "scripts": {
@@ -10,10 +10,14 @@
     "release:prepare": "node scripts/prepare-release.mjs",
     "release:generate": "gh workflow run release.yml",
     "release:publish": "gh workflow run publish-release.yml",
-    "test": "npm run test:unit && npm run test:dom && npm run test:e2e",
+    "test": "npm run test:unit && npm run test:dom && npm run test:e2e && npm run test:pwa",
     "test:unit": "vitest run --config vitest.config.js",
     "test:dom": "vitest run --config vitest.dom.config.js",
     "test:e2e": "playwright test",
+    "test:perf": "playwright test --config playwright.performance.config.js",
+    "test:e2e:live": "playwright test --config playwright.live.config.js",
+    "test:pwa": "playwright test --config playwright.pwa.config.js",
+    "pwa:icons": "node scripts/generate-pwa-icons.mjs",
     "test:ui": "playwright test --ui",
     "test:debug": "playwright test --debug",
     "test:overview": "node scripts/generate-test-overview.mjs",
@@ -25,11 +29,11 @@
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^29.0.1",
     "msw": "^2.12.14",
-    "vite": "^7.3.1",
-    "vitest": "^4.1.0"
+    "vite": "^8.0.16",
+    "vitest": "^4.1.11"
   },
   "dependencies": {
-    "echarts": "^6.0.0",
+    "echarts": "^6.1.0",
     "idb": "^8.0.3",
     "lucide": "^0.469.0",
     "pocketbase": "^0.26.9",

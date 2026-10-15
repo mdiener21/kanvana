@@ -24,7 +24,6 @@ vi.mock('../../src/modules/modals.js', () => ({
 
 vi.mock('../../src/modules/storage.js', () => ({
   isDoneColumnId: vi.fn(() => false),
-  loadGlobalSettings: vi.fn(() => ({ softDeleteEnabled: false })),
   loadLabels: vi.fn(() => [])
 }));
 
@@ -59,7 +58,7 @@ test('delete button shows permanent-delete confirmation message by default', asy
   await Promise.resolve();
 
   expect(confirmDialog).toHaveBeenCalledWith(expect.objectContaining({
-    message: 'Delete this task? This cannot be undone.'
+    message: 'This will permanently delete the task. There is no undo.'
   }));
 });
 

@@ -1,19 +1,12 @@
-import { alertDialog, confirmDialog } from './dialog.js';
+import { alertDialog } from './dialog.js';
 import { setupModalCloseHandlers, hideLoginModal } from './modals.js';
-import { initializeBoardsUI } from './boards.js';
-import { renderBoard } from './render.js';
-import { listBoards } from './storage.js';
-import { enableAutoSync, isAutoSyncEnabled, scheduleAutoSync } from './autosync.js';
 import {
   isAuthenticated,
-  ensureAuthenticated,
   getUser,
   loginWithProvider,
   loginUser,
   registerUser,
   logoutUser,
-  pushBoardFull,
-  pullAllBoards,
 } from './sync.js';
 
 const PB_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_PB_URL) || '/';
@@ -34,11 +27,10 @@ export function initializeAuthSyncUI() {
   const loginBtn = document.getElementById('login-btn');
   const userInfo = document.getElementById('user-info');
   const userNameEl = document.getElementById('user-name');
-  const syncBtn = document.getElementById('sync-btn');
   const logoutBtn = document.getElementById('logout-btn');
   const loginModal = document.getElementById('login-modal');
 
-  if (!loginBtn || !userInfo || !userNameEl || !syncBtn || !logoutBtn || !loginModal) return;
+  if (!loginBtn || !userInfo || !userNameEl || !logoutBtn || !loginModal) return;
 
   const providerBtns = document.querySelectorAll('.login-provider-btn');
   const tabs = document.querySelectorAll('.login-tab');
@@ -97,15 +89,9 @@ export function initializeAuthSyncUI() {
       loginBtn.classList.add('hidden');
       userInfo.classList.remove('hidden');
       userNameEl.textContent = user?.name || user?.email || 'User';
-      if (isAutoSyncEnabled()) {
-        syncBtn.classList.add('hidden');
-      } else {
-        syncBtn.classList.remove('hidden');
-      }
     } else {
       loginBtn.classList.remove('hidden');
       userInfo.classList.add('hidden');
-      syncBtn.classList.remove('hidden');
     }
   }
 
@@ -167,62 +153,6 @@ export function initializeAuthSyncUI() {
   logoutBtn.addEventListener('click', () => {
     logoutUser();
     updateAuthUI();
-  });
-
-  syncBtn.addEventListener('click', async () => {
-    if (!(await ensureAuthenticated())) {
-      updateAuthUI();
-      openLoginModalEmail('Session expired. Please log in to sync.');
-      return;
-    }
-
-    try {
-      syncBtn.disabled = true;
-      syncBtn.classList.add('spinning');
-
-      const ok = await confirmDialog({
-        title: 'Sync Data',
-        message: 'Push local data to cloud or Pull from cloud?',
-        confirmText: 'Push to Cloud',
-        cancelText: 'Pull from Cloud',
-      });
-
-      if (ok) {
-        const boards = listBoards();
-        for (const b of boards) {
-          await pushBoardFull(b.id);
-        }
-        enableAutoSync();
-        for (const b of boards) {
-          scheduleAutoSync(b.id);
-        }
-        updateAuthUI();
-        await alertDialog({ title: 'Sync complete', message: 'Data pushed to cloud.' });
-      } else {
-        const confirmPull = await confirmDialog({
-          title: 'Confirm Pull',
-          message: 'This will replace your local data with cloud data. Continue?',
-          confirmText: 'Replace Local Data',
-          cancelText: 'Cancel',
-        });
-        if (!confirmPull) return;
-
-        const remoteBoards = await pullAllBoards();
-        if (!remoteBoards || remoteBoards.length === 0) {
-          await alertDialog({ title: 'No data', message: 'No data found in cloud.' });
-          return;
-        }
-        renderBoard();
-        initializeBoardsUI();
-        await alertDialog({ title: 'Sync complete', message: 'Data pulled from cloud.' });
-      }
-    } catch (err) {
-      console.error('Sync failed', err);
-      await alertDialog({ title: 'Sync failed', message: getTextError(err, 'Unknown error') });
-    } finally {
-      syncBtn.disabled = false;
-      syncBtn.classList.remove('spinning');
-    }
   });
 
   window.addEventListener('auth-changed', () => updateAuthUI());

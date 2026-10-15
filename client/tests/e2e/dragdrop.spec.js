@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test';
+import { dragByMouse } from './dragdrop.helpers.js';
+import { waitForBoardReady } from './board.helpers.js';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
@@ -26,34 +28,42 @@ test.describe('Drag and Drop Performance', () => {
       indexedDB.deleteDatabase('kanvana-db');
 
       const boardId = 'perf-test-board';
-      const req = indexedDB.open('kanvana-db', 1);
+      const req = indexedDB.open('kanvana-db', 2);
       req.onupgradeneeded = () => {
         const store = req.result.createObjectStore('kv');
+        const events = req.result.createObjectStore('events', { keyPath: 'id' });
+        events.createIndex('hlc', ['hlc.wallTime', 'hlc.counter', 'hlc.nodeId']);
+        events.createIndex('synced', 'synced');
+        req.result.createObjectStore('snapshots');
+        const readModel = req.result.createObjectStore('read_model');
         const boards = [{ id: boardId, name: 'Performance Test Board', createdAt: new Date().toISOString() }];
         store.put(boards, 'kanbanBoards');
         store.put(boardId, 'kanbanActiveBoardId');
-        store.put(data.columns, `kanbanBoard:${boardId}:columns`);
-        store.put(data.tasks, `kanbanBoard:${boardId}:tasks`);
-        store.put(data.labels, `kanbanBoard:${boardId}:labels`);
+        readModel.put(data.columns, `${boardId}:columns`);
+        readModel.put(data.tasks, `${boardId}:tasks`);
+        readModel.put(data.labels, `${boardId}:labels`);
         store.put(data.settings, `kanbanBoard:${boardId}:settings`);
       };
     }, fixture);
 
     await page.goto('/');
-    await expect(page.locator('#board-container')).toBeVisible();
+    await waitForBoardReady(page);
     await expect(columnByName(page, 'In Progress')).toBeVisible();
     await expect(columnByName(page, 'Done')).toBeVisible();
   });
 
   test('should drag task from In Progress to Done', async ({ page }) => {
+    // Dismiss any overdue-task notification banner that may overlay the board.
+    const hideBtn = page.locator('button[aria-label="Hide notification banner"]');
+    if (await hideBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await hideBtn.click();
+    }
+
     const inProgressColumn = columnByName(page, 'In Progress');
     const doneColumn = columnByName(page, 'Done');
 
     const firstTask = inProgressColumn.locator('.task').first();
     await expect(firstTask).toBeVisible();
-
-    const taskId = await firstTask.getAttribute('data-task-id');
-    const taskTitle = await firstTask.locator('.task-title').textContent();
 
     const inProgressCounterBefore = parseInt((await inProgressColumn.locator('.task-counter').textContent()) || '0');
     expect(inProgressCounterBefore).toBeGreaterThan(0);
@@ -61,19 +71,12 @@ test.describe('Drag and Drop Performance', () => {
     const doneCounterBefore = parseInt((await doneColumn.locator('.task-counter').textContent()) || '0');
     expect(doneCounterBefore).toBeGreaterThanOrEqual(300);
 
-    await firstTask.dragTo(doneColumn.locator('.tasks'));
+    await dragByMouse(page, firstTask, doneColumn.locator('.tasks'));
 
-    const movedTask = doneColumn.locator(`.task[data-task-id="${taskId}"]`);
-    await expect(movedTask).toBeVisible({ timeout: 5000 });
-
-    const movedTaskTitle = await movedTask.locator('.task-title').textContent();
-    expect(movedTaskTitle).toBe(taskTitle);
-
-    const doneCounterAfter = parseInt((await doneColumn.locator('.task-counter').textContent()) || '0');
-    expect(doneCounterAfter).toBe(doneCounterBefore + 1);
-
-    const inProgressCounterAfter = parseInt((await inProgressColumn.locator('.task-counter').textContent()) || '0');
-    expect(inProgressCounterAfter).toBe(inProgressCounterBefore - 1);
+    // Counter-based assertions: virtualization means the moved task may not be in the
+    // first 50 rendered done-column items, but the counter always reflects the true total.
+    await expect(doneColumn.locator('.task-counter')).toHaveText(String(doneCounterBefore + 1), { timeout: 5000 });
+    await expect(inProgressColumn.locator('.task-counter')).toHaveText(String(inProgressCounterBefore - 1), { timeout: 5000 });
   });
 
   test('should handle multiple consecutive drops', async ({ page }) => {
@@ -81,11 +84,14 @@ test.describe('Drag and Drop Performance', () => {
     const doneColumn = columnByName(page, 'Done');
     const doneTasksList = doneColumn.locator('.tasks');
 
+    const countBefore = Number(await doneColumn.locator('.task-counter').textContent());
     for (let i = 0; i < 3; i++) {
       const task = inProgressColumn.locator('.task').first();
       await expect(task).toBeVisible();
-      await task.dragTo(doneTasksList);
-      await expect(doneColumn.locator('.task').first()).toBeVisible({ timeout: 5000 });
+      const taskId = await task.getAttribute('data-task-id');
+      await dragByMouse(page, task, doneTasksList);
+      await expect(doneColumn.locator('.task').first()).toHaveAttribute('data-task-id', taskId);
+      await expect(doneColumn.locator('.task-counter')).toHaveText(String(countBefore + i + 1));
     }
 
     // All 3 drops completed — verify counter reflects moves

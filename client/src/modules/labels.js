@@ -1,6 +1,6 @@
 import { generateUUID } from './utils.js';
-import { getActiveBoardId, loadDeletedLabelsForBoard, loadLabels, saveLabels, loadTasks, saveTasks } from './storage.js';
-import { DEFAULT_HUMAN_ACTOR, appendTaskActivity, createActivityEvent } from './activity-log.js';
+import { getActiveBoardId, loadLabels, loadTasks } from './storage.js';
+import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 
 const MAX_LABEL_NAME_LENGTH = 40;
 
@@ -55,7 +55,12 @@ export function addLabel(name, color, group = '') {
   const trimmedGroup = typeof group === 'string' ? group.trim() : '';
   const newLabel = { id, name: trimmedName, color, group: trimmedGroup };
   labels.push(newLabel);
-  saveLabels(labels);
+  scheduleDomainEvent({
+    type: 'label.created',
+    boardId: getActiveBoardId(),
+    entityId: id,
+    payload: { label: newLabel }
+  });
 
   return { success: true, label: newLabel };
 }
@@ -89,7 +94,12 @@ export function updateLabel(labelId, name, color, group = '') {
   labels[labelIndex].name = trimmedName;
   labels[labelIndex].color = color;
   labels[labelIndex].group = typeof group === 'string' ? group.trim() : '';
-  saveLabels(labels);
+  scheduleDomainEvent({
+    type: 'label.updated',
+    boardId: getActiveBoardId(),
+    entityId: labelId,
+    payload: { fields: { name: labels[labelIndex].name, color: labels[labelIndex].color, group: labels[labelIndex].group } }
+  });
 
   return { success: true, label: labels[labelIndex] };
 }
@@ -97,29 +107,24 @@ export function updateLabel(labelId, name, color, group = '') {
 // Delete a label
 export function deleteLabel(labelId) {
   const boardId = getActiveBoardId();
-  const liveLabels = loadLabels();
   const liveTasks = loadTasks();
-  const label = liveLabels.find(l => l.id === labelId);
 
-  // Remove label ref from tasks
-  const allTasks = [...liveTasks, ...[]]; // live only — deleted tasks don't need label cleanup
-  const updatedTasks = allTasks.map(task => {
-    if (task.labels?.includes(labelId)) {
-      const updatedTask = {
-        ...task,
-        labels: task.labels.filter(id => id !== labelId)
-      };
-      return appendTaskActivity(updatedTask, createActivityEvent('task.label_removed', {
-        labelId,
-        labelName: label?.name || ''
-      }, DEFAULT_HUMAN_ACTOR));
-    }
-    return task;
+  // The label.removed_from_task events clean the label off each task and
+  // label.deleted soft-deletes the label; the reducer is the sole writer (ADR-0005).
+  liveTasks
+    .filter((task) => task.labels?.includes(labelId))
+    .forEach((task) => {
+      scheduleDomainEvent({
+        type: 'label.removed_from_task',
+        boardId,
+        entityId: task.id,
+        payload: { label_id: labelId }
+      });
+    });
+  scheduleDomainEvent({
+    type: 'label.deleted',
+    boardId,
+    entityId: labelId,
+    payload: {}
   });
-  saveTasks(updatedTasks);
-
-  // Soft-delete the label, preserving already-deleted labels
-  const allLabels = [...liveLabels, ...loadDeletedLabelsForBoard(boardId)];
-  const updatedLabels = allLabels.map(l => l.id === labelId ? { ...l, deleted: true } : l);
-  saveLabels(updatedLabels);
 }

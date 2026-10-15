@@ -1,0 +1,359 @@
+
+=== DIRECTORY TREE (max depth 3, source files only) ===
+.agents
+.codex
+.dockerignore
+.env
+.env.example
+.gitignore
+.graphifyignore
+AGENTS.md
+CHANGELOG.md
+CLAUDE.md
+CODE_OF_CONDUCT.md
+CONTEXT.md
+Dockerfile
+GEMINI.md
+LICENSE.md
+README.md
+backend
+backend/Dockerfile
+backend/pb_migrations
+backend/pb_migrations/1746100000_create_boards.js
+backend/pb_migrations/1746100001_create_columns.js
+backend/pb_migrations/1746100002_create_labels.js
+backend/pb_migrations/1746100003_create_tasks.js
+backend/pb_migrations/1746100004_fix_tasks_labels_maxselect.js
+backend/pb_migrations/1746100005_add_tasks_missing_fields.js
+backend/pb_migrations/1746100006_create_task_relationships.js
+backend/pb_migrations/1746100007_create_events.js
+backend/pb_migrations/1746100008_add_columns_missing_fields.js
+backend/pb_migrations/1746100009_add_labels_missing_fields.js
+bun.lock
+cli
+cli/cmd
+client
+client/.env.local
+client/.env.production
+client/package-lock.json
+client/package.json
+client/playwright-report
+client/playwright-report/data
+client/playwright-report/data/d96a8d1e63b1e029f0214791b587b5370548e2c3.md
+client/playwright-report/index.html
+client/playwright.config.js
+client/scripts
+client/scripts/deploy.sh
+client/scripts/generate-test-overview.mjs
+client/src
+client/src/activity.html
+client/src/calendar.html
+client/src/images
+client/src/images/kanvana-logo-color-32x23.svg
+client/src/impressum.html
+client/src/index.html
+client/src/kanban.js
+client/src/modules
+client/src/modules/accordion.js
+client/src/modules/activity-log-ui.js
+client/src/modules/activity-log.js
+client/src/modules/activity.js
+client/src/modules/authsync.js
+client/src/modules/autosync.js
+client/src/modules/board-serializer.js
+client/src/modules/boards-modal.js
+client/src/modules/boards.js
+client/src/modules/calendar.js
+client/src/modules/column-element.js
+client/src/modules/column-modal.js
+client/src/modules/columns.js
+client/src/modules/constants.js
+client/src/modules/dateutils.js
+client/src/modules/dialog.js
+client/src/modules/dom.js
+client/src/modules/dragdrop.js
+client/src/modules/events.js
+client/src/modules/icons.js
+client/src/modules/idb-store.js
+client/src/modules/importexport.js
+client/src/modules/impressum.js
+client/src/modules/labels-modal.js
+client/src/modules/labels.js
+client/src/modules/modals.js
+client/src/modules/normalize.js
+client/src/modules/notifications.js
+client/src/modules/render.js
+client/src/modules/reports.js
+client/src/modules/schema.js
+client/src/modules/security.js
+client/src/modules/settings.js
+client/src/modules/storage.js
+client/src/modules/swimlane-renderer.js
+client/src/modules/swimlanes.js
+client/src/modules/sync.js
+client/src/modules/task-card.js
+client/src/modules/task-modal.js
+client/src/modules/tasks.js
+client/src/modules/theme.js
+client/src/modules/utils.js
+client/src/modules/validation.js
+client/src/reports.html
+client/src/styles
+client/src/styles/base.css
+client/src/styles/components
+client/src/styles/index.css
+client/src/styles/layout.css
+client/src/styles/responsive.css
+client/src/styles/tokens.css
+client/src/styles/utilities.css
+client/src/templates
+client/src/templates/AI-Agent-Ops-Starter-Template.json
+client/src/templates/Content-Creation-Board-Template.json
+client/src/templates/Creative-Vision-Board-Template.json
+client/src/templates/Eisenhower-Method-Board-Template.json
+client/src/templates/Event-Planning-Board-Template.json
+client/src/templates/Getting-Things-Done-Template.json
+client/src/templates/Marketing-Campaign-Board-Template.json
+client/src/templates/Personal-Life-Board-Template.json
+client/src/templates/Personal-Work-Kanban-Template.json
+client/src/templates/Product-Development-Board-Template.json
+client/src/templates/Project-Management-Board-Template.json
+client/src/templates/RAID-Board-Template.json
+client/src/templates/Sales-Board-Template.json
+client/src/templates/Startup-Business-Operations-Board-Template.json
+client/src/templates/Student-Board-Template.json
+client/test-results
+client/test-results/.last-run.json
+client/test-results/dragdrop-Drag-and-Drop-Per-4a934-sk-from-In-Progress-to-Done-chromium
+client/test-results/dragdrop-Drag-and-Drop-Per-4a934-sk-from-In-Progress-to-Done-chromium/error-context.md
+client/tests
+client/tests/TEST-OVERVIEW.md
+client/tests/dom
+client/tests/dom/accordion.test.js
+client/tests/dom/activity-log-ui.test.js
+client/tests/dom/activity-page.test.js
+client/tests/dom/authsync.test.js
+client/tests/dom/boards-quick-switch.test.js
+client/tests/dom/msw-example.test.js
+client/tests/dom/settings-ui.test.js
+client/tests/dom/setup.js
+client/tests/dom/task-card-delete.test.js
+client/tests/dom/task-card-linkify.test.js
+client/tests/e2e
+client/tests/e2e/boards.spec.js
+client/tests/e2e/create-task.spec.ts
+client/tests/e2e/dragdrop.spec.js
+client/tests/e2e/subtasks.spec.ts
+client/tests/e2e/swimlanes-dnd.spec.js
+client/tests/e2e/swimlanes-persistence.spec.js
+client/tests/e2e/swimlanes-toggle.spec.js
+client/tests/e2e/swimlanes.helpers.js
+client/tests/e2e/task-delete.spec.ts
+client/tests/e2e/validation-missing-title.spec.ts
+client/tests/fixtures
+client/tests/fixtures/generate-fixture.js
+client/tests/fixtures/performance-board.json
+client/tests/mocks
+client/tests/mocks/handlers.js
+client/tests/mocks/server.js
+client/tests/test-plans
+client/tests/test-plans/swimlane-coverage-gap-assessment.plan.md
+client/tests/test-plans/task-creation-with-labels.plan.md
+client/tests/unit
+client/tests/unit/activity-log.test.js
+client/tests/unit/autosync.test.js
+client/tests/unit/columns.test.js
+client/tests/unit/constants.test.js
+client/tests/unit/dateutils.test.js
+client/tests/unit/events.test.js
+client/tests/unit/importexport.test.js
+client/tests/unit/labels.test.js
+client/tests/unit/normalize.test.js
+client/tests/unit/security.test.js
+client/tests/unit/setup.js
+client/tests/unit/storage-idb.test.js
+client/tests/unit/storage.test.js
+client/tests/unit/swimlanes-utils.test.js
+client/tests/unit/sync.test.js
+client/tests/unit/tasks.test.js
+client/tests/unit/utils.test.js
+client/tests/unit/validation.test.js
+client/vite.config.js
+client/vitest.config.js
+client/vitest.dom.config.js
+devops
+devops/local
+devops/local/backend
+devops/local/backend/Dockerfile
+devops/local/frontend
+devops/local/frontend/Dockerfile
+devops/local/nginx
+devops/local/nginx/Dockerfile
+devops/local/nginx/conf.d
+docker-compose-prod.yml
+docker-compose.yml
+docs
+docs/adr
+docs/adr/0001-two-log-audit-trail.md
+docs/adr/0002-permanent-delete-default-soft-delete-opt-in.md
+docs/adr/0003-global-settings-layer.md
+docs/agents
+docs/agents/domain.md
+docs/agents/issue-tracker.md
+
+=== STACK DETECTION (manifest files) ===
+No recognized manifest files found in project root.
+
+=== ENTRY POINTS ===
+No common entry points found. Check 'main' or 'scripts.start' in manifest files above.
+
+=== LINTING AND FORMATTING CONFIG ===
+No linting or formatting config files found in project root.
+
+=== ENVIRONMENT VARIABLE TEMPLATES ===
+--- .env.example ---
+# .env.example — copy to .env and fill in values
+# .env is gitignored; .env.example is committed.
+
+# Frontend service port on the host side.
+# Local Docker dev defaults to 8080.
+# Set this to 80 in production if you want the container on the standard HTTP port.
+NGINX_PORT=80
+
+# PocketBase image version tag.
+PB_VERSION=0.38.1
+
+POCKETBASE_WORKDIR=/opt/pb
+POCKETBASE_DATA_DIR=/opt/pb/data_dir
+POCKETBASE_MIGRATION_DIR=/opt/pb/migrations
+POCKETBASE_PUBLIC_DIR=/opt/pb/public
+POCKETBASE_HOOK_DIR=/opt/pb/
+
+POCKETBASE_HOME=/opt/pocketbase
+
+POCKETBASE_ADMIN_EMAIL=admin@yourdomain.com
+POCKETBASE_ADMIN_PASSWORD=strongpassword
+
+# deploy env vars
+APP_DIR="/my/app/dir"
+SERVICE_NAME="kanvana_pb"
+COMPOSE_FILE="docker-compose.yml"
+HEALTH_URL="https://example.com/health"
+
+
+
+=== TODO / FIXME / HACK (production code only, test dirs excluded) ===
+scan.py:28: TODO_LIMIT = 60
+scan.py:292: """Search for TODO/FIXME/HACK comments."""
+scan.py:292: """Search for TODO/FIXME/HACK comments."""
+scan.py:292: """Search for TODO/FIXME/HACK comments."""
+scan.py:294: patterns = ["TODO", "FIXME", "HACK"]
+scan.py:294: patterns = ["TODO", "FIXME", "HACK"]
+scan.py:294: patterns = ["TODO", "FIXME", "HACK"]
+scan.py:321: return todos[:TODO_LIMIT]
+scan.py:618: # TODOs
+scan.py:621: print_section("TODO / FIXME / HACK (production code only, test dirs excluded)", todos, output_file)
+scan.py:621: print_section("TODO / FIXME / HACK (production code only, test dirs excluded)", todos, output_file)
+scan.py:621: print_section("TODO / FIXME / HACK (production code only, test dirs excluded)", todos, output_file)
+scan.py:623: print_section("TODO / FIXME / HACK (production code only, test dirs excluded)", ["None found."], output_file)
+scan.py:623: print_section("TODO / FIXME / HACK (production code only, test dirs excluded)", ["None found."], output_file)
+scan.py:623: print_section("TODO / FIXME / HACK (production code only, test dirs excluded)", ["None found."], output_file)
+scripts/scan.py:28: TODO_LIMIT = 60
+scripts/scan.py:292: """Search for TODO/FIXME/HACK comments."""
+scripts/scan.py:292: """Search for TODO/FIXME/HACK comments."""
+scripts/scan.py:292: """Search for TODO/FIXME/HACK comments."""
+scripts/scan.py:294: patterns = ["TODO", "FIXME", "HACK"]
+scripts/scan.py:294: patterns = ["TODO", "FIXME", "HACK"]
+scripts/scan.py:294: patterns = ["TODO", "FIXME", "HACK"]
+scripts/scan.py:321: return todos[:TODO_LIMIT]
+scripts/scan.py:618: # TODOs
+scripts/scan.py:621: print_section("TODO / FIXME / HACK (production code only, test dirs excluded)", todos, output_file)
+scripts/scan.py:621: print_section("TODO / FIXME / HACK (production code only, test dirs excluded)", todos, output_file)
+scripts/scan.py:621: print_section("TODO / FIXME / HACK (production code only, test dirs excluded)", todos, output_file)
+scripts/scan.py:623: print_section("TODO / FIXME / HACK (production code only, test dirs excluded)", ["None found."], output_file)
+scripts/scan.py:623: print_section("TODO / FIXME / HACK (production code only, test dirs excluded)", ["None found."], output_file)
+scripts/scan.py:623: print_section("TODO / FIXME / HACK (production code only, test dirs excluded)", ["None found."], output_file)
+
+=== GIT RECENT COMMITS (last 20) ===
+5501e76 refactor: reorganize documentation structure and add context file
+7974849 refactor: rename files for improved organization and clarity
+e31daf4 docs: update PocketBase URL documentation and sync behavior details
+465a4c3 feat: implement remote board deletion and cleanup of associated records
+5362114 fix: disable login button and update title when sync server is unreachable
+ebf7875 Merge branch '#0002-perm-del-purge' into main-backup-before-purge
+184b88a docs: update DOM refactor summary with actual lines saved and findings from Phase 7
+035c3aa dom-refactor reduce duplicate dom manipulation code
+04b453e fix js typo in name fo function JSONfield  not JsonField
+fbc119a refactor: enhance auto-scroll logic and add dragover event listener for improved task dragging
+4b45364 style: enhance layout for impressum page with overflow handling
+8b871cc fix wrong version npm pocketbase
+388cd8f fix icon style missing icon
+d605ad4 fix(docs): update reference link in sync specification for clarity
+d4d0f37 feat: rework soft-delete functionality with new decision tree and module updates
+5b2be34 fix(changelog): retain soft-deleted tasks during edits and sync to ensure accurate purge count
+939d648 feat(changelog): update changelog with new features and improvements for task deletion and settings feat(tests): document task deletion flows in testing specifications
+5d61c7d feat(storage): enhance purgeDeleted function to conditionally remove tasks, columns, and labels
+e48f8df feat(changelog): add E2E tests for task deletion flows
+bf14aa0 feat(tests): enhance test coverage for task deletion and settings UI
+
+=== HIGH-CHURN FILES (last 90 days, top 20) ===
+  77 CHANGELOG.md
+  22 README.md
+  16 src/index.html
+  14 package-lock.json
+  13 AGENTS.md
+  13 docs/specification-kanban.md
+  13 package.json
+  12 docker-compose.yml
+  11 src/styles/components/column.css
+  10 client/src/modules/storage.js
+  10 client/src/index.html
+   9 docs/readme.md
+   9 src/modules/storage.js
+   9 src/modules/task-modal.js
+   8 docs/spec/tasks.md
+   8 client/tests/unit/sync.test.js
+   8 client/package-lock.json
+   8 client/package.json
+   8 src/modules/importexport.js
+   8 src/modules/task-card.js
+
+=== MONOREPO SIGNALS ===
+No monorepo signals detected.
+
+=== CODE METRICS ===
+Total files scanned: 268
+Total lines of code: 35466
+
+Files by language:
+  Other: 167
+  JavaScript: 95
+  TypeScript: 4
+  Python: 2
+
+Top 10 largest files:
+client/playwright-report/index.html: 576.5KB
+playwright-report/index.html: 569.0KB
+client/tests/fixtures/performance-board.json: 242.0KB
+client/src/images/kanvana-logo-color-32x23.svg: 203.7KB
+docs/user/image-1.png: 103.6KB
+client/package-lock.json: 94.0KB
+docs/temp/plan/completed/2026-04-04-pocketbase-backend.md: 75.5KB
+client/playwright-report/data/d96a8d1e63b1e029f0214791b587b5370548e2c3.md: 52.8KB
+client/test-results/dragdrop-Drag-and-Drop-Per-4a934-sk-from-In-Progress-to-Done-chromium/error-context.md: 52.8KB
+docs/user/image.png: 46.3KB
+
+=== CI/CD PIPELINES ===
+CI/CD: GitHub Actions
+
+=== CONTAINERS & ORCHESTRATION ===
+Container: Docker found
+Orchestration: Docker Compose found
+
+=== SECURITY & COMPLIANCE ===
+No security configs detected.
+
+=== PERFORMANCE & TESTING ===
+No performance testing configs detected.
+
+=== SCAN COMPLETE ===

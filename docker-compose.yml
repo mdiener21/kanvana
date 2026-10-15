@@ -1,6 +1,6 @@
 services:
-  nginx:
-    container_name: nginx
+  kv-nginx:
+    container_name: kv-nginx
     image: kanvana_nginx:alpine
     build:
       context: .
@@ -8,12 +8,12 @@ services:
     ports:
       - "80:80"
     depends_on:
-      - frontend
-      - pocketbase
+      - kv-frontend
+      - kv-pocketbase
     restart: unless-stopped
 
-  frontend:
-    container_name: frontend
+  kv-frontend:
+    container_name: kv-frontend
     image: kanvana-frontend-dev
     build:
       context: .
@@ -26,8 +26,8 @@ services:
     command: npm run dev -- --host 0.0.0.0 --port 3000 --no-open
     restart: unless-stopped
 
-  pocketbase:
-    container_name: pb
+  kv-pocketbase:
+    container_name: kv-pb
     image: kanvana-pb:latest
     build:
       context: .
@@ -48,8 +48,8 @@ services:
       retries: 10
     restart: unless-stopped
 
-  adminer:
-    container_name: adminer
+  kv-adminer:
+    container_name: kv-adminer
     image: adminer:latest
     ports:
       - "8080:8080"

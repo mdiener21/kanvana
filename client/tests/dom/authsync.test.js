@@ -1,40 +1,20 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 // ── Module mocks ───────────────────────────────────────────────────────────────
+// Manual sync (push/pull on a #sync-btn) was removed in #115 — the header now
+// shows a read-only sync-state indicator and event sourcing drains automatically.
+// authsync.js only owns auth UI + the PocketBase health probe.
 
 vi.mock('../../src/modules/sync.js', () => ({
   isAuthenticated: vi.fn(() => false),
-  ensureAuthenticated: vi.fn(async () => false),
   getUser: vi.fn(() => null),
   loginUser: vi.fn(),
   registerUser: vi.fn(),
   logoutUser: vi.fn(),
-  pushBoardFull: vi.fn(async () => {}),
-  pullAllBoards: vi.fn(async () => []),
   loginWithProvider: vi.fn(),
 }));
 
-vi.mock('../../src/modules/autosync.js', () => ({
-  isAutoSyncEnabled: vi.fn(() => false),
-  enableAutoSync: vi.fn(),
-  scheduleAutoSync: vi.fn(),
-}));
-
-vi.mock('../../src/modules/storage.js', () => ({
-  listBoards: vi.fn(() => []),
-  setActiveBoardId: vi.fn(),
-}));
-
-vi.mock('../../src/modules/render.js', () => ({
-  renderBoard: vi.fn(),
-}));
-
-vi.mock('../../src/modules/boards.js', () => ({
-  initializeBoardsUI: vi.fn(),
-}));
-
 vi.mock('../../src/modules/dialog.js', () => ({
-  confirmDialog: vi.fn(async () => false),
   alertDialog: vi.fn(async () => true),
 }));
 
@@ -44,13 +24,7 @@ vi.mock('../../src/modules/modals.js', () => ({
 }));
 
 import { initializeAuthSyncUI } from '../../src/modules/authsync.js';
-import { isAuthenticated, getUser, pushBoardFull, pullAllBoards } from '../../src/modules/sync.js';
-import { isAutoSyncEnabled, enableAutoSync, scheduleAutoSync } from '../../src/modules/autosync.js';
-import { listBoards } from '../../src/modules/storage.js';
-import { alertDialog, confirmDialog } from '../../src/modules/dialog.js';
-import { hideLoginModal } from '../../src/modules/modals.js';
-import { renderBoard } from '../../src/modules/render.js';
-import { initializeBoardsUI } from '../../src/modules/boards.js';
+import { isAuthenticated, getUser } from '../../src/modules/sync.js';
 
 // ── HTML fixtures ──────────────────────────────────────────────────────────────
 
@@ -60,7 +34,7 @@ const AUTH_HTML = `
     <span id="user-name"></span>
     <button id="logout-btn" type="button">Logout</button>
   </div>
-  <button id="sync-btn" type="button">Sync</button>
+  <span id="sync-indicator" class="sync-indicator sync-indicator--offline">Offline</span>
   <div id="login-modal" class="hidden">
     <div class="modal-backdrop"></div>
     <div class="login-tabs">
@@ -92,12 +66,6 @@ beforeEach(() => {
   // Restore sane defaults after clearAllMocks
   isAuthenticated.mockReturnValue(false);
   getUser.mockReturnValue(null);
-  isAutoSyncEnabled.mockReturnValue(false);
-  listBoards.mockReturnValue([]);
-  pushBoardFull.mockResolvedValue(undefined);
-  pullAllBoards.mockResolvedValue([]);
-  alertDialog.mockResolvedValue(true);
-  confirmDialog.mockResolvedValue(false);
   // Suppress fetch errors in tests that don't set it up
   global.fetch = vi.fn(() => Promise.reject(new Error('Network error')));
 });
@@ -159,22 +127,6 @@ describe('auth UI state', () => {
     expect(document.getElementById('user-info').classList.contains('hidden')).toBe(false);
     expect(document.getElementById('user-name').textContent).toBe('Alice');
   });
-
-  it('hides sync-btn when authenticated and auto-sync enabled', () => {
-    isAuthenticated.mockReturnValue(true);
-    getUser.mockReturnValue({ name: 'Alice' });
-    isAutoSyncEnabled.mockReturnValue(true);
-    initializeAuthSyncUI();
-    expect(document.getElementById('sync-btn').classList.contains('hidden')).toBe(true);
-  });
-
-  it('shows sync-btn when authenticated but auto-sync disabled', () => {
-    isAuthenticated.mockReturnValue(true);
-    getUser.mockReturnValue({ name: 'Alice' });
-    isAutoSyncEnabled.mockReturnValue(false);
-    initializeAuthSyncUI();
-    expect(document.getElementById('sync-btn').classList.contains('hidden')).toBe(false);
-  });
 });
 
 // ── Slice 4: registration message ────────────────────────────────────────────
@@ -197,7 +149,6 @@ describe('register flow', () => {
     const msg = document.getElementById('auth-message');
     expect(msg.classList.contains('hidden')).toBe(false);
     expect(msg.textContent).toContain('email');
-    // authStore.save NOT called — no auto-login (verified by registerUser mock not setting auth)
   });
 
   it('does not call loginUser after registerUser', async () => {
@@ -212,54 +163,5 @@ describe('register flow', () => {
 
     await new Promise(r => setTimeout(r, 0));
     expect(lu).not.toHaveBeenCalled();
-  });
-});
-
-// ── Slice 5: push flow ────────────────────────────────────────────────────────
-
-describe('sync push', () => {
-  it('calls pushBoardFull(boardId) for each board — not old multi-arg signature', async () => {
-    const { ensureAuthenticated: ea } = await import('../../src/modules/sync.js');
-    ea.mockResolvedValue(true);
-    isAuthenticated.mockReturnValue(true);
-    getUser.mockReturnValue({ name: 'Alice' });
-    listBoards.mockReturnValue([{ id: 'b1', name: 'Board 1' }, { id: 'b2', name: 'Board 2' }]);
-    confirmDialog.mockResolvedValueOnce(true); // user picks Push
-
-    initializeAuthSyncUI();
-    document.getElementById('sync-btn').click();
-
-    await new Promise(r => setTimeout(r, 50));
-
-    expect(pushBoardFull).toHaveBeenCalledWith('b1');
-    expect(pushBoardFull).toHaveBeenCalledWith('b2');
-    expect(pushBoardFull).toHaveBeenCalledTimes(2);
-    expect(enableAutoSync).toHaveBeenCalled();
-    expect(scheduleAutoSync).toHaveBeenCalledWith('b1');
-    expect(scheduleAutoSync).toHaveBeenCalledWith('b2');
-  });
-});
-
-// ── Slice 6: pull flow ────────────────────────────────────────────────────────
-
-describe('sync pull', () => {
-  it('calls renderBoard and initializeBoardsUI after successful pull', async () => {
-    const { ensureAuthenticated: ea } = await import('../../src/modules/sync.js');
-    ea.mockResolvedValue(true);
-    isAuthenticated.mockReturnValue(true);
-    getUser.mockReturnValue({ name: 'Alice' });
-    pullAllBoards.mockResolvedValueOnce([{ id: 'b1', name: 'Board 1' }]);
-    confirmDialog
-      .mockResolvedValueOnce(false)  // user picks Pull (cancel = Pull)
-      .mockResolvedValueOnce(true);  // confirm replace
-
-    initializeAuthSyncUI();
-    document.getElementById('sync-btn').click();
-
-    await new Promise(r => setTimeout(r, 50));
-
-    expect(pullAllBoards).toHaveBeenCalled();
-    expect(renderBoard).toHaveBeenCalled();
-    expect(initializeBoardsUI).toHaveBeenCalled();
   });
 });

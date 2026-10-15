@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { waitForBoardReady } from './board.helpers.js';
 
 /**
  * Tests for board management functionality (manage-boards modal)
@@ -27,7 +28,7 @@ test.describe('Boards Management', () => {
     await page.goto('/');
     
     // Wait for the app to load
-    await expect(page.locator('#board-container')).toBeVisible();
+    await waitForBoardReady(page);
   });
 
   test('should open a board when clicking the Open button in manage-boards modal', async ({ page }) => {

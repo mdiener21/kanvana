@@ -578,6 +578,9 @@ function initLaneOrderSortable(onChange) {
 
   laneOrderSortable = new Sortable(orderList, {
     animation: 150,
+    // Same reason as dragdrop.js: no native OS drag session, no card text in DataTransfer.
+    forceFallback: true,
+    fallbackTolerance: 3,
     delay: 150,
     delayOnTouchOnly: true,
     handle: '.swimlane-order-handle',

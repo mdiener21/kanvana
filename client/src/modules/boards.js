@@ -1,18 +1,13 @@
 import { generateUUID } from './utils.js';
 import { setupModalCloseHandlers } from './modals.js';
-import { emit, DATA_CHANGED } from './events.js';
+import { emit, on, DATA_CHANGED } from './events.js';
 import {
   ensureBoardsInitialized,
   listBoards,
   createBoard,
   getActiveBoardId,
   setActiveBoardId,
-  getActiveBoardName,
-  saveColumns,
-  saveTasks,
-  saveLabels,
-  loadSettings,
-  saveSettings
+  getActiveBoardName
 } from './storage.js';
 import { normalizeBoardModelIds } from './board-serializer.js';
 import { alertDialog } from './dialog.js';
@@ -68,26 +63,6 @@ function populateTemplateSelect(selectEl) {
   });
 }
 
-function applyBoardTemplate(templateBoard) {
-  const board = templateBoard && typeof templateBoard === 'object' ? templateBoard : null;
-  if (!board) return;
-
-  const normalized = normalizeBoardModelIds({
-    columns: board.columns,
-    tasks: board.tasks,
-    labels: board.labels,
-    settings: board.settings
-  });
-
-  if (Array.isArray(board.columns)) saveColumns(normalized.columns);
-  if (Array.isArray(board.tasks)) saveTasks(normalized.tasks);
-  if (Array.isArray(board.labels)) saveLabels(normalized.labels);
-  if (board.settings && typeof board.settings === 'object') {
-    const current = loadSettings();
-    saveSettings({ ...current, ...normalized.settings });
-  }
-}
-
 function refreshBoardSelect(selectEl) {
   const boards = listBoards();
   const activeId = getActiveBoardId();
@@ -102,6 +77,18 @@ function refreshBoardSelect(selectEl) {
   });
 
   if (activeId) selectEl.value = activeId;
+}
+
+// True when #board-select already reflects the current board list (ids + labels).
+// Lets us skip rebuilding on unrelated DATA_CHANGED churn (task moves, etc.).
+function boardSelectMatchesState(selectEl) {
+  const boards = listBoards();
+  if (selectEl.options.length !== boards.length) return false;
+  return boards.every(
+    (b, i) =>
+      selectEl.options[i].value === b.id &&
+      selectEl.options[i].textContent === boardDisplayName(b)
+  );
 }
 
 function refreshBrandText() {
@@ -137,6 +124,16 @@ export function initializeBoardsUI() {
 
   refreshBoardSelect(selectEl);
   refreshBrandText();
+
+  // A remote board.created/renamed (catch-up or SSE) updates state.boards and
+  // emits DATA_CHANGED, but the dropdown was built once at startup. Rebuild it
+  // when the board list changes so new boards appear without a reload.
+  on(DATA_CHANGED, () => {
+    if (!boardSelectMatchesState(selectEl)) {
+      refreshBoardSelect(selectEl);
+      refreshBrandText();
+    }
+  });
 
   document.addEventListener('kanban:open-board-create', () => {
     showBoardCreateModal();
@@ -198,10 +195,8 @@ export function initializeBoardsUI() {
       const templates = selectedTemplateId ? getBuiltInBoardTemplates() : [];
       const template = selectedTemplateId ? templates.find((t) => t.id === selectedTemplateId) : null;
 
-      const board = createBoard(trimmed);
+      const board = createBoard(trimmed, template ? normalizeBoardModelIds(template.board) : {});
       setActiveBoardId(board.id);
-
-      if (template?.board) applyBoardTemplate(template.board);
 
       refreshBoardSelect(selectEl);
       refreshBrandText();

@@ -13,9 +13,82 @@ import { initStorage, ensureBoardsInitialized, setActiveBoardId } from './module
 import { initializeSwimLaneControls } from './modules/swimlanes.js';
 import { initializeAuthSyncUI } from './modules/authsync.js';
 import { initializeAutoSync } from './modules/autosync.js';
+import { initSyncQueue } from './modules/event-sourcing/sync-queue.js';
+import { initSnapshotSync } from './modules/event-sourcing/snapshot-sync.js';
+import { initRealtime } from './modules/event-sourcing/realtime.js';
+import { initSyncIndicator } from './modules/event-sourcing/sync-indicator.js';
 
 // Add task button listeners
 document.addEventListener('DOMContentLoaded', async () => {
+  // Wired before initStorage(): these controls are static markup in index.html, and
+  // anything awaited below leaves a window where the button is on screen but dead to
+  // clicks. The search listener stays below — it calls renderBoard().
+  const boardSearchInput = document.getElementById('board-search-input');
+
+  // Mobile Menu Logic
+  const menuBtn = document.getElementById('desktop-menu-btn');
+  const controlsActions = document.getElementById('board-controls-menu');
+  const controls = document.querySelector('.controls');
+  const mobileMenuCloseBtn = document.getElementById('mobile-menu-close-btn');
+
+  if (menuBtn && controlsActions) {
+    const closeMenu = () => {
+      controlsActions.classList.remove('show');
+      menuBtn.setAttribute('aria-expanded', 'false');
+      controls?.classList.remove('mobile-menu-open');
+      document.body.classList.remove('mobile-menu-open');
+    };
+
+    menuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isExpanded = menuBtn.getAttribute('aria-expanded') === 'true';
+      
+      // Toggle menu
+      controlsActions.classList.toggle('show');
+      menuBtn.setAttribute('aria-expanded', String(!isExpanded));
+      controls?.classList.toggle('mobile-menu-open', !isExpanded);
+      document.body.classList.toggle('mobile-menu-open', !isExpanded);
+      
+      // Close other menus if open (optional, but good practice)
+      document.querySelectorAll('.column-menu').forEach(m => m.classList.add('hidden'));
+
+      if (!isExpanded) {
+        boardSearchInput?.focus();
+        boardSearchInput?.select();
+      }
+    });
+
+    // Close menu when clicking action buttons inside it.
+    // Don't close for form controls like the board <select>, otherwise it's impossible to change selection.
+    controlsActions.addEventListener('click', (e) => {
+      const isFormControl = e.target.closest('select, option, input, textarea, label');
+      if (isFormControl) return;
+      const isAction = e.target.closest('button, a, [role="menuitem"]');
+      if (!isAction) return;
+
+      closeMenu();
+    });
+
+    // Close menu when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!controlsActions.contains(e.target) && !menuBtn.contains(e.target)) {
+        closeMenu();
+      }
+    });
+
+    mobileMenuCloseBtn?.addEventListener('click', () => {
+      closeMenu();
+      menuBtn.focus();
+    });
+
+    boardSearchInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeMenu();
+        menuBtn.focus();
+      }
+    });
+  }
+
   // Load all board data from IDB into memory before any rendering.
   await initStorage();
 
@@ -42,7 +115,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   initializeSwimLaneControls(() => renderBoard());
 
   // Board-level filter (labels, title, description)
-  const boardSearchInput = document.getElementById('board-search-input');
   if (boardSearchInput) {
     boardSearchInput.addEventListener('input', () => {
       setBoardFilterQuery(boardSearchInput.value);
@@ -57,6 +129,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   initializeAuthSyncUI();
   initializeAutoSync();
 
+  // Event-sourced outbound push queue (drains unsynced events to PocketBase)
+  initSyncQueue();
+
+  // Snapshot upload: push locally-saved snapshots to PB (pre-flight + GC)
+  initSnapshotSync();
+
+  // Inbound sync: SSE realtime subscription + launch/reconnect catch-up pull
+  initRealtime();
+
+  // Header sync-state indicator (Live / Syncing / unsynced / Offline)
+  initSyncIndicator();
+
   // Initialize modal handlers
   initializeModalHandlers();
 
@@ -70,44 +154,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     e.target.value = '';
   });
-
-  // Mobile Menu Logic
-  const menuBtn = document.getElementById('desktop-menu-btn');
-  const controlsActions = document.getElementById('board-controls-menu');
-
-  if (menuBtn && controlsActions) {
-    menuBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const isExpanded = menuBtn.getAttribute('aria-expanded') === 'true';
-      
-      // Toggle menu
-      controlsActions.classList.toggle('show');
-      menuBtn.setAttribute('aria-expanded', String(!isExpanded));
-      
-      // Close other menus if open (optional, but good practice)
-      document.querySelectorAll('.column-menu').forEach(m => m.classList.add('hidden'));
-    });
-
-    // Close menu when clicking action buttons inside it.
-    // Don't close for form controls like the board <select>, otherwise it's impossible to change selection.
-    controlsActions.addEventListener('click', (e) => {
-      const isFormControl = e.target.closest('select, option, input, textarea, label');
-      if (isFormControl) return;
-      const isAction = e.target.closest('button, a, [role="menuitem"]');
-      if (!isAction) return;
-
-      controlsActions.classList.remove('show');
-      menuBtn.setAttribute('aria-expanded', 'false');
-    });
-
-    // Close menu when clicking outside
-    document.addEventListener('click', (e) => {
-      if (!controlsActions.contains(e.target) && !menuBtn.contains(e.target)) {
-        controlsActions.classList.remove('show');
-        menuBtn.setAttribute('aria-expanded', 'false');
-      }
-    });
-  }
 
   // Initial render
   renderBoard();

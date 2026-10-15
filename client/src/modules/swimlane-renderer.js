@@ -16,6 +16,14 @@ import { createTaskElement } from './task-card.js';
 import { emit, DATA_CHANGED } from './events.js';
 import { isDoneColumn as isPermanentDoneColumn } from './constants.js';
 import { h, cx } from './dom.js';
+import { applyWipCounter, getWipState } from './wip-limit.js';
+import { byOrder } from './utils.js';
+
+function buildSwimlaneCounter(column, taskCount) {
+  const counter = h('span', { class: 'task-counter', 'data-column-id': column.id });
+  applyWipCounter(counter, taskCount, column);
+  return counter;
+}
 
 export function createSwimlaneHeaderCell(column, taskCount) {
   const isCollapsed = column?.collapsed === true;
@@ -33,11 +41,12 @@ export function createSwimlaneHeaderCell(column, taskCount) {
   return h('section', {
     class: cx('swimlane-column-header', isCollapsed && 'is-collapsed'),
     'data-column': column.id,
+    'data-wip': getWipState(taskCount, column),
     style: column?.color ? { '--column-accent': column.color } : {}
   },
     collapseBtn,
     !isCollapsed ? h('h2', {}, column.name) : null,
-    !isCollapsed ? h('span', { class: 'task-counter', 'data-column-id': column.id, 'aria-label': 'Task count' }, String(taskCount)) : null,
+    !isCollapsed ? buildSwimlaneCounter(column, taskCount) : null,
     !isCollapsed ? h('button', {
       class: 'add-task-btn-icon', type: 'button',
       'aria-label': `Add task to ${column.name}`, title: 'Add task',
@@ -172,7 +181,7 @@ export function renderSwimlaneBoard(container, sortedColumns, visibleTasks, labe
 
     const cellsWrapper = h('div', { class: 'swimlane-row-cells' });
     sortedColumns.forEach((column) => {
-      const tasksInCell = (lane.cells[column.id] || []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      const tasksInCell = (lane.cells[column.id] || []).slice().sort(byOrder);
       const cellCollapsed = isSwimLaneCellCollapsed(lane.key, column.id, settings);
       const visibleTasksInCell = collapsed
         ? []

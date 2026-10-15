@@ -101,6 +101,44 @@
   stroke-width: 2;
 }
 
+/* Sync state indicator (#115) — read-only header pill, four states */
+.sync-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  user-select: none;
+  border: 1px solid transparent;
+}
+
+.sync-indicator--live {
+  color: #166534;
+  background-color: #dcfce7;
+  border-color: #bbf7d0;
+}
+
+.sync-indicator--syncing {
+  color: #854d0e;
+  background-color: #fef9c3;
+  border-color: #fde68a;
+}
+
+.sync-indicator--unsynced {
+  color: #9a3412;
+  background-color: #ffedd5;
+  border-color: #fed7aa;
+}
+
+.sync-indicator--offline {
+  color: #475569;
+  background-color: #f1f5f9;
+  border-color: #e2e8f0;
+}
+
 /* Show more button (for virtualized lists) */
 .show-more-btn {
   width: 100%;

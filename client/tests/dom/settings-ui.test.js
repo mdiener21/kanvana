@@ -1,32 +1,8 @@
-import { beforeEach, expect, test, vi } from 'vitest';
-import { fireEvent, screen, waitFor } from '@testing-library/dom';
+import { beforeEach, expect, test } from 'vitest';
+import { fireEvent, screen } from '@testing-library/dom';
 import { mountToBody } from './setup.js';
-import { createBoard, getActiveBoardId, loadDeletedTasksForBoard, loadGlobalSettings, loadTasks, saveGlobalSettings, saveTasks, saveTasksForBoard } from '../../src/modules/storage.js';
+import { createBoard, loadSettings, saveTasks } from '../../src/modules/storage.js';
 import { initializeSettingsUI } from '../../src/modules/settings.js';
-import { addTask, deleteTask } from '../../src/modules/tasks.js';
-
-const { confirmDialog, alertDialog } = vi.hoisted(() => ({
-  confirmDialog: vi.fn(),
-  alertDialog: vi.fn()
-}));
-
-vi.mock('../../src/modules/dialog.js', () => ({
-  confirmDialog,
-  alertDialog
-}));
-
-const { runPurge } = vi.hoisted(() => ({
-  runPurge: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock('../../src/modules/sync.js', () => ({
-  runPurge,
-}));
-
-const { createTaskElement } = await import('../../src/modules/task-card.js');
-
-const SOFT_DELETE_MESSAGE = 'You have soft-delete active, this will set the task as deleted and will not count or show in any location, to permanently delete you must click purge in the settings.';
-const PERMANENT_DELETE_MESSAGE = 'Delete this task? This cannot be undone.';
 
 function mountSettings() {
   mountToBody(`
@@ -39,13 +15,6 @@ function mountSettings() {
         <form id="settings-form" novalidate>
           <section class="settings-section" aria-labelledby="settings-app-title">
             <h4 id="settings-app-title">App settings</h4>
-            <label>
-              <input id="settings-soft-delete-enabled" type="checkbox">
-              Soft-delete tasks
-            </label>
-            <button type="button" id="settings-purge-btn" disabled>
-              Purge deleted tasks (<span id="settings-purge-count">0</span>)
-            </button>
           </section>
           <section class="settings-section" aria-labelledby="settings-board-title">
             <h4 id="settings-board-title">Board settings</h4>
@@ -68,219 +37,28 @@ function mountSettings() {
 }
 
 beforeEach(() => {
-  confirmDialog.mockReset();
-  runPurge.mockReset();
-  runPurge.mockResolvedValue(undefined);
   createBoard('Settings UI');
   saveTasks([]);
 });
 
-test('soft-delete toggle reflects persisted global settings when Settings opens', () => {
-  saveGlobalSettings({ softDeleteEnabled: true });
+test('settings modal opens with board settings controls', () => {
   mountSettings();
 
   fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
 
   expect(screen.getByRole('heading', { name: 'App settings' })).toBeTruthy();
   expect(screen.getByRole('heading', { name: 'Board settings' })).toBeTruthy();
-  expect(screen.getByLabelText('Soft-delete tasks').checked).toBe(true);
-  expect(loadGlobalSettings()).toEqual({ softDeleteEnabled: true });
+  expect(screen.getByLabelText('Show task priority').checked).toBe(true);
+  expect(screen.getByLabelText('Show task due date').checked).toBe(true);
+  expect(screen.queryByLabelText('Soft-delete tasks')).toBeNull();
+  expect(document.getElementById('settings-purge-btn')).toBeNull();
 });
 
-test('toggling soft-delete on switches task deletion to soft-delete mode immediately', async () => {
-  const task = {
-    id: 'task-1',
-    title: 'Keep recoverable',
-    description: '',
-    priority: 'none',
-    dueDate: '',
-    column: 'todo',
-    labels: [],
-    creationDate: '2026-05-17T00:00:00.000Z',
-    changeDate: '2026-05-17T00:00:00.000Z',
-    columnHistory: [{ column: 'todo', at: '2026-05-17T00:00:00.000Z' }]
-  };
-  saveTasks([task]);
-  confirmDialog.mockResolvedValue(true);
+test('settings changes persist through board settings', () => {
   mountSettings();
 
   fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-  fireEvent.click(screen.getByLabelText('Soft-delete tasks'));
-  document.body.appendChild(createTaskElement(task, {}, new Map(), new Date('2026-05-17T00:00:00Z')));
-  fireEvent.click(screen.getByLabelText('Delete task'));
-  await Promise.resolve();
+  fireEvent.click(screen.getByLabelText('Show task priority'));
 
-  expect(loadGlobalSettings()).toEqual({ softDeleteEnabled: true });
-  expect(confirmDialog).toHaveBeenCalledWith(expect.objectContaining({ message: SOFT_DELETE_MESSAGE }));
-  expect(loadTasks().find(t => t.id === task.id)).toBeUndefined();
-  expect(loadDeletedTasksForBoard(getActiveBoardId()).find(t => t.id === task.id)).toMatchObject({
-    id: task.id,
-    deleted: true
-  });
-});
-
-test('toggling soft-delete off switches confirmation back and leaves soft-deleted tasks untouched', async () => {
-  const deletedTask = {
-    id: 'task-deleted',
-    title: 'Already deleted',
-    description: '',
-    priority: 'none',
-    dueDate: '',
-    column: 'todo',
-    labels: [],
-    deleted: true
-  };
-  const liveTask = {
-    id: 'task-live',
-    title: 'Delete permanently',
-    description: '',
-    priority: 'none',
-    dueDate: '',
-    column: 'todo',
-    labels: []
-  };
-  saveGlobalSettings({ softDeleteEnabled: true });
-  saveTasks([deletedTask, liveTask]);
-  confirmDialog.mockResolvedValue(false);
-  mountSettings();
-
-  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-  fireEvent.click(screen.getByLabelText('Soft-delete tasks'));
-  document.body.appendChild(createTaskElement(liveTask, {}, new Map(), new Date('2026-05-17T00:00:00Z')));
-  fireEvent.click(screen.getByLabelText('Delete task'));
-  await Promise.resolve();
-
-  expect(loadGlobalSettings()).toEqual({ softDeleteEnabled: false });
-  expect(confirmDialog).toHaveBeenCalledWith(expect.objectContaining({ message: PERMANENT_DELETE_MESSAGE }));
-  expect(loadDeletedTasksForBoard(getActiveBoardId()).find(t => t.id === deletedTask.id)).toMatchObject({
-    id: deletedTask.id,
-    deleted: true
-  });
-});
-
-// ── Issue 006: Purge button ───────────────────────────────────────────────────
-
-test('purge button shows count of zero and is disabled when no soft-deleted tasks', () => {
-  saveTasks([]);
-  mountSettings();
-  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-
-  const btn = document.getElementById('settings-purge-btn');
-  const count = document.getElementById('settings-purge-count');
-  expect(count.textContent).toBe('0');
-  expect(btn.disabled).toBe(true);
-});
-
-test('purge button shows correct count and is enabled when soft-deleted tasks exist', () => {
-  const boardId = getActiveBoardId();
-  saveTasksForBoard(boardId, [
-    { id: 't1', deleted: true, title: 'A', column: 'todo', labels: [] },
-    { id: 't2', deleted: true, title: 'B', column: 'todo', labels: [] },
-    { id: 't3', deleted: false, title: 'C', column: 'todo', labels: [] },
-  ]);
-  mountSettings();
-  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-
-  const btn = document.getElementById('settings-purge-btn');
-  const count = document.getElementById('settings-purge-count');
-  expect(count.textContent).toBe('2');
-  expect(btn.disabled).toBe(false);
-});
-
-test('purge count reflects all soft-deleted tasks after a later task operation', () => {
-  saveGlobalSettings({ softDeleteEnabled: true });
-  for (let i = 1; i <= 5; i++) addTask(`Task ${i}`, '', 'none', '', 'todo', []);
-  loadTasks().forEach(t => deleteTask(t.id));
-  // A normal task operation after the soft-deletes must not discard them.
-  addTask('Fresh task', '', 'none', '', 'todo', []);
-
-  mountSettings();
-  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-
-  const btn = document.getElementById('settings-purge-btn');
-  const count = document.getElementById('settings-purge-count');
-  expect(count.textContent).toBe('5');
-  expect(btn.disabled).toBe(false);
-});
-
-test('purge button enabled when soft-deleted tasks exist even if soft-delete toggle is off', () => {
-  saveGlobalSettings({ softDeleteEnabled: false });
-  const boardId = getActiveBoardId();
-  saveTasksForBoard(boardId, [
-    { id: 't1', deleted: true, title: 'A', column: 'todo', labels: [] },
-  ]);
-  mountSettings();
-  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-
-  expect(document.getElementById('settings-purge-btn').disabled).toBe(false);
-});
-
-test('clicking purge shows confirmation with count and across all boards', async () => {
-  const boardId = getActiveBoardId();
-  saveTasksForBoard(boardId, [
-    { id: 't1', deleted: true, title: 'A', column: 'todo', labels: [] },
-    { id: 't2', deleted: true, title: 'B', column: 'todo', labels: [] },
-  ]);
-  confirmDialog.mockResolvedValue(false);
-  mountSettings();
-  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-  fireEvent.click(document.getElementById('settings-purge-btn'));
-
-  await waitFor(() => {
-    expect(confirmDialog).toHaveBeenCalledWith(expect.objectContaining({
-      message: expect.stringContaining('2'),
-    }));
-    expect(confirmDialog).toHaveBeenCalledWith(expect.objectContaining({
-      message: expect.stringContaining('across all boards'),
-    }));
-  });
-});
-
-test('cancelling purge confirmation leaves all soft-deleted tasks untouched', async () => {
-  const boardId = getActiveBoardId();
-  saveTasksForBoard(boardId, [
-    { id: 't1', deleted: true, title: 'A', column: 'todo', labels: [] },
-  ]);
-  confirmDialog.mockResolvedValue(false);
-  mountSettings();
-  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-  fireEvent.click(document.getElementById('settings-purge-btn'));
-
-  await waitFor(() => expect(confirmDialog).toHaveBeenCalled());
-  expect(loadDeletedTasksForBoard(boardId)).toHaveLength(1);
-});
-
-test('confirming purge calls runPurge with the boards list', async () => {
-  const boardId = getActiveBoardId();
-  saveTasksForBoard(boardId, [
-    { id: 't1', deleted: true, title: 'A', column: 'todo', labels: [] },
-    { id: 't2', deleted: false, title: 'B', column: 'todo', labels: [] },
-  ]);
-  confirmDialog.mockResolvedValue(true);
-  mountSettings();
-  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-  fireEvent.click(document.getElementById('settings-purge-btn'));
-
-  await waitFor(() => {
-    expect(runPurge).toHaveBeenCalledOnce();
-    expect(runPurge).toHaveBeenCalledWith(
-      expect.arrayContaining([expect.objectContaining({ id: boardId })])
-    );
-  });
-});
-
-test('purge button disables and shows zero count after successful purge', async () => {
-  const boardId = getActiveBoardId();
-  saveTasksForBoard(boardId, [
-    { id: 't1', deleted: true, title: 'A', column: 'todo', labels: [] },
-  ]);
-  confirmDialog.mockResolvedValue(true);
-  mountSettings();
-  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-  fireEvent.click(document.getElementById('settings-purge-btn'));
-
-  await waitFor(() => {
-    expect(document.getElementById('settings-purge-count').textContent).toBe('0');
-    expect(document.getElementById('settings-purge-btn').disabled).toBe(true);
-  });
+  expect(loadSettings().showPriority).toBe(false);
 });

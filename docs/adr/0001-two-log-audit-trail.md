@@ -1,5 +1,7 @@
 # Two-log audit trail: task-embedded + board-scoped
 
+**Status: superseded by ADR-0004 (event-sourced domain event log)**
+
 The audit trail is split into two separate logs rather than one unified event stream. The **Task Activity Log** is embedded on each task object (`activityLog[]`) and records everything that happened to that task. The **Board Event Log** is a separate board-scoped store (`events:{boardId}`) and records column lifecycle events and task deletions.
 
 The split exists because task deletion is destructive and permanent — when a task is deleted its embedded log is lost with it. Column lifecycle events (created, renamed, deleted, reordered) and `task.deleted` entries must survive in a store that is not tied to any single task. A single unified log stored on the board would have worked, but it would require all task-level reads to scan a shared list rather than reading directly from the task object.
