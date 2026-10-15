@@ -1,4 +1,4 @@
-import { generateUUID } from './utils.js';
+import { byOrder, generateUUID } from './utils.js';
 import { getActiveBoardId, isDoneColumnId, loadColumns, loadLabels, loadSettings, loadTasks } from './storage.js';
 import { applySwimLaneAssignment } from './swimlanes.js';
 import { normalizePriority, normalizeRelationships, normalizeSubTasks } from './normalize.js';
@@ -6,8 +6,6 @@ import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 import { PRIORITY_ORDER } from './constants.js';
 
 const RELATIONSHIP_INVERSE = { prerequisite: 'dependent', dependent: 'prerequisite', related: 'related' };
-
-const byOrder = (a, b) => (a.order ?? 0) - (b.order ?? 0);
 
 function emitTaskMoved(boardId, entityId, fromColumn, toColumn, tasks) {
   scheduleDomainEvent({
