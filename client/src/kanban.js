@@ -13,6 +13,7 @@ import { initStorage, ensureBoardsInitialized, setActiveBoardId } from './module
 import { initializeSwimLaneControls } from './modules/swimlanes.js';
 import { initializeAuthSyncUI } from './modules/authsync.js';
 import { initializeAutoSync } from './modules/autosync.js';
+import { initAuthRefresh } from './modules/sync.js';
 import { initSyncQueue } from './modules/event-sourcing/sync-queue.js';
 import { initSnapshotSync } from './modules/event-sourcing/snapshot-sync.js';
 import { initRealtime } from './modules/event-sourcing/realtime.js';
@@ -126,6 +127,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initializeBoardsUI();
 
   // Auth/sync UI and auto-sync listener
+  initAuthRefresh();
   initializeAuthSyncUI();
   initializeAutoSync();
 

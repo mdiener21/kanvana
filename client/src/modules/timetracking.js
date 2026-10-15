@@ -2,11 +2,13 @@ import { initStorage } from './storage.js';
 import { initializeThemeToggle } from './theme.js';
 import { initSyncQueue } from './event-sourcing/sync-queue.js';
 import { initRealtime } from './event-sourcing/realtime.js';
+import { initAuthRefresh } from './sync.js';
 import { mountTimeTracking } from './timetracking-ui.js';
 
 function main() {
   initializeThemeToggle();
   mountTimeTracking(document);
+  initAuthRefresh();
   initSyncQueue();
   initRealtime();
 }
