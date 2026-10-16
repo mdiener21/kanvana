@@ -73,9 +73,27 @@ export function fromZoned({ y, m, d }, minutes, tz) {
 
 const ymdOf = ({ y, m, d }) => ({ y, m, d });
 
-function addDays({ y, m, d }, days) {
+// ── Calendar days ({ y, m, d }, timezone-free) ─────────────────────────────────
+
+export function addDays({ y, m, d }, days) {
   const date = new Date(Date.UTC(y, m - 1, d + days));
   return { y: date.getUTCFullYear(), m: date.getUTCMonth() + 1, d: date.getUTCDate() };
+}
+
+export const daysInMonth = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate();
+
+/** Whole days from `a` to `b` (negative when `b` is earlier). */
+export const daysBetween = (a, b) => Math.round((ymdToUtcMs(b) - ymdToUtcMs(a)) / MS_PER_DAY);
+
+/** ISO weekday: 1 = Monday … 7 = Sunday. */
+export const isoWeekday = (ymd) => new Date(ymdToUtcMs(ymd)).getUTCDay() || 7;
+
+export const startOfIsoWeek = (ymd) => addDays(ymd, 1 - isoWeekday(ymd));
+
+/** ISO 8601 week: the week (Mon–Sun) belongs to the year of its Thursday. */
+export function isoWeek(ymd) {
+  const thursday = addDays(ymd, 4 - isoWeekday(ymd));
+  return { year: thursday.y, week: Math.floor((daysBetween({ y: thursday.y, m: 1, d: 1 }, thursday)) / 7) + 1 };
 }
 
 // ── Parsing (shorthand) ────────────────────────────────────────────────────────

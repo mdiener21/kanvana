@@ -114,6 +114,16 @@ Constructed through factories in `schema.js`; IDs via `generateUUID()`.
 - Summary table: Customer rows with subtotals → Project rows with duration and share bar; grand total
 - All hours follow [Attribution](../../CONTEXT.md#time-tracking-glossary): an entry counts wholly to
   the day and month of its start
+- Every report is computed by one **period summary** (`summarizePeriod` in
+  `timetracking-report.js`) for a period of kind week, month or year in the Time Tracking timezone:
+  - Week: Monday to Sunday, one bucket per day, labelled with the ISO week, e.g. `W42 · 12–18 Oct 2026`
+    (`W1 · 29 Dec 2025 – 4 Jan 2026` across a year boundary)
+  - Month: one bucket per day, labelled `October 2026`
+  - Year: 1 January to 31 December, one bucket per month, labelled `2026`
+  - Previous / next shift by one period of the same kind; an entry counts wholly toward the week,
+    month and year of its start
+  - The summary carries `target` and `balance` slots (null until Weekly hours are wired)
+  - Only Month is offered in the UI for now
 
 ## Projects and Customers
 
@@ -174,7 +184,8 @@ ignored while an input is focused.
 ## Testing
 
 - Unit: time / duration / date shorthand parsing; linked field resolution incl. overnight; timezone
-  conversion across DST changes; attribution of an entry crossing a month boundary; month summary
+  conversion across DST changes; attribution of an entry crossing a month boundary; period summary (week / month / year, ISO week
+  labels, shifting across year boundaries)
   totals and grouping; archive / delete guards; last-used project fallback
 - DOM: entry bar save flow, filters, edit modal, delete confirmation
 - E2E: full keyboard-only flow (add → select → edit → duplicate → delete → reports month switch) playwright-cli, playwright tests.
