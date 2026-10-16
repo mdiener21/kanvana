@@ -20,6 +20,7 @@ const oneOf = (value, formats) => {
   return options.includes(value) ? value : options[0];
 };
 const idOrNull = (value) => (typeof value === 'string' && value ? value : null);
+const positiveOrNull = (value) => (typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null);
 
 export function resolveTimeTrackingSettings(raw) {
   const s = raw && typeof raw === 'object' ? raw : {};
@@ -29,7 +30,8 @@ export function resolveTimeTrackingSettings(raw) {
     dateFormat: oneOf(s.dateFormat, DATE_FORMATS),
     timeFormat: oneOf(s.timeFormat, TIME_FORMATS),
     timezone: isValidTimezone(s.timezone) ? s.timezone : browserTimezone(),
-    durationFormat: oneOf(s.durationFormat, DURATION_FORMATS)
+    durationFormat: oneOf(s.durationFormat, DURATION_FORMATS),
+    weeklyHours: positiveOrNull(s.weeklyHours)
   };
 }
 
@@ -52,6 +54,7 @@ export function saveTimeTrackingSettings(patch) {
       ? activeProjectsOf(loadTimeTracking(), next.defaultCustomerId)[0]?.id ?? null
       : null;
   }
+  if (next.weeklyHours === null) delete next.weeklyHours;
   scheduleDomainEvent({
     type: 'settings.updated',
     scope: EVENT_SCOPE.GLOBAL,

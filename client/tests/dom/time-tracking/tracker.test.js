@@ -32,6 +32,7 @@ vi.mock('../../../src/modules/event-sourcing/emitter.js', async () => {
 
 const { mountTimeTracking } = await import('../../../src/modules/timetracking-ui.js');
 const { scheduleDomainEvent } = await import('../../../src/modules/event-sourcing/emitter.js');
+const { loadGlobalSettings } = await import('../../../src/modules/storage.js');
 const { emit, DATA_CHANGED } = await import('../../../src/modules/events.js');
 const emitDataChanged = () => emit(DATA_CHANGED);
 
@@ -812,5 +813,78 @@ describe('last-used project', () => {
     saveFromBar('Shop');
     remount({ extraProjects: [{ ...SHOP, archived: true }], timeEntries: state.timeEntries });
     expect(field('Project').value).toBe('');
+  });
+});
+
+describe('"This week" Balance badge', () => {
+  const badge = () => screen.getByTestId('tt-week-balance');
+  const value = () => badge().querySelector('.tt-week-balance-value').textContent;
+  const withWeeklyHours = (weeklyHours) => vi.mocked(loadGlobalSettings)
+    .mockImplementation(() => ({ timeTracking: { weeklyHours } }));
+
+  afterEach(() => vi.mocked(loadGlobalSettings).mockImplementation(() => ({})));
+
+  test('is hidden when Weekly hours is unset', () => {
+    mount({ timeEntries: THREE_ENTRIES });
+    expect(badge().hidden).toBe(true);
+  });
+
+  // First entry Wed 7 Oct, today Thu 8 Oct: 2 counted days; 3.5h logged.
+  test('shows a signed surplus in green as a button in the tracker header', () => {
+    withWeeklyHours(7);
+    mount({ timeEntries: THREE_ENTRIES });
+    expect(badge().hidden).toBe(false);
+    expect(badge().tagName).toBe('BUTTON');
+    expect(badge().closest('.tt-tracker-header')).toBeTruthy();
+    expect(badge().textContent.replace(/\s+/g, ' ').trim()).toBe('This week +1:30');
+    expect(badge().classList.contains('is-surplus')).toBe(true);
+    expect(badge().classList.contains('is-deficit')).toBe(false);
+  });
+
+  test('shows a signed deficit in red', () => {
+    withWeeklyHours(21);
+    mount({ timeEntries: THREE_ENTRIES });
+    expect(value()).toBe('−2:30');
+    expect(badge().classList.contains('is-deficit')).toBe(true);
+    expect(badge().classList.contains('is-surplus')).toBe(false);
+  });
+
+  test('updates live after a Time Entry is created, edited and deleted', () => {
+    withWeeklyHours(7);
+    mount({ timeEntries: THREE_ENTRIES });
+    expect(value()).toBe('+1:30');
+
+    type('Description', 'Standup');
+    type('Project', 'website');
+    type('Duration', '1h');
+    press(field('Duration'), 'Enter');
+    expect(value()).toBe('+2:30');
+
+    document.activeElement.blur();
+    fireEvent.click(row('late'));
+    key('e');
+    const dialog = screen.getByRole('dialog', { name: 'Edit entry' });
+    fireEvent.input(within(dialog).getByLabelText('Duration'), { target: { value: '2h' } });
+    press(within(dialog).getByLabelText('Duration'), 'Enter');
+    expect(value()).toBe('+3:00');
+
+    fireEvent.click(row('morning'));
+    key('Delete');
+    key('y');
+    expect(value()).toBe('+2:00');
+  });
+
+  test('ignores the entry list filter', () => {
+    withWeeklyHours(7);
+    mount({ timeEntries: [...THREE_ENTRIES, entry('other', '2026-10-08T05:00:00.000Z', '2026-10-08T06:00:00.000Z', { projectId: 'p3' })] });
+    fireEvent.change(screen.getByLabelText('Filter by customer'), { target: { value: 'c2' } });
+    expect(rows()).toHaveLength(1);
+    expect(value()).toBe('+2:30');
+  });
+
+  test('is hidden while the current week precedes the first-ever Time Entry', () => {
+    withWeeklyHours(40);
+    mount({ timeEntries: [entry('next-week', '2026-10-12T08:00:00.000Z', '2026-10-12T09:00:00.000Z')] });
+    expect(badge().hidden).toBe(true);
   });
 });

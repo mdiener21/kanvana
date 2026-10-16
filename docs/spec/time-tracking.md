@@ -146,10 +146,30 @@ separate from board settings.
 | Time format | 24-hour, 12-hour | 24-hour |
 | Timezone | IANA zones | browser zone, else `Europe/Berlin` |
 | Duration format | `h:mm` (7:30), decimal (7.50 h) | `h:mm` |
+| Weekly hours (contract) | number > 0, step 0.5, decimals allowed, no maximum | empty (off) |
 
 - Changing the default customer resets the default project to that customer's first active project
 - The timezone controls display and attribution only; changing it never rewrites stored entries
 - Settings show a live preview of the current date, time and a sample duration
+- Weekly hours is a number input (`inputmode="decimal"`); clearing it switches Target and Balance
+  off and removes the value from the stored settings. A value of zero or below is not saved.
+
+## Weekly hours, Target and Balance
+
+See the [glossary](../../CONTEXT.md#time-tracking-glossary) for Weekly hours, Target and Balance.
+
+- Target = Weekly hours ÷ 7 × counted days; counted days run from the later of the period start and
+  the first-ever Time Entry's day to the earlier of the period end and today, inclusive
+- Weeks run Monday to Sunday in the Time Tracking timezone; entries count toward the period of their
+  start (Attribution)
+- Balance = logged − Target; Target and Balance are absent when Weekly hours is unset, for future
+  periods and for periods entirely before the first Time Entry
+- The maths lives in one domain module (`timetracking-balance.js`: `periodBalance`) consumed by
+  every view that shows a Balance
+- **"This week" badge** in the Time Tracker header: `This week ±h:mm`, the current week's Balance in
+  the duration format, green for a surplus and red for a deficit, sign always shown. It ignores the
+  entry list filter, is hidden when there is no Balance (Weekly hours unset, or no entry yet this
+  week or before), updates live on create / edit / delete, and is at least 44px tall
 
 ## Keyboard Shortcuts
 
@@ -186,8 +206,11 @@ ignored while an input is focused.
 - Unit: time / duration / date shorthand parsing; linked field resolution incl. overnight; timezone
   conversion across DST changes; attribution of an entry crossing a month boundary; period summary (week / month / year, ISO week
   labels, shifting across year boundaries)
-  totals and grouping; archive / delete guards; last-used project fallback
-- DOM: entry bar save flow, filters, edit modal, delete confirmation
+  totals and grouping; archive / delete guards; last-used project fallback; Target / Balance for
+  finished, current, future and pre-first-entry weeks, decimal Weekly hours and Monday week start
+  across DST
+- DOM: entry bar save flow, filters, edit modal, delete confirmation; Weekly hours input; "This week"
+  badge visibility and live updates
 - E2E: full keyboard-only flow (add → select → edit → duplicate → delete → reports month switch) playwright-cli, playwright tests.
 - E2E (Pixel 5): tap edit and delete on a row without hover; controls measure at least 44×44px
 

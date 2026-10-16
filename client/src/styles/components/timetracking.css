@@ -648,3 +648,37 @@
 @media (max-width: 640px) {
   .tt-kpis { grid-template-columns: 1fr; }
 }
+
+/* Weekly hours setting and "This week" Balance badge */
+.tt-setting .tt-input { width: 100%; box-sizing: border-box; }
+.tt-tracker-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin: 0 0 20px;
+}
+.tt-tracker-header .tt-section-title { margin: 0; }
+.tt-week-balance {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 0 16px;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 999px;
+  background: var(--surface, #fff);
+  color: var(--text, #111);
+  font: inherit;
+  font-size: 14px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.tt-week-balance[hidden] { display: none; }
+.tt-week-balance:focus-visible { outline: 2px solid var(--accent, #3b82f6); outline-offset: 2px; }
+.tt-week-balance-label { color: var(--text-muted, #6b7280); }
+.tt-week-balance-value { font-weight: 700; font-variant-numeric: tabular-nums; }
+.tt-week-balance.is-surplus .tt-week-balance-value { color: var(--color-success, #16a34a); }
+.tt-week-balance.is-deficit .tt-week-balance-value { color: var(--color-danger, #dc2626); }

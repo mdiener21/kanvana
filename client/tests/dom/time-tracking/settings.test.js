@@ -170,7 +170,77 @@ describe('Settings section', () => {
   });
 });
 
+describe('Weekly hours (contract) setting', () => {
+  const weeklyHours = () => setting('Weekly hours (contract)');
+  const enter = (value) => fireEvent.change(weeklyHours(), { target: { value } });
+  const savedTimeTracking = () => vi.mocked(scheduleDomainEvent).mock.calls.at(-1)[0].payload.fields.timeTracking;
+
+  test('is an empty decimal number input with step 0.5 by default', () => {
+    mount();
+    expect(weeklyHours().type).toBe('number');
+    expect(weeklyHours().getAttribute('inputmode')).toBe('decimal');
+    expect(weeklyHours().getAttribute('step')).toBe('0.5');
+    expect(weeklyHours().hasAttribute('max')).toBe(false);
+    expect(weeklyHours().value).toBe('');
+  });
+
+  test('a decimal value is saved through the global settings event', () => {
+    mount();
+    enter('38.5');
+    expect(scheduleDomainEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'settings.updated', scope: 'global' }));
+    expect(savedTimeTracking().weeklyHours).toBe(38.5);
+    expect(weeklyHours().value).toBe('38.5');
+  });
+
+  test('clearing the field switches the feature off', () => {
+    mount({ settings: { timezone: 'Europe/Berlin', weeklyHours: 40 } });
+    expect(weeklyHours().value).toBe('40');
+    enter('');
+    expect(savedTimeTracking()).not.toHaveProperty('weeklyHours');
+    expect(weeklyHours().value).toBe('');
+  });
+
+  test.each(['0', '-4'])('a value that is not above zero (%s) is not saved and the field reverts', (value) => {
+    mount({ settings: { timezone: 'Europe/Berlin', weeklyHours: 40 } });
+    enter(value);
+    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(weeklyHours().value).toBe('40');
+  });
+
+  test('follows a value synced from another device, but not while the user is typing in it', async () => {
+    mount();
+    const { emit, DATA_CHANGED } = await import('../../../src/modules/events.js');
+    global.settings = { timeTracking: { timezone: 'Europe/Berlin', weeklyHours: 20 } };
+    emit(DATA_CHANGED);
+    expect(weeklyHours().value).toBe('20');
+
+    weeklyHours().focus();
+    weeklyHours().value = '3';
+    global.settings = { timeTracking: { timezone: 'Europe/Berlin', weeklyHours: 25 } };
+    emit(DATA_CHANGED);
+    expect(weeklyHours().value).toBe('3');
+  });
+});
+
 describe('the page follows the settings', () => {
+  test('setting Weekly hours shows the "This week" badge on the tracker; clearing it hides the badge', () => {
+    const monday = { ...LATE, id: 'e2', start: '2026-10-05T06:00:00.000Z', end: '2026-10-05T14:00:00.000Z' };
+    mount({ timeEntries: [monday] });
+    const badge = () => document.querySelector('[data-testid="tt-week-balance"]');
+    expect(badge().hidden).toBe(true);
+
+    // Mon 5 – Thu 8 Oct so far at 35h/week: Target 20h, logged 8h
+    fireEvent.change(setting('Weekly hours (contract)'), { target: { value: '35' } });
+    expect(badge().hidden).toBe(false);
+    expect(badge().textContent).toContain('−12:00');
+
+    choose('Duration format', 'decimal');
+    expect(badge().textContent).toContain('−12.00 h');
+
+    fireEvent.change(setting('Weekly hours (contract)'), { target: { value: '' } });
+    expect(badge().hidden).toBe(true);
+  });
+
   test('changing a format re-renders the entry list, day totals and entry bar', () => {
     mount({ timeEntries: [LATE] });
     const row = () => entryList().querySelector('.tt-entry-row');
