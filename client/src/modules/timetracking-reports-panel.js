@@ -277,7 +277,6 @@ export function mountReportsPanel(container, {
 
   function showCurrentPeriod(nextKind) {
     kind = offeredKind(nextKind);
-    rememberReportPeriodKind(kind);
     followsCurrentPeriod = true;
     refresh();
   }
@@ -288,7 +287,9 @@ export function mountReportsPanel(container, {
   });
   container.querySelector('.tt-period-switch').addEventListener('click', (ev) => {
     const btn = ev.target.closest('[data-period-kind]');
-    if (btn) showCurrentPeriod(btn.dataset.periodKind);
+    if (!btn) return;
+    showCurrentPeriod(btn.dataset.periodKind);
+    rememberReportPeriodKind(kind);
   });
 
   const onResize = () => chart?.resize();

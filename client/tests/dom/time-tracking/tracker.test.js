@@ -910,4 +910,16 @@ describe('"This week" Balance badge', () => {
     fireEvent.click(badge());
     expect(screen.getByTestId('tt-report-period').textContent).toBe('W41 · 5–11 Oct 2026');
   });
+
+  test('activating it does not change the remembered Reports period', () => {
+    localStorage.clear();
+    withWeeklyHours(7);
+    mount({ timeEntries: THREE_ENTRIES });
+    fireEvent.click(badge());
+    unmount();
+    mount({ timeEntries: THREE_ENTRIES });
+    fireEvent.click(document.getElementById('tt-nav-reports'));
+    expect(screen.getByRole('button', { name: 'Month' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByTestId('tt-report-period').textContent).toBe('October 2026');
+  });
 });
