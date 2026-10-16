@@ -21,8 +21,12 @@ function weekRangeLabel(start, end) {
 const DAY_BUCKETS = (period) => Array.from({ length: daysBetween(period.start, period.end) + 1 }, (_, i) => addDays(period.start, i));
 const DAY_INDEX = (period, ymd) => daysBetween(period.start, ymd);
 
+export const WEEK = 'week';
+export const MONTH = 'month';
+export const YEAR = 'year';
+
 const KINDS = {
-  week: {
+  [WEEK]: {
     of(ymd) {
       const start = startOfIsoWeek(ymd);
       return { start, end: addDays(start, 6) };
@@ -32,7 +36,7 @@ const KINDS = {
     buckets: DAY_BUCKETS,
     bucketIndex: DAY_INDEX
   },
-  month: {
+  [MONTH]: {
     of: ({ y, m }) => ({ start: { y, m, d: 1 }, end: { y, m, d: daysInMonth(y, m) } }),
     shift({ start: { y, m } }, delta) {
       const index = y * 12 + (m - 1) + delta;
@@ -42,7 +46,7 @@ const KINDS = {
     buckets: DAY_BUCKETS,
     bucketIndex: DAY_INDEX
   },
-  year: {
+  [YEAR]: {
     of: ({ y }) => ({ start: { y, m: 1, d: 1 }, end: { y, m: 12, d: 31 } }),
     shift: ({ start }, delta) => ({ y: start.y + delta, m: 1, d: 1 }),
     label: ({ start }) => String(start.y),
@@ -50,8 +54,6 @@ const KINDS = {
     bucketIndex: ({ start }, { y, m }) => (y === start.y ? m - 1 : -1)
   }
 };
-
-export const PERIOD_KINDS = Object.keys(KINDS);
 
 export function periodOf(kind, ymd) {
   return { kind, ...KINDS[kind].of(ymd) };

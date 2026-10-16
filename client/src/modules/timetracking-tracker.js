@@ -10,7 +10,7 @@ import { entryFieldsHtml, wireEntryFields } from './timetracking-entry-fields.js
 import { filterEntries, mountEntryFilter } from './timetracking-filter.js';
 import { prefillProjectId, loadLastUsedProjectId, rememberLastUsedProject } from './timetracking-settings.js';
 import { periodBalance, showBalance } from './timetracking-balance.js';
-import { currentPeriod } from './timetracking-report.js';
+import { currentPeriod, WEEK } from './timetracking-report.js';
 import { groupEntriesByDay, formatTime, formatDuration, plusDaysBetween, floorToMinute } from './timetracking-time.js';
 
 export const ENTRY_ERROR_MESSAGES = {
@@ -181,7 +181,7 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
   weekBadge.addEventListener('click', () => onOpenCurrentWeek());
 
   function refreshWeekBadge(tt, prefs) {
-    const { balanceMs } = periodBalance(tt.timeEntries, currentPeriod('week', prefs.now, prefs.tz), {
+    const { balanceMs } = periodBalance(tt.timeEntries, currentPeriod(WEEK, prefs.now, prefs.tz), {
       now: prefs.now, tz: prefs.tz, weeklyHours: getSettings().weeklyHours
     });
     weekBadge.hidden = balanceMs === null;

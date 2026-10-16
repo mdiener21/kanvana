@@ -11,7 +11,7 @@ import { colorDotHtml } from './timetracking-markup.js';
 import { getChartTheme } from './chart-theme.js';
 import { filterEntries, mountEntryFilter } from './timetracking-filter.js';
 import { formatDuration, formatYmd, formatShortWeekday, formatShortMonth, formatMonthYear, HOUR_MS } from './timetracking-time.js';
-import { summarizePeriod, currentPeriod, shiftPeriod, isSamePeriod } from './timetracking-report.js';
+import { summarizePeriod, currentPeriod, shiftPeriod, isSamePeriod, WEEK, MONTH, YEAR } from './timetracking-report.js';
 import { showBalance } from './timetracking-balance.js';
 import { loadTimeTrackingSettings, loadReportPeriodKind, rememberReportPeriodKind } from './timetracking-settings.js';
 
@@ -25,31 +25,23 @@ const REPORT_FILTER_LABELS = {
 
 const { ttPrevMonth: ttPrevPeriod, ttNextMonth: ttNextPeriod } = DEFAULT_APP_KEYBINDINGS;
 
-// The periods offered by the switch, in display order. `noun` names the period in labels.
-const PERIOD_OPTIONS = [
-  { kind: 'week', label: 'Week', noun: 'week' },
-  { kind: 'month', label: 'Month', noun: 'month' },
-  { kind: 'year', label: 'Year', noun: 'year' }
-];
-const DEFAULT_PERIOD_KIND = 'month';
-const optionOf = (kind) => PERIOD_OPTIONS.find((o) => o.kind === kind);
-const offeredKind = (kind) => (optionOf(kind) ? kind : DEFAULT_PERIOD_KIND);
-
 const dayTooltip = (ymd, prefs) => formatYmd(ymd, prefs.dateFormat);
 
-// Per chart bucket: the x-axis label, the tooltip heading and how the chart is described.
-const BUCKETS = {
-  week: { axis: (ymd) => `${formatShortWeekday(ymd)} ${ymd.d}`, tooltip: dayTooltip, name: 'Daily' },
-  month: { axis: ({ d }) => String(d), tooltip: dayTooltip, name: 'Daily' },
-  year: { axis: formatShortMonth, tooltip: formatMonthYear, name: 'Monthly' }
+// The periods offered by the switch, in display order, with how each labels its chart buckets.
+const PERIOD_VIEWS = {
+  [WEEK]: { label: 'Week', axis: (ymd) => `${formatShortWeekday(ymd)} ${ymd.d}`, tooltip: dayTooltip, chartName: 'Daily' },
+  [MONTH]: { label: 'Month', axis: ({ d }) => String(d), tooltip: dayTooltip, chartName: 'Daily' },
+  [YEAR]: { label: 'Year', axis: formatShortMonth, tooltip: formatMonthYear, chartName: 'Monthly' }
 };
+const DEFAULT_PERIOD_KIND = MONTH;
+const offeredKind = (kind) => (Object.hasOwn(PERIOD_VIEWS, kind) ? kind : DEFAULT_PERIOD_KIND);
 
 const PANEL_HTML = `
   <div class="tt-reports-panel">
     <h2 class="tt-section-title">Reports</h2>
     <div class="tt-report-toolbar">
       <div class="tt-period-switch" role="group" aria-label="Report period">
-        ${PERIOD_OPTIONS.map(({ kind, label }) => `<button type="button" class="tt-period-option" data-period-kind="${kind}" aria-pressed="false">${label}</button>`).join('')}
+        ${Object.entries(PERIOD_VIEWS).map(([kind, { label }]) => `<button type="button" class="tt-period-option" data-period-kind="${kind}" aria-pressed="false">${label}</button>`).join('')}
       </div>
       <div class="tt-period-nav" role="group" aria-label="Period">
         <button type="button" class="tt-period-btn" data-step="-1">
@@ -121,7 +113,7 @@ const tableFootHtml = (summary, durationFormat) => `
 
 // One stacked bar per bucket: a calendar day (week / month periods) or a month (year period).
 export function periodChartOption(summary, prefs, theme = getChartTheme()) {
-  const bucket = BUCKETS[summary.period.kind];
+  const bucket = PERIOD_VIEWS[summary.period.kind];
   return {
     animation: false,
     grid: { left: 8, right: 8, top: 40, bottom: 8, containLabel: true },
@@ -216,13 +208,12 @@ export function mountReportsPanel(container, {
   }
 
   function renderPeriodControls() {
-    const { noun } = optionOf(kind);
     for (const button of kindButtons) button.setAttribute('aria-pressed', String(button.dataset.periodKind === kind));
     for (const [button, direction, binding] of [[prevButton, 'Previous', ttPrevPeriod], [nextButton, 'Next', ttNextPeriod]]) {
-      button.setAttribute('aria-label', `${direction} ${noun}`);
-      button.title = `${direction} ${noun} (${keyLabel(binding)})`;
+      button.setAttribute('aria-label', `${direction} ${kind}`);
+      button.title = `${direction} ${kind} (${keyLabel(binding)})`;
     }
-    empty.textContent = `No time tracked this ${noun}`;
+    empty.textContent = `No time tracked this ${kind}`;
   }
 
   // Target / Balance compare against the whole contract, so a filtered report shows none.
@@ -248,7 +239,7 @@ export function mountReportsPanel(container, {
     label.textContent = name;
     renderPeriodControls();
     renderBalance(isFiltered(activeFilter));
-    chartElement.setAttribute('aria-label', `${BUCKETS[kind].name} hours by project, ${name}`);
+    chartElement.setAttribute('aria-label', `${PERIOD_VIEWS[kind].chartName} hours by project, ${name}`);
     kpis.total.textContent = formatDuration(summary.totalMs, prefs.durationFormat);
     kpis.entries.textContent = String(summary.entryCount);
     kpis.projects.textContent = String(summary.projectCount);
