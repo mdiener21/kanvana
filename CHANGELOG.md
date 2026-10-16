@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - CI now runs a Semgrep security scan (`p/security-audit` and `p/secrets`) and blocks deploy jobs until the scan passes.
+- Enter your contractual weekly hours under Time Tracking → Settings ("Weekly hours (contract)", decimals such as 38.5 allowed). The Time Tracker then shows a "This week" badge with your balance so far, such as `+2:30` in green or `−1:15` in red, and it updates as you add, edit or delete entries. Leave the field empty to turn it off. The value syncs across your devices.
 
 ### Fixed
 

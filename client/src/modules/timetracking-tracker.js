@@ -9,6 +9,7 @@ import { showToast } from './timetracking-toast.js';
 import { entryFieldsHtml, wireEntryFields } from './timetracking-entry-fields.js';
 import { filterEntries, mountEntryFilter } from './timetracking-filter.js';
 import { prefillProjectId, loadLastUsedProjectId, rememberLastUsedProject } from './timetracking-settings.js';
+import { currentWeekRange, periodBalance, formatBalance, isDeficit } from './timetracking-balance.js';
 import { groupEntriesByDay, formatTime, formatDuration, plusDaysBetween, floorToMinute } from './timetracking-time.js';
 
 export const ENTRY_ERROR_MESSAGES = {
@@ -21,7 +22,13 @@ export const ENTRY_ERROR_MESSAGES = {
 
 const PANEL_HTML = `
   <div class="tt-tracker-panel">
-    <h2 class="tt-section-title">Time Tracker</h2>
+    <div class="tt-tracker-header">
+      <h2 class="tt-section-title">Time Tracker</h2>
+      <button type="button" class="tt-week-balance" data-testid="tt-week-balance" hidden>
+        <span class="tt-week-balance-label">This week</span>
+        <span class="tt-week-balance-value"></span>
+      </button>
+    </div>
     <div class="tt-entry-bar" role="group" aria-label="New time entry">
       ${entryFieldsHtml('tt-entry')}
       <button id="tt-entry-add" class="tt-btn-add" type="button" aria-label="Add entry">
@@ -169,9 +176,25 @@ export function mountTrackerPanel(container, { getPrefs, getSettings }) {
     displayedPrefs = prefs;
   }
 
+  const weekBadge = container.querySelector('[data-testid="tt-week-balance"]');
+
+  function refreshWeekBadge(tt, prefs) {
+    const { balanceMs } = periodBalance(tt.timeEntries, currentWeekRange(prefs.now, prefs.tz), {
+      now: prefs.now, tz: prefs.tz, weeklyHours: getSettings().weeklyHours
+    });
+    weekBadge.hidden = balanceMs === null;
+    if (balanceMs === null) return;
+    const value = formatBalance(balanceMs, prefs.durationFormat);
+    weekBadge.querySelector('.tt-week-balance-value').textContent = value;
+    weekBadge.classList.toggle('is-deficit', isDeficit(balanceMs));
+    weekBadge.classList.toggle('is-surplus', !isDeficit(balanceMs));
+    weekBadge.setAttribute('aria-label', `This week balance ${value}`);
+  }
+
   function refresh() {
     const tt = loadTimeTracking();
     const prefs = getPrefs();
+    refreshWeekBadge(tt, prefs);
     redisplayOnFormatChange(prefs);
     followPrefill();
     filter.refresh();

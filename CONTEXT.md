@@ -65,6 +65,20 @@ entry bar ahead of the default project. It is **per-device** state in `localStor
 (`kanvana:timetracking:lastUsedProjectId`), deliberately outside the IDB read model and the synced
 global settings: it is a local convenience, not domain data, and never emits an event.
 
+**Weekly hours** — the user's contractual hours per week; an optional Time Tracking setting
+(`weeklyHours`, a number > 0, decimals allowed, no maximum). Unset means off: no Target or Balance
+anywhere. The current value applies to every period; there is no history of earlier values.
+
+**Target** — the Duration a period should contain: Weekly hours ÷ 7 × counted days. Counted days
+run from the later of the period start and the day of the first-ever Time Entry, up to the earlier
+of the period end and today (inclusive), in the Time Tracking timezone. Every day Monday to Sunday
+counts; there are no workdays, holidays or absences. A finished week's Target is exactly the Weekly
+hours; the current period gets a "so far" Target. Future periods and periods entirely before the
+first Time Entry have no Target. Weeks start Monday.
+
+**Balance** — logged Duration minus Target for one period, shown with an explicit sign (`+` surplus,
+`−` deficit). No Target means no Balance. "Overtime" is deliberately not used.
+
 ---
 
 ## 2. Aggregate Roots and Boundaries
