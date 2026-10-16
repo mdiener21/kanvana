@@ -56,20 +56,16 @@ const KINDS = {
 
 export const PERIOD_KINDS = Object.keys(KINDS);
 
-/** The period of `kind` containing the calendar day `ymd`. */
 export function periodOf(kind, ymd) {
   return { kind, ...KINDS[kind].of(ymd) };
 }
 
-/** The period of `kind` containing `now` (epoch ms) in timezone `tz`. */
 export const currentPeriod = (kind, now, tz) => periodOf(kind, zonedParts(now, tz));
 
-/** The period `delta` steps before (negative) or after (positive) `period`. */
 export const shiftPeriod = (period, delta) => periodOf(period.kind, KINDS[period.kind].shift(period, delta));
 
 export const isSamePeriod = (a, b) => a.kind === b.kind && utc(a.start) === utc(b.start);
 
-/** `W42 · 12–18 Oct 2026`, `October 2026`, `2026`. */
 export const periodLabel = (period) => KINDS[period.kind].label(period);
 
 const byTotalThenName = (a, b) => b.totalMs - a.totalMs || a.name.localeCompare(b.name);
@@ -79,13 +75,7 @@ function bucketFor(map, item, extra) {
   return map.get(item.id);
 }
 
-/**
- * Logged time of `entries` in `period`: totals, chart buckets (per day for week / month, per month
- * for year), customer / project totals with shares, the period and its label.
- * Attribution: an entry counts wholly to the day, week, month and year of its start in `tz`.
- * Target comes from all of `tt.timeEntries` (the first-ever entry sets its start); Balance is the
- * summarised total minus Target. Both are null without `weeklyHours` or when the period has no Target.
- */
+// Target counts from the first-ever entry, so it reads all of tt.timeEntries, not just `entries`.
 export function summarizePeriod(tt, entries, period, { tz, now, weeklyHours = null }) {
   const kind = KINDS[period.kind];
   const buckets = kind.buckets(period).map((start) => ({ start, totalMs: 0, byProject: {} }));
