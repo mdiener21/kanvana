@@ -21,6 +21,9 @@ Terms (Customer, Project, Time Entry, Duration, Archived, Attribution) are defin
 - Entry point: `src/timetracking.html` (new Vite build input)
 - Reachable from the main board menu as `Time Tracking`; page links `Back to Board`
 - Sidebar sections: **Time Tracker**, **Reports**, **Projects**, **Settings**
+- Touch targets: every Time Tracking control (row actions, project/customer list actions, inline
+  delete confirm, edit-modal buttons, add, month previous / next) has a hit area of at least
+  44×44px at every screen width
 
 ## Data Model
 
@@ -82,7 +85,10 @@ Constructed through factories in `schema.js`; IDs via `generateUUID()`.
   `Ddd, <date>`; each group shows its total
 - Row: description (or `(no description)`), project name in project colour, customer name,
   `start – end` (with `+1` for overnight), duration
-- Row actions (on hover / selection): edit, duplicate, delete
+- Row actions: edit, duplicate, delete. On hover-capable devices they appear on hover, selection or
+  focus within the row; on touch devices (`(hover: none)`, by input capability, not screen width)
+  they are always visible
+- Rows fit a narrow phone screen (Pixel 5) without horizontal overflow
 - Filter by customer and/or project; the project filter lists only the selected customer's projects;
   archived customers/projects remain selectable as filters
 - Selected row is highlighted and kept in view when moving with `j` / `k`
@@ -172,6 +178,7 @@ ignored while an input is focused.
   totals and grouping; archive / delete guards; last-used project fallback
 - DOM: entry bar save flow, filters, edit modal, delete confirmation
 - E2E: full keyboard-only flow (add → select → edit → duplicate → delete → reports month switch) playwright-cli, playwright tests.
+- E2E (Pixel 5): tap edit and delete on a row without hover; controls measure at least 44×44px
 
 ## Later (not in MVP)
 
