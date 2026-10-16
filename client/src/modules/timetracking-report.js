@@ -1,25 +1,75 @@
 import { projectById, customerById } from './timetracking-crud.js';
-import { zonedParts } from './timetracking-time.js';
+import { zonedParts, addDays, daysInMonth, daysBetween, startOfIsoWeek, isoWeek } from './timetracking-time.js';
 
 const UNKNOWN_COLOR = '#9ca3af';
 const UNKNOWN_PROJECT = { id: 'unknown-project', name: 'Unknown project', color: UNKNOWN_COLOR };
 const UNKNOWN_CUSTOMER = { id: 'unknown-customer', name: 'Unknown customer', color: UNKNOWN_COLOR };
 
-export function currentMonth(now, tz) {
-  const { y, m } = zonedParts(now, tz);
-  return { y, m };
+// ── Periods ────────────────────────────────────────────────────────────────────
+// A period is { kind, start, end }: inclusive calendar days ({ y, m, d }) in the
+// Time Tracking timezone. Weeks run Monday to Sunday.
+
+const utc = ({ y, m, d }) => Date.UTC(y, m - 1, d);
+const monthYearFormat = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+const shortMonthFormat = new Intl.DateTimeFormat('en-US', { month: 'short', timeZone: 'UTC' });
+const shortMonth = (ymd) => shortMonthFormat.format(utc(ymd));
+
+function weekRangeLabel(start, end) {
+  if (start.y !== end.y) return `${start.d} ${shortMonth(start)} ${start.y} – ${end.d} ${shortMonth(end)} ${end.y}`;
+  if (start.m !== end.m) return `${start.d} ${shortMonth(start)} – ${end.d} ${shortMonth(end)} ${end.y}`;
+  return `${start.d}–${end.d} ${shortMonth(end)} ${end.y}`;
 }
 
-export function shiftMonth({ y, m }, delta) {
-  const index = y * 12 + (m - 1) + delta;
-  return { y: Math.floor(index / 12), m: (index % 12) + 1 };
+const DAY_BUCKETS = (period) => Array.from({ length: daysBetween(period.start, period.end) + 1 }, (_, i) => addDays(period.start, i));
+const DAY_INDEX = (period, ymd) => daysBetween(period.start, ymd);
+
+const KINDS = {
+  week: {
+    of(ymd) {
+      const start = startOfIsoWeek(ymd);
+      return { start, end: addDays(start, 6) };
+    },
+    shift: ({ start }, delta) => addDays(start, 7 * delta),
+    label: ({ start, end }) => `W${isoWeek(start).week} · ${weekRangeLabel(start, end)}`,
+    buckets: DAY_BUCKETS,
+    bucketIndex: DAY_INDEX
+  },
+  month: {
+    of: ({ y, m }) => ({ start: { y, m, d: 1 }, end: { y, m, d: daysInMonth(y, m) } }),
+    shift({ start: { y, m } }, delta) {
+      const index = y * 12 + (m - 1) + delta;
+      return { y: Math.floor(index / 12), m: (index % 12) + 1, d: 1 };
+    },
+    label: ({ start }) => monthYearFormat.format(utc(start)),
+    buckets: DAY_BUCKETS,
+    bucketIndex: DAY_INDEX
+  },
+  year: {
+    of: ({ y }) => ({ start: { y, m: 1, d: 1 }, end: { y, m: 12, d: 31 } }),
+    shift: ({ start }, delta) => ({ y: start.y + delta, m: 1, d: 1 }),
+    label: ({ start }) => String(start.y),
+    buckets: ({ start }) => Array.from({ length: 12 }, (_, i) => ({ y: start.y, m: i + 1, d: 1 })),
+    bucketIndex: ({ start }, { y, m }) => (y === start.y ? m - 1 : -1)
+  }
+};
+
+export const PERIOD_KINDS = Object.keys(KINDS);
+
+/** The period of `kind` containing the calendar day `ymd`. */
+export function periodOf(kind, ymd) {
+  return { kind, ...KINDS[kind].of(ymd) };
 }
 
-const monthLabelFormat = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+/** The period of `kind` containing `now` (epoch ms) in timezone `tz`. */
+export const currentPeriod = (kind, now, tz) => periodOf(kind, zonedParts(now, tz));
 
-export const monthLabel = ({ y, m }) => monthLabelFormat.format(Date.UTC(y, m - 1, 1));
+/** The period `delta` steps before (negative) or after (positive) `period`. */
+export const shiftPeriod = (period, delta) => periodOf(period.kind, KINDS[period.kind].shift(period, delta));
 
-const daysInMonth = ({ y, m }) => new Date(Date.UTC(y, m, 0)).getUTCDate();
+export const isSamePeriod = (a, b) => a.kind === b.kind && utc(a.start) === utc(b.start);
+
+/** `W42 · 12–18 Oct 2026`, `October 2026`, `2026`. */
+export const periodLabel = (period) => KINDS[period.kind].label(period);
 
 const byTotalThenName = (a, b) => b.totalMs - a.totalMs || a.name.localeCompare(b.name);
 
@@ -28,9 +78,15 @@ function bucketFor(map, item, extra) {
   return map.get(item.id);
 }
 
-// Attribution: an entry counts wholly to the day and month of its start in the user's timezone.
-export function summarizeMonth(tt, entries, month, tz) {
-  const days = Array.from({ length: daysInMonth(month) }, (_, i) => ({ day: i + 1, totalMs: 0, byProject: {} }));
+/**
+ * Logged time of `entries` in `period`: totals, chart buckets (per day for week / month, per month
+ * for year), customer / project totals with shares, the period and its label.
+ * Attribution: an entry counts wholly to the day, week, month and year of its start in `tz`.
+ * Options `now` and `weeklyHours` are reserved for Target / Balance; until wired both stay null.
+ */
+export function summarizePeriod(tt, entries, period, { tz }) {
+  const kind = KINDS[period.kind];
+  const buckets = kind.buckets(period).map((start) => ({ start, totalMs: 0, byProject: {} }));
   const customers = new Map();
   const projects = new Map();
   let totalMs = 0;
@@ -38,8 +94,8 @@ export function summarizeMonth(tt, entries, month, tz) {
 
   for (const entry of entries) {
     const startMs = Date.parse(entry.start);
-    const start = zonedParts(startMs, tz);
-    if (start.y !== month.y || start.m !== month.m) continue;
+    const bucket = buckets[kind.bucketIndex(period, zonedParts(startMs, tz))];
+    if (!bucket) continue;
     const durationMs = Date.parse(entry.end) - startMs;
     const project = projectById(tt, entry.projectId) ?? UNKNOWN_PROJECT;
     const customer = customerById(tt, project.customerId) ?? UNKNOWN_CUSTOMER;
@@ -50,24 +106,26 @@ export function summarizeMonth(tt, entries, month, tz) {
     projectBucket.totalMs += durationMs;
     projects.set(project.id, projectBucket);
 
-    const day = days[start.d - 1];
-    day.totalMs += durationMs;
-    day.byProject[project.id] = (day.byProject[project.id] ?? 0) + durationMs;
+    bucket.totalMs += durationMs;
+    bucket.byProject[project.id] = (bucket.byProject[project.id] ?? 0) + durationMs;
     totalMs += durationMs;
     entryCount += 1;
   }
 
   const withShare = (bucket) => ({ ...bucket, share: totalMs > 0 ? bucket.totalMs / totalMs : 0 });
   return {
-    month,
+    period,
+    label: periodLabel(period),
     totalMs,
     entryCount,
     projectCount: projects.size,
-    days,
+    buckets,
     projects: [...projects.values()].sort(byTotalThenName).map(withShare),
     customers: [...customers.values()].sort(byTotalThenName).map((customer) => ({
       ...customer,
       projects: [...customer.projects.values()].sort(byTotalThenName).map(withShare)
-    }))
+    })),
+    target: null,
+    balance: null
   };
 }
