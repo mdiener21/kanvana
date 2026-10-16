@@ -49,13 +49,14 @@ const LEGACY = { id: 'p2', customerId: 'c1', name: 'Legacy', color: '#e91e63', a
 const SUPPORT = { id: 'p3', customerId: 'c2', name: 'Support', color: '#8bc34a', archived: false };
 
 let unmount = null;
+const fakeChart = () => ({ setOption() {}, resize() {}, dispose() {} });
 
 function mount({ timeEntries = [], extraProjects = [] } = {}) {
   state.customers = [ACME, OLD_CO];
   state.projects = [WEBSITE, LEGACY, SUPPORT, ...extraProjects];
   state.timeEntries = timeEntries;
   mountToBody(bodyHtml);
-  unmount = mountTimeTracking(document, { getPrefs: prefs });
+  unmount = mountTimeTracking(document, { getPrefs: prefs, createChart: fakeChart });
 }
 
 const field = (name) => screen.getByLabelText(name);
@@ -886,5 +887,27 @@ describe('"This week" Balance badge', () => {
     withWeeklyHours(40);
     mount({ timeEntries: [entry('next-week', '2026-10-12T08:00:00.000Z', '2026-10-12T09:00:00.000Z')] });
     expect(badge().hidden).toBe(true);
+  });
+
+  test('activating it shows Reports with Week selected on the current week and its Balance', () => {
+    withWeeklyHours(7);
+    mount({ timeEntries: THREE_ENTRIES });
+    fireEvent.click(badge());
+    expect(document.getElementById('tt-section-reports').hidden).toBe(false);
+    expect(document.getElementById('tt-section-tracker').hidden).toBe(true);
+    expect(screen.getByRole('button', { name: 'Week' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByTestId('tt-report-period').textContent).toBe('W41 · 5–11 Oct 2026');
+    const card = screen.getByTestId('tt-balance-card');
+    expect(within(card).getByLabelText('Balance', { selector: 'dd' }).textContent).toBe('+1:30');
+  });
+
+  test('activating it returns to the current week after browsing other periods', () => {
+    withWeeklyHours(7);
+    mount({ timeEntries: THREE_ENTRIES });
+    fireEvent.click(document.getElementById('tt-nav-reports'));
+    fireEvent.click(screen.getByRole('button', { name: 'Previous month' }));
+    fireEvent.click(document.getElementById('tt-nav-tracker'));
+    fireEvent.click(badge());
+    expect(screen.getByTestId('tt-report-period').textContent).toBe('W41 · 5–11 Oct 2026');
   });
 });

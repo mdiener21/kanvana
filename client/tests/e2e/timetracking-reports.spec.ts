@@ -46,7 +46,7 @@ test('Reports shows where the month went, by keyboard and buttons', async ({ pag
   await page.keyboard.press('g');
   await page.keyboard.press('r');
   const reports = page.locator('#tt-section-reports');
-  const month = page.getByTestId('tt-report-month');
+  const month = page.getByTestId('tt-report-period');
   await expect(reports).toBeVisible();
   await expect(month).toHaveText('November 2026');
   await expect(kpi(page, 'Total')).toHaveText('3:00');

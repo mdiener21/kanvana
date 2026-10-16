@@ -12,7 +12,7 @@ const kpi = (page: Page, name: string) => page.locator('.tt-kpi', { hasText: nam
 async function expectReportTotals(page: Page, total: string, entries: string): Promise<void> {
   await press(page, 'g', 'r');
   await expect(page.locator('#tt-section-reports')).toBeVisible();
-  await expect(page.getByTestId('tt-report-month')).toHaveText('November 2026');
+  await expect(page.getByTestId('tt-report-period')).toHaveText('November 2026');
   await expect(kpi(page, 'Total')).toHaveText(total);
   await expect(kpi(page, 'Entries')).toHaveText(entries);
   await press(page, 'g', 't');
@@ -186,7 +186,7 @@ test('the whole time-tracking flow works with the keyboard only', async ({ page 
   // g r → Reports, [ / ] month switch
   await press(page, 'g', 'r');
   const reports = page.locator('#tt-section-reports');
-  const month = page.getByTestId('tt-report-month');
+  const month = page.getByTestId('tt-report-period');
   const reportRows = reports.locator('.tt-report-table tbody tr');
   await expect(reports).toBeVisible();
   await expect(month).toHaveText('November 2026');
@@ -217,7 +217,7 @@ test('the whole time-tracking flow works with the keyboard only', async ({ page 
   await press(page, 'Tab');
   await expect(closeHelp).toBeFocused();
   await expect(help.getByRole('row', { name: /New entry/ })).toContainText('n');
-  await expect(help.getByRole('row', { name: /Previous month \(Reports\)/ })).toContainText('[');
+  await expect(help.getByRole('row', { name: /Previous period \(Reports\)/ })).toContainText('[');
   await press(page, 'Escape');
   await expect(help).toBeHidden();
   await expect(page.getByRole('heading', { name: 'Reports' })).toBeFocused();

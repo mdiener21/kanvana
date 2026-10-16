@@ -105,12 +105,26 @@ Constructed through factories in `schema.js`; IDs via `generateUUID()`.
   cancels the confirmation and then does what it normally does (e.g. `Tab` moves focus, `j` / `k`
   move the selection)
 
-## Reports (Month View)
+## Reports (Week / Month)
 
-- Month picker with previous / next (`[` / `]`); defaults to the current month
+- **Week | Month** switch (toggle buttons with `aria-pressed`); the default is Month and the last
+  choice is remembered per device in localStorage (`kanvana:timetracking:reportPeriodKind`, not
+  synced). Choosing a kind shows the period of that kind containing today
+- Previous / next (`[` / `]`) step through the selected period; their labels, tooltips and the empty
+  state follow the kind ("Previous week", "No time tracked this week")
+- Week view: label `W42 · 12–18 Oct 2026`, one bar per day Monday to Sunday (`Mon 12` … `Sun 18`)
+  and the customer / project table for the week. Month view is unchanged
+- **Balance card** above the KPIs: `Logged · Target · Balance`, Target and Balance in the duration
+  format, Balance with an explicit sign and green (surplus) / red (deficit). Target is the full
+  Target for finished periods and "so far" including today for the current one. Hidden when Weekly
+  hours is unset, while a customer or project filter is active, and when the period has no Target
+  (future, or entirely before the first Time Entry)
+- Activating the Time Tracker's "This week" badge opens Reports with Week selected on the current week
+- The switch, previous / next and the badge are at least 44×44px; Reports has no horizontal overflow
+  on a phone (Pixel 5)
 - Customer and project filters apply to every element below
 - KPIs: total duration, number of entries, number of projects
-- Stacked bar chart: one bar per day of the month, segments coloured by project (ECharts), legend
+- Stacked bar chart: one bar per day of the week or month, segments coloured by project (ECharts), legend
 - Summary table: Customer rows with subtotals → Project rows with duration and share bar; grand total
 - All hours follow [Attribution](../../CONTEXT.md#time-tracking-glossary): an entry counts wholly to
   the day and month of its start
@@ -122,8 +136,10 @@ Constructed through factories in `schema.js`; IDs via `generateUUID()`.
   - Year: 1 January to 31 December, one bucket per month, labelled `2026`
   - Previous / next shift by one period of the same kind; an entry counts wholly toward the week,
     month and year of its start
-  - The summary carries `target` and `balance` slots (null until Weekly hours are wired)
-  - Only Month is offered in the UI for now
+  - Given `now` and `weeklyHours`, the summary fills `target` (from `periodBalance` over all Time
+    Entries, so the first-ever entry sets the start) and `balance` (summarised total − Target);
+    both are null when Weekly hours is unset or the period has no Target
+  - Week and Month are offered in the UI; Year is not yet
 
 ## Projects and Customers
 
@@ -185,7 +201,7 @@ ignored while an input is focused.
 | `d` | Duplicate selected entry |
 | `Del` | Delete selected entry → `y` confirm / `Esc` cancel |
 | `g t` / `g r` / `g p` / `g s` | Go to Tracker / Reports / Projects / Settings |
-| `[` / `]` | Previous / next month |
+| `[` / `]` | Previous / next period (week or month) on Reports |
 | `?` | Shortcut cheat-sheet |
 | `Enter` | Save (entry bar, edit modal, inline add fields) |
 | `Esc` | Cancel / leave field |
@@ -210,9 +226,13 @@ ignored while an input is focused.
   finished, current, future and pre-first-entry weeks, decimal Weekly hours and Monday week start
   across DST
 - DOM: entry bar save flow, filters, edit modal, delete confirmation; Weekly hours input; "This week"
-  badge visibility and live updates
+  badge visibility and live updates; Reports Week | Month switch, navigation and persisted choice,
+  week chart and table, balance card values, sign / colour and visibility rules; badge opens the
+  current week
 - E2E: full keyboard-only flow (add → select → edit → duplicate → delete → reports month switch) playwright-cli, playwright tests.
-- E2E (Pixel 5): tap edit and delete on a row without hover; controls measure at least 44×44px
+- E2E (desktop): set Weekly hours → log entries → correct Balance for week and month
+- E2E (Pixel 5): tap edit and delete on a row without hover; controls measure at least 44×44px; tap
+  the badge to land on the current week with touch-sized period controls and no horizontal overflow
 
 ## Later (not in MVP)
 

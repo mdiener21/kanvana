@@ -105,6 +105,6 @@ test('on a phone a time entry can be edited and deleted by tapping its always-vi
   await expect(page.locator('.tt-entry-row')).toHaveCount(0);
 
   await page.locator('#tt-nav-reports').tap();
-  await expectTouchSized(page.locator('.tt-month-btn'));
+  await expectTouchSized(page.locator('.tt-period-btn, .tt-period-option'));
   await expectNoHorizontalOverflow(page);
 });

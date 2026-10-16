@@ -25,7 +25,7 @@ const PANEL_HTML = `
   <div class="tt-tracker-panel">
     <div class="tt-tracker-header">
       <h2 class="tt-section-title">Time Tracker</h2>
-      <button type="button" class="tt-week-balance" data-testid="tt-week-balance" hidden>
+      <button type="button" class="tt-week-balance" data-testid="tt-week-balance" title="Open this week in Reports" hidden>
         <span class="tt-week-balance-label">This week</span>
         <span class="tt-week-balance-value"></span>
       </button>
@@ -125,7 +125,7 @@ function entryListHtml(tt, prefs, groups, view) {
 const DISPLAY_PREF_KEYS = ['tz', 'dateFormat', 'timeFormat', 'durationFormat'];
 const sameDisplayPrefs = (a, b) => DISPLAY_PREF_KEYS.every((key) => a[key] === b[key]);
 
-export function mountTrackerPanel(container, { getPrefs, getSettings }) {
+export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurrentWeek = () => {} }) {
   container.innerHTML = PANEL_HTML;
   renderIcons(container);
 
@@ -178,6 +178,7 @@ export function mountTrackerPanel(container, { getPrefs, getSettings }) {
   }
 
   const weekBadge = container.querySelector('[data-testid="tt-week-balance"]');
+  weekBadge.addEventListener('click', () => onOpenCurrentWeek());
 
   function refreshWeekBadge(tt, prefs) {
     const { balanceMs } = periodBalance(tt.timeEntries, currentPeriod('week', prefs.now, prefs.tz), {
