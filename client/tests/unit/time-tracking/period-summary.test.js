@@ -273,6 +273,18 @@ describe('Target and Balance', () => {
     expect(s.balance).toBe(10 * H - s.target);
   });
 
+  test.each([
+    ['28-day February 2026', 2026, 2, '160:00'],
+    ['29-day February 2028', 2028, 2, '165:43'],
+    ['30-day November 2026', 2026, 11, '171:26'],
+    ['31-day October 2026', 2026, 10, '177:09']
+  ])('a finished %s at 40h has a Target of %s', (_, y, m, expected) => {
+    const data = { ...tt, timeEntries: [entry('first', 'p1', `${y - 1}-06-01T08:00:00.000Z`, `${y - 1}-06-01T09:00:00.000Z`)] };
+    const s = summarizePeriod(data, [], month(y, m), { tz: TZ, now: Date.parse(`${y + 1}-01-15T10:00:00Z`), weeklyHours: 40 });
+    expect(formatDuration(s.target, 'hm')).toBe(expected);
+    expect(s.balance).toBe(-s.target);
+  });
+
   test('a finished week at 40h has a Target of exactly 40h', () => {
     const week = periodOf('week', { y: 2026, m: 10, d: 20 });
     const s = summarizePeriod(withEntries, withEntries.timeEntries, week, { tz: TZ, now: NOW, weeklyHours: 40 });
