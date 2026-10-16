@@ -2,7 +2,7 @@ import { afterEach, beforeEach, test, expect, vi } from 'vitest';
 import { screen, fireEvent, within } from '@testing-library/dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { mountToBody } from '../setup.js';
+import { mountToBody, isKeyboardOperable } from '../setup.js';
 
 vi.mock('../../../src/modules/storage.js', () => ({
   loadTimeTracking: vi.fn(() => ({ customers: [], projects: [], timeEntries: [] })),
@@ -195,4 +195,12 @@ test('shortcuts other than Esc do not reach the page behind the open cheat-sheet
   pressSequence('g', 's');
   expect(section('settings').hidden).toBe(true);
   expect(helpModal().hidden).toBe(false);
+});
+
+test.each(['Week', 'Year', 'Month'])('the %s period switch button is operable from the keyboard', (name) => {
+  gotoReports();
+  const button = screen.getByRole('button', { name });
+  expect(isKeyboardOperable(button)).toBe(true);
+  fireEvent.click(document.activeElement);
+  expect(button.getAttribute('aria-pressed')).toBe('true');
 });

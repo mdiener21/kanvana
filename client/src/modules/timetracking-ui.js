@@ -14,6 +14,7 @@ import { timeTrackingPrefs } from './timetracking-time.js';
 import { loadTimeTrackingSettings } from './timetracking-settings.js';
 import { mountSettingsPanel } from './timetracking-settings-panel.js';
 import { mountReportsPanel } from './timetracking-reports-panel.js';
+import { WEEK } from './timetracking-report.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -434,7 +435,7 @@ export function mountTimeTracking(root = document, {
     getPrefs,
     getSettings,
     onOpenCurrentWeek: () => {
-      reports.showCurrentPeriod('week');
+      reports.showCurrentPeriod(WEEK);
       nav.show('reports');
     }
   });

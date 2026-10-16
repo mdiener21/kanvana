@@ -184,6 +184,18 @@ describe('Weekly hours (contract) setting', () => {
     expect(weeklyHours().value).toBe('');
   });
 
+  test('marks zero as out of range but accepts the smallest step and empty', () => {
+    mount();
+    weeklyHours().value = '0';
+    expect(weeklyHours().validity.rangeUnderflow).toBe(true);
+    weeklyHours().value = '0.5';
+    expect(weeklyHours().validity.valid).toBe(true);
+    weeklyHours().value = '38.5';
+    expect(weeklyHours().validity.valid).toBe(true);
+    weeklyHours().value = '';
+    expect(weeklyHours().validity.valid).toBe(true);
+  });
+
   test('a decimal value is saved through the global settings event', () => {
     mount();
     enter('38.5');

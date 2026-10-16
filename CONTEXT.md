@@ -65,6 +65,12 @@ entry bar ahead of the default project. It is **per-device** state in `localStor
 (`kanvana:timetracking:lastUsedProjectId`), deliberately outside the IDB read model and the synced
 global settings: it is a local convenience, not domain data, and never emits an event.
 
+**Remembered report period** — the period kind (`week`, `month` or `year`) last picked in the
+Reports Week | Month | Year switch. Like the last-used project it is **per-device** state in
+`localStorage` (`kanvana:timetracking:reportPeriodKind`), outside the IDB read model and the synced
+settings, and never emits an event. Only the switch writes it; opening this week from the "This
+week" badge does not. An unknown or missing value falls back to `month`.
+
 **Weekly hours** — the user's contractual hours per week; an optional Time Tracking setting
 (`weeklyHours`, a number > 0, decimals allowed, no maximum). Unset means off: no Target or Balance
 anywhere. The current value applies to every period; there is no history of earlier values.

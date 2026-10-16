@@ -1,17 +1,19 @@
-import { zonedParts, formatDuration } from './timetracking-time.js';
-
-const MINUTE_MS = 60 * 1000;
-const HOUR_MS = 60 * MINUTE_MS;
-const DAY_MS = 24 * HOUR_MS;
-
-const dayNumber = ({ y, m, d }) => Date.UTC(y, m - 1, d) / DAY_MS;
+import { zonedParts, formatDuration, dayNumber, MINUTE_MS, HOUR_MS } from './timetracking-time.js';
 
 // Judged on the displayed minutes, so a few seconds short never shows as "−0:00".
-export const isDeficit = (balanceMs) => Math.round(balanceMs / MINUTE_MS) < 0;
+const isDeficit = (balanceMs) => Math.round(balanceMs / MINUTE_MS) < 0;
 
 export function formatBalance(ms, durationFormat) {
   const sign = isDeficit(ms) ? '−' : '+';
   return `${sign}${formatDuration(Math.abs(ms), durationFormat)}`;
+}
+
+export function showBalance(element, balanceMs, durationFormat, toneElement = element) {
+  const text = formatBalance(balanceMs, durationFormat);
+  element.textContent = text;
+  toneElement.classList.toggle('is-deficit', isDeficit(balanceMs));
+  toneElement.classList.toggle('is-surplus', !isDeficit(balanceMs));
+  return text;
 }
 
 const startDay = (entry, tz) => dayNumber(zonedParts(Date.parse(entry.start), tz));
@@ -28,19 +30,18 @@ function loggedIn(entries, from, to, tz) {
 const targetBefore = (day, weeklyHours) => Math.round((weeklyHours * HOUR_MS * day) / 7);
 
 // Counted days: from the later of period start and first-ever entry day, to the earlier of period end and today.
-function targetMs(entries, from, to, { now, tz, weeklyHours }) {
+export function periodTarget(entries, period, { now, tz, weeklyHours }) {
   if (!(weeklyHours > 0) || entries.length === 0) return null;
   const firstEntryDay = Math.min(...entries.map((e) => startDay(e, tz)));
-  const first = Math.max(from, firstEntryDay);
-  const last = Math.min(to, dayNumber(zonedParts(now, tz)));
+  const first = Math.max(dayNumber(period.start), firstEntryDay);
+  const last = Math.min(dayNumber(period.end), dayNumber(zonedParts(now, tz)));
   return last >= first ? targetBefore(last + 1, weeklyHours) - targetBefore(first, weeklyHours) : null;
 }
 
-// `period` is any { start, end } pair of calendar days, e.g. a period from timetracking-report.js.
+export const balanceOf = (loggedMs, targetMs) => (targetMs === null ? null : loggedMs - targetMs);
+
 export function periodBalance(entries, period, options) {
-  const from = dayNumber(period.start);
-  const to = dayNumber(period.end);
-  const loggedMs = loggedIn(entries, from, to, options.tz);
-  const target = targetMs(entries, from, to, options);
-  return { loggedMs, targetMs: target, balanceMs: target === null ? null : loggedMs - target };
+  const loggedMs = loggedIn(entries, dayNumber(period.start), dayNumber(period.end), options.tz);
+  const targetMs = periodTarget(entries, period, options);
+  return { loggedMs, targetMs, balanceMs: balanceOf(loggedMs, targetMs) };
 }

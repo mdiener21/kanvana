@@ -10,14 +10,13 @@ import { DEFAULT_APP_KEYBINDINGS, keyLabel } from './constants.js';
 import { colorDotHtml } from './timetracking-markup.js';
 import { getChartTheme } from './chart-theme.js';
 import { filterEntries, mountEntryFilter } from './timetracking-filter.js';
-import { formatDuration, formatYmd } from './timetracking-time.js';
-import { summarizePeriod, currentPeriod, shiftPeriod, isSamePeriod } from './timetracking-report.js';
-import { formatBalance, isDeficit } from './timetracking-balance.js';
+import { formatDuration, formatYmd, formatShortWeekday, formatShortMonth, formatMonthYear, HOUR_MS } from './timetracking-time.js';
+import { summarizePeriod, currentPeriod, shiftPeriod, isSamePeriod, WEEK, MONTH, YEAR } from './timetracking-report.js';
+import { showBalance } from './timetracking-balance.js';
 import { loadTimeTrackingSettings, loadReportPeriodKind, rememberReportPeriodKind } from './timetracking-settings.js';
 
 echarts.use([GridComponent, LegendComponent, TooltipComponent, BarChart, CanvasRenderer]);
 
-const MS_PER_HOUR = 3600000;
 const REPORT_FILTER_LABELS = {
   group: 'Filter report',
   customer: 'Filter report by customer',
@@ -26,35 +25,23 @@ const REPORT_FILTER_LABELS = {
 
 const { ttPrevMonth: ttPrevPeriod, ttNextMonth: ttNextPeriod } = DEFAULT_APP_KEYBINDINGS;
 
-// The periods offered by the switch, in display order. `noun` names the period in labels.
-const PERIOD_OPTIONS = [
-  { kind: 'week', label: 'Week', noun: 'week' },
-  { kind: 'month', label: 'Month', noun: 'month' },
-  { kind: 'year', label: 'Year', noun: 'year' }
-];
-const DEFAULT_PERIOD_KIND = 'month';
-const optionOf = (kind) => PERIOD_OPTIONS.find((o) => o.kind === kind);
-const offeredKind = (kind) => (optionOf(kind) ? kind : DEFAULT_PERIOD_KIND);
-
-const WEEKDAY_FORMAT = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'UTC' });
-const SHORT_MONTH_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'short', timeZone: 'UTC' });
-const MONTH_YEAR_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-const utc = ({ y, m, d }) => Date.UTC(y, m - 1, d);
 const dayTooltip = (ymd, prefs) => formatYmd(ymd, prefs.dateFormat);
 
-// Per chart bucket: the x-axis label, the tooltip heading and how the chart is described.
-const BUCKETS = {
-  week: { axis: (ymd) => `${WEEKDAY_FORMAT.format(utc(ymd))} ${ymd.d}`, tooltip: dayTooltip, name: 'Daily' },
-  month: { axis: ({ d }) => String(d), tooltip: dayTooltip, name: 'Daily' },
-  year: { axis: (ymd) => SHORT_MONTH_FORMAT.format(utc(ymd)), tooltip: (ymd) => MONTH_YEAR_FORMAT.format(utc(ymd)), name: 'Monthly' }
+// The periods offered by the switch, in display order, with how each labels its chart buckets.
+const PERIOD_VIEWS = {
+  [WEEK]: { label: 'Week', axis: (ymd) => `${formatShortWeekday(ymd)} ${ymd.d}`, tooltip: dayTooltip, chartName: 'Daily' },
+  [MONTH]: { label: 'Month', axis: ({ d }) => String(d), tooltip: dayTooltip, chartName: 'Daily' },
+  [YEAR]: { label: 'Year', axis: formatShortMonth, tooltip: formatMonthYear, chartName: 'Monthly' }
 };
+const DEFAULT_PERIOD_KIND = MONTH;
+const offeredKind = (kind) => (Object.hasOwn(PERIOD_VIEWS, kind) ? kind : DEFAULT_PERIOD_KIND);
 
 const PANEL_HTML = `
   <div class="tt-reports-panel">
     <h2 class="tt-section-title">Reports</h2>
     <div class="tt-report-toolbar">
       <div class="tt-period-switch" role="group" aria-label="Report period">
-        ${PERIOD_OPTIONS.map(({ kind, label }) => `<button type="button" class="tt-period-option" data-period-kind="${kind}" aria-pressed="false">${label}</button>`).join('')}
+        ${Object.entries(PERIOD_VIEWS).map(([kind, { label }]) => `<button type="button" class="tt-period-option" data-period-kind="${kind}" aria-pressed="false">${label}</button>`).join('')}
       </div>
       <div class="tt-period-nav" role="group" aria-label="Period">
         <button type="button" class="tt-period-btn" data-step="-1">
@@ -126,7 +113,7 @@ const tableFootHtml = (summary, durationFormat) => `
 
 // One stacked bar per bucket: a calendar day (week / month periods) or a month (year period).
 export function periodChartOption(summary, prefs, theme = getChartTheme()) {
-  const bucket = BUCKETS[summary.period.kind];
+  const bucket = PERIOD_VIEWS[summary.period.kind];
   return {
     animation: false,
     grid: { left: 8, right: 8, top: 40, bottom: 8, containLabel: true },
@@ -145,7 +132,7 @@ export function periodChartOption(summary, prefs, theme = getChartTheme()) {
       textStyle: { color: theme.text },
       formatter: ({ seriesName, dataIndex, value, color }) => {
         const heading = bucket.tooltip(summary.buckets[dataIndex].start, prefs);
-        return `${escapeHtml(heading)}<br>${colorDotHtml(color)} ${escapeHtml(seriesName)}: <strong>${formatDuration(value * MS_PER_HOUR, prefs.durationFormat)}</strong>`;
+        return `${escapeHtml(heading)}<br>${colorDotHtml(color)} ${escapeHtml(seriesName)}: <strong>${formatDuration(value * HOUR_MS, prefs.durationFormat)}</strong>`;
       }
     },
     xAxis: {
@@ -168,7 +155,7 @@ export function periodChartOption(summary, prefs, theme = getChartTheme()) {
       barMaxWidth: 28,
       itemStyle: { color: project.color },
       emphasis: { focus: 'series' },
-      data: summary.buckets.map((b) => (b.byProject[project.id] ? b.byProject[project.id] / MS_PER_HOUR : null))
+      data: summary.buckets.map((b) => (b.byProject[project.id] ? b.byProject[project.id] / HOUR_MS : null))
     }))
   };
 }
@@ -221,13 +208,12 @@ export function mountReportsPanel(container, {
   }
 
   function renderPeriodControls() {
-    const { noun } = optionOf(kind);
     for (const button of kindButtons) button.setAttribute('aria-pressed', String(button.dataset.periodKind === kind));
     for (const [button, direction, binding] of [[prevButton, 'Previous', ttPrevPeriod], [nextButton, 'Next', ttNextPeriod]]) {
-      button.setAttribute('aria-label', `${direction} ${noun}`);
-      button.title = `${direction} ${noun} (${keyLabel(binding)})`;
+      button.setAttribute('aria-label', `${direction} ${kind}`);
+      button.title = `${direction} ${kind} (${keyLabel(binding)})`;
     }
-    empty.textContent = `No time tracked this ${noun}`;
+    empty.textContent = `No time tracked this ${kind}`;
   }
 
   // Target / Balance compare against the whole contract, so a filtered report shows none.
@@ -237,9 +223,7 @@ export function mountReportsPanel(container, {
     if (!show) return;
     balanceValues.logged.textContent = formatDuration(summary.totalMs, prefs.durationFormat);
     balanceValues.target.textContent = formatDuration(summary.target, prefs.durationFormat);
-    balanceValues.balance.textContent = formatBalance(summary.balance, prefs.durationFormat);
-    balanceValues.balance.classList.toggle('is-deficit', isDeficit(summary.balance));
-    balanceValues.balance.classList.toggle('is-surplus', !isDeficit(summary.balance));
+    showBalance(balanceValues.balance, summary.balance, prefs.durationFormat);
   }
 
   function refresh() {
@@ -255,7 +239,7 @@ export function mountReportsPanel(container, {
     label.textContent = name;
     renderPeriodControls();
     renderBalance(isFiltered(activeFilter));
-    chartElement.setAttribute('aria-label', `${BUCKETS[kind].name} hours by project, ${name}`);
+    chartElement.setAttribute('aria-label', `${PERIOD_VIEWS[kind].chartName} hours by project, ${name}`);
     kpis.total.textContent = formatDuration(summary.totalMs, prefs.durationFormat);
     kpis.entries.textContent = String(summary.entryCount);
     kpis.projects.textContent = String(summary.projectCount);
@@ -277,7 +261,6 @@ export function mountReportsPanel(container, {
 
   function showCurrentPeriod(nextKind) {
     kind = offeredKind(nextKind);
-    rememberReportPeriodKind(kind);
     followsCurrentPeriod = true;
     refresh();
   }
@@ -288,7 +271,9 @@ export function mountReportsPanel(container, {
   });
   container.querySelector('.tt-period-switch').addEventListener('click', (ev) => {
     const btn = ev.target.closest('[data-period-kind]');
-    if (btn) showCurrentPeriod(btn.dataset.periodKind);
+    if (!btn) return;
+    showCurrentPeriod(btn.dataset.periodKind);
+    rememberReportPeriodKind(kind);
   });
 
   const onResize = () => chart?.resize();
