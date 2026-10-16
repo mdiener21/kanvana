@@ -69,7 +69,7 @@ const PANEL_HTML = `
       <label class="tt-setting" for="tt-setting-weekly-hours">
         <span class="tt-setting-label">Weekly hours (contract)</span>
         <input id="tt-setting-weekly-hours" class="tt-input tt-setting-number" type="number"
-          inputmode="decimal" step="0.5" min="0" placeholder="Off" data-weekly-hours>
+          inputmode="decimal" step="0.5" min="0.5" placeholder="Off" data-weekly-hours>
       </label>
     </div>
     <dl class="tt-settings-preview" aria-label="Preview" aria-live="polite">
