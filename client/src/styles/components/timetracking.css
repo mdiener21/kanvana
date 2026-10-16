@@ -1,5 +1,7 @@
 /* Time Tracking page (timetracking.html) — all selectors are tt- scoped */
 
+:root { --tt-touch-target: 44px; }
+
 .tt-shell {
   display: grid;
   grid-template-columns: 220px 1fr;
@@ -53,6 +55,9 @@
   border-radius: 6px;
   display: flex;
   align-items: center;
+  justify-content: center;
+  min-width: var(--tt-touch-target);
+  min-height: var(--tt-touch-target);
 }
 .tt-theme-btn:hover { background: var(--surface-hover); }
 
@@ -168,8 +173,11 @@
   cursor: pointer;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   white-space: nowrap;
+  min-width: var(--tt-touch-target);
+  min-height: var(--tt-touch-target);
 }
 .tt-btn-add:hover { opacity: 0.9; }
 .tt-btn-add [data-lucide] { width: 14px; height: 14px; }
@@ -346,11 +354,15 @@
 .tt-entry-row:hover .tt-entry-actions,
 .tt-entry-row.is-selected .tt-entry-actions,
 .tt-entry-row:focus-within .tt-entry-actions { visibility: visible; }
+@media (hover: none) {
+  .tt-entry-actions { visibility: visible; }
+}
 .tt-entry-action {
   display: inline-grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: var(--tt-touch-target);
+  height: var(--tt-touch-target);
+  flex-shrink: 0;
   border: 0;
   border-radius: 4px;
   background: transparent;
@@ -376,6 +388,8 @@
   font: inherit;
   font-size: 13px;
   color: var(--text, #111);
+  min-width: var(--tt-touch-target);
+  min-height: var(--tt-touch-target);
 }
 .tt-btn-danger { border-color: var(--color-danger); background: var(--color-danger); color: #fff; }
 .tt-btn-danger:hover, .tt-btn-secondary:hover { opacity: 0.9; }
@@ -479,6 +493,8 @@
   font: inherit;
   font-size: 13px;
   color: var(--text, #111);
+  min-width: var(--tt-touch-target);
+  min-height: var(--tt-touch-target);
 }
 
 .tt-icon-14 { width: 14px; height: 14px; }
@@ -536,8 +552,8 @@
   background: var(--surface, #fff);
   color: var(--text, #111);
   border-radius: 6px;
-  width: 32px;
-  height: 32px;
+  width: var(--tt-touch-target);
+  height: var(--tt-touch-target);
   display: inline-flex;
   align-items: center;
   justify-content: center;

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Time Tracking is easier to use on a phone or tablet. Every Time Tracking button is now at least 44×44px, and on touch devices the edit, duplicate and delete buttons on a time entry are always shown instead of only on hover (#205).
+
 - CI now runs a Semgrep security scan (`p/security-audit` and `p/secrets`) and blocks deploy jobs until the scan passes.
 
 ### Fixed
