@@ -29,16 +29,24 @@ const { ttPrevMonth: ttPrevPeriod, ttNextMonth: ttNextPeriod } = DEFAULT_APP_KEY
 // The periods offered by the switch, in display order. `noun` names the period in labels.
 const PERIOD_OPTIONS = [
   { kind: 'week', label: 'Week', noun: 'week' },
-  { kind: 'month', label: 'Month', noun: 'month' }
+  { kind: 'month', label: 'Month', noun: 'month' },
+  { kind: 'year', label: 'Year', noun: 'year' }
 ];
 const DEFAULT_PERIOD_KIND = 'month';
 const optionOf = (kind) => PERIOD_OPTIONS.find((o) => o.kind === kind);
 const offeredKind = (kind) => (optionOf(kind) ? kind : DEFAULT_PERIOD_KIND);
 
 const WEEKDAY_FORMAT = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'UTC' });
-const BUCKET_LABELS = {
-  week: ({ y, m, d }) => `${WEEKDAY_FORMAT.format(Date.UTC(y, m - 1, d))} ${d}`,
-  month: ({ d }) => String(d)
+const SHORT_MONTH_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'short', timeZone: 'UTC' });
+const MONTH_YEAR_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+const utc = ({ y, m, d }) => Date.UTC(y, m - 1, d);
+const dayTooltip = (ymd, prefs) => formatYmd(ymd, prefs.dateFormat);
+
+// Per chart bucket: the x-axis label, the tooltip heading and how the chart is described.
+const BUCKETS = {
+  week: { axis: (ymd) => `${WEEKDAY_FORMAT.format(utc(ymd))} ${ymd.d}`, tooltip: dayTooltip, name: 'Daily' },
+  month: { axis: ({ d }) => String(d), tooltip: dayTooltip, name: 'Daily' },
+  year: { axis: (ymd) => SHORT_MONTH_FORMAT.format(utc(ymd)), tooltip: (ymd) => MONTH_YEAR_FORMAT.format(utc(ymd)), name: 'Monthly' }
 };
 
 const PANEL_HTML = `
@@ -116,9 +124,9 @@ const tableFootHtml = (summary, durationFormat) => `
     <td></td>
   </tr>`;
 
-// One stacked bar per calendar-day bucket (week / month periods).
-export function dailyChartOption(summary, prefs, theme = getChartTheme()) {
-  const bucketLabel = BUCKET_LABELS[summary.period.kind];
+// One stacked bar per bucket: a calendar day (week / month periods) or a month (year period).
+export function periodChartOption(summary, prefs, theme = getChartTheme()) {
+  const bucket = BUCKETS[summary.period.kind];
   return {
     animation: false,
     grid: { left: 8, right: 8, top: 40, bottom: 8, containLabel: true },
@@ -136,13 +144,13 @@ export function dailyChartOption(summary, prefs, theme = getChartTheme()) {
       borderColor: theme.border,
       textStyle: { color: theme.text },
       formatter: ({ seriesName, dataIndex, value, color }) => {
-        const date = formatYmd(summary.buckets[dataIndex].start, prefs.dateFormat);
-        return `${escapeHtml(date)}<br>${colorDotHtml(color)} ${escapeHtml(seriesName)}: <strong>${formatDuration(value * MS_PER_HOUR, prefs.durationFormat)}</strong>`;
+        const heading = bucket.tooltip(summary.buckets[dataIndex].start, prefs);
+        return `${escapeHtml(heading)}<br>${colorDotHtml(color)} ${escapeHtml(seriesName)}: <strong>${formatDuration(value * MS_PER_HOUR, prefs.durationFormat)}</strong>`;
       }
     },
     xAxis: {
       type: 'category',
-      data: summary.buckets.map((b) => bucketLabel(b.start)),
+      data: summary.buckets.map((b) => bucket.axis(b.start)),
       axisLabel: { color: theme.muted, interval: 0, fontSize: 10 },
       axisLine: { lineStyle: { color: theme.border } },
       axisTick: { show: false }
@@ -208,7 +216,7 @@ export function mountReportsPanel(container, {
   function renderChart() {
     if (!summary || summary.entryCount === 0 || !isVisible(chartElement)) return;
     chart ??= createChart(chartElement);
-    chart.setOption(dailyChartOption(summary, prefs), { notMerge: true });
+    chart.setOption(periodChartOption(summary, prefs), { notMerge: true });
     chart.resize();
   }
 
@@ -247,7 +255,7 @@ export function mountReportsPanel(container, {
     label.textContent = name;
     renderPeriodControls();
     renderBalance(isFiltered(activeFilter));
-    chartElement.setAttribute('aria-label', `Daily hours by project, ${name}`);
+    chartElement.setAttribute('aria-label', `${BUCKETS[kind].name} hours by project, ${name}`);
     kpis.total.textContent = formatDuration(summary.totalMs, prefs.durationFormat);
     kpis.entries.textContent = String(summary.entryCount);
     kpis.projects.textContent = String(summary.projectCount);

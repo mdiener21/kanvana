@@ -105,29 +105,34 @@ Constructed through factories in `schema.js`; IDs via `generateUUID()`.
   cancels the confirmation and then does what it normally does (e.g. `Tab` moves focus, `j` / `k`
   move the selection)
 
-## Reports (Week / Month)
+## Reports (Week / Month / Year)
 
-- **Week | Month** switch (toggle buttons with `aria-pressed`); the default is Month and the last
+- **Week | Month | Year** switch (toggle buttons with `aria-pressed`); the default is Month and the last
   choice is remembered per device in localStorage (`kanvana:timetracking:reportPeriodKind`, not
   synced). Choosing a kind shows the period of that kind containing today
 - Previous / next (`[` / `]`) step through the selected period; their labels, tooltips and the empty
-  state follow the kind ("Previous week", "No time tracked this week")
+  state follow the kind ("Previous week", "Next year", "No time tracked this year")
 - Week view: label `W42 · 12–18 Oct 2026`, one bar per day Monday to Sunday (`Mon 12` … `Sun 18`)
   and the customer / project table for the week. Month view is unchanged
+- Year view: label `2026`, one stacked bar per month (`Jan` … `Dec`, tooltip `October 2026`) and the
+  customer / project table for the calendar year; the chart is described as "Monthly hours by
+  project, 2026"
 - **Balance card** above the KPIs: `Logged · Target · Balance`, Target and Balance in the duration
   format, Balance with an explicit sign and green (surplus) / red (deficit). Target is the full
   Target for finished periods and "so far" including today for the current one. Hidden when Weekly
   hours is unset, while a customer or project filter is active, and when the period has no Target
-  (future, or entirely before the first Time Entry)
+  (future, or entirely before the first Time Entry). For the year this is the year Target and
+  Balance (2026 at 40h: Target 2085h 43m when finished); it resets on 1 January and nothing carries
+  across years
 - Activating the Time Tracker's "This week" badge opens Reports with Week selected on the current week
 - The switch, previous / next and the badge are at least 44×44px; Reports has no horizontal overflow
   on a phone (Pixel 5)
 - Customer and project filters apply to every element below
 - KPIs: total duration, number of entries, number of projects
-- Stacked bar chart: one bar per day of the week or month, segments coloured by project (ECharts), legend
+- Stacked bar chart: one bar per day of the week or month, or per month of the year, segments coloured by project (ECharts), legend
 - Summary table: Customer rows with subtotals → Project rows with duration and share bar; grand total
 - All hours follow [Attribution](../../CONTEXT.md#time-tracking-glossary): an entry counts wholly to
-  the day and month of its start
+  the day, week, month and year of its start
 - Every report is computed by one **period summary** (`summarizePeriod` in
   `timetracking-report.js`) for a period of kind week, month or year in the Time Tracking timezone:
   - Week: Monday to Sunday, one bucket per day, labelled with the ISO week, e.g. `W42 · 12–18 Oct 2026`
@@ -139,7 +144,6 @@ Constructed through factories in `schema.js`; IDs via `generateUUID()`.
   - Given `now` and `weeklyHours`, the summary fills `target` (from `periodBalance` over all Time
     Entries, so the first-ever entry sets the start) and `balance` (summarised total − Target);
     both are null when Weekly hours is unset or the period has no Target
-  - Week and Month are offered in the UI; Year is not yet
 
 ## Projects and Customers
 
@@ -176,6 +180,10 @@ See the [glossary](../../CONTEXT.md#time-tracking-glossary) for Weekly hours, Ta
 
 - Target = Weekly hours ÷ 7 × counted days; counted days run from the later of the period start and
   the first-ever Time Entry's day to the earlier of the period end and today, inclusive
+- Targets are additive: the Target of a span of days is rounded once from a running day count, so
+  the month Targets of a year (and the days of a week) add up to the millisecond to the year Target,
+  in leap and non-leap years. Worked examples at 40h: week 40h 00m, October 177h 09m, February
+  (28 days) 160h 00m, 2026 2085h 43m
 - Weeks run Monday to Sunday in the Time Tracking timezone; entries count toward the period of their
   start (Attribution)
 - Balance = logged − Target; Target and Balance are absent when Weekly hours is unset, for future

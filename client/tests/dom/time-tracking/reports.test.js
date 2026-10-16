@@ -427,3 +427,123 @@ describe('balance card', () => {
     expect(card().hidden).toBe(true);
   });
 });
+
+describe('Year period', () => {
+  test('Year is offered in the switch and shows the current year, labelled 2026', () => {
+    mount();
+    fireEvent.click(periodButton('Year'));
+    expect(periodButton('Year').getAttribute('aria-pressed')).toBe('true');
+    expect(periodButton('Month').getAttribute('aria-pressed')).toBe('false');
+    expect(periodLabel().textContent).toBe('2026');
+  });
+
+  test('‹ / › and prevPeriod() / nextPeriod() (for [ / ]) step whole years', () => {
+    mount();
+    fireEvent.click(periodButton('Year'));
+    fireEvent.click(screen.getByRole('button', { name: 'Previous year' }));
+    expect(periodLabel().textContent).toBe('2025');
+    panel.nextPeriod();
+    panel.nextPeriod();
+    expect(periodLabel().textContent).toBe('2027');
+    panel.prevPeriod();
+    expect(periodLabel().textContent).toBe('2026');
+    expect(screen.getByRole('button', { name: 'Next year' }).title).toBe('Next year (])');
+  });
+
+  test('the choice is remembered on this device', () => {
+    mount();
+    fireEvent.click(periodButton('Year'));
+    panel.unmount();
+    mount();
+    expect(periodButton('Year').getAttribute('aria-pressed')).toBe('true');
+    expect(periodLabel().textContent).toBe('2026');
+  });
+
+  test('per-month stacked bars (12 buckets) and the table for the year', () => {
+    const { lastOption } = mount();
+    addEntries(entry('newyear', 'p1', '2026-12-31T23:30:00.000Z', '2027-01-01T00:30:00.000Z')); // 1 Jan 2027 00:30 Berlin
+    fireEvent.click(periodButton('Year'));
+    const option = lastOption();
+    expect(option.xAxis.data).toEqual(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']);
+    expect(option.series.map((s) => [s.name, s.type])).toEqual([['Website', 'bar'], ['Support', 'bar'], ['Backend', 'bar']]);
+    expect(new Set(option.series.map((s) => s.stack)).size).toBe(1);
+    const support = option.series.find((s) => s.name === 'Support');
+    expect(support.data).toHaveLength(12);
+    expect(support.data[8]).toBe(1.25);
+    expect(support.data[9]).toBe(3);
+    expect(option.series.find((s) => s.name === 'Website').data[11]).toBeNull();
+    expect(kpi('Total')).toBe('9:45');
+    expect(tableRows()).toEqual([
+      ['Acme', '5:30'],
+      ['Website', '5:00', '51%'],
+      ['Backend', '0:30', '5%'],
+      ['Globex <b>', '4:15'],
+      ['Support', '4:15', '44%']
+    ]);
+    expect(screen.getByRole('img', { name: 'Monthly hours by project, 2026' })).toBeTruthy();
+  });
+
+  test('the year tooltip names the month, project and duration', () => {
+    const { lastOption } = mount();
+    fireEvent.click(periodButton('Year'));
+    const html = lastOption().tooltip.formatter({ seriesName: 'Support', dataIndex: 9, value: 3, color: '#8bc34a' });
+    expect(html).toContain('October 2026');
+    expect(html).toContain('Support');
+    expect(html).toContain('3:00');
+  });
+
+  test('an empty year says so', () => {
+    mount();
+    fireEvent.click(periodButton('Year'));
+    panel.nextPeriod();
+    expect(screen.getByRole('status').textContent).toBe('No time tracked this year');
+  });
+});
+
+describe('year balance card', () => {
+  test('a finished 2026 at 40h has a Target of 2085h 43m', () => {
+    mount({ weeklyHours: 40 });
+    addEntries(entry('jan1', 'p1', '2026-01-01T08:00:00.000Z', '2026-01-01T10:00:00.000Z'));
+    prefs.now = Date.parse('2027-01-10T10:00:00Z');
+    fireEvent.click(periodButton('Year'));
+    panel.prevPeriod();
+    expect(periodLabel().textContent).toBe('2026');
+    expect(cardValue('Logged').textContent).toBe('11:45');
+    expect(cardValue('Target').textContent).toBe('2085:43');
+    expect(cardValue('Balance').textContent).toBe('−2073:58');
+    expect(cardValue('Balance').classList.contains('is-deficit')).toBe(true);
+  });
+
+  test('the current year counts so far, from the first entry when that falls mid-year', () => {
+    mount({ weeklyHours: 40 });
+    fireEvent.click(periodButton('Year'));
+    // 10 Sep (first entry) – 12 Oct (today) = 33 days × 40h / 7
+    expect(cardValue('Target').textContent).toBe('188:34');
+    expect(cardValue('Balance').textContent).toBe('−178:49');
+  });
+
+  test('the Balance resets on 1 January', () => {
+    mount({ weeklyHours: 35 });
+    prefs.now = Date.parse('2027-01-02T10:00:00Z');
+    fireEvent.click(periodButton('Year'));
+    expect(periodLabel().textContent).toBe('2027');
+    expect(cardValue('Logged').textContent).toBe('0:00');
+    expect(cardValue('Target').textContent).toBe('10:00');
+    expect(cardValue('Balance').textContent).toBe('−10:00');
+  });
+
+  test('is hidden when filtered, for a future year and for a year before the first entry', () => {
+    mount({ weeklyHours: 40 });
+    fireEvent.click(periodButton('Year'));
+    expect(card().hidden).toBe(false);
+    choose(screen.getByLabelText('Filter report by customer'), 'c1');
+    expect(card().hidden).toBe(true);
+    choose(screen.getByLabelText('Filter report by customer'), '');
+    panel.nextPeriod();
+    expect(card().hidden).toBe(true);
+    panel.prevPeriod();
+    panel.prevPeriod();
+    expect(periodLabel().textContent).toBe('2025');
+    expect(card().hidden).toBe(true);
+  });
+});

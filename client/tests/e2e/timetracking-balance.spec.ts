@@ -27,7 +27,7 @@ async function logEntry(page: Page, description: string, date: string, start: st
 const cardValue = (page: Page, name: string) =>
   page.getByTestId('tt-balance-card').locator('.tt-balance-item', { hasText: name }).locator('dd');
 
-test('Weekly hours → logged entries → Reports shows the Balance for the week and the month', async ({ page }) => {
+test('Weekly hours → logged entries → Reports shows the Balance for the week, the month and the year', async ({ page }) => {
   // Thursday 12 Nov 2026. Advancing clock so successive events get distinct timestamps.
   await page.clock.install({ time: new Date('2026-11-12T10:00:00+01:00') });
   await page.goto('/timetracking.html');
@@ -84,4 +84,36 @@ test('Weekly hours → logged entries → Reports shows the Balance for the week
   await expect(page.getByRole('button', { name: 'Week', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(period).toHaveText('W46 · 9–15 Nov 2026');
   await expect(cardValue(page, 'Balance')).toHaveText('−12:51');
+
+  // Year so far, counted from the first entry (2 Nov) to today: same 11 days as the month
+  await page.getByRole('button', { name: 'Year', exact: true }).click();
+  await expect(period).toHaveText('2026');
+  await expect(page.getByRole('img', { name: 'Monthly hours by project, 2026' })).toBeVisible();
+  await expect(cardValue(page, 'Logged')).toHaveText('18:00');
+  await expect(cardValue(page, 'Target')).toHaveText('62:51');
+  await expect(cardValue(page, 'Balance')).toHaveText('−44:51');
+  await page.keyboard.press(']');
+  await expect(period).toHaveText('2027');
+  await expect(card).toBeHidden();
+  await page.keyboard.press('[');
+  await page.keyboard.press('[');
+  await expect(period).toHaveText('2025');
+  await expect(card).toBeHidden();
+
+  // 60 days on: Mon 11 Jan 2027. The Balance resets on 1 January; 2026 is finished.
+  await page.clock.fastForward(60 * 24 * 3600 * 1000);
+  await page.reload();
+  await page.locator('#tt-nav-reports').click();
+  await expect(page.getByRole('button', { name: 'Year', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(period).toHaveText('2027');
+  // 1–11 Jan: 11 days × 40 / 7
+  await expect(cardValue(page, 'Logged')).toHaveText('0:00');
+  await expect(cardValue(page, 'Target')).toHaveText('62:51');
+  await expect(cardValue(page, 'Balance')).toHaveText('−62:51');
+  await page.keyboard.press('[');
+  await expect(period).toHaveText('2026');
+  // 2 Nov – 31 Dec: 60 days × 40 / 7 = 342h 51m
+  await expect(cardValue(page, 'Logged')).toHaveText('18:00');
+  await expect(cardValue(page, 'Target')).toHaveText('342:51');
+  await expect(cardValue(page, 'Balance')).toHaveText('−324:51');
 });
