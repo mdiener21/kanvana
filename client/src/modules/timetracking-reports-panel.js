@@ -11,7 +11,7 @@ import { colorDotHtml } from './timetracking-markup.js';
 import { getChartTheme } from './chart-theme.js';
 import { filterEntries, mountEntryFilter } from './timetracking-filter.js';
 import { formatDuration, formatYmd } from './timetracking-time.js';
-import { summarizeMonth, currentMonth, shiftMonth, monthLabel } from './timetracking-report.js';
+import { summarizePeriod, currentPeriod, shiftPeriod, isSamePeriod } from './timetracking-report.js';
 
 echarts.use([GridComponent, LegendComponent, TooltipComponent, BarChart, CanvasRenderer]);
 
@@ -94,8 +94,8 @@ const tableFootHtml = (summary, durationFormat) => `
     <td></td>
   </tr>`;
 
-export function monthChartOption(summary, prefs, theme = getChartTheme()) {
-  const { y, m } = summary.month;
+// One stacked bar per calendar-day bucket (week / month periods).
+export function dailyChartOption(summary, prefs, theme = getChartTheme()) {
   return {
     animation: false,
     grid: { left: 8, right: 8, top: 40, bottom: 8, containLabel: true },
@@ -113,13 +113,13 @@ export function monthChartOption(summary, prefs, theme = getChartTheme()) {
       borderColor: theme.border,
       textStyle: { color: theme.text },
       formatter: ({ seriesName, dataIndex, value, color }) => {
-        const date = formatYmd({ y, m, d: dataIndex + 1 }, prefs.dateFormat);
+        const date = formatYmd(summary.buckets[dataIndex].start, prefs.dateFormat);
         return `${escapeHtml(date)}<br>${colorDotHtml(color)} ${escapeHtml(seriesName)}: <strong>${formatDuration(value * MS_PER_HOUR, prefs.durationFormat)}</strong>`;
       }
     },
     xAxis: {
       type: 'category',
-      data: summary.days.map((d) => String(d.day)),
+      data: summary.buckets.map((b) => String(b.start.d)),
       axisLabel: { color: theme.muted, interval: 0, fontSize: 10 },
       axisLine: { lineStyle: { color: theme.border } },
       axisTick: { show: false }
@@ -137,7 +137,7 @@ export function monthChartOption(summary, prefs, theme = getChartTheme()) {
       barMaxWidth: 28,
       itemStyle: { color: project.color },
       emphasis: { focus: 'series' },
-      data: summary.days.map((d) => (d.byProject[project.id] ? d.byProject[project.id] / MS_PER_HOUR : null))
+      data: summary.buckets.map((b) => (b.byProject[project.id] ? b.byProject[project.id] / MS_PER_HOUR : null))
     }))
   };
 }
@@ -146,7 +146,8 @@ const createEChart = (element) => echarts.init(element);
 
 const isVisible = (element) => !element.closest('[hidden]');
 
-const isSameMonth = (a, b) => a.y === b.y && a.m === b.m;
+// Only Month is offered for now; Week / Year reuse the same period summary.
+const PERIOD_KIND = 'month';
 
 export function mountReportsPanel(container, {
   getPrefs,
@@ -170,26 +171,26 @@ export function mountReportsPanel(container, {
   });
 
   let prefs = getPrefs();
-  let month = currentMonth(prefs.now, prefs.tz);
-  // Until the user picks another month, the report tracks "now" (midnight rollover, timezone change).
-  let followsCurrentMonth = true;
+  let period = currentPeriod(PERIOD_KIND, prefs.now, prefs.tz);
+  // Until the user picks another period, the report tracks "now" (midnight rollover, timezone change).
+  let followsCurrentPeriod = true;
   let chart = null;
   let summary = null;
 
   function renderChart() {
     if (!summary || summary.entryCount === 0 || !isVisible(chartElement)) return;
     chart ??= createChart(chartElement);
-    chart.setOption(monthChartOption(summary, prefs), { notMerge: true });
+    chart.setOption(dailyChartOption(summary, prefs), { notMerge: true });
     chart.resize();
   }
 
   function refresh() {
     const tt = getTimeTracking();
     prefs = getPrefs();
-    if (followsCurrentMonth) month = currentMonth(prefs.now, prefs.tz);
+    if (followsCurrentPeriod) period = currentPeriod(PERIOD_KIND, prefs.now, prefs.tz);
     filter.refresh();
-    summary = summarizeMonth(tt, filterEntries(tt, filter.getFilter()), month, prefs.tz);
-    const name = monthLabel(month);
+    summary = summarizePeriod(tt, filterEntries(tt, filter.getFilter()), period, { tz: prefs.tz, now: prefs.now });
+    const name = summary.label;
     label.textContent = name;
     chartElement.setAttribute('aria-label', `Daily hours by project, ${name}`);
     kpis.total.textContent = formatDuration(summary.totalMs, prefs.durationFormat);
@@ -205,9 +206,9 @@ export function mountReportsPanel(container, {
   }
 
   function step(delta) {
-    month = shiftMonth(month, delta);
+    period = shiftPeriod(period, delta);
     const { now, tz } = getPrefs();
-    followsCurrentMonth = isSameMonth(month, currentMonth(now, tz));
+    followsCurrentPeriod = isSamePeriod(period, currentPeriod(PERIOD_KIND, now, tz));
     refresh();
   }
 

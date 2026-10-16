@@ -21,6 +21,9 @@ Terms (Customer, Project, Time Entry, Duration, Archived, Attribution) are defin
 - Entry point: `src/timetracking.html` (new Vite build input)
 - Reachable from the main board menu as `Time Tracking`; page links `Back to Board`
 - Sidebar sections: **Time Tracker**, **Reports**, **Projects**, **Settings**
+- Touch targets: every Time Tracking control (row actions, project/customer list actions, inline
+  delete confirm, edit-modal buttons, add, month previous / next) has a hit area of at least
+  44×44px at every screen width
 
 ## Data Model
 
@@ -82,7 +85,10 @@ Constructed through factories in `schema.js`; IDs via `generateUUID()`.
   `Ddd, <date>`; each group shows its total
 - Row: description (or `(no description)`), project name in project colour, customer name,
   `start – end` (with `+1` for overnight), duration
-- Row actions (on hover / selection): edit, duplicate, delete
+- Row actions: edit, duplicate, delete. On hover-capable devices they appear on hover, selection or
+  focus within the row; on touch devices (`(hover: none)`, by input capability, not screen width)
+  they are always visible
+- Rows fit a narrow phone screen (Pixel 5) without horizontal overflow
 - Filter by customer and/or project; the project filter lists only the selected customer's projects;
   archived customers/projects remain selectable as filters
 - Selected row is highlighted and kept in view when moving with `j` / `k`
@@ -108,6 +114,16 @@ Constructed through factories in `schema.js`; IDs via `generateUUID()`.
 - Summary table: Customer rows with subtotals → Project rows with duration and share bar; grand total
 - All hours follow [Attribution](../../CONTEXT.md#time-tracking-glossary): an entry counts wholly to
   the day and month of its start
+- Every report is computed by one **period summary** (`summarizePeriod` in
+  `timetracking-report.js`) for a period of kind week, month or year in the Time Tracking timezone:
+  - Week: Monday to Sunday, one bucket per day, labelled with the ISO week, e.g. `W42 · 12–18 Oct 2026`
+    (`W1 · 29 Dec 2025 – 4 Jan 2026` across a year boundary)
+  - Month: one bucket per day, labelled `October 2026`
+  - Year: 1 January to 31 December, one bucket per month, labelled `2026`
+  - Previous / next shift by one period of the same kind; an entry counts wholly toward the week,
+    month and year of its start
+  - The summary carries `target` and `balance` slots (null until Weekly hours are wired)
+  - Only Month is offered in the UI for now
 
 ## Projects and Customers
 
@@ -188,12 +204,15 @@ ignored while an input is focused.
 ## Testing
 
 - Unit: time / duration / date shorthand parsing; linked field resolution incl. overnight; timezone
-  conversion across DST changes; attribution of an entry crossing a month boundary; month summary
+  conversion across DST changes; attribution of an entry crossing a month boundary; period summary (week / month / year, ISO week
+  labels, shifting across year boundaries)
   totals and grouping; archive / delete guards; last-used project fallback; Target / Balance for
   finished, current, future and pre-first-entry weeks, decimal Weekly hours and Monday week start
   across DST
-- DOM: entry bar save flow, filters, edit modal, delete confirmation
+- DOM: entry bar save flow, filters, edit modal, delete confirmation; Weekly hours input; "This week"
+  badge visibility and live updates
 - E2E: full keyboard-only flow (add → select → edit → duplicate → delete → reports month switch) playwright-cli, playwright tests.
+- E2E (Pixel 5): tap edit and delete on a row without hover; controls measure at least 44×44px
 
 ## Later (not in MVP)
 
