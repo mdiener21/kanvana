@@ -1,5 +1,5 @@
 import { projectById, customerById } from './timetracking-crud.js';
-import { periodBalance } from './timetracking-balance.js';
+import { periodTarget, balanceOf } from './timetracking-balance.js';
 import {
   zonedParts, addDays, daysInMonth, daysBetween, startOfIsoWeek, isoWeek, ymdToUtcMs, formatShortMonth as shortMonth, formatMonthYear
 } from './timetracking-time.js';
@@ -101,7 +101,7 @@ export function summarizePeriod(tt, entries, period, { tz, now, weeklyHours = nu
     entryCount += 1;
   }
 
-  const target = weeklyHours > 0 ? periodBalance(tt.timeEntries, period, { now, tz, weeklyHours }).targetMs : null;
+  const target = periodTarget(tt.timeEntries, period, { now, tz, weeklyHours });
   const withShare = (bucket) => ({ ...bucket, share: totalMs > 0 ? bucket.totalMs / totalMs : 0 });
   return {
     period,
@@ -116,6 +116,6 @@ export function summarizePeriod(tt, entries, period, { tz, now, weeklyHours = nu
       projects: [...customer.projects.values()].sort(byTotalThenName).map(withShare)
     })),
     target,
-    balance: target === null ? null : totalMs - target
+    balance: balanceOf(totalMs, target)
   };
 }

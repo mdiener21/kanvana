@@ -12,7 +12,7 @@ import { getChartTheme } from './chart-theme.js';
 import { filterEntries, mountEntryFilter } from './timetracking-filter.js';
 import { formatDuration, formatYmd, formatShortWeekday, formatShortMonth, formatMonthYear, HOUR_MS } from './timetracking-time.js';
 import { summarizePeriod, currentPeriod, shiftPeriod, isSamePeriod } from './timetracking-report.js';
-import { formatBalance, isDeficit } from './timetracking-balance.js';
+import { showBalance } from './timetracking-balance.js';
 import { loadTimeTrackingSettings, loadReportPeriodKind, rememberReportPeriodKind } from './timetracking-settings.js';
 
 echarts.use([GridComponent, LegendComponent, TooltipComponent, BarChart, CanvasRenderer]);
@@ -232,9 +232,7 @@ export function mountReportsPanel(container, {
     if (!show) return;
     balanceValues.logged.textContent = formatDuration(summary.totalMs, prefs.durationFormat);
     balanceValues.target.textContent = formatDuration(summary.target, prefs.durationFormat);
-    balanceValues.balance.textContent = formatBalance(summary.balance, prefs.durationFormat);
-    balanceValues.balance.classList.toggle('is-deficit', isDeficit(summary.balance));
-    balanceValues.balance.classList.toggle('is-surplus', !isDeficit(summary.balance));
+    showBalance(balanceValues.balance, summary.balance, prefs.durationFormat);
   }
 
   function refresh() {

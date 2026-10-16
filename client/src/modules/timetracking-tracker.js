@@ -9,7 +9,7 @@ import { showToast } from './timetracking-toast.js';
 import { entryFieldsHtml, wireEntryFields } from './timetracking-entry-fields.js';
 import { filterEntries, mountEntryFilter } from './timetracking-filter.js';
 import { prefillProjectId, loadLastUsedProjectId, rememberLastUsedProject } from './timetracking-settings.js';
-import { periodBalance, formatBalance, isDeficit } from './timetracking-balance.js';
+import { periodBalance, showBalance } from './timetracking-balance.js';
 import { currentPeriod } from './timetracking-report.js';
 import { groupEntriesByDay, formatTime, formatDuration, plusDaysBetween, floorToMinute } from './timetracking-time.js';
 
@@ -186,10 +186,7 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     });
     weekBadge.hidden = balanceMs === null;
     if (balanceMs === null) return;
-    const value = formatBalance(balanceMs, prefs.durationFormat);
-    weekBadge.querySelector('.tt-week-balance-value').textContent = value;
-    weekBadge.classList.toggle('is-deficit', isDeficit(balanceMs));
-    weekBadge.classList.toggle('is-surplus', !isDeficit(balanceMs));
+    const value = showBalance(weekBadge.querySelector('.tt-week-balance-value'), balanceMs, prefs.durationFormat, weekBadge);
     weekBadge.setAttribute('aria-label', `This week balance ${value}`);
   }
 
