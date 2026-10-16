@@ -1,10 +1,4 @@
-import { zonedParts, formatDuration } from './timetracking-time.js';
-
-const MINUTE_MS = 60 * 1000;
-const HOUR_MS = 60 * MINUTE_MS;
-const DAY_MS = 24 * HOUR_MS;
-
-const dayNumber = ({ y, m, d }) => Date.UTC(y, m - 1, d) / DAY_MS;
+import { zonedParts, formatDuration, dayNumber, MINUTE_MS, HOUR_MS } from './timetracking-time.js';
 
 // Judged on the displayed minutes, so a few seconds short never shows as "−0:00".
 export const isDeficit = (balanceMs) => Math.round(balanceMs / MINUTE_MS) < 0;

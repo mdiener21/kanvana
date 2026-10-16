@@ -1,6 +1,8 @@
 import { projectById, customerById } from './timetracking-crud.js';
 import { periodBalance } from './timetracking-balance.js';
-import { zonedParts, addDays, daysInMonth, daysBetween, startOfIsoWeek, isoWeek } from './timetracking-time.js';
+import {
+  zonedParts, addDays, daysInMonth, daysBetween, startOfIsoWeek, isoWeek, ymdToUtcMs, formatShortMonth as shortMonth, formatMonthYear
+} from './timetracking-time.js';
 
 const UNKNOWN_COLOR = '#9ca3af';
 const UNKNOWN_PROJECT = { id: 'unknown-project', name: 'Unknown project', color: UNKNOWN_COLOR };
@@ -9,11 +11,6 @@ const UNKNOWN_CUSTOMER = { id: 'unknown-customer', name: 'Unknown customer', col
 // ── Periods ────────────────────────────────────────────────────────────────────
 // A period is { kind, start, end }: inclusive calendar days ({ y, m, d }) in the
 // Time Tracking timezone. Weeks run Monday to Sunday.
-
-const utc = ({ y, m, d }) => Date.UTC(y, m - 1, d);
-const monthYearFormat = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-const shortMonthFormat = new Intl.DateTimeFormat('en-US', { month: 'short', timeZone: 'UTC' });
-const shortMonth = (ymd) => shortMonthFormat.format(utc(ymd));
 
 function weekRangeLabel(start, end) {
   if (start.y !== end.y) return `${start.d} ${shortMonth(start)} ${start.y} – ${end.d} ${shortMonth(end)} ${end.y}`;
@@ -41,7 +38,7 @@ const KINDS = {
       const index = y * 12 + (m - 1) + delta;
       return { y: Math.floor(index / 12), m: (index % 12) + 1, d: 1 };
     },
-    label: ({ start }) => monthYearFormat.format(utc(start)),
+    label: ({ start }) => formatMonthYear(start),
     buckets: DAY_BUCKETS,
     bucketIndex: DAY_INDEX
   },
@@ -64,7 +61,7 @@ export const currentPeriod = (kind, now, tz) => periodOf(kind, zonedParts(now, t
 
 export const shiftPeriod = (period, delta) => periodOf(period.kind, KINDS[period.kind].shift(period, delta));
 
-export const isSamePeriod = (a, b) => a.kind === b.kind && utc(a.start) === utc(b.start);
+export const isSamePeriod = (a, b) => a.kind === b.kind && ymdToUtcMs(a.start) === ymdToUtcMs(b.start);
 
 export const periodLabel = (period) => KINDS[period.kind].label(period);
 

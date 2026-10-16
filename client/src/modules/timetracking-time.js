@@ -1,5 +1,6 @@
-const MINUTE_MS = 60 * 1000;
-const MS_PER_DAY = 24 * 60 * MINUTE_MS;
+export const MINUTE_MS = 60 * 1000;
+export const HOUR_MS = 60 * MINUTE_MS;
+export const DAY_MS = 24 * HOUR_MS;
 
 export const floorToMinute = (ms) => Math.floor(ms / MINUTE_MS) * MINUTE_MS;
 
@@ -64,8 +65,8 @@ function offsetAt(ms, tz) {
 // times (fall back) resolve to the first occurrence — same as Temporal's 'compatible'.
 export function fromZoned({ y, m, d }, minutes, tz) {
   const wallAsUtc = Date.UTC(y, m - 1, d) + minutes * MINUTE_MS;
-  const before = wallAsUtc - offsetAt(wallAsUtc - MS_PER_DAY, tz);
-  const after = wallAsUtc - offsetAt(wallAsUtc + MS_PER_DAY, tz);
+  const before = wallAsUtc - offsetAt(wallAsUtc - DAY_MS, tz);
+  const after = wallAsUtc - offsetAt(wallAsUtc + DAY_MS, tz);
   const isExact = (ms) => ms + offsetAt(ms, tz) === wallAsUtc;
   const exact = [before, after].filter(isExact);
   return exact.length > 0 ? Math.min(...exact) : before;
@@ -75,6 +76,10 @@ const ymdOf = ({ y, m, d }) => ({ y, m, d });
 
 // ── Calendar days ({ y, m, d }, timezone-free) ─────────────────────────────────
 
+export const ymdToUtcMs = ({ y, m, d }) => Date.UTC(y, m - 1, d);
+
+export const dayNumber = (ymd) => ymdToUtcMs(ymd) / DAY_MS;
+
 export function addDays({ y, m, d }, days) {
   const date = new Date(Date.UTC(y, m - 1, d + days));
   return { y: date.getUTCFullYear(), m: date.getUTCMonth() + 1, d: date.getUTCDate() };
@@ -82,7 +87,7 @@ export function addDays({ y, m, d }, days) {
 
 export const daysInMonth = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate();
 
-export const daysBetween = (a, b) => Math.round((ymdToUtcMs(b) - ymdToUtcMs(a)) / MS_PER_DAY);
+export const daysBetween = (a, b) => Math.round((ymdToUtcMs(b) - ymdToUtcMs(a)) / DAY_MS);
 
 export const isoWeekday = (ymd) => new Date(ymdToUtcMs(ymd)).getUTCDay() || 7;
 
@@ -157,6 +162,14 @@ export function parseDate(input, { dateFormat, tz, now }) {
 
 const pad2 = (n) => String(n).padStart(2, '0');
 
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const shortMonthFormat = new Intl.DateTimeFormat('en-US', { month: 'short', timeZone: 'UTC' });
+const monthYearFormat = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+export const formatShortWeekday = (ymd) => WEEKDAYS[new Date(ymdToUtcMs(ymd)).getUTCDay()];
+export const formatShortMonth = (ymd) => shortMonthFormat.format(ymdToUtcMs(ymd));
+export const formatMonthYear = (ymd) => monthYearFormat.format(ymdToUtcMs(ymd));
+
 export function formatYmd(ymd, dateFormat) {
   const { order, separator } = dateFormatOf(dateFormat);
   return order.map((field) => (field === 'y' ? ymd.y : pad2(ymd[field]))).join(separator);
@@ -181,10 +194,8 @@ export function formatDuration(ms, durationFormat = DEFAULT_DURATION_FORMAT) {
 
 // ── Linked Start / End / Duration ──────────────────────────────────────────────
 
-const ymdToUtcMs = ({ y, m, d }) => Date.UTC(y, m - 1, d);
-
 export function plusDaysBetween(startMs, endMs, tz) {
-  return Math.round((ymdToUtcMs(zonedParts(endMs, tz)) - ymdToUtcMs(zonedParts(startMs, tz))) / MS_PER_DAY);
+  return daysBetween(zonedParts(startMs, tz), zonedParts(endMs, tz));
 }
 
 export function describeEntryTimes(startMs, endMs, prefs) {
@@ -223,8 +234,6 @@ export function resolveLinkedFields(values, changed, prefs) {
 
 // ── Day grouping (Attribution: an entry belongs wholly to the day of its start) ──
 
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
 const dayKeyOf = ({ y, m, d }) => `${y}-${pad2(m)}-${pad2(d)}`;
 
 export const dayKey = (ms, tz) => dayKeyOf(zonedParts(ms, tz));
@@ -234,7 +243,7 @@ function dayHeading(ymd, prefs) {
   const key = dayKeyOf(ymd);
   if (key === dayKeyOf(today)) return 'Today';
   if (key === dayKeyOf(addDays(today, -1))) return 'Yesterday';
-  return `${WEEKDAYS[new Date(ymdToUtcMs(ymd)).getUTCDay()]}, ${formatYmd(ymd, prefs.dateFormat)}`;
+  return `${formatShortWeekday(ymd)}, ${formatYmd(ymd, prefs.dateFormat)}`;
 }
 
 export function groupEntriesByDay(entries, prefs) {

@@ -10,14 +10,13 @@ import { DEFAULT_APP_KEYBINDINGS, keyLabel } from './constants.js';
 import { colorDotHtml } from './timetracking-markup.js';
 import { getChartTheme } from './chart-theme.js';
 import { filterEntries, mountEntryFilter } from './timetracking-filter.js';
-import { formatDuration, formatYmd } from './timetracking-time.js';
+import { formatDuration, formatYmd, formatShortWeekday, formatShortMonth, formatMonthYear, HOUR_MS } from './timetracking-time.js';
 import { summarizePeriod, currentPeriod, shiftPeriod, isSamePeriod } from './timetracking-report.js';
 import { formatBalance, isDeficit } from './timetracking-balance.js';
 import { loadTimeTrackingSettings, loadReportPeriodKind, rememberReportPeriodKind } from './timetracking-settings.js';
 
 echarts.use([GridComponent, LegendComponent, TooltipComponent, BarChart, CanvasRenderer]);
 
-const MS_PER_HOUR = 3600000;
 const REPORT_FILTER_LABELS = {
   group: 'Filter report',
   customer: 'Filter report by customer',
@@ -36,17 +35,13 @@ const DEFAULT_PERIOD_KIND = 'month';
 const optionOf = (kind) => PERIOD_OPTIONS.find((o) => o.kind === kind);
 const offeredKind = (kind) => (optionOf(kind) ? kind : DEFAULT_PERIOD_KIND);
 
-const WEEKDAY_FORMAT = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'UTC' });
-const SHORT_MONTH_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'short', timeZone: 'UTC' });
-const MONTH_YEAR_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-const utc = ({ y, m, d }) => Date.UTC(y, m - 1, d);
 const dayTooltip = (ymd, prefs) => formatYmd(ymd, prefs.dateFormat);
 
 // Per chart bucket: the x-axis label, the tooltip heading and how the chart is described.
 const BUCKETS = {
-  week: { axis: (ymd) => `${WEEKDAY_FORMAT.format(utc(ymd))} ${ymd.d}`, tooltip: dayTooltip, name: 'Daily' },
+  week: { axis: (ymd) => `${formatShortWeekday(ymd)} ${ymd.d}`, tooltip: dayTooltip, name: 'Daily' },
   month: { axis: ({ d }) => String(d), tooltip: dayTooltip, name: 'Daily' },
-  year: { axis: (ymd) => SHORT_MONTH_FORMAT.format(utc(ymd)), tooltip: (ymd) => MONTH_YEAR_FORMAT.format(utc(ymd)), name: 'Monthly' }
+  year: { axis: formatShortMonth, tooltip: formatMonthYear, name: 'Monthly' }
 };
 
 const PANEL_HTML = `
@@ -145,7 +140,7 @@ export function periodChartOption(summary, prefs, theme = getChartTheme()) {
       textStyle: { color: theme.text },
       formatter: ({ seriesName, dataIndex, value, color }) => {
         const heading = bucket.tooltip(summary.buckets[dataIndex].start, prefs);
-        return `${escapeHtml(heading)}<br>${colorDotHtml(color)} ${escapeHtml(seriesName)}: <strong>${formatDuration(value * MS_PER_HOUR, prefs.durationFormat)}</strong>`;
+        return `${escapeHtml(heading)}<br>${colorDotHtml(color)} ${escapeHtml(seriesName)}: <strong>${formatDuration(value * HOUR_MS, prefs.durationFormat)}</strong>`;
       }
     },
     xAxis: {
@@ -168,7 +163,7 @@ export function periodChartOption(summary, prefs, theme = getChartTheme()) {
       barMaxWidth: 28,
       itemStyle: { color: project.color },
       emphasis: { focus: 'series' },
-      data: summary.buckets.map((b) => (b.byProject[project.id] ? b.byProject[project.id] / MS_PER_HOUR : null))
+      data: summary.buckets.map((b) => (b.byProject[project.id] ? b.byProject[project.id] / HOUR_MS : null))
     }))
   };
 }
