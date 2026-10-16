@@ -2,7 +2,7 @@ import { afterEach, beforeEach, test, expect, vi } from 'vitest';
 import { screen, fireEvent, within } from '@testing-library/dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { mountToBody } from '../setup.js';
+import { mountToBody, isKeyboardOperable } from '../setup.js';
 
 vi.mock('../../../src/modules/storage.js', () => ({
   loadTimeTracking: vi.fn(() => ({ customers: [], projects: [], timeEntries: [] })),
@@ -83,7 +83,7 @@ test('clicking a sidebar entry switches section', () => {
   expect(section('reports').hidden).toBe(false);
 });
 
-const reportMonth = () => screen.getByTestId('tt-report-month').textContent;
+const reportMonth = () => screen.getByTestId('tt-report-period').textContent;
 const gotoReports = () => {
   fireEvent.keyDown(document, { key: 'g' });
   fireEvent.keyDown(document, { key: 'r' });
@@ -109,6 +109,18 @@ test('[ and ] switch the month on Reports', () => {
   expect(reportMonth()).toBe(start);
   fireEvent.keyDown(document, { key: ']' });
   expect(reportMonth()).not.toBe(start);
+});
+
+test('with Week selected, [ and ] step whole weeks', () => {
+  gotoReports();
+  fireEvent.click(screen.getByRole('button', { name: 'Week' }));
+  const start = reportMonth();
+  expect(start).toMatch(/^W\d+ · /);
+  fireEvent.keyDown(document, { key: '[' });
+  expect(reportMonth()).toMatch(/^W\d+ · /);
+  expect(reportMonth()).not.toBe(start);
+  fireEvent.keyDown(document, { key: ']' });
+  expect(reportMonth()).toBe(start);
 });
 
 test('[ and ] do nothing outside Reports or while typing', () => {
@@ -183,4 +195,12 @@ test('shortcuts other than Esc do not reach the page behind the open cheat-sheet
   pressSequence('g', 's');
   expect(section('settings').hidden).toBe(true);
   expect(helpModal().hidden).toBe(false);
+});
+
+test.each(['Week', 'Year', 'Month'])('the %s period switch button is operable from the keyboard', (name) => {
+  gotoReports();
+  const button = screen.getByRole('button', { name });
+  expect(isKeyboardOperable(button)).toBe(true);
+  fireEvent.click(document.activeElement);
+  expect(button.getAttribute('aria-pressed')).toBe('true');
 });

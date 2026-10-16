@@ -46,7 +46,7 @@ function fakeChart() {
   return { setOption: vi.fn(), resize: vi.fn(), dispose: vi.fn() };
 }
 
-function mount({ durationFormat = 'h:mm' } = {}) {
+function mount({ durationFormat = 'h:mm', weeklyHours = null } = {}) {
   state = makeState();
   prefs = { tz: 'Europe/Berlin', dateFormat: 'DD.MM.YYYY', timeFormat: '24h', durationFormat, now: Date.parse('2026-10-12T10:00:00Z') };
   const host = mountToBody('<section id="host"></section>').querySelector('#host');
@@ -54,6 +54,7 @@ function mount({ durationFormat = 'h:mm' } = {}) {
   panel = mountReportsPanel(host, {
     getPrefs: () => prefs,
     getTimeTracking: () => state,
+    getSettings: () => ({ weeklyHours }),
     createChart: () => { const chart = fakeChart(); charts.push(chart); return chart; }
   });
   panel.show();
@@ -62,7 +63,7 @@ function mount({ durationFormat = 'h:mm' } = {}) {
 
 afterEach(() => { panel?.unmount(); panel = null; });
 
-const monthLabel = () => screen.getByTestId('tt-report-month');
+const monthLabel = () => screen.getByTestId('tt-report-period');
 const kpi = (name) => screen.getByLabelText(name, { selector: 'dd' }).textContent;
 const tableRows = () => [...document.querySelectorAll('.tt-report-table tbody tr')]
   .map((row) => [...row.cells].map((cell) => cell.textContent.trim()).filter(Boolean));
@@ -85,12 +86,12 @@ describe('month navigation', () => {
     expect(monthLabel().textContent).toBe('November 2026');
   });
 
-  test('prevMonth() / nextMonth() (for [ / ]) step the month', () => {
+  test('prevPeriod() / nextPeriod() (for [ / ]) step the month', () => {
     mount();
-    panel.nextMonth();
+    panel.nextPeriod();
     expect(monthLabel().textContent).toBe('November 2026');
-    panel.prevMonth();
-    panel.prevMonth();
+    panel.prevPeriod();
+    panel.prevPeriod();
     expect(monthLabel().textContent).toBe('September 2026');
   });
 
@@ -109,7 +110,7 @@ describe('month navigation', () => {
 
   test('keeps a month the user switched to when shown again', () => {
     mount();
-    panel.prevMonth();
+    panel.prevPeriod();
     prefs.now = Date.parse('2026-11-02T10:00:00Z');
     panel.show();
     expect(monthLabel().textContent).toBe('September 2026');
@@ -117,8 +118,8 @@ describe('month navigation', () => {
 
   test('follows the current month again after switching back to it', () => {
     mount();
-    panel.prevMonth();
-    panel.nextMonth();
+    panel.prevPeriod();
+    panel.nextPeriod();
     prefs.now = Date.parse('2026-11-02T10:00:00Z');
     panel.show();
     expect(monthLabel().textContent).toBe('November 2026');
@@ -161,7 +162,7 @@ describe('KPIs and table', () => {
 
   test('an entry from 31st 22:00 to 1st 02:00 counts entirely to the earlier month', () => {
     mount();
-    panel.nextMonth();
+    panel.nextPeriod();
     expect(kpi('Total')).toBe('0:00');
     expect(kpi('Entries')).toBe('0');
   });
@@ -199,7 +200,7 @@ describe('filters', () => {
   test('the filter is kept when switching months', () => {
     mount();
     choose(screen.getByLabelText('Filter report by customer'), 'c2');
-    panel.prevMonth();
+    panel.prevPeriod();
     expect(kpi('Total')).toBe('1:15');
     expect(tableRows().map((r) => r[0])).toEqual(['Globex <b>', 'Support']);
   });
@@ -256,10 +257,10 @@ describe('chart', () => {
 describe('empty month', () => {
   test('shows "No time tracked this month" and hides chart and table', () => {
     mount();
-    panel.nextMonth();
+    panel.nextPeriod();
     expect(screen.getByRole('status').textContent).toBe('No time tracked this month');
     expect(document.querySelector('.tt-report-body').hidden).toBe(true);
-    panel.prevMonth();
+    panel.prevPeriod();
     expect(screen.queryByRole('status')).toBeNull();
     expect(document.querySelector('.tt-report-body').hidden).toBe(false);
   });
@@ -267,7 +268,282 @@ describe('empty month', () => {
   test('a filter with no matching entries in the month shows the empty state too', () => {
     mount();
     choose(screen.getByLabelText('Filter report by project'), 'p3');
-    panel.nextMonth();
+    panel.nextPeriod();
     expect(screen.getByRole('status').textContent).toBe('No time tracked this month');
+  });
+});
+
+const periodLabel = () => screen.getByTestId('tt-report-period');
+const periodButton = (name) => screen.getByRole('button', { name });
+const card = () => screen.queryByTestId('tt-balance-card');
+const cardValue = (name) => within(card()).getByLabelText(name, { selector: 'dd' });
+const addEntries = (...entries) => { state.timeEntries = [...state.timeEntries, ...entries]; emit(DATA_CHANGED); };
+
+describe('Week | Month switch', () => {
+  test('defaults to Month, with Month pressed', () => {
+    mount();
+    expect(periodButton('Month').getAttribute('aria-pressed')).toBe('true');
+    expect(periodButton('Week').getAttribute('aria-pressed')).toBe('false');
+    expect(periodLabel().textContent).toBe('October 2026');
+  });
+
+  test('Week shows the current week with its ISO label, and navigation steps whole weeks', () => {
+    mount();
+    fireEvent.click(periodButton('Week'));
+    expect(periodButton('Week').getAttribute('aria-pressed')).toBe('true');
+    expect(periodLabel().textContent).toBe('W42 · 12–18 Oct 2026');
+    fireEvent.click(screen.getByRole('button', { name: 'Previous week' }));
+    expect(periodLabel().textContent).toBe('W41 · 5–11 Oct 2026');
+    panel.nextPeriod();
+    panel.nextPeriod();
+    expect(periodLabel().textContent).toBe('W43 · 19–25 Oct 2026');
+    expect(screen.getByRole('button', { name: 'Next week' }).title).toBe('Next week (])');
+  });
+
+  test('switching back to Month shows the month containing the current day', () => {
+    mount();
+    fireEvent.click(periodButton('Week'));
+    panel.prevPeriod();
+    fireEvent.click(periodButton('Month'));
+    expect(periodLabel().textContent).toBe('October 2026');
+    expect(screen.getByRole('button', { name: 'Previous month' })).toBeTruthy();
+  });
+
+  test('the choice is remembered on this device', () => {
+    mount();
+    fireEvent.click(periodButton('Week'));
+    panel.unmount();
+    mount();
+    expect(periodButton('Week').getAttribute('aria-pressed')).toBe('true');
+    expect(periodLabel().textContent).toBe('W42 · 12–18 Oct 2026');
+  });
+
+  test('showCurrentPeriod("week") opens the current week from any period', () => {
+    mount();
+    panel.prevPeriod();
+    panel.showCurrentPeriod('week');
+    expect(periodLabel().textContent).toBe('W42 · 12–18 Oct 2026');
+    expect(periodButton('Week').getAttribute('aria-pressed')).toBe('true');
+  });
+});
+
+describe('week view', () => {
+  test('per-day chart Monday to Sunday and the table for the week', () => {
+    const { lastOption } = mount();
+    addEntries(
+      entry('mon', 'p1', '2026-10-12T07:00:00.000Z', '2026-10-12T09:00:00.000Z'),
+      // Sunday 23:30 Berlin still belongs to this week
+      entry('sun', 'p3', '2026-10-18T21:30:00.000Z', '2026-10-18T22:30:00.000Z'),
+      entry('nextweek', 'p3', '2026-10-19T07:00:00.000Z', '2026-10-19T08:00:00.000Z')
+    );
+    fireEvent.click(periodButton('Week'));
+    const option = lastOption();
+    expect(option.xAxis.data).toEqual(['Mon 12', 'Tue 13', 'Wed 14', 'Thu 15', 'Fri 16', 'Sat 17', 'Sun 18']);
+    expect(option.series.find((s) => s.name === 'Support').data[6]).toBe(1);
+    expect(kpi('Total')).toBe('3:00');
+    expect(tableRows()).toEqual([
+      ['Acme', '2:00'],
+      ['Website', '2:00', '67%'],
+      ['Globex <b>', '1:00'],
+      ['Support', '1:00', '33%']
+    ]);
+    expect(screen.getByRole('img', { name: 'Daily hours by project, W42 · 12–18 Oct 2026' })).toBeTruthy();
+  });
+
+  test('an empty week says so', () => {
+    mount();
+    fireEvent.click(periodButton('Week'));
+    expect(screen.getByRole('status').textContent).toBe('No time tracked this week');
+  });
+});
+
+describe('balance card', () => {
+  test('a finished month at 40h shows Logged, the full Target and a signed Balance (October: 177h 09m)', () => {
+    mount({ weeklyHours: 40 });
+    prefs.now = Date.parse('2026-11-16T10:00:00Z');
+    panel.show();
+    panel.prevPeriod();
+    expect(periodLabel().textContent).toBe('October 2026');
+    expect(cardValue('Logged').textContent).toBe('8:30');
+    expect(cardValue('Target').textContent).toBe('177:09');
+    expect(cardValue('Balance').textContent).toBe('−168:39');
+    expect(cardValue('Balance').classList.contains('is-deficit')).toBe(true);
+  });
+
+  test('the current week counts the Target so far including today; a surplus is green', () => {
+    mount({ weeklyHours: 40 });
+    addEntries(entry('mon', 'p1', '2026-10-12T06:00:00.000Z', '2026-10-12T14:00:00.000Z'));
+    fireEvent.click(periodButton('Week'));
+    expect(cardValue('Logged').textContent).toBe('8:00');
+    expect(cardValue('Target').textContent).toBe('5:43');
+    expect(cardValue('Balance').textContent).toBe('+2:17');
+    expect(cardValue('Balance').classList.contains('is-surplus')).toBe(true);
+    expect(cardValue('Balance').classList.contains('is-deficit')).toBe(false);
+  });
+
+  test('a finished week has a Target of exactly Weekly hours', () => {
+    mount({ weeklyHours: 40 });
+    fireEvent.click(periodButton('Week'));
+    panel.prevPeriod();
+    expect(cardValue('Target').textContent).toBe('40:00');
+    expect(cardValue('Balance').textContent).toBe('−40:00');
+  });
+
+  test('Target and Balance follow the duration-format setting', () => {
+    mount({ weeklyHours: 40, durationFormat: 'decimal' });
+    fireEvent.click(periodButton('Week'));
+    panel.prevPeriod();
+    expect(cardValue('Target').textContent).toBe('40.00 h');
+    expect(cardValue('Balance').textContent).toBe('−40.00 h');
+  });
+
+  test('is hidden when Weekly hours is unset', () => {
+    mount();
+    expect(card().hidden).toBe(true);
+  });
+
+  test('is hidden while a customer or project filter is active, and the logged total still respects the filter', () => {
+    mount({ weeklyHours: 40 });
+    expect(card().hidden).toBe(false);
+    choose(screen.getByLabelText('Filter report by customer'), 'c1');
+    expect(card().hidden).toBe(true);
+    expect(kpi('Total')).toBe('5:30');
+    choose(screen.getByLabelText('Filter report by customer'), '');
+    expect(card().hidden).toBe(false);
+  });
+
+  test('is hidden for a future period', () => {
+    mount({ weeklyHours: 40 });
+    panel.nextPeriod();
+    expect(card().hidden).toBe(true);
+  });
+
+  test('is hidden for a period before the first entry', () => {
+    mount({ weeklyHours: 40 });
+    panel.prevPeriod();
+    expect(card().hidden).toBe(false);
+    panel.prevPeriod();
+    expect(periodLabel().textContent).toBe('August 2026');
+    expect(card().hidden).toBe(true);
+  });
+});
+
+describe('Year period', () => {
+  test('Year is offered in the switch and shows the current year, labelled 2026', () => {
+    mount();
+    fireEvent.click(periodButton('Year'));
+    expect(periodButton('Year').getAttribute('aria-pressed')).toBe('true');
+    expect(periodButton('Month').getAttribute('aria-pressed')).toBe('false');
+    expect(periodLabel().textContent).toBe('2026');
+  });
+
+  test('‹ / › and prevPeriod() / nextPeriod() (for [ / ]) step whole years', () => {
+    mount();
+    fireEvent.click(periodButton('Year'));
+    fireEvent.click(screen.getByRole('button', { name: 'Previous year' }));
+    expect(periodLabel().textContent).toBe('2025');
+    panel.nextPeriod();
+    panel.nextPeriod();
+    expect(periodLabel().textContent).toBe('2027');
+    panel.prevPeriod();
+    expect(periodLabel().textContent).toBe('2026');
+    expect(screen.getByRole('button', { name: 'Next year' }).title).toBe('Next year (])');
+  });
+
+  test('the choice is remembered on this device', () => {
+    mount();
+    fireEvent.click(periodButton('Year'));
+    panel.unmount();
+    mount();
+    expect(periodButton('Year').getAttribute('aria-pressed')).toBe('true');
+    expect(periodLabel().textContent).toBe('2026');
+  });
+
+  test('per-month stacked bars (12 buckets) and the table for the year', () => {
+    const { lastOption } = mount();
+    addEntries(entry('newyear', 'p1', '2026-12-31T23:30:00.000Z', '2027-01-01T00:30:00.000Z')); // 1 Jan 2027 00:30 Berlin
+    fireEvent.click(periodButton('Year'));
+    const option = lastOption();
+    expect(option.xAxis.data).toEqual(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']);
+    expect(option.series.map((s) => [s.name, s.type])).toEqual([['Website', 'bar'], ['Support', 'bar'], ['Backend', 'bar']]);
+    expect(new Set(option.series.map((s) => s.stack)).size).toBe(1);
+    const support = option.series.find((s) => s.name === 'Support');
+    expect(support.data).toHaveLength(12);
+    expect(support.data[8]).toBe(1.25);
+    expect(support.data[9]).toBe(3);
+    expect(option.series.find((s) => s.name === 'Website').data[11]).toBeNull();
+    expect(kpi('Total')).toBe('9:45');
+    expect(tableRows()).toEqual([
+      ['Acme', '5:30'],
+      ['Website', '5:00', '51%'],
+      ['Backend', '0:30', '5%'],
+      ['Globex <b>', '4:15'],
+      ['Support', '4:15', '44%']
+    ]);
+    expect(screen.getByRole('img', { name: 'Monthly hours by project, 2026' })).toBeTruthy();
+  });
+
+  test('the year tooltip names the month, project and duration', () => {
+    const { lastOption } = mount();
+    fireEvent.click(periodButton('Year'));
+    const html = lastOption().tooltip.formatter({ seriesName: 'Support', dataIndex: 9, value: 3, color: '#8bc34a' });
+    expect(html).toContain('October 2026');
+    expect(html).toContain('Support');
+    expect(html).toContain('3:00');
+  });
+
+  test('an empty year says so', () => {
+    mount();
+    fireEvent.click(periodButton('Year'));
+    panel.nextPeriod();
+    expect(screen.getByRole('status').textContent).toBe('No time tracked this year');
+  });
+});
+
+describe('year balance card', () => {
+  test('a finished 2026 at 40h has a Target of 2085h 43m', () => {
+    mount({ weeklyHours: 40 });
+    addEntries(entry('jan1', 'p1', '2026-01-01T08:00:00.000Z', '2026-01-01T10:00:00.000Z'));
+    prefs.now = Date.parse('2027-01-10T10:00:00Z');
+    fireEvent.click(periodButton('Year'));
+    panel.prevPeriod();
+    expect(periodLabel().textContent).toBe('2026');
+    expect(cardValue('Logged').textContent).toBe('11:45');
+    expect(cardValue('Target').textContent).toBe('2085:43');
+    expect(cardValue('Balance').textContent).toBe('−2073:58');
+    expect(cardValue('Balance').classList.contains('is-deficit')).toBe(true);
+  });
+
+  test('the current year counts so far, from the first entry when that falls mid-year', () => {
+    mount({ weeklyHours: 40 });
+    fireEvent.click(periodButton('Year'));
+    // 10 Sep (first entry) – 12 Oct (today) = 33 days × 40h / 7
+    expect(cardValue('Target').textContent).toBe('188:34');
+    expect(cardValue('Balance').textContent).toBe('−178:49');
+  });
+
+  test('the Balance resets on 1 January', () => {
+    mount({ weeklyHours: 35 });
+    prefs.now = Date.parse('2027-01-02T10:00:00Z');
+    fireEvent.click(periodButton('Year'));
+    expect(periodLabel().textContent).toBe('2027');
+    expect(cardValue('Logged').textContent).toBe('0:00');
+    expect(cardValue('Target').textContent).toBe('10:00');
+    expect(cardValue('Balance').textContent).toBe('−10:00');
+  });
+
+  test('is hidden when filtered, for a future year and for a year before the first entry', () => {
+    mount({ weeklyHours: 40 });
+    fireEvent.click(periodButton('Year'));
+    expect(card().hidden).toBe(false);
+    choose(screen.getByLabelText('Filter report by customer'), 'c1');
+    expect(card().hidden).toBe(true);
+    choose(screen.getByLabelText('Filter report by customer'), '');
+    panel.nextPeriod();
+    expect(card().hidden).toBe(true);
+    panel.prevPeriod();
+    panel.prevPeriod();
+    expect(periodLabel().textContent).toBe('2025');
+    expect(card().hidden).toBe(true);
   });
 });

@@ -14,6 +14,7 @@ import { timeTrackingPrefs } from './timetracking-time.js';
 import { loadTimeTrackingSettings } from './timetracking-settings.js';
 import { mountSettingsPanel } from './timetracking-settings-panel.js';
 import { mountReportsPanel } from './timetracking-reports-panel.js';
+import { WEEK } from './timetracking-report.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -250,8 +251,8 @@ const HELP_ROWS = [
   { binding: ttDuplicateEntry, label: 'Duplicate selected entry' },
   { binding: ttDeleteEntry, label: 'Delete selected entry' },
   { binding: ttConfirmDelete, label: 'Confirm delete' },
-  { binding: ttPrevMonth, label: 'Previous month (Reports)' },
-  { binding: ttNextMonth, label: 'Next month (Reports)' },
+  { binding: ttPrevMonth, label: 'Previous period (Reports)' },
+  { binding: ttNextMonth, label: 'Next period (Reports)' },
   ...GOTO_BINDINGS,
   { binding: ttHelp, label: 'This cheat-sheet' },
   { binding: ttCloseModal, label: 'Cancel / close / leave field' }
@@ -277,8 +278,8 @@ const ENTRY_COMMANDS = [
 const SECTION_COMMANDS = {
   reports: [
     { binding: ttFocusFilter, command: 'focusFilter' },
-    { binding: ttPrevMonth, command: 'prevMonth' },
-    { binding: ttNextMonth, command: 'nextMonth' }
+    { binding: ttPrevMonth, command: 'prevPeriod' },
+    { binding: ttNextMonth, command: 'nextPeriod' }
   ]
 };
 
@@ -430,8 +431,15 @@ export function mountTimeTracking(root = document, {
   createChart
 } = {}) {
   const help = wireHelpModal(root);
-  const tracker = mountTrackerPanel(root.getElementById('tt-section-tracker'), { getPrefs, getSettings });
-  const reports = mountReportsPanel(root.getElementById('tt-section-reports'), { getPrefs, createChart });
+  const tracker = mountTrackerPanel(root.getElementById('tt-section-tracker'), {
+    getPrefs,
+    getSettings,
+    onOpenCurrentWeek: () => {
+      reports.showCurrentPeriod(WEEK);
+      nav.show('reports');
+    }
+  });
+  const reports = mountReportsPanel(root.getElementById('tt-section-reports'), { getPrefs, getSettings, createChart });
   const nav = createNavigator(root, { reports: reports.show });
   wireSidebar(root, nav);
   const unwireKeyboard = wireKeyboard(root, { tracker, reports, nav, help });

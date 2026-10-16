@@ -21,6 +21,9 @@ Terms (Customer, Project, Time Entry, Duration, Archived, Attribution) are defin
 - Entry point: `src/timetracking.html` (new Vite build input)
 - Reachable from the main board menu as `Time Tracking`; page links `Back to Board`
 - Sidebar sections: **Time Tracker**, **Reports**, **Projects**, **Settings**
+- Touch targets: every Time Tracking control (row actions, project/customer list actions, inline
+  delete confirm, edit-modal buttons, add, month previous / next) has a hit area of at least
+  44×44px at every screen width
 
 ## Data Model
 
@@ -82,7 +85,10 @@ Constructed through factories in `schema.js`; IDs via `generateUUID()`.
   `Ddd, <date>`; each group shows its total
 - Row: description (or `(no description)`), project name in project colour, customer name,
   `start – end` (with `+1` for overnight), duration
-- Row actions (on hover / selection): edit, duplicate, delete
+- Row actions: edit, duplicate, delete. On hover-capable devices they appear on hover, selection or
+  focus within the row; on touch devices (`(hover: none)`, by input capability, not screen width)
+  they are always visible
+- Rows fit a narrow phone screen (Pixel 5) without horizontal overflow
 - Filter by customer and/or project; the project filter lists only the selected customer's projects;
   archived customers/projects remain selectable as filters
 - Selected row is highlighted and kept in view when moving with `j` / `k`
@@ -99,15 +105,45 @@ Constructed through factories in `schema.js`; IDs via `generateUUID()`.
   cancels the confirmation and then does what it normally does (e.g. `Tab` moves focus, `j` / `k`
   move the selection)
 
-## Reports (Month View)
+## Reports (Week / Month / Year)
 
-- Month picker with previous / next (`[` / `]`); defaults to the current month
+- **Week | Month | Year** switch (toggle buttons with `aria-pressed`); the default is Month and the last
+  choice is remembered per device in localStorage (`kanvana:timetracking:reportPeriodKind`, not
+  synced). Choosing a kind shows the period of that kind containing today
+- Previous / next (`[` / `]`) step through the selected period; their labels, tooltips and the empty
+  state follow the kind ("Previous week", "Next year", "No time tracked this year")
+- Week view: label `W42 · 12–18 Oct 2026`, one bar per day Monday to Sunday (`Mon 12` … `Sun 18`)
+  and the customer / project table for the week. Month view is unchanged
+- Year view: label `2026`, one stacked bar per month (`Jan` … `Dec`, tooltip `October 2026`) and the
+  customer / project table for the calendar year; the chart is described as "Monthly hours by
+  project, 2026"
+- **Balance card** above the KPIs: `Logged · Target · Balance`, Target and Balance in the duration
+  format, Balance with an explicit sign and green (surplus) / red (deficit). Target is the full
+  Target for finished periods and "so far" including today for the current one. Hidden when Weekly
+  hours is unset, while a customer or project filter is active, and when the period has no Target
+  (future, or entirely before the first Time Entry). For the year this is the year Target and
+  Balance (2026 at 40h: Target 2085h 43m when finished); it resets on 1 January and nothing carries
+  across years
+- Activating the Time Tracker's "This week" badge opens Reports with Week selected on the current week
+- The switch, previous / next and the badge are at least 44×44px; Reports has no horizontal overflow
+  on a phone (Pixel 5)
 - Customer and project filters apply to every element below
 - KPIs: total duration, number of entries, number of projects
-- Stacked bar chart: one bar per day of the month, segments coloured by project (ECharts), legend
+- Stacked bar chart: one bar per day of the week or month, or per month of the year, segments coloured by project (ECharts), legend
 - Summary table: Customer rows with subtotals → Project rows with duration and share bar; grand total
 - All hours follow [Attribution](../../CONTEXT.md#time-tracking-glossary): an entry counts wholly to
-  the day and month of its start
+  the day, week, month and year of its start
+- Every report is computed by one **period summary** (`summarizePeriod` in
+  `timetracking-report.js`) for a period of kind week, month or year in the Time Tracking timezone:
+  - Week: Monday to Sunday, one bucket per day, labelled with the ISO week, e.g. `W42 · 12–18 Oct 2026`
+    (`W1 · 29 Dec 2025 – 4 Jan 2026` across a year boundary)
+  - Month: one bucket per day, labelled `October 2026`
+  - Year: 1 January to 31 December, one bucket per month, labelled `2026`
+  - Previous / next shift by one period of the same kind; an entry counts wholly toward the week,
+    month and year of its start
+  - Given `now` and `weeklyHours`, the summary fills `target` (from `periodBalance` over all Time
+    Entries, so the first-ever entry sets the start) and `balance` (summarised total − Target);
+    both are null when Weekly hours is unset or the period has no Target
 
 ## Projects and Customers
 
@@ -130,10 +166,34 @@ separate from board settings.
 | Time format | 24-hour, 12-hour | 24-hour |
 | Timezone | IANA zones | browser zone, else `Europe/Berlin` |
 | Duration format | `h:mm` (7:30), decimal (7.50 h) | `h:mm` |
+| Weekly hours (contract) | number > 0, step 0.5, decimals allowed, no maximum | empty (off) |
 
 - Changing the default customer resets the default project to that customer's first active project
 - The timezone controls display and attribution only; changing it never rewrites stored entries
 - Settings show a live preview of the current date, time and a sample duration
+- Weekly hours is a number input (`inputmode="decimal"`); clearing it switches Target and Balance
+  off and removes the value from the stored settings. A value of zero or below is not saved.
+
+## Weekly hours, Target and Balance
+
+See the [glossary](../../CONTEXT.md#time-tracking-glossary) for Weekly hours, Target and Balance.
+
+- Target = Weekly hours ÷ 7 × counted days; counted days run from the later of the period start and
+  the first-ever Time Entry's day to the earlier of the period end and today, inclusive
+- Targets are additive: the Target of a span of days is rounded once from a running day count, so
+  the month Targets of a year (and the days of a week) add up to the millisecond to the year Target,
+  in leap and non-leap years. Worked examples at 40h: week 40h 00m, October 177h 09m, February
+  (28 days) 160h 00m, 2026 2085h 43m
+- Weeks run Monday to Sunday in the Time Tracking timezone; entries count toward the period of their
+  start (Attribution)
+- Balance = logged − Target; Target and Balance are absent when Weekly hours is unset, for future
+  periods and for periods entirely before the first Time Entry
+- The maths lives in one domain module (`timetracking-balance.js`: `periodBalance`) consumed by
+  every view that shows a Balance
+- **"This week" badge** in the Time Tracker header: `This week ±h:mm`, the current week's Balance in
+  the duration format, green for a surplus and red for a deficit, sign always shown. It ignores the
+  entry list filter, is hidden when there is no Balance (Weekly hours unset, or no entry yet this
+  week or before), updates live on create / edit / delete, and is at least 44px tall
 
 ## Keyboard Shortcuts
 
@@ -149,7 +209,7 @@ ignored while an input is focused.
 | `d` | Duplicate selected entry |
 | `Del` | Delete selected entry → `y` confirm / `Esc` cancel |
 | `g t` / `g r` / `g p` / `g s` | Go to Tracker / Reports / Projects / Settings |
-| `[` / `]` | Previous / next month |
+| `[` / `]` | Previous / next period (week or month) on Reports |
 | `?` | Shortcut cheat-sheet |
 | `Enter` | Save (entry bar, edit modal, inline add fields) |
 | `Esc` | Cancel / leave field |
@@ -168,10 +228,19 @@ ignored while an input is focused.
 ## Testing
 
 - Unit: time / duration / date shorthand parsing; linked field resolution incl. overnight; timezone
-  conversion across DST changes; attribution of an entry crossing a month boundary; month summary
-  totals and grouping; archive / delete guards; last-used project fallback
-- DOM: entry bar save flow, filters, edit modal, delete confirmation
+  conversion across DST changes; attribution of an entry crossing a month boundary; period summary (week / month / year, ISO week
+  labels, shifting across year boundaries)
+  totals and grouping; archive / delete guards; last-used project fallback; Target / Balance for
+  finished, current, future and pre-first-entry weeks, decimal Weekly hours and Monday week start
+  across DST
+- DOM: entry bar save flow, filters, edit modal, delete confirmation; Weekly hours input; "This week"
+  badge visibility and live updates; Reports Week | Month switch, navigation and persisted choice,
+  week chart and table, balance card values, sign / colour and visibility rules; badge opens the
+  current week
 - E2E: full keyboard-only flow (add → select → edit → duplicate → delete → reports month switch) playwright-cli, playwright tests.
+- E2E (desktop): set Weekly hours → log entries → correct Balance for week and month
+- E2E (Pixel 5): tap edit and delete on a row without hover; controls measure at least 44×44px; tap
+  the badge to land on the current week with touch-sized period controls and no horizontal overflow
 
 ## Later (not in MVP)
 

@@ -66,6 +66,11 @@ const PANEL_HTML = `
         <span class="tt-setting-label">${label}</span>
         <select id="${id}" class="tt-select" data-setting="${key}"></select>
       </label>`).join('')}
+      <label class="tt-setting" for="tt-setting-weekly-hours">
+        <span class="tt-setting-label">Weekly hours (contract)</span>
+        <input id="tt-setting-weekly-hours" class="tt-input tt-setting-number" type="number"
+          inputmode="decimal" step="0.5" min="0.5" placeholder="Off" data-weekly-hours>
+      </label>
     </div>
     <dl class="tt-settings-preview" aria-label="Preview" aria-live="polite">
       <div><dt>Date</dt><dd data-testid="tt-preview-date"></dd></div>
@@ -84,6 +89,7 @@ export function mountSettingsPanel(container) {
   const selects = Object.fromEntries(
     [...container.querySelectorAll('[data-setting]')].map((select) => [select.dataset.setting, select])
   );
+  const weeklyHours = container.querySelector('[data-weekly-hours]');
   const previewOf = (name) => container.querySelector(`[data-testid="tt-preview-${name}"]`);
 
   function refresh() {
@@ -95,6 +101,7 @@ export function mountSettingsPanel(container) {
       select.value = settings[key] ?? '';
     }
     selects.defaultProjectId.disabled = !settings.defaultCustomerId;
+    if (document.activeElement !== weeklyHours) weeklyHours.value = settings.weeklyHours ?? '';
 
     const prefs = timeTrackingPrefs(settings);
     previewOf('date').textContent = formatDate(prefs.now, prefs);
@@ -102,7 +109,18 @@ export function mountSettingsPanel(container) {
     previewOf('duration').textContent = formatDuration(SAMPLE_DURATION_MS, prefs.durationFormat);
   }
 
+  function saveWeeklyHours() {
+    const raw = weeklyHours.value.trim();
+    const hours = Number(raw);
+    // Unparseable typing also reads as '', which must not switch the feature off.
+    if (raw === '' && !weeklyHours.validity.badInput) saveTimeTrackingSettings({ weeklyHours: null });
+    else if (Number.isFinite(hours) && hours > 0) saveTimeTrackingSettings({ weeklyHours: hours });
+    weeklyHours.value = loadTimeTrackingSettings().weeklyHours ?? '';
+    refresh();
+  }
+
   container.addEventListener('change', (ev) => {
+    if (ev.target === weeklyHours) return saveWeeklyHours();
     const key = ev.target.dataset?.setting;
     if (!key) return;
     saveTimeTrackingSettings({ [key]: ev.target.value || null });

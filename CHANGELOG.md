@@ -11,7 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Time Tracking is easier to use on a phone or tablet. Every Time Tracking button is now at least 44×44px, and on touch devices the edit, duplicate and delete buttons on a time entry are always shown instead of only on hover (#205).
 - CI now runs a Semgrep security scan (`p/security-audit` and `p/secrets`) and blocks deploy jobs until the scan passes.
+- Enter your contractual weekly hours under Time Tracking → Settings ("Weekly hours (contract)", decimals such as 38.5 allowed). The Time Tracker then shows a "This week" badge with your balance so far, such as `+2:30` in green or `−1:15` in red, and it updates as you add, edit or delete entries. Leave the field empty to turn it off. The value syncs across your devices (#206).
+- Reports can now show a week as well as a month. Use the new Week | Month switch; `[` / `]` and the arrow buttons step through whichever you picked, and the choice is remembered on this device. The week view shows each day from Monday to Sunday and the customer / project table. With Weekly hours set, a card above the report shows Logged, Target and Balance for the week or month, such as `−1:15` in red or `+2:30` in green. It is hidden while a customer or project filter is active, for future periods and for periods before your first entry. Tapping the "This week" badge on the Time Tracker opens this week in Reports (#208).
+- Reports can now show a whole year. Pick Year in the Week | Month | Year switch to see one bar per month and the customer / project table for the calendar year; `[` / `]` and the arrow buttons step by year. With Weekly hours set, the card shows the year's Target and Balance (2026 at 40h is 2085:43 once the year is over), counted so far for the current year and from your first entry if you started mid-year. The Balance starts again on 1 January. The month Targets of a year now add up exactly to the year Target (#209).
 
 ### Fixed
 
