@@ -23,12 +23,17 @@ function loggedIn(entries, from, to, tz) {
     .reduce((sum, e) => sum + Date.parse(e.end) - Date.parse(e.start), 0);
 }
 
+// Target of all days before `day`, rounded once. Differences of it telescope, so the Targets of
+// adjoining periods (the months of a year, the days of a week) add up exactly to their union.
+const targetBefore = (day, weeklyHours) => Math.round((weeklyHours * HOUR_MS * day) / 7);
+
 // Counted days: from the later of period start and first-ever entry day, to the earlier of period end and today.
 function targetMs(entries, from, to, { now, tz, weeklyHours }) {
   if (!(weeklyHours > 0) || entries.length === 0) return null;
   const firstEntryDay = Math.min(...entries.map((e) => startDay(e, tz)));
-  const countedDays = Math.min(to, dayNumber(zonedParts(now, tz))) - Math.max(from, firstEntryDay) + 1;
-  return countedDays > 0 ? Math.round((weeklyHours * HOUR_MS * countedDays) / 7) : null;
+  const first = Math.max(from, firstEntryDay);
+  const last = Math.min(to, dayNumber(zonedParts(now, tz)));
+  return last >= first ? targetBefore(last + 1, weeklyHours) - targetBefore(first, weeklyHours) : null;
 }
 
 // `period` is any { start, end } pair of calendar days, e.g. a period from timetracking-report.js.
