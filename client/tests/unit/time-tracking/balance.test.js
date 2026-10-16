@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'vitest';
-import { periodBalance, currentWeekRange, formatBalance } from '../../../src/modules/timetracking-balance.js';
+import { periodBalance, formatBalance } from '../../../src/modules/timetracking-balance.js';
+import { currentPeriod } from '../../../src/modules/timetracking-report.js';
 
 const TZ = 'Europe/Berlin';
 const H = 3600000;
@@ -90,7 +91,7 @@ describe('periodBalance — Balance', () => {
   });
 });
 
-describe('currentWeekRange — weeks start Monday in the Time Tracking timezone', () => {
+describe('the current week starts Monday in the Time Tracking timezone', () => {
   test.each([
     ['Sun 11 Oct 23:30 Berlin', '2026-10-11T21:30:00Z', TZ, { y: 2026, m: 10, d: 5 }, { y: 2026, m: 10, d: 11 }],
     ['Mon 12 Oct 00:30 Berlin', '2026-10-11T22:30:00Z', TZ, { y: 2026, m: 10, d: 12 }, { y: 2026, m: 10, d: 18 }],
@@ -100,12 +101,12 @@ describe('currentWeekRange — weeks start Monday in the Time Tracking timezone'
     ['Mon 2 Nov 00:30 New York, after DST ended', '2026-11-02T05:30:00Z', 'America/New_York', { y: 2026, m: 11, d: 2 }, { y: 2026, m: 11, d: 8 }],
     ['Thu 31 Dec 2026 across the year boundary', '2026-12-31T12:00:00Z', TZ, { y: 2026, m: 12, d: 28 }, { y: 2027, m: 1, d: 3 }]
   ])('%s', (_name, now, tz, start, end) => {
-    expect(currentWeekRange(at(now), tz)).toEqual({ start, end });
+    expect(currentPeriod('week', at(now), tz)).toMatchObject({ start, end });
   });
 
   test('a finished week containing a DST change still has a Target of exactly the Weekly hours', () => {
     const entries = [entry('a', '2026-10-01T08:00:00.000Z', 8)];
-    const dstWeek = currentWeekRange(at('2026-10-22T10:00:00Z'), TZ);
+    const dstWeek = currentPeriod('week', at('2026-10-22T10:00:00Z'), TZ);
     const result = periodBalance(entries, dstWeek, { now: at('2026-11-02T10:00:00Z'), tz: TZ, weeklyHours: 40 });
     expect(result.targetMs).toBe(40 * H);
   });

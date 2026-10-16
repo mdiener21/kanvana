@@ -6,17 +6,6 @@ const DAY_MS = 24 * HOUR_MS;
 
 const dayNumber = ({ y, m, d }) => Date.UTC(y, m - 1, d) / DAY_MS;
 
-const ymdOfDay = (day) => {
-  const date = new Date(day * DAY_MS);
-  return { y: date.getUTCFullYear(), m: date.getUTCMonth() + 1, d: date.getUTCDate() };
-};
-
-export function currentWeekRange(now, tz) {
-  const today = dayNumber(zonedParts(now, tz));
-  const monday = today - ((new Date(today * DAY_MS).getUTCDay() + 6) % 7);
-  return { start: ymdOfDay(monday), end: ymdOfDay(monday + 6) };
-}
-
 // Judged on the displayed minutes, so a few seconds short never shows as "−0:00".
 export const isDeficit = (balanceMs) => Math.round(balanceMs / MINUTE_MS) < 0;
 
@@ -42,9 +31,10 @@ function targetMs(entries, from, to, { now, tz, weeklyHours }) {
   return countedDays > 0 ? Math.round((weeklyHours * HOUR_MS * countedDays) / 7) : null;
 }
 
-export function periodBalance(entries, range, options) {
-  const from = dayNumber(range.start);
-  const to = dayNumber(range.end);
+// `period` is any { start, end } pair of calendar days, e.g. a period from timetracking-report.js.
+export function periodBalance(entries, period, options) {
+  const from = dayNumber(period.start);
+  const to = dayNumber(period.end);
   const loggedMs = loggedIn(entries, from, to, options.tz);
   const target = targetMs(entries, from, to, options);
   return { loggedMs, targetMs: target, balanceMs: target === null ? null : loggedMs - target };
