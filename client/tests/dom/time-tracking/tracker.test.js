@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, test, expect, vi } from 'vitest';
 import { screen, fireEvent, within } from '@testing-library/dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { mountToBody } from '../setup.js';
+import { mountToBody, isKeyboardOperable } from '../setup.js';
 
 const state = { customers: [], projects: [], timeEntries: [] };
 
@@ -911,8 +911,16 @@ describe('"This week" Balance badge', () => {
     expect(screen.getByTestId('tt-report-period').textContent).toBe('W41 · 5–11 Oct 2026');
   });
 
+  test('is operable from the keyboard', () => {
+    withWeeklyHours(7);
+    mount({ timeEntries: THREE_ENTRIES });
+    expect(isKeyboardOperable(badge())).toBe(true);
+    fireEvent.click(document.activeElement);
+    expect(document.getElementById('tt-section-reports').hidden).toBe(false);
+    expect(screen.getByRole('button', { name: 'Week' }).getAttribute('aria-pressed')).toBe('true');
+  });
+
   test('activating it does not change the remembered Reports period', () => {
-    localStorage.clear();
     withWeeklyHours(7);
     mount({ timeEntries: THREE_ENTRIES });
     fireEvent.click(badge());
