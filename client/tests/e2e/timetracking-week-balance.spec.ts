@@ -50,3 +50,40 @@ test('on a phone, Weekly hours turns on a touch-sized "This week" badge that fit
   await page.locator('#tt-nav-tracker').tap();
   await expect(badge).toBeHidden();
 });
+
+test('on a phone, tapping the "This week" badge opens Reports on the current week with touch-sized controls', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-15T12:00:00+02:00') });
+  await page.goto('/timetracking.html');
+  await logTodayOnPhone(page, '6h');
+  await page.locator('#tt-nav-settings').tap();
+  const weeklyHours = page.locator('#tt-section-settings').getByLabel('Weekly hours (contract)');
+  await weeklyHours.fill('35');
+  await weeklyHours.press('Tab');
+  await page.locator('#tt-nav-tracker').tap();
+
+  await page.getByTestId('tt-week-balance').tap();
+  const reports = page.locator('#tt-section-reports');
+  await expect(reports).toBeVisible();
+  await expect(reports.getByRole('button', { name: 'Week', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('tt-report-period')).toHaveText('W42 · 12–18 Oct 2026');
+  const card = page.getByTestId('tt-balance-card');
+  await expect(card).toBeVisible();
+  await expect(card).toContainText(/Logged\s*6:00/);
+  await expect(card).toContainText(/Target\s*5:00/);
+  await expect(card).toContainText(/Balance\s*\+1:00/);
+
+  for (const control of [
+    reports.getByRole('button', { name: 'Week', exact: true }),
+    reports.getByRole('button', { name: 'Month', exact: true }),
+    reports.getByRole('button', { name: 'Previous week' }),
+    reports.getByRole('button', { name: 'Next week' })
+  ]) {
+    await expect(control).toBeInViewport({ ratio: 1 });
+    const box = await control.boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+  }
+  await expect(card).toBeInViewport({ ratio: 1 });
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+});

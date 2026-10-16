@@ -1,4 +1,5 @@
 import { projectById, customerById } from './timetracking-crud.js';
+import { periodBalance } from './timetracking-balance.js';
 import { zonedParts, addDays, daysInMonth, daysBetween, startOfIsoWeek, isoWeek } from './timetracking-time.js';
 
 const UNKNOWN_COLOR = '#9ca3af';
@@ -82,9 +83,10 @@ function bucketFor(map, item, extra) {
  * Logged time of `entries` in `period`: totals, chart buckets (per day for week / month, per month
  * for year), customer / project totals with shares, the period and its label.
  * Attribution: an entry counts wholly to the day, week, month and year of its start in `tz`.
- * Options `now` and `weeklyHours` are reserved for Target / Balance; until wired both stay null.
+ * Target comes from all of `tt.timeEntries` (the first-ever entry sets its start); Balance is the
+ * summarised total minus Target. Both are null without `weeklyHours` or when the period has no Target.
  */
-export function summarizePeriod(tt, entries, period, { tz }) {
+export function summarizePeriod(tt, entries, period, { tz, now, weeklyHours = null }) {
   const kind = KINDS[period.kind];
   const buckets = kind.buckets(period).map((start) => ({ start, totalMs: 0, byProject: {} }));
   const customers = new Map();
@@ -112,6 +114,7 @@ export function summarizePeriod(tt, entries, period, { tz }) {
     entryCount += 1;
   }
 
+  const target = weeklyHours > 0 ? periodBalance(tt.timeEntries, period, { now, tz, weeklyHours }).targetMs : null;
   const withShare = (bucket) => ({ ...bucket, share: totalMs > 0 ? bucket.totalMs / totalMs : 0 });
   return {
     period,
@@ -125,7 +128,7 @@ export function summarizePeriod(tt, entries, period, { tz }) {
       ...customer,
       projects: [...customer.projects.values()].sort(byTotalThenName).map(withShare)
     })),
-    target: null,
-    balance: null
+    target,
+    balance: target === null ? null : totalMs - target
   };
 }

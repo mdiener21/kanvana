@@ -83,7 +83,7 @@ test('clicking a sidebar entry switches section', () => {
   expect(section('reports').hidden).toBe(false);
 });
 
-const reportMonth = () => screen.getByTestId('tt-report-month').textContent;
+const reportMonth = () => screen.getByTestId('tt-report-period').textContent;
 const gotoReports = () => {
   fireEvent.keyDown(document, { key: 'g' });
   fireEvent.keyDown(document, { key: 'r' });
@@ -109,6 +109,18 @@ test('[ and ] switch the month on Reports', () => {
   expect(reportMonth()).toBe(start);
   fireEvent.keyDown(document, { key: ']' });
   expect(reportMonth()).not.toBe(start);
+});
+
+test('with Week selected, [ and ] step whole weeks', () => {
+  gotoReports();
+  fireEvent.click(screen.getByRole('button', { name: 'Week' }));
+  const start = reportMonth();
+  expect(start).toMatch(/^W\d+ · /);
+  fireEvent.keyDown(document, { key: '[' });
+  expect(reportMonth()).toMatch(/^W\d+ · /);
+  expect(reportMonth()).not.toBe(start);
+  fireEvent.keyDown(document, { key: ']' });
+  expect(reportMonth()).toBe(start);
 });
 
 test('[ and ] do nothing outside Reports or while typing', () => {

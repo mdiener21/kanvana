@@ -254,10 +254,39 @@ describe('year period', () => {
 });
 
 describe('Target and Balance', () => {
-  test('are reserved in every period summary and stay null until Weekly hours are wired', () => {
+  const NOW = Date.parse('2026-11-16T10:00:00.000Z');
+  const oct1 = entry('oct1', 'p1', '2026-10-01T07:00:00.000Z', '2026-10-01T15:00:00.000Z');
+  const oct20 = entry('oct20', 'p3', '2026-10-20T07:00:00.000Z', '2026-10-20T09:00:00.000Z');
+  const withEntries = { ...tt, timeEntries: [oct1, oct20] };
+
+  test('stay null when Weekly hours are unset', () => {
     for (const kind of ['week', 'month', 'year']) {
-      const s = summarizePeriod(tt, [], periodOf(kind, { y: 2026, m: 10, d: 12 }), { tz: TZ, now: Date.parse('2026-10-16T10:00:00.000Z') });
+      const s = summarizePeriod(withEntries, withEntries.timeEntries, periodOf(kind, { y: 2026, m: 10, d: 12 }), { tz: TZ, now: NOW });
       expect(s).toMatchObject({ target: null, balance: null });
     }
+  });
+
+  test('a finished month at 40h has the full Target and Balance = logged − Target', () => {
+    const s = summarizePeriod(withEntries, withEntries.timeEntries, OCT, { tz: TZ, now: NOW, weeklyHours: 40 });
+    expect(s.target).toBe(Math.round((40 * H * 31) / 7));
+    expect(s.balance).toBe(10 * H - s.target);
+  });
+
+  test('a finished week at 40h has a Target of exactly 40h', () => {
+    const week = periodOf('week', { y: 2026, m: 10, d: 20 });
+    const s = summarizePeriod(withEntries, withEntries.timeEntries, week, { tz: TZ, now: NOW, weeklyHours: 40 });
+    expect(s).toMatchObject({ target: 40 * H, balance: 2 * H - 40 * H });
+  });
+
+  test('the Target starts at the first-ever Time Entry even when only some entries are summarised', () => {
+    const s = summarizePeriod(withEntries, [oct20], OCT, { tz: TZ, now: NOW, weeklyHours: 40 });
+    expect(s.target).toBe(Math.round((40 * H * 31) / 7));
+    expect(s.totalMs).toBe(2 * H);
+  });
+
+  test('future periods and periods before the first entry have no Target', () => {
+    const options = { tz: TZ, now: NOW, weeklyHours: 40 };
+    expect(summarizePeriod(withEntries, withEntries.timeEntries, month(2026, 12), options)).toMatchObject({ target: null, balance: null });
+    expect(summarizePeriod(withEntries, withEntries.timeEntries, month(2026, 9), options)).toMatchObject({ target: null, balance: null });
   });
 });

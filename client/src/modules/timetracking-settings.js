@@ -73,6 +73,14 @@ export function rememberLastUsedProject(projectId) {
   if (idOrNull(projectId)) localStorage.setItem(LAST_USED_PROJECT_KEY, projectId);
 }
 
+const REPORT_PERIOD_KIND_KEY = 'kanvana:timetracking:reportPeriodKind';
+
+export const loadReportPeriodKind = () => localStorage.getItem(REPORT_PERIOD_KIND_KEY);
+
+export function rememberReportPeriodKind(kind) {
+  localStorage.setItem(REPORT_PERIOD_KIND_KEY, kind);
+}
+
 const activeProjectId = (tt, id) => {
   const project = projectById(tt, id);
   return project && isProjectActive(project, tt) ? project.id : null;
