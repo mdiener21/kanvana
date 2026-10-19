@@ -260,6 +260,28 @@
   color: var(--text-muted, #6b7280);
 }
 .tt-setting .tt-select { width: 100%; }
+.tt-workdays {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.tt-workdays legend { padding: 0; margin-bottom: 6px; }
+.tt-workdays-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+.tt-workday {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  font-size: 14px;
+  color: var(--text, #111);
+  cursor: pointer;
+}
 .tt-settings-preview {
   display: flex;
   gap: 24px;

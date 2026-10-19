@@ -19,6 +19,7 @@ export const DATE_FORMATS = {
 };
 export const TIME_FORMATS = { '24h': '24-hour', '12h': '12-hour' };
 export const DURATION_FORMATS = { 'h:mm': 'h:mm (7:30)', decimal: 'Decimal (7.50 h)' };
+export const DEFAULT_WORKDAYS = [1, 2, 3, 4, 5];
 
 const defaultOf = (formats) => Object.keys(formats)[0];
 export const DEFAULT_DATE_FORMAT = defaultOf(DATE_FORMATS);

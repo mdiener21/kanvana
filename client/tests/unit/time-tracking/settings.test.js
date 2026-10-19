@@ -24,7 +24,7 @@ beforeEach(async () => {
 });
 
 describe('resolveTimeTrackingSettings (spec defaults and options)', () => {
-  test('defaults: no default customer/project, DD.MM.YYYY, 24-hour, browser zone, h:mm, no Weekly hours', () => {
+  test('defaults: no default customer/project, DD.MM.YYYY, 24-hour, browser zone, h:mm, no Weekly hours, Mon–Fri', () => {
     expect(resolveTimeTrackingSettings(undefined)).toEqual({
       defaultCustomerId: null,
       defaultProjectId: null,
@@ -32,7 +32,8 @@ describe('resolveTimeTrackingSettings (spec defaults and options)', () => {
       timeFormat: '24h',
       timezone: browserZone,
       durationFormat: 'h:mm',
-      weeklyHours: null
+      weeklyHours: null,
+      workdays: [1, 2, 3, 4, 5]
     });
   });
 
@@ -45,7 +46,8 @@ describe('resolveTimeTrackingSettings (spec defaults and options)', () => {
   test('keeps valid choices', () => {
     const chosen = {
       defaultCustomerId: 'c1', defaultProjectId: 'p1', dateFormat: 'YYYY-MM-DD',
-      timeFormat: '12h', timezone: 'America/New_York', durationFormat: 'decimal', weeklyHours: 38.5
+      timeFormat: '12h', timezone: 'America/New_York', durationFormat: 'decimal', weeklyHours: 38.5,
+      workdays: [1, 2, 3, 4, 6]
     };
     expect(resolveTimeTrackingSettings(chosen)).toEqual(chosen);
     expect(resolveTimeTrackingSettings({ dateFormat: 'MM/DD/YYYY' }).dateFormat).toBe('MM/DD/YYYY');
@@ -66,6 +68,14 @@ describe('resolveTimeTrackingSettings (spec defaults and options)', () => {
 
   test('Weekly hours has no upper limit', () => {
     expect(resolveTimeTrackingSettings({ weeklyHours: 168.5 }).weeklyHours).toBe(168.5);
+  });
+
+  test('Workdays are kept as sorted, unique ISO weekdays', () => {
+    expect(resolveTimeTrackingSettings({ workdays: [7, 2, 2, 6] }).workdays).toEqual([2, 6, 7]);
+  });
+
+  test.each([[[]], [[0, 8]], [['1']], ['1,2'], [null]])('Workdays %j fall back to Mon–Fri', (workdays) => {
+    expect(resolveTimeTrackingSettings({ workdays }).workdays).toEqual([1, 2, 3, 4, 5]);
   });
 });
 

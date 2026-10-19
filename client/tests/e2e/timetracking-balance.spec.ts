@@ -50,18 +50,18 @@ test('Weekly hours → logged entries → Reports shows the Balance for the week
   const period = page.getByTestId('tt-report-period');
   const card = page.getByTestId('tt-balance-card');
   await expect(period).toHaveText('November 2026');
-  // First entry 2 Nov, today 12 Nov: 11 counted days × 40 / 7 = 62h 51m
+  // First entry 2 Nov, today 12 Nov: 9 counted workdays (Mon–Fri) × 8h = 72h
   await expect(cardValue(page, 'Logged')).toHaveText('18:00');
-  await expect(cardValue(page, 'Target')).toHaveText('62:51');
-  await expect(cardValue(page, 'Balance')).toHaveText('−44:51');
+  await expect(cardValue(page, 'Target')).toHaveText('72:00');
+  await expect(cardValue(page, 'Balance')).toHaveText('−54:00');
   await expect(cardValue(page, 'Balance')).toHaveClass(/is-deficit/);
 
   await page.getByRole('button', { name: 'Week', exact: true }).click();
   await expect(period).toHaveText('W46 · 9–15 Nov 2026');
-  // Monday to today (4 days) × 40 / 7 = 22h 51m
+  // Monday to today (4 workdays) × 8h = 32h
   await expect(cardValue(page, 'Logged')).toHaveText('10:00');
-  await expect(cardValue(page, 'Target')).toHaveText('22:51');
-  await expect(cardValue(page, 'Balance')).toHaveText('−12:51');
+  await expect(cardValue(page, 'Target')).toHaveText('32:00');
+  await expect(cardValue(page, 'Balance')).toHaveText('−22:00');
 
   await page.keyboard.press('[');
   await expect(period).toHaveText('W45 · 2–8 Nov 2026');
@@ -83,15 +83,15 @@ test('Weekly hours → logged entries → Reports shows the Balance for the week
   await page.locator('#tt-nav-reports').click();
   await expect(page.getByRole('button', { name: 'Week', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(period).toHaveText('W46 · 9–15 Nov 2026');
-  await expect(cardValue(page, 'Balance')).toHaveText('−12:51');
+  await expect(cardValue(page, 'Balance')).toHaveText('−22:00');
 
-  // Year so far, counted from the first entry (2 Nov) to today: same 11 days as the month
+  // Year so far, counted from the first entry (2 Nov) to today: same 9 workdays as the month
   await page.getByRole('button', { name: 'Year', exact: true }).click();
   await expect(period).toHaveText('2026');
   await expect(page.getByRole('img', { name: 'Monthly hours by project, 2026' })).toBeVisible();
   await expect(cardValue(page, 'Logged')).toHaveText('18:00');
-  await expect(cardValue(page, 'Target')).toHaveText('62:51');
-  await expect(cardValue(page, 'Balance')).toHaveText('−44:51');
+  await expect(cardValue(page, 'Target')).toHaveText('72:00');
+  await expect(cardValue(page, 'Balance')).toHaveText('−54:00');
   await page.keyboard.press(']');
   await expect(period).toHaveText('2027');
   await expect(card).toBeHidden();
@@ -106,14 +106,47 @@ test('Weekly hours → logged entries → Reports shows the Balance for the week
   await page.locator('#tt-nav-reports').click();
   await expect(page.getByRole('button', { name: 'Year', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(period).toHaveText('2027');
-  // 1–11 Jan: 11 days × 40 / 7
+  // 1–11 Jan: 7 workdays × 8h
   await expect(cardValue(page, 'Logged')).toHaveText('0:00');
-  await expect(cardValue(page, 'Target')).toHaveText('62:51');
-  await expect(cardValue(page, 'Balance')).toHaveText('−62:51');
+  await expect(cardValue(page, 'Target')).toHaveText('56:00');
+  await expect(cardValue(page, 'Balance')).toHaveText('−56:00');
   await page.keyboard.press('[');
   await expect(period).toHaveText('2026');
-  // 2 Nov – 31 Dec: 60 days × 40 / 7 = 342h 51m
+  // 2 Nov – 31 Dec: 44 workdays × 8h = 352h
   await expect(cardValue(page, 'Logged')).toHaveText('18:00');
-  await expect(cardValue(page, 'Target')).toHaveText('342:51');
-  await expect(cardValue(page, 'Balance')).toHaveText('−324:51');
+  await expect(cardValue(page, 'Target')).toHaveText('352:00');
+  await expect(cardValue(page, 'Balance')).toHaveText('−334:00');
+});
+
+test('Workdays: a Monday at 40h is an 8h Target over Mon–Fri, and 10h after unticking Friday', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-11-09T18:00:00+01:00') });
+  await page.goto('/timetracking.html');
+  await expect(page.getByLabel('Description', { exact: true })).toBeVisible();
+
+  await page.locator('#tt-nav-settings').click();
+  const settings = page.locator('#tt-section-settings');
+  const weeklyHours = settings.getByLabel('Weekly hours (contract)');
+  await weeklyHours.fill('40');
+  await weeklyHours.press('Tab');
+  const workdays = settings.getByRole('group', { name: 'Workdays' });
+  await expect(workdays.getByRole('checkbox', { name: 'Fri' })).toBeChecked();
+  await expect(workdays.getByRole('checkbox', { name: 'Sat' })).not.toBeChecked();
+
+  await page.locator('#tt-nav-projects').click();
+  await addProject(page, 'Acme', 'Website');
+  await page.keyboard.press('Escape');
+  await logEntry(page, 'Monday', '09.11.2026', '9:00', '7h 35m');
+
+  await page.locator('#tt-nav-reports').click();
+  await page.getByRole('button', { name: 'Week', exact: true }).click();
+  await expect(cardValue(page, 'Logged')).toHaveText('7:35');
+  await expect(cardValue(page, 'Target')).toHaveText('8:00');
+  await expect(cardValue(page, 'Balance')).toHaveText('−0:25');
+
+  await page.locator('#tt-nav-settings').click();
+  await workdays.getByRole('checkbox', { name: 'Fri' }).uncheck();
+  await page.reload();
+  await page.locator('#tt-nav-reports').click();
+  await expect(cardValue(page, 'Target')).toHaveText('10:00');
+  await expect(cardValue(page, 'Balance')).toHaveText('−2:25');
 });

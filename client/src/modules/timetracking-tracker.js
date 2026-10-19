@@ -181,8 +181,9 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
   weekBadge.addEventListener('click', () => onOpenCurrentWeek());
 
   function refreshWeekBadge(tt, prefs) {
+    const { weeklyHours, workdays } = getSettings();
     const { balanceMs } = periodBalance(tt.timeEntries, currentPeriod(WEEK, prefs.now, prefs.tz), {
-      now: prefs.now, tz: prefs.tz, weeklyHours: getSettings().weeklyHours
+      now: prefs.now, tz: prefs.tz, weeklyHours, workdays
     });
     weekBadge.hidden = balanceMs === null;
     if (balanceMs === null) return;

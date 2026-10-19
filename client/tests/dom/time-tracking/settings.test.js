@@ -234,6 +234,46 @@ describe('Weekly hours (contract) setting', () => {
   });
 });
 
+describe('Workdays setting', () => {
+  const workdays = () => within(settingsSection()).getByRole('group', { name: 'Workdays' });
+  const day = (name) => within(workdays()).getByRole('checkbox', { name });
+  const checked = () => within(workdays()).getAllByRole('checkbox').filter((c) => c.checked).map((c) => c.labels[0].textContent.trim());
+  const savedTimeTracking = () => vi.mocked(scheduleDomainEvent).mock.calls.at(-1)[0].payload.fields.timeTracking;
+
+  test('offers Monday to Sunday with Monday to Friday ticked by default', () => {
+    mount();
+    expect(within(workdays()).getAllByRole('checkbox').map((c) => c.labels[0].textContent.trim()))
+      .toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
+    expect(checked()).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri']);
+  });
+
+  test('ticking and unticking a day saves the workdays through the global settings event', () => {
+    mount();
+    fireEvent.click(day('Sat'));
+    expect(savedTimeTracking().workdays).toEqual([1, 2, 3, 4, 5, 6]);
+    fireEvent.click(day('Mon'));
+    expect(savedTimeTracking().workdays).toEqual([2, 3, 4, 5, 6]);
+    expect(checked()).toEqual(['Tue', 'Wed', 'Thu', 'Fri', 'Sat']);
+  });
+
+  test('the last ticked day cannot be unticked', () => {
+    mount({ settings: { timezone: 'Europe/Berlin', workdays: [3] } });
+    expect(checked()).toEqual(['Wed']);
+    expect(day('Wed').disabled).toBe(true);
+    expect(day('Thu').disabled).toBe(false);
+    fireEvent.click(day('Thu'));
+    expect(day('Wed').disabled).toBe(false);
+  });
+
+  test('follows workdays synced from another device', async () => {
+    mount();
+    const { emit, DATA_CHANGED } = await import('../../../src/modules/events.js');
+    global.settings = { timeTracking: { timezone: 'Europe/Berlin', workdays: [1, 2, 3, 4] } };
+    emit(DATA_CHANGED);
+    expect(checked()).toEqual(['Mon', 'Tue', 'Wed', 'Thu']);
+  });
+});
+
 describe('the page follows the settings', () => {
   test('setting Weekly hours shows the "This week" badge on the tracker; clearing it hides the badge', () => {
     const monday = { ...LATE, id: 'e2', start: '2026-10-05T06:00:00.000Z', end: '2026-10-05T14:00:00.000Z' };
@@ -241,8 +281,8 @@ describe('the page follows the settings', () => {
     const badge = () => document.querySelector('[data-testid="tt-week-balance"]');
     expect(badge().hidden).toBe(true);
 
-    // Mon 5 – Thu 8 Oct so far at 35h/week: Target 20h, logged 8h
-    fireEvent.change(setting('Weekly hours (contract)'), { target: { value: '35' } });
+    // Mon 5 – Thu 8 Oct so far at 25h over Mon–Fri: Target 20h, logged 8h
+    fireEvent.change(setting('Weekly hours (contract)'), { target: { value: '25' } });
     expect(badge().hidden).toBe(false);
     expect(badge().textContent).toContain('−12:00');
 

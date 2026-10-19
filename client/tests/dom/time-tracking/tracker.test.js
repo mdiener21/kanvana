@@ -830,9 +830,9 @@ describe('"This week" Balance badge', () => {
     expect(badge().hidden).toBe(true);
   });
 
-  // First entry Wed 7 Oct, today Thu 8 Oct: 2 counted days; 3.5h logged.
+  // First entry Wed 7 Oct, today Thu 8 Oct: 2 counted workdays; 3.5h logged.
   test('shows a signed surplus in green as a button in the tracker header', () => {
-    withWeeklyHours(7);
+    withWeeklyHours(5);
     mount({ timeEntries: THREE_ENTRIES });
     expect(badge().hidden).toBe(false);
     expect(badge().tagName).toBe('BUTTON');
@@ -843,7 +843,7 @@ describe('"This week" Balance badge', () => {
   });
 
   test('shows a signed deficit in red', () => {
-    withWeeklyHours(21);
+    withWeeklyHours(15);
     mount({ timeEntries: THREE_ENTRIES });
     expect(value()).toBe('−2:30');
     expect(badge().classList.contains('is-deficit')).toBe(true);
@@ -851,7 +851,7 @@ describe('"This week" Balance badge', () => {
   });
 
   test('updates live after a Time Entry is created, edited and deleted', () => {
-    withWeeklyHours(7);
+    withWeeklyHours(5);
     mount({ timeEntries: THREE_ENTRIES });
     expect(value()).toBe('+1:30');
 
@@ -876,7 +876,7 @@ describe('"This week" Balance badge', () => {
   });
 
   test('ignores the entry list filter', () => {
-    withWeeklyHours(7);
+    withWeeklyHours(5);
     mount({ timeEntries: [...THREE_ENTRIES, entry('other', '2026-10-08T05:00:00.000Z', '2026-10-08T06:00:00.000Z', { projectId: 'p3' })] });
     fireEvent.change(screen.getByLabelText('Filter by customer'), { target: { value: 'c2' } });
     expect(rows()).toHaveLength(1);
@@ -890,7 +890,7 @@ describe('"This week" Balance badge', () => {
   });
 
   test('activating it shows Reports with Week selected on the current week and its Balance', () => {
-    withWeeklyHours(7);
+    withWeeklyHours(5);
     mount({ timeEntries: THREE_ENTRIES });
     fireEvent.click(badge());
     expect(document.getElementById('tt-section-reports').hidden).toBe(false);
@@ -902,7 +902,7 @@ describe('"This week" Balance badge', () => {
   });
 
   test('activating it returns to the current week after browsing other periods', () => {
-    withWeeklyHours(7);
+    withWeeklyHours(5);
     mount({ timeEntries: THREE_ENTRIES });
     fireEvent.click(document.getElementById('tt-nav-reports'));
     fireEvent.click(screen.getByRole('button', { name: 'Previous month' }));
@@ -912,7 +912,7 @@ describe('"This week" Balance badge', () => {
   });
 
   test('is operable from the keyboard', () => {
-    withWeeklyHours(7);
+    withWeeklyHours(5);
     mount({ timeEntries: THREE_ENTRIES });
     expect(isKeyboardOperable(badge())).toBe(true);
     fireEvent.click(document.activeElement);
@@ -921,7 +921,7 @@ describe('"This week" Balance badge', () => {
   });
 
   test('activating it does not change the remembered Reports period', () => {
-    withWeeklyHours(7);
+    withWeeklyHours(5);
     mount({ timeEntries: THREE_ENTRIES });
     fireEvent.click(badge());
     unmount();

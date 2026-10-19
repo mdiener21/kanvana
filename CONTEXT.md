@@ -75,12 +75,18 @@ week" badge does not. An unknown or missing value falls back to `month`.
 (`weeklyHours`, a number > 0, decimals allowed, no maximum). Unset means off: no Target or Balance
 anywhere. The current value applies to every period; there is no history of earlier values.
 
-**Target** — the Duration a period should contain: Weekly hours ÷ 7 × counted days. Counted days
-run from the later of the period start and the day of the first-ever Time Entry, up to the earlier
-of the period end and today (inclusive), in the Time Tracking timezone. Every day Monday to Sunday
-counts; there are no workdays, holidays or absences. A finished week's Target is exactly the Weekly
-hours; the current period gets a "so far" Target. Future periods and periods entirely before the
-first Time Entry have no Target. Weeks start Monday.
+**Workdays** — the weekdays the Weekly hours are spread over; a Time Tracking setting (`workdays`,
+ISO weekday numbers 1 = Monday … 7 = Sunday, at least one). Default Monday to Friday. Like Weekly
+hours, the current value applies to every period. Time logged on a non-workday still counts as
+logged; it just adds no Target.
+
+**Target** — the Duration a period should contain: Weekly hours ÷ number of Workdays × counted
+workdays. Counted days run from the later of the period start and the day of the first-ever Time
+Entry, up to the earlier of the period end and today (inclusive), in the Time Tracking timezone; of
+those, only Workdays add Target. There are no holidays or absences. A finished week's Target is
+exactly the Weekly hours (40h over Mon–Fri: 8h each weekday, a Monday so far is 8h, the weekend
+adds nothing); the current period gets a "so far" Target. Future periods and periods entirely
+before the first Time Entry have no Target. Weeks start Monday.
 
 **Balance** — logged Duration minus Target for one period, shown with an explicit sign (`+` surplus,
 `−` deficit). No Target means no Balance. "Overtime" is deliberately not used.
