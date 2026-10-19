@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-10-19
+
 ### Added
 
 - Choose your workdays under Time Tracking → Settings ("Workdays", Mon–Fri by default). Your Weekly hours are now spread over those days only, so at 40 hours a Monday's Target is 8:00 instead of 5:43, and Saturday and Sunday add no Target. Time you log on a day off still counts towards your Balance. The setting syncs across your devices.
