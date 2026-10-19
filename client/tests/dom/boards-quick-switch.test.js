@@ -1,5 +1,6 @@
-import { vi, describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
+import { vi, describe, it, expect, beforeAll, beforeEach, afterAll, afterEach } from 'vitest';
 import { fireEvent, waitFor } from '@testing-library/dom';
+import { server } from '../mocks/server.js';
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
 
@@ -14,11 +15,6 @@ vi.mock('../../src/modules/storage.js', () => ({
   getActiveBoardName: vi.fn(() => 'Work'),
   renameBoard: vi.fn(() => true),
   deleteBoard: vi.fn(() => true),
-}));
-
-vi.mock('../../src/modules/sync.js', () => ({
-  deleteBoardRemote: vi.fn(async () => true),
-  isAuthenticated: vi.fn(() => true),
 }));
 
 vi.mock('../../src/modules/dialog.js', () => ({
@@ -43,7 +39,7 @@ import { initializeBoardsModalHandlers } from '../../src/modules/boards-modal.js
 import { setActiveBoardId, deleteBoard } from '../../src/modules/storage.js';
 import { emit } from '../../src/modules/events.js';
 import { confirmDialog } from '../../src/modules/dialog.js';
-import { deleteBoardRemote } from '../../src/modules/sync.js';
+import { getPb } from '../../src/modules/sync.js';
 
 // ── HTML fixture ──────────────────────────────────────────────────────────────
 
@@ -102,15 +98,40 @@ describe('click brand-text', () => {
 });
 
 describe('delete board', () => {
-  it('deletes the PocketBase board before removing the local board', async () => {
+  const requests = [];
+  const record = ({ request }) => requests.push(request.url);
+
+  function jwt(expiresInSeconds) {
+    const encode = (obj) => btoa(JSON.stringify(obj)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+    const exp = Math.floor(Date.now() / 1000) + expiresInSeconds;
+    return `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ id: 'user1', type: 'auth', exp })}.sig`;
+  }
+
+  beforeAll(() => {
+    server.listen({ onUnhandledRequest: 'bypass' });
+    server.events.on('request:start', record);
+  });
+  afterAll(() => {
+    server.events.removeListener('request:start', record);
+    server.close();
+  });
+  beforeEach(() => {
+    requests.length = 0;
+    // A browser upgraded from the legacy sync still holds a board mapping.
+    localStorage.setItem('kanbanSyncMap', JSON.stringify({ boards: { 'board-1': 'pb-board-1' } }));
+    getPb().authStore.save(jwt(3600), { id: 'user1', email: 't@e.st' });
+  });
+  afterEach(() => getPb().authStore.clear());
+
+  it('removes the board locally without calling any PocketBase collection while signed in', async () => {
     confirmDialog.mockResolvedValueOnce(true);
     fireEvent.click(document.getElementById('brand-text'));
 
     fireEvent.click(document.querySelector('[title="Delete board"]'));
 
-    await waitFor(() => expect(deleteBoardRemote).toHaveBeenCalledWith('board-1'));
-    expect(deleteBoard).toHaveBeenCalledWith('board-1');
-    expect(deleteBoardRemote.mock.invocationCallOrder[0]).toBeLessThan(deleteBoard.mock.invocationCallOrder[0]);
+    await waitFor(() => expect(deleteBoard).toHaveBeenCalledWith('board-1'));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(requests).toEqual([]);
   });
 });
 

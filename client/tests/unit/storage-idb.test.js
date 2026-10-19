@@ -74,6 +74,16 @@ test('initStorage is safe to call twice in the same session', async () => {
   expect(listBoards().length).toBe(boardsAfterFirst);
 });
 
+test('initStorage removes the stale legacy-sync localStorage keys from older versions', async () => {
+  localStorage.setItem('kanbanSyncMap', JSON.stringify({ boards: { b1: 'pb1' } }));
+  localStorage.setItem('kanbanAutoSyncEnabled', 'true');
+
+  await initStorage();
+
+  expect(localStorage.getItem('kanbanSyncMap')).toBeNull();
+  expect(localStorage.getItem('kanbanAutoSyncEnabled')).toBeNull();
+});
+
 // ── cross-session persistence ────────────────────────────────────────────────────
 
 test('saveTasks persists to IDB and survives a session reset', async () => {

@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Online Mode now syncs only through events and snapshots. The old whole-board sync (full push and pull, auto-sync and its local id mapping) is gone from the app, so deleting a board while signed in no longer calls the old PocketBase collections; the deletion reaches your other devices as an event. On first start after the update the app removes the leftover `kanbanSyncMap` and `kanbanAutoSyncEnabled` entries from browser storage (#215).
 - Targets and Balances now follow your Workdays rather than spreading Weekly hours over all seven days. A finished week is still exactly your Weekly hours, but months and years change: at 40 hours, October 2026 is 176:00 instead of 177:09 and 2026 is 2088:00 instead of 2085:43.
 
 ### Security

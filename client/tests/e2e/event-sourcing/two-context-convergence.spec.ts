@@ -142,4 +142,48 @@ test.describe('AC-009 two-context realtime convergence (live PocketBase)', () =>
     await deviceA.context().close();
     await deviceB.context().close();
   });
+
+  // #215 AC-002 / AC-003: the legacy LWW collections are never called; a board
+  // delete reaches device B through events alone.
+  test('normal work and a board delete only call the event-sourced endpoints', async ({ browser }) => {
+    test.skip(!pbReachable, `PocketBase not reachable at ${PB_URL} — start the Docker stack to run this spec.`);
+
+    const email = `net-${Date.now()}@example.test`;
+    await registerAccount(email);
+    const deviceB = await bootAndLogin(browser, email);
+    const deviceA = await bootAndLogin(browser, email);
+
+    const apiCalls: string[] = [];
+    deviceA.on('request', (req) => {
+      const { pathname } = new URL(req.url());
+      if (pathname.startsWith('/api/')) apiCalls.push(`${req.method()} ${pathname}`);
+    });
+
+    await deviceA.evaluate(() => document.dispatchEvent(new Event('kanban:open-board-create')));
+    await deviceA.locator('#board-create-name').fill('Doomed');
+    await deviceA.locator('#board-create-form button[type=submit]').click();
+
+    const probe = `Network probe ${Date.now()}`;
+    await deviceA.getByRole('button', { name: 'Add task to To Do' }).click();
+    await deviceA.locator('#task-modal #task-title').fill(probe);
+    await deviceA.locator('#task-submit-btn').click();
+    await expect(deviceA.locator('#task-modal')).toBeHidden();
+
+    const selectB = deviceB.locator('#board-select');
+    await expect(selectB.locator('option', { hasText: 'Doomed' })).toHaveCount(1, { timeout: 5000 });
+
+    await deviceA.locator('#brand-text').click();
+    await deviceA.locator('#boards-list .label-item', { hasText: 'Doomed' }).locator('[title="Delete board"]').click();
+    await deviceA.locator('#dialog-confirm-btn').click();
+    await expect(deviceA.locator('#board-select option', { hasText: 'Doomed' })).toHaveCount(0);
+
+    await expect(selectB.locator('option', { hasText: 'Doomed' })).toHaveCount(0, { timeout: 5000 });
+
+    const allowed = /^\/api\/(collections\/(events|snapshots|users)\/|files\/|realtime|health)/;
+    const unexpected = apiCalls.filter((call) => !allowed.test(call.split(' ')[1]));
+    expect(unexpected).toEqual([]);
+
+    await deviceA.context().close();
+    await deviceB.context().close();
+  });
 });

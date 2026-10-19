@@ -1,6 +1,6 @@
 import { test, expect, beforeEach } from 'vitest';
 import { resetLocalStorage } from './setup.js';
-import { createBoard, getActiveBoardId, loadDeletedLabelsForBoard, loadLabels, saveLabels, loadTasks, saveTasks } from '../../src/modules/storage.js';
+import { createBoard, loadLabels, saveLabels, loadTasks, saveTasks } from '../../src/modules/storage.js';
 import { addLabel, updateLabel, deleteLabel } from '../../src/modules/labels.js';
 
 beforeEach(() => {
@@ -114,13 +114,11 @@ test('deleteLabel removes label ID from all tasks', () => {
 
 // ── soft-delete labels ──────────────────────────────────────────────
 
-test('deleteLabel soft-deletes: label hidden from loadLabels but present in loadDeletedLabelsForBoard', () => {
+test('deleteLabel hides the label from loadLabels', () => {
   addLabel('Bug', '#f00', '');
   const [label] = loadLabels();
 
   deleteLabel(label.id);
 
   expect(loadLabels().find(l => l.id === label.id)).toBeUndefined();
-  const deleted = loadDeletedLabelsForBoard(getActiveBoardId());
-  expect(deleted.some(l => l.id === label.id)).toBe(true);
 });

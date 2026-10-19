@@ -22,6 +22,8 @@ const NEWEST_APPLIED_KEY = 'kanvana:ingest:newestAppliedHlc';
 const LEGACY_COLUMNS_KEY = 'kanbanColumns';
 const LEGACY_TASKS_KEY = 'kanbanTasks';
 const LEGACY_LABELS_KEY = 'kanbanLabels';
+// Left behind by the removed whole-record LWW sync path (ADR-0004).
+const LEGACY_SYNC_KEYS = ['kanbanSyncMap', 'kanbanAutoSyncEnabled'];
 
 const DEFAULT_BOARD_ID = 'default';
 // Well-known stable id for the auto-seeded "Default Board". Every fresh device
@@ -467,6 +469,7 @@ export async function initStorage() {
   }
 
   await normalizeIdbState(db);
+  for (const key of LEGACY_SYNC_KEYS) localStorage.removeItem(key);
 
   // Load everything into in-memory state.
   state.boards = safeParseArray(await db.get(KV_STORE, BOARDS_KEY)) || [];
@@ -579,25 +582,6 @@ export function getActiveBoardName() {
 function saveBoards(boards) {
   state.boards = boards;
   schedulePersist(BOARDS_KEY, boards);
-}
-
-export function mergeBoardsFromRemote(remoteBoards) {
-  const incoming = Array.isArray(remoteBoards) ? remoteBoards : [];
-  if (incoming.length === 0) return listBoards();
-
-  const merged = new Map((state.boards || []).map((board) => [board.id, board]));
-  for (const board of incoming) {
-    if (!board || typeof board.id !== 'string') continue;
-    merged.set(board.id, {
-      ...merged.get(board.id),
-      ...board,
-      name: typeof board.name === 'string' ? board.name : merged.get(board.id)?.name || 'Untitled board'
-    });
-  }
-
-  const nextBoards = [...merged.values()];
-  saveBoards(nextBoards);
-  return listBoards();
 }
 
 export function getActiveBoardId() {
@@ -830,7 +814,6 @@ export function saveColumns(columns) {
   const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
   state.columns[boardId] = columns;
   scheduleReadModelPersist(boardId, 'columns', columns);
-  emitLocalChange(boardId, 'column');
 }
 
 // ── Tasks ──────────────────────────────────────────────────────────────────────
@@ -948,11 +931,6 @@ export function loadTasks() {
   return defaults;
 }
 
-function emitLocalChange(boardId, entity) {
-  if (typeof window === 'undefined') return;
-  window.dispatchEvent(new CustomEvent('kanban-local-change', { detail: { boardId, entity } }));
-}
-
 export function saveTasks(tasks) {
   ensureBoardsInitialized();
   const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
@@ -962,16 +940,6 @@ export function saveTasks(tasks) {
   state.tasks[boardId] = normalized;
   taskCacheByBoard.set(boardId, normalized);
   scheduleReadModelPersist(boardId, 'tasks', normalized);
-  emitLocalChange(boardId, 'task');
-}
-
-// Persist a live-task set without destroying the board's task tombstones.
-// loadTasks() returns live tasks only, so callers that mutate the live set
-// must route through here to preserve deleted records until sync cleanup.
-export function saveLiveTasks(liveTasks) {
-  const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
-  const live = Array.isArray(liveTasks) ? liveTasks : [];
-  saveTasks([...live, ...loadDeletedTasksForBoard(boardId)]);
 }
 
 // ── Labels ─────────────────────────────────────────────────────────────────────
@@ -997,7 +965,6 @@ export function saveLabels(labels) {
   const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
   state.labels[boardId] = labels;
   scheduleReadModelPersist(boardId, 'labels', labels);
-  emitLocalChange(boardId, 'label');
 }
 
 // ── Settings ───────────────────────────────────────────────────────────────────
@@ -1124,65 +1091,4 @@ export function loadLabelsForBoard(boardId) {
 export function loadSettingsForBoard(boardId) {
   const raw = state.settings[boardId];
   return safeParseObject(raw) || null;
-}
-
-export function loadDeletedTasksForBoard(boardId) {
-  const raw = state.tasks[boardId];
-  return (safeParseArray(raw) || []).filter(t => t.deleted === true);
-}
-
-export function loadDeletedColumnsForBoard(boardId) {
-  const raw = state.columns[boardId];
-  return (safeParseArray(raw) || []).filter(c => c.deleted === true);
-}
-
-export function loadDeletedLabelsForBoard(boardId) {
-  const raw = state.labels[boardId];
-  return (safeParseArray(raw) || []).filter(l => l.deleted === true);
-}
-
-// Hard-removes deleted records. The opts flags allow a caller to purge
-// only some entity types — e.g. a sync push purges deleted column/label
-// tombstones while leaving other deleted records for a later cleanup.
-export function purgeDeleted(boardId, { tasks = true, columns = true, labels = true } = {}) {
-  if (tasks && state.tasks[boardId]) {
-    const live = (safeParseArray(state.tasks[boardId]) || []).filter(t => !t.deleted);
-    state.tasks[boardId] = live;
-    taskCacheByBoard.set(boardId, live);
-    scheduleReadModelPersist(boardId, 'tasks', live);
-  }
-  if (columns && state.columns[boardId]) {
-    const live = (safeParseArray(state.columns[boardId]) || []).filter(c => !c.deleted);
-    state.columns[boardId] = live;
-    scheduleReadModelPersist(boardId, 'columns', live);
-  }
-  if (labels && state.labels[boardId]) {
-    const live = (safeParseArray(state.labels[boardId]) || []).filter(l => !l.deleted);
-    state.labels[boardId] = live;
-    scheduleReadModelPersist(boardId, 'labels', live);
-  }
-}
-
-export function saveColumnsForBoard(boardId, columns) {
-  state.columns[boardId] = Array.isArray(columns) ? columns : [];
-  scheduleReadModelPersist(boardId, 'columns', state.columns[boardId]);
-}
-
-export function saveTasksForBoard(boardId, tasks) {
-  const normalized = (Array.isArray(tasks) ? tasks : []).map((task) => ({
-    ...task,
-  }));
-  state.tasks[boardId] = normalized;
-  taskCacheByBoard.set(boardId, normalized);
-  scheduleReadModelPersist(boardId, 'tasks', normalized);
-}
-
-export function saveLabelsForBoard(boardId, labels) {
-  state.labels[boardId] = Array.isArray(labels) ? labels : [];
-  scheduleReadModelPersist(boardId, 'labels', state.labels[boardId]);
-}
-
-export function saveSettingsForBoard(boardId, settings) {
-  state.settings[boardId] = settings && typeof settings === 'object' ? settings : {};
-  schedulePersist(keyFor(boardId, 'settings'), state.settings[boardId]);
 }
