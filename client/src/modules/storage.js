@@ -584,25 +584,6 @@ function saveBoards(boards) {
   schedulePersist(BOARDS_KEY, boards);
 }
 
-export function mergeBoardsFromRemote(remoteBoards) {
-  const incoming = Array.isArray(remoteBoards) ? remoteBoards : [];
-  if (incoming.length === 0) return listBoards();
-
-  const merged = new Map((state.boards || []).map((board) => [board.id, board]));
-  for (const board of incoming) {
-    if (!board || typeof board.id !== 'string') continue;
-    merged.set(board.id, {
-      ...merged.get(board.id),
-      ...board,
-      name: typeof board.name === 'string' ? board.name : merged.get(board.id)?.name || 'Untitled board'
-    });
-  }
-
-  const nextBoards = [...merged.values()];
-  saveBoards(nextBoards);
-  return listBoards();
-}
-
 export function getActiveBoardId() {
   const boards = listBoards();
   const stored = state.activeBoardId;
@@ -961,15 +942,6 @@ export function saveTasks(tasks) {
   scheduleReadModelPersist(boardId, 'tasks', normalized);
 }
 
-// Persist a live-task set without destroying the board's task tombstones.
-// loadTasks() returns live tasks only, so callers that mutate the live set
-// must route through here to preserve deleted records until sync cleanup.
-export function saveLiveTasks(liveTasks) {
-  const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
-  const live = Array.isArray(liveTasks) ? liveTasks : [];
-  saveTasks([...live, ...loadDeletedTasksForBoard(boardId)]);
-}
-
 // ── Labels ─────────────────────────────────────────────────────────────────────
 
 export function loadLabels() {
@@ -1119,65 +1091,4 @@ export function loadLabelsForBoard(boardId) {
 export function loadSettingsForBoard(boardId) {
   const raw = state.settings[boardId];
   return safeParseObject(raw) || null;
-}
-
-export function loadDeletedTasksForBoard(boardId) {
-  const raw = state.tasks[boardId];
-  return (safeParseArray(raw) || []).filter(t => t.deleted === true);
-}
-
-export function loadDeletedColumnsForBoard(boardId) {
-  const raw = state.columns[boardId];
-  return (safeParseArray(raw) || []).filter(c => c.deleted === true);
-}
-
-export function loadDeletedLabelsForBoard(boardId) {
-  const raw = state.labels[boardId];
-  return (safeParseArray(raw) || []).filter(l => l.deleted === true);
-}
-
-// Hard-removes deleted records. The opts flags allow a caller to purge
-// only some entity types — e.g. a sync push purges deleted column/label
-// tombstones while leaving other deleted records for a later cleanup.
-export function purgeDeleted(boardId, { tasks = true, columns = true, labels = true } = {}) {
-  if (tasks && state.tasks[boardId]) {
-    const live = (safeParseArray(state.tasks[boardId]) || []).filter(t => !t.deleted);
-    state.tasks[boardId] = live;
-    taskCacheByBoard.set(boardId, live);
-    scheduleReadModelPersist(boardId, 'tasks', live);
-  }
-  if (columns && state.columns[boardId]) {
-    const live = (safeParseArray(state.columns[boardId]) || []).filter(c => !c.deleted);
-    state.columns[boardId] = live;
-    scheduleReadModelPersist(boardId, 'columns', live);
-  }
-  if (labels && state.labels[boardId]) {
-    const live = (safeParseArray(state.labels[boardId]) || []).filter(l => !l.deleted);
-    state.labels[boardId] = live;
-    scheduleReadModelPersist(boardId, 'labels', live);
-  }
-}
-
-export function saveColumnsForBoard(boardId, columns) {
-  state.columns[boardId] = Array.isArray(columns) ? columns : [];
-  scheduleReadModelPersist(boardId, 'columns', state.columns[boardId]);
-}
-
-export function saveTasksForBoard(boardId, tasks) {
-  const normalized = (Array.isArray(tasks) ? tasks : []).map((task) => ({
-    ...task,
-  }));
-  state.tasks[boardId] = normalized;
-  taskCacheByBoard.set(boardId, normalized);
-  scheduleReadModelPersist(boardId, 'tasks', normalized);
-}
-
-export function saveLabelsForBoard(boardId, labels) {
-  state.labels[boardId] = Array.isArray(labels) ? labels : [];
-  scheduleReadModelPersist(boardId, 'labels', state.labels[boardId]);
-}
-
-export function saveSettingsForBoard(boardId, settings) {
-  state.settings[boardId] = settings && typeof settings === 'object' ? settings : {};
-  schedulePersist(keyFor(boardId, 'settings'), state.settings[boardId]);
 }
