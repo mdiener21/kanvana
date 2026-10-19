@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Targets and Balances now follow your Workdays rather than spreading Weekly hours over all seven days. A finished week is still exactly your Weekly hours, but months and years change: at 40 hours, October 2026 is 176:00 instead of 177:09 and 2026 is 2088:00 instead of 2085:43.
 
+### Security
+
+- The old `boards` table on the sync server is now read-only, like the other old tables. Signed-in users can still read their own boards there but can no longer create, change or delete them, so a board's owner can no longer be changed. Boards still sync through events as before (#216).
+
 ## [3.3.0] - 2026-10-16
 
 ### Added
