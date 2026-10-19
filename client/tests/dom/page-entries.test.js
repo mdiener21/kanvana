@@ -54,5 +54,5 @@ describe('page entries (#218)', () => {
     expect(boot.initSyncQueue).not.toHaveBeenCalled();
     expect(boot.initRealtime).not.toHaveBeenCalled();
     expect(boot.initSnapshotSync).not.toHaveBeenCalled();
-  });
+  }, 20000); // each entry is a cold import of the whole page graph
 });

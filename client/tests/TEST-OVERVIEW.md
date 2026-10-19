@@ -4,10 +4,10 @@ Generated from test source. Do not edit by hand; run `npm run test:overview` fro
 
 ## Fast Scan
 
-- Test files: 105
-- Test cases: 986
+- Test files: 108
+- Test cases: 990
 - Unit files: 46
-- DOM integration files: 32
+- DOM integration files: 35
 - E2E files: 25
 - Performance files: 1
 
@@ -35,7 +35,6 @@ These lists compare source/spec filenames against test file names and test title
 - `src/modules/impressum.js`
 - `src/modules/labels-modal.js`
 - `src/modules/swimlane-renderer.js`
-- `src/modules/theme.js`
 - `src/modules/timetracking-crud.js`
 - `src/modules/timetracking-entry-fields.js`
 - `src/modules/timetracking-markup.js`
@@ -1055,6 +1054,14 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/dom/event-sourcing/ingest.test.js:303` entity colours > a valid colour is kept (trimmed)
 - `tests/dom/event-sourcing/ingest.test.js:308` entity colours > a non-hex label colour is normalised on create and ignored on update
 
+### Page Boot Sync
+
+- Path: `tests/dom/event-sourcing/page-boot-sync.test.js`
+- Type: DOM Integration
+- Test count: 1
+
+- `tests/dom/event-sourcing/page-boot-sync.test.js:142` time-tracking page boot (#218 AC-001, AC-005) > uploads a locally saved time-tracking snapshot to PocketBase under __timetracking__
+
 ### Realtime
 
 - Path: `tests/dom/event-sourcing/realtime.test.js`
@@ -1198,6 +1205,24 @@ These lists compare source/spec filenames against test file names and test title
 
 - `tests/dom/msw-example.test.js:37` MSW intercepts requests and DOM reflects successful response
 - `tests/dom/msw-example.test.js:45` MSW per-test handler override causes DOM to reflect error state
+
+### Page Boot
+
+- Path: `tests/dom/page-boot.test.js`
+- Type: DOM Integration
+- Test count: 3
+
+- `tests/dom/page-boot.test.js:26` bootPage (#218) > sets up storage, theme, auth refresh, queue, snapshot upload, realtime and the indicator in that order
+- `tests/dom/page-boot.test.js:31` bootPage (#218) > mounts the auth UI after auth refresh only when the page asks for it
+- `tests/dom/page-boot.test.js:36` bootPage (#218) > still sets up theme and sync when storage fails to open
+
+### Page Entries
+
+- Path: `tests/dom/page-entries.test.js`
+- Type: DOM Integration
+- Test count: 0
+
+_No executable test cases detected._
 
 ### Pwa
 
