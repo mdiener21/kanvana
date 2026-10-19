@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Choose your workdays under Time Tracking → Settings ("Workdays", Mon–Fri by default). Your Weekly hours are now spread over those days only, so at 40 hours a Monday's Target is 8:00 instead of 5:43, and Saturday and Sunday add no Target. Time you log on a day off still counts towards your Balance. The setting syncs across your devices.
 
+### Fixed
+
+- The sync server no longer stores the same change twice when two open tabs, or a retry after a lost response, send it again. Existing duplicate copies are removed (the first one received is kept), and the app counts such a resend as synced instead of retrying it (#217).
+
 ### Changed
 
 - Targets and Balances now follow your Workdays rather than spreading Weekly hours over all seven days. A finished week is still exactly your Weekly hours, but months and years change: at 40 hours, October 2026 is 176:00 instead of 177:09 and 2026 is 2088:00 instead of 2085:43.
