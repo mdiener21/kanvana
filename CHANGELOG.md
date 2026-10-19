@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Choose your workdays under Time Tracking → Settings ("Workdays", Mon–Fri by default). Your Weekly hours are now spread over those days only, so at 40 hours a Monday's Target is 8:00 instead of 5:43, and Saturday and Sunday add no Target. Time you log on a day off still counts towards your Balance. The setting syncs across your devices.
 
+### Fixed
+
+- The sync server no longer stores the same change twice when two open tabs, or a retry after a lost response, send it again. Existing duplicate copies are removed (the first one received is kept), and the app counts such a resend as synced instead of retrying it (#217).
+
 ### Changed
 
 - Online Mode now syncs only through events and snapshots. The old whole-board sync (full push and pull, auto-sync and its local id mapping) is gone from the app, so deleting a board while signed in no longer calls the old PocketBase collections; the deletion reaches your other devices as an event. On first start after the update the app removes the leftover `kanbanSyncMap` and `kanbanAutoSyncEnabled` entries from browser storage (#215).

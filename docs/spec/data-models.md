@@ -243,7 +243,7 @@ generalises the old `task` relation; `hlc` gives total ordering; `details` was r
 | actor_type | text | human/agent/user; required |
 | actor_id | text | null for human; non-empty for agent/user |
 | payload | json | event-specific data (formerly `details`) |
-| local_id | text | event UUID for dedup; entries without one are not synced |
+| local_id | text | event UUID for dedup; entries without one are not synced. Unique per `owner` (partial index `idx_events_owner_local_id`, #217) |
 
 **snapshots**
 

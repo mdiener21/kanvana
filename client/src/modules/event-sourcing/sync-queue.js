@@ -65,8 +65,22 @@ function drainNow() {
   drain();
 }
 
+// The server holds a unique index on (owner, local_id) (#217). PocketBase 0.40
+// rejects a second create of the same event with a 400 whose field errors are
+// all `validation_not_unique`, including one on local_id. Any other 400 is a
+// real rejection.
+function isDuplicateEventError(err) {
+  const status = err?.status ?? err?.response?.status ?? 0;
+  if (status !== 400) return false;
+  const fields = err?.response?.data;
+  if (!fields || typeof fields !== 'object') return false;
+  if (fields.local_id?.code !== 'validation_not_unique') return false;
+  return Object.values(fields).every((f) => f?.code === 'validation_not_unique');
+}
+
 function classifyError(err) {
   const status = err?.status ?? err?.response?.status ?? 0;
+  if (isDuplicateEventError(err)) return 'duplicate';
   if (status === 401 || status === 403) return 'auth';
   if (status >= 400 && status < 500) return 'permanent';
   return 'network';
@@ -133,7 +147,9 @@ async function runDrain() {
         await markEventSynced(event.id);
       } catch (err) {
         const kind = classifyError(err);
-        if (kind === 'auth') authFailure = true;
+        // The server already holds this event: it is synced.
+        if (kind === 'duplicate') await markEventSynced(event.id);
+        else if (kind === 'auth') authFailure = true;
         else failure = kind;
         // R-A: never roll back; leave the event unsynced for retry.
       }
