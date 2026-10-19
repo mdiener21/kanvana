@@ -123,8 +123,11 @@ boards in v1.
 
 - **`events`** — the event-sourced domain-event log (immutable; no update rule). Fields:
   `owner`, `hlc` (json), `scope`, `entity_id`, `board` (**text** local UUID, not a relation),
-  `event_type`, `at`, `actor_type`, `actor_id`, `payload` (json), `local_id` (dedup). Full table in
-  `data-models.md`.
+  `event_type`, `at`, `actor_type`, `actor_id`, `payload` (json), `local_id` (dedup), `created`
+  (server receipt time). Full table in `data-models.md`. A partial unique index
+  `idx_events_owner_local_id` on `(owner, local_id) WHERE local_id != ''` (migration `1746100014`,
+  #217) rejects a second push of the same event with a `400` whose field errors are
+  `validation_not_unique`; the outbound queue treats exactly that response as "already synced".
 - **`snapshots`** — client-computed projection snapshots (immutable inserts). Fields: `owner`,
   `board_id` (text; null for global), `hlc` (json), `payload` (gzipped **file**), `local_id`.
 - **`boards`** — board metadata; still writable. (Boards are referenced from events by their text local
