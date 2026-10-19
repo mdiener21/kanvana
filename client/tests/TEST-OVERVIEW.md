@@ -5,7 +5,7 @@ Generated from test source. Do not edit by hand; run `npm run test:overview` fro
 ## Fast Scan
 
 - Test files: 103
-- Test cases: 980
+- Test cases: 981
 - Unit files: 45
 - DOM integration files: 32
 - E2E files: 24
@@ -1150,7 +1150,7 @@ These lists compare source/spec filenames against test file names and test title
 
 - Path: `tests/dom/event-sourcing/sync-queue.test.js`
 - Type: DOM Integration
-- Test count: 13
+- Test count: 14
 
 - `tests/dom/event-sourcing/sync-queue.test.js:78` sync-queue across a local snapshot (#176) > pushes every event queued offline even after a snapshot covered them
 - `tests/dom/event-sourcing/sync-queue.test.js:113` sync-queue startup > drains events left over from a previous session, with no new activity
@@ -1165,6 +1165,7 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/dom/event-sourcing/sync-queue.test.js:296` sync-queue push > AC-007: pauses on auth failure and resumes on auth-changed
 - `tests/dom/event-sourcing/sync-queue.test.js:328` sync-queue push > AC-011: network failures advance the backoff tiers, capped at 5min
 - `tests/dom/event-sourcing/sync-queue.test.js:352` sync-queue push > AC-011: a permanent 4xx schedules a ~1h retry
+- `tests/dom/event-sourcing/sync-queue.test.js:381` sync-queue duplicate rejection (#217) > AC-003/AC-005: a unique (owner, local_id) rejection marks the event synced with no retry
 
 ### Task Moved Payloads
 
