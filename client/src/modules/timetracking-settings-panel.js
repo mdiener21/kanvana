@@ -7,6 +7,7 @@ import {
 } from './timetracking-time.js';
 
 const SAMPLE_DURATION_MS = 7.5 * 60 * 60 * 1000;
+const WEEKDAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 function timezoneOptions(selected) {
   const zones = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [];
@@ -71,6 +72,13 @@ const PANEL_HTML = `
         <input id="tt-setting-weekly-hours" class="tt-input tt-setting-number" type="number"
           inputmode="decimal" step="0.5" min="0.5" placeholder="Off" data-weekly-hours>
       </label>
+      <fieldset class="tt-setting tt-workdays">
+        <legend class="tt-setting-label">Workdays</legend>
+        <div class="tt-workdays-options">
+          ${WEEKDAY_NAMES.map((name, i) => `
+          <label class="tt-workday"><input type="checkbox" value="${i + 1}" data-workday> ${name}</label>`).join('')}
+        </div>
+      </fieldset>
     </div>
     <dl class="tt-settings-preview" aria-label="Preview" aria-live="polite">
       <div><dt>Date</dt><dd data-testid="tt-preview-date"></dd></div>
@@ -90,6 +98,7 @@ export function mountSettingsPanel(container) {
     [...container.querySelectorAll('[data-setting]')].map((select) => [select.dataset.setting, select])
   );
   const weeklyHours = container.querySelector('[data-weekly-hours]');
+  const workdayBoxes = [...container.querySelectorAll('[data-workday]')];
   const previewOf = (name) => container.querySelector(`[data-testid="tt-preview-${name}"]`);
 
   function refresh() {
@@ -102,6 +111,11 @@ export function mountSettingsPanel(container) {
     }
     selects.defaultProjectId.disabled = !settings.defaultCustomerId;
     if (document.activeElement !== weeklyHours) weeklyHours.value = settings.weeklyHours ?? '';
+    for (const box of workdayBoxes) {
+      box.checked = settings.workdays.includes(Number(box.value));
+      // At least one workday must stay ticked.
+      box.disabled = box.checked && settings.workdays.length === 1;
+    }
 
     const prefs = timeTrackingPrefs(settings);
     previewOf('date').textContent = formatDate(prefs.now, prefs);
@@ -121,6 +135,10 @@ export function mountSettingsPanel(container) {
 
   container.addEventListener('change', (ev) => {
     if (ev.target === weeklyHours) return saveWeeklyHours();
+    if (workdayBoxes.includes(ev.target)) {
+      saveTimeTrackingSettings({ workdays: workdayBoxes.filter((b) => b.checked).map((b) => Number(b.value)) });
+      return refresh();
+    }
     const key = ev.target.dataset?.setting;
     if (!key) return;
     saveTimeTrackingSettings({ [key]: ev.target.value || null });

@@ -75,7 +75,7 @@ function bucketFor(map, item, extra) {
 }
 
 // Target counts from the first-ever entry, so it reads all of tt.timeEntries, not just `entries`.
-export function summarizePeriod(tt, entries, period, { tz, now, weeklyHours = null }) {
+export function summarizePeriod(tt, entries, period, { tz, now, weeklyHours = null, workdays }) {
   const kind = KINDS[period.kind];
   const buckets = kind.buckets(period).map((start) => ({ start, totalMs: 0, byProject: {} }));
   const customers = new Map();
@@ -103,7 +103,7 @@ export function summarizePeriod(tt, entries, period, { tz, now, weeklyHours = nu
     entryCount += 1;
   }
 
-  const target = periodTarget(tt.timeEntries, period, { now, tz, weeklyHours });
+  const target = periodTarget(tt.timeEntries, period, { now, tz, weeklyHours, workdays });
   const withShare = (bucket) => ({ ...bucket, share: totalMs > 0 ? bucket.totalMs / totalMs : 0 });
   return {
     period,

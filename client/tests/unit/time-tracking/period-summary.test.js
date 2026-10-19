@@ -269,15 +269,15 @@ describe('Target and Balance', () => {
 
   test('a finished month at 40h has the full Target and Balance = logged − Target', () => {
     const s = summarizePeriod(withEntries, withEntries.timeEntries, OCT, { tz: TZ, now: NOW, weeklyHours: 40 });
-    expect(s.target).toBe(Math.round((40 * H * 31) / 7));
+    expect(s.target).toBe(22 * 8 * H); // 22 workdays Mon–Fri
     expect(s.balance).toBe(10 * H - s.target);
   });
 
   test.each([
-    ['28-day February 2026', 2026, 2, '160:00'],
-    ['29-day February 2028', 2028, 2, '165:43'],
-    ['30-day November 2026', 2026, 11, '171:26'],
-    ['31-day October 2026', 2026, 10, '177:09']
+    ['28-day February 2026 (20 workdays)', 2026, 2, '160:00'],
+    ['29-day February 2028 (21 workdays)', 2028, 2, '168:00'],
+    ['30-day November 2026 (21 workdays)', 2026, 11, '168:00'],
+    ['31-day October 2026 (22 workdays)', 2026, 10, '176:00']
   ])('a finished %s at 40h has a Target of %s', (_, y, m, expected) => {
     const data = { ...tt, timeEntries: [entry('first', 'p1', `${y - 1}-06-01T08:00:00.000Z`, `${y - 1}-06-01T09:00:00.000Z`)] };
     const s = summarizePeriod(data, [], month(y, m), { tz: TZ, now: Date.parse(`${y + 1}-01-15T10:00:00Z`), weeklyHours: 40 });
@@ -293,7 +293,7 @@ describe('Target and Balance', () => {
 
   test('the Target starts at the first-ever Time Entry even when only some entries are summarised', () => {
     const s = summarizePeriod(withEntries, [oct20], OCT, { tz: TZ, now: NOW, weeklyHours: 40 });
-    expect(s.target).toBe(Math.round((40 * H * 31) / 7));
+    expect(s.target).toBe(22 * 8 * H);
     expect(s.totalMs).toBe(2 * H);
   });
 
@@ -307,45 +307,46 @@ describe('Target and Balance', () => {
     const allYear = (y) => ({ ...tt, timeEntries: [entry('first', 'p1', `${y - 1}-06-01T08:00:00.000Z`, `${y - 1}-06-01T09:00:00.000Z`)] });
     const yearOf = (y) => periodOf('year', { y, m: 1, d: 1 });
 
-    test('a finished 2026 at 40h is 2085h 43m', () => {
+    test('a finished 2026 at 40h is 2088h (261 workdays)', () => {
       const data = allYear(2026);
       const s = summarizePeriod(data, [], yearOf(2026), { tz: TZ, now: Date.parse('2027-02-01T10:00:00Z'), weeklyHours: 40 });
-      expect(formatDuration(s.target, 'hm')).toBe('2085:43');
+      expect(formatDuration(s.target, 'hm')).toBe('2088:00');
       expect(s.balance).toBe(-s.target);
     });
 
     test.each([
-      ['non-leap 2026', 2026, 40],
-      ['leap 2028', 2028, 40],
-      ['non-leap 2027 with decimal hours', 2027, 38.5],
-      ['leap 2024 with odd hours', 2024, 37.3]
-    ])('the month Targets of %s add up exactly to the year Target', (_, y, weeklyHours) => {
+      ['non-leap 2026', 2026, 40, 261],
+      ['leap 2028', 2028, 40, 260],
+      ['non-leap 2027 with decimal hours', 2027, 38.5, 261],
+      ['leap 2024 with odd hours', 2024, 37.3, 262]
+    ])('the month Targets of %s add up exactly to the year Target', (_, y, weeklyHours, workdays) => {
       const data = allYear(y);
       const options = { tz: TZ, now: Date.parse(`${y + 1}-03-01T10:00:00Z`), weeklyHours };
       const yearTarget = summarizePeriod(data, [], yearOf(y), options).target;
       const monthTargets = Array.from({ length: 12 }, (_, i) => summarizePeriod(data, [], month(y, i + 1), options).target);
       expect(monthTargets.reduce((a, b) => a + b, 0)).toBe(yearTarget);
-      expect(Math.abs(yearTarget - (weeklyHours * H * (y % 4 === 0 ? 366 : 365)) / 7)).toBeLessThanOrEqual(1);
+      expect(Math.abs(yearTarget - (weeklyHours * H * workdays) / 5)).toBeLessThanOrEqual(1);
     });
 
     test('the current year counts "so far", including today', () => {
       const data = allYear(2026);
-      // Thu 12 Nov 2026 in Berlin: 1 Jan – 12 Nov = 316 days
+      // Thu 12 Nov 2026 in Berlin: 1 Jan – 12 Nov = 226 workdays
       const s = summarizePeriod(data, [], yearOf(2026), { tz: TZ, now: Date.parse('2026-11-12T10:00:00Z'), weeklyHours: 35 });
-      expect(s.target).toBe(316 * 5 * H);
+      expect(s.target).toBe(226 * 7 * H);
     });
 
     test('a year counts from the first-ever entry when that falls mid-year', () => {
       const data = { ...tt, timeEntries: [entry('first', 'p1', '2026-11-01T23:30:00.000Z', '2026-11-02T01:00:00.000Z')] }; // Mon 2 Nov 00:30 CET
       const s = summarizePeriod(data, data.timeEntries, yearOf(2026), { tz: TZ, now: Date.parse('2027-01-05T10:00:00Z'), weeklyHours: 35 });
-      expect(s.target).toBe(60 * 5 * H); // 2 Nov – 31 Dec
-      expect(s.balance).toBe(1.5 * H - 60 * 5 * H);
+      expect(s.target).toBe(44 * 7 * H); // 2 Nov – 31 Dec: 44 workdays
+      expect(s.balance).toBe(1.5 * H - 44 * 7 * H);
     });
 
     test('the Balance resets on 1 January: a new year counts only its own days and entries', () => {
       const data = { ...tt, timeEntries: [entry('old', 'p1', '2026-03-02T08:00:00.000Z', '2026-03-02T18:00:00.000Z')] };
       const s = summarizePeriod(data, data.timeEntries, yearOf(2027), { tz: TZ, now: Date.parse('2027-01-02T10:00:00Z'), weeklyHours: 35 });
-      expect(s).toMatchObject({ totalMs: 0, target: 2 * 5 * H, balance: -2 * 5 * H });
+      // Fri 1 – Sat 2 Jan 2027: one workday
+      expect(s).toMatchObject({ totalMs: 0, target: 7 * H, balance: -7 * H });
     });
 
     test('future years and years before the first entry have no Target', () => {

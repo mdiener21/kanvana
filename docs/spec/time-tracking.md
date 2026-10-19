@@ -122,7 +122,7 @@ Constructed through factories in `schema.js`; IDs via `generateUUID()`.
   Target for finished periods and "so far" including today for the current one. Hidden when Weekly
   hours is unset, while a customer or project filter is active, and when the period has no Target
   (future, or entirely before the first Time Entry). For the year this is the year Target and
-  Balance (2026 at 40h: Target 2085h 43m when finished); it resets on 1 January and nothing carries
+  Balance (2026 at 40h over Mon–Fri: Target 2088h 00m when finished); it resets on 1 January and nothing carries
   across years
 - Activating the Time Tracker's "This week" badge opens Reports with Week selected on the current week
 - The switch, previous / next and the badge are at least 44×44px; Reports has no horizontal overflow
@@ -167,23 +167,30 @@ separate from board settings.
 | Timezone | IANA zones | browser zone, else `Europe/Berlin` |
 | Duration format | `h:mm` (7:30), decimal (7.50 h) | `h:mm` |
 | Weekly hours (contract) | number > 0, step 0.5, decimals allowed, no maximum | empty (off) |
+| Workdays | any non-empty set of Mon … Sun (checkboxes) | Mon–Fri |
 
 - Changing the default customer resets the default project to that customer's first active project
 - The timezone controls display and attribution only; changing it never rewrites stored entries
 - Settings show a live preview of the current date, time and a sample duration
 - Weekly hours is a number input (`inputmode="decimal"`); clearing it switches Target and Balance
   off and removes the value from the stored settings. A value of zero or below is not saved.
+- Workdays is a group of seven checkboxes (`Mon` … `Sun`); each tick saves immediately. The last
+  ticked day is disabled so the set can never be empty. A stored value that is missing or invalid
+  resolves to Mon–Fri.
 
 ## Weekly hours, Target and Balance
 
-See the [glossary](../../CONTEXT.md#time-tracking-glossary) for Weekly hours, Target and Balance.
+See the [glossary](../../CONTEXT.md#time-tracking-glossary) for Weekly hours, Workdays, Target and
+Balance.
 
-- Target = Weekly hours ÷ 7 × counted days; counted days run from the later of the period start and
-  the first-ever Time Entry's day to the earlier of the period end and today, inclusive
-- Targets are additive: the Target of a span of days is rounded once from a running day count, so
-  the month Targets of a year (and the days of a week) add up to the millisecond to the year Target,
-  in leap and non-leap years. Worked examples at 40h: week 40h 00m, October 177h 09m, February
-  (28 days) 160h 00m, 2026 2085h 43m
+- Target = Weekly hours ÷ number of Workdays × counted workdays; counted days run from the later of
+  the period start and the first-ever Time Entry's day to the earlier of the period end and today,
+  inclusive, and only Workdays among them add Target
+- Targets are additive: the Target of a span of days is rounded once from a running workday count,
+  so the month Targets of a year (and the days of a week) add up to the millisecond to the year
+  Target, in leap and non-leap years. Worked examples at 40h over Mon–Fri: Monday so far 8h 00m,
+  week 40h 00m, October 2026 (22 workdays) 176h 00m, February 2026 (20 workdays) 160h 00m, 2026
+  (261 workdays) 2088h 00m
 - Weeks run Monday to Sunday in the Time Tracking timezone; entries count toward the period of their
   start (Attribution)
 - Balance = logged − Target; Target and Balance are absent when Weekly hours is unset, for future
@@ -232,13 +239,15 @@ ignored while an input is focused.
   labels, shifting across year boundaries)
   totals and grouping; archive / delete guards; last-used project fallback; Target / Balance for
   finished, current, future and pre-first-entry weeks, decimal Weekly hours and Monday week start
-  across DST
-- DOM: entry bar save flow, filters, edit modal, delete confirmation; Weekly hours input; "This week"
+  across DST; Workdays (default Mon–Fri, weekends add no Target, custom sets, invalid values)
+- DOM: entry bar save flow, filters, edit modal, delete confirmation; Weekly hours input; Workdays
+  checkboxes (default, save, last day locked, sync); "This week"
   badge visibility and live updates; Reports Week | Month switch, navigation and persisted choice,
   week chart and table, balance card values, sign / colour and visibility rules; badge opens the
   current week
 - E2E: full keyboard-only flow (add → select → edit → duplicate → delete → reports month switch) playwright-cli, playwright tests.
-- E2E (desktop): set Weekly hours → log entries → correct Balance for week and month
+- E2E (desktop): set Weekly hours → log entries → correct Balance for week and month; a Monday at
+  40h shows an 8h Target, and unticking Friday raises it to 10h
 - E2E (Pixel 5): tap edit and delete on a row without hover; controls measure at least 44×44px; tap
   the badge to land on the current week with touch-sized period controls and no horizontal overflow
 

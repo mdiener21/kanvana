@@ -28,10 +28,10 @@ test('on a phone, Weekly hours turns on a touch-sized "This week" badge that fit
 
   await page.locator('#tt-nav-settings').tap();
   const weeklyHours = page.locator('#tt-section-settings').getByLabel('Weekly hours (contract)');
-  await weeklyHours.fill('35');
+  await weeklyHours.fill('25');
   await weeklyHours.press('Tab');
 
-  // First entry today: 1 counted day = 35 / 7 = 5h Target, 6h logged
+  // First entry today (Thursday): 1 counted workday = 25 / 5 = 5h Target, 6h logged
   await page.locator('#tt-nav-tracker').tap();
   await expect(badge).toBeVisible();
   await expect(badge).toHaveText(/This week\s*\+1:00/);
@@ -57,7 +57,7 @@ test('on a phone, tapping the "This week" badge opens Reports on the current wee
   await logTodayOnPhone(page, '6h');
   await page.locator('#tt-nav-settings').tap();
   const weeklyHours = page.locator('#tt-section-settings').getByLabel('Weekly hours (contract)');
-  await weeklyHours.fill('35');
+  await weeklyHours.fill('25');
   await weeklyHours.press('Tab');
   await page.locator('#tt-nav-tracker').tap();
 
@@ -94,7 +94,7 @@ test('on a phone, the Year view with 12 monthly bars and its Balance fit the scr
   await logTodayOnPhone(page, '6h');
   await page.locator('#tt-nav-settings').tap();
   const weeklyHours = page.locator('#tt-section-settings').getByLabel('Weekly hours (contract)');
-  await weeklyHours.fill('35');
+  await weeklyHours.fill('25');
   await weeklyHours.press('Tab');
 
   await page.locator('#tt-nav-reports').tap();

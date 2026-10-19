@@ -232,8 +232,9 @@ export function mountReportsPanel(container, {
     if (followsCurrentPeriod) period = currentPeriod(kind, prefs.now, prefs.tz);
     filter.refresh();
     const activeFilter = filter.getFilter();
+    const { weeklyHours, workdays } = getSettings();
     summary = summarizePeriod(tt, filterEntries(tt, activeFilter), period, {
-      tz: prefs.tz, now: prefs.now, weeklyHours: getSettings().weeklyHours
+      tz: prefs.tz, now: prefs.now, weeklyHours, workdays
     });
     const name = summary.label;
     label.textContent = name;

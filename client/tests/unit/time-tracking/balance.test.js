@@ -21,16 +21,16 @@ describe('periodBalance — Target', () => {
 
   test('the current week counts "so far", including today', () => {
     const entries = [entry('a', '2026-10-01T08:00:00.000Z', 8)];
-    // Thursday 15 Oct, 23:30 Berlin (21:30 UTC): Mon–Thu = 4 days
+    // Thursday 15 Oct, 23:30 Berlin (21:30 UTC): Mon–Thu = 4 workdays
     const result = periodBalance(entries, W42, { now: at('2026-10-15T21:30:00Z'), tz: TZ, weeklyHours: 35 });
-    expect(result.targetMs).toBe(20 * H);
+    expect(result.targetMs).toBe(28 * H);
   });
 
   test('the Target starts on the day of the first-ever Time Entry when that falls mid-week', () => {
-    // First entry Wednesday 14 Oct 00:30 Berlin (13 Oct 22:30 UTC): Wed–Sun = 5 days
+    // First entry Wednesday 14 Oct 00:30 Berlin (13 Oct 22:30 UTC): Wed–Fri = 3 workdays
     const entries = [entry('later', '2026-10-16T08:00:00.000Z', 2), entry('first', '2026-10-13T22:30:00.000Z', 1)];
     const result = periodBalance(entries, W42, { now: at('2026-11-01T10:00:00Z'), tz: TZ, weeklyHours: 35 });
-    expect(result.targetMs).toBe(25 * H);
+    expect(result.targetMs).toBe(21 * H);
   });
 
   test('a future week has no Target or Balance', () => {
@@ -56,13 +56,46 @@ describe('periodBalance — Target', () => {
     expect(result).toEqual({ loggedMs: 8 * H, targetMs: null, balanceMs: null });
   });
 
-  test('decimal Weekly hours spread evenly over the counted days', () => {
+  test('decimal Weekly hours spread evenly over the counted workdays', () => {
     const entries = [entry('a', '2026-10-01T08:00:00.000Z', 8)];
     const full = periodBalance(entries, W42, { now: at('2026-10-20T10:00:00Z'), tz: TZ, weeklyHours: 38.5 });
     expect(full.targetMs).toBe(38.5 * H);
-    // Mon–Tue so far: 38.5 / 7 × 2 = 11h
+    // Mon–Tue so far: 38.5 / 5 × 2 = 15h 24m
     const soFar = periodBalance(entries, W42, { now: at('2026-10-13T10:00:00Z'), tz: TZ, weeklyHours: 38.5 });
-    expect(soFar.targetMs).toBe(11 * H);
+    expect(soFar.targetMs).toBe(15.4 * H);
+  });
+});
+
+describe('periodBalance — Workdays', () => {
+  const MON_FRI = [1, 2, 3, 4, 5];
+
+  test('a Monday so far at 40h over Mon–Fri has a Target of 8h', () => {
+    const entries = [entry('a', '2026-10-12T07:00:00.000Z', 7 + 35 / 60)];
+    const result = periodBalance(entries, W42, { now: at('2026-10-12T15:00:00Z'), tz: TZ, weeklyHours: 40, workdays: MON_FRI });
+    expect(result.targetMs).toBe(8 * H);
+    expect(result.balanceMs).toBe(-25 * 60000);
+  });
+
+  test('non-workdays add no Target, so the weekend keeps the Friday Target and work on it is surplus', () => {
+    const entries = [entry('first', '2026-10-01T08:00:00.000Z', 8), entry('sat', '2026-10-17T08:00:00.000Z', 2)];
+    const options = { tz: TZ, weeklyHours: 40, workdays: MON_FRI };
+    const friday = periodBalance(entries, W42, { ...options, now: at('2026-10-16T15:00:00Z') });
+    const saturday = periodBalance(entries, W42, { ...options, now: at('2026-10-17T15:00:00Z') });
+    expect(friday.targetMs).toBe(40 * H);
+    expect(saturday).toMatchObject({ targetMs: 40 * H, balanceMs: -38 * H });
+  });
+
+  test('a first-ever entry on a weekend leaves that week without Target until the next workday', () => {
+    const entries = [entry('sat', '2026-10-17T08:00:00.000Z', 2)];
+    const result = periodBalance(entries, W42, { now: at('2026-10-20T10:00:00Z'), tz: TZ, weeklyHours: 40, workdays: MON_FRI });
+    expect(result).toMatchObject({ loggedMs: 2 * H, targetMs: 0, balanceMs: 2 * H });
+  });
+
+  test('custom workdays spread the Weekly hours over only those days', () => {
+    const entries = [entry('a', '2026-10-01T08:00:00.000Z', 8)];
+    const options = { tz: TZ, weeklyHours: 32, workdays: [1, 2, 3, 4] };
+    expect(periodBalance(entries, W42, { ...options, now: at('2026-10-12T15:00:00Z') }).targetMs).toBe(8 * H);
+    expect(periodBalance(entries, W42, { ...options, now: at('2026-10-20T10:00:00Z') }).targetMs).toBe(32 * H);
   });
 });
 
@@ -75,8 +108,8 @@ describe('periodBalance — Balance', () => {
 
   test('Balance is negative for a deficit', () => {
     const entries = [entry('a', '2026-10-12T07:00:00.000Z', 3)];
-    // Monday so far: 28 / 7 = 4h target
-    const result = periodBalance(entries, W42, { now: at('2026-10-12T15:00:00Z'), tz: TZ, weeklyHours: 28 });
+    // Monday so far: 20 / 5 = 4h target
+    const result = periodBalance(entries, W42, { now: at('2026-10-12T15:00:00Z'), tz: TZ, weeklyHours: 20 });
     expect(result.balanceMs).toBe(-1 * H);
   });
 

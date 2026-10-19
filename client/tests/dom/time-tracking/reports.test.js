@@ -46,7 +46,7 @@ function fakeChart() {
   return { setOption: vi.fn(), resize: vi.fn(), dispose: vi.fn() };
 }
 
-function mount({ durationFormat = 'h:mm', weeklyHours = null } = {}) {
+function mount({ durationFormat = 'h:mm', weeklyHours = null, workdays = [1, 2, 3, 4, 5] } = {}) {
   state = makeState();
   prefs = { tz: 'Europe/Berlin', dateFormat: 'DD.MM.YYYY', timeFormat: '24h', durationFormat, now: Date.parse('2026-10-12T10:00:00Z') };
   const host = mountToBody('<section id="host"></section>').querySelector('#host');
@@ -54,7 +54,7 @@ function mount({ durationFormat = 'h:mm', weeklyHours = null } = {}) {
   panel = mountReportsPanel(host, {
     getPrefs: () => prefs,
     getTimeTracking: () => state,
-    getSettings: () => ({ weeklyHours }),
+    getSettings: () => ({ weeklyHours, workdays }),
     createChart: () => { const chart = fakeChart(); charts.push(chart); return chart; }
   });
   panel.show();
@@ -358,25 +358,35 @@ describe('week view', () => {
 });
 
 describe('balance card', () => {
-  test('a finished month at 40h shows Logged, the full Target and a signed Balance (October: 177h 09m)', () => {
+  test('a finished month at 40h shows Logged, the full Target and a signed Balance (October: 22 workdays, 176h)', () => {
     mount({ weeklyHours: 40 });
     prefs.now = Date.parse('2026-11-16T10:00:00Z');
     panel.show();
     panel.prevPeriod();
     expect(periodLabel().textContent).toBe('October 2026');
     expect(cardValue('Logged').textContent).toBe('8:30');
-    expect(cardValue('Target').textContent).toBe('177:09');
-    expect(cardValue('Balance').textContent).toBe('−168:39');
+    expect(cardValue('Target').textContent).toBe('176:00');
+    expect(cardValue('Balance').textContent).toBe('−167:30');
+    expect(cardValue('Balance').classList.contains('is-deficit')).toBe(true);
+  });
+
+  test('a Monday at 40h over Mon–Fri has a Target of 8:00 so far', () => {
+    mount({ weeklyHours: 40 });
+    addEntries(entry('mon', 'p1', '2026-10-12T06:00:00.000Z', '2026-10-12T13:35:00.000Z'));
+    fireEvent.click(periodButton('Week'));
+    expect(cardValue('Logged').textContent).toBe('7:35');
+    expect(cardValue('Target').textContent).toBe('8:00');
+    expect(cardValue('Balance').textContent).toBe('−0:25');
     expect(cardValue('Balance').classList.contains('is-deficit')).toBe(true);
   });
 
   test('the current week counts the Target so far including today; a surplus is green', () => {
-    mount({ weeklyHours: 40 });
-    addEntries(entry('mon', 'p1', '2026-10-12T06:00:00.000Z', '2026-10-12T14:00:00.000Z'));
+    mount({ weeklyHours: 40, workdays: [1, 2, 3, 4] });
+    addEntries(entry('mon', 'p1', '2026-10-12T06:00:00.000Z', '2026-10-12T17:00:00.000Z'));
     fireEvent.click(periodButton('Week'));
-    expect(cardValue('Logged').textContent).toBe('8:00');
-    expect(cardValue('Target').textContent).toBe('5:43');
-    expect(cardValue('Balance').textContent).toBe('+2:17');
+    expect(cardValue('Logged').textContent).toBe('11:00');
+    expect(cardValue('Target').textContent).toBe('10:00');
+    expect(cardValue('Balance').textContent).toBe('+1:00');
     expect(cardValue('Balance').classList.contains('is-surplus')).toBe(true);
     expect(cardValue('Balance').classList.contains('is-deficit')).toBe(false);
   });
@@ -501,7 +511,7 @@ describe('Year period', () => {
 });
 
 describe('year balance card', () => {
-  test('a finished 2026 at 40h has a Target of 2085h 43m', () => {
+  test('a finished 2026 at 40h has a Target of 2088h (261 workdays)', () => {
     mount({ weeklyHours: 40 });
     addEntries(entry('jan1', 'p1', '2026-01-01T08:00:00.000Z', '2026-01-01T10:00:00.000Z'));
     prefs.now = Date.parse('2027-01-10T10:00:00Z');
@@ -509,17 +519,17 @@ describe('year balance card', () => {
     panel.prevPeriod();
     expect(periodLabel().textContent).toBe('2026');
     expect(cardValue('Logged').textContent).toBe('11:45');
-    expect(cardValue('Target').textContent).toBe('2085:43');
-    expect(cardValue('Balance').textContent).toBe('−2073:58');
+    expect(cardValue('Target').textContent).toBe('2088:00');
+    expect(cardValue('Balance').textContent).toBe('−2076:15');
     expect(cardValue('Balance').classList.contains('is-deficit')).toBe(true);
   });
 
   test('the current year counts so far, from the first entry when that falls mid-year', () => {
     mount({ weeklyHours: 40 });
     fireEvent.click(periodButton('Year'));
-    // 10 Sep (first entry) – 12 Oct (today) = 33 days × 40h / 7
-    expect(cardValue('Target').textContent).toBe('188:34');
-    expect(cardValue('Balance').textContent).toBe('−178:49');
+    // 10 Sep (first entry) – 12 Oct (today) = 23 workdays × 8h
+    expect(cardValue('Target').textContent).toBe('184:00');
+    expect(cardValue('Balance').textContent).toBe('−174:15');
   });
 
   test('the Balance resets on 1 January', () => {
@@ -528,8 +538,9 @@ describe('year balance card', () => {
     fireEvent.click(periodButton('Year'));
     expect(periodLabel().textContent).toBe('2027');
     expect(cardValue('Logged').textContent).toBe('0:00');
-    expect(cardValue('Target').textContent).toBe('10:00');
-    expect(cardValue('Balance').textContent).toBe('−10:00');
+    // Fri 1 – Sat 2 Jan 2027: one workday
+    expect(cardValue('Target').textContent).toBe('7:00');
+    expect(cardValue('Balance').textContent).toBe('−7:00');
   });
 
   test('is hidden when filtered, for a future year and for a year before the first entry', () => {
