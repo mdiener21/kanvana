@@ -202,7 +202,7 @@ manual push/pull); the header **sync-state indicator** shows `Live` / `Syncing�
 
 | Module | Responsibility |
 |---|---|
-| `sync.js` | PocketBase SDK instance + auth functions (`isAuthenticated`, `ensureAuthenticated`, `loginUser`, `registerUser`, `logoutUser`, `loginWithProvider`) |
+| `sync.js` | PocketBase SDK instance (`getPb`) + auth only (`isAuthenticated`, `ensureAuthenticated`, `getUser`, `loginUser`, `registerUser`, `logoutUser`, `loginWithProvider`, `refreshAuth`, `initAuthRefresh`) |
 | `authsync.js` | Auth UI — login modal, OAuth2 (Google/Apple/Microsoft), logout, backend health probe |
 | `event-sourcing/sync-queue.js` | **Outbound** — drains unsynced events to the PB `events` collection in HLC order (debounce, in-flight cap, three-tier retry, no rollback); `getSyncStatus()` |
 | `event-sourcing/ingest.js` | **Ingest interface** — `ingestEvent(event, { origin, receivedAt })`, the single entry point of the event log for local and remote events (catch-up uses `ingestRemoteBatch(items)`, which validates and sorts once and returns the events not stored before): validate, observe the remote HLC (remote only), project, `DATA_CHANGED`, `EVENT_EMITTED`, persist (`synced` = origin is `remote`) |
@@ -224,12 +224,9 @@ newer than the snapshot stays on screen and stays queued for push, and a snapsho
 event becomes the view: tasks, columns and labels the replaced snapshot held, or that stored events it
 covers created, are dropped unless the new snapshot has them.
 
-> **⚠️ Legacy LWW path (deprecated, being removed).** `sync.js` still exports `pushBoardFull()` /
-> `pullAllBoards()` (whole-record last-write-wins, PR #89) and `autosync.js` still calls
-> `pushBoardFull()` on `kanban-local-change`. These target the legacy per-entity PocketBase collections,
-> which are now **write-locked** (migration `1746100010`) — so this path is effectively defunct.
-> `pullAllBoards()` has no remaining callers. Slated for removal with the legacy collections (issue
-> #116). Do not extend it; new sync work goes through the event stream.
+The event stream (events + snapshots) is the only sync path. The whole-record last-write-wins path
+(PR #89: full-board push/pull, auto-sync, the `kanbanSyncMap` id mapping) was removed in #215;
+`initStorage()` deletes its stale `kanbanSyncMap` and `kanbanAutoSyncEnabled` localStorage keys on boot.
 
 ---
 

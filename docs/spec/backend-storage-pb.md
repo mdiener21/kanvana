@@ -138,10 +138,8 @@ event-sourced migration (`1746100010`) sets their `createRule`/`updateRule`/`del
 (reads kept), and they are scheduled for removal after a 30-day quiet period — **issue #116**. Do not
 write to them. Their schemas remain in `data-models.md` for reference.
 
-The client still carries the matching legacy code — `sync.js` `pushBoardFull()` / `pullAllBoards()` and
-`autosync.js` (wired to `kanban-local-change`). Because the target collections are write-locked, this
-path is effectively defunct (`pullAllBoards` has no callers); it is removed alongside the collections
-in #116. New sync work goes through the event stream only.
+The client no longer calls these collections: the legacy LWW code (full-board push/pull, auto-sync,
+the `kanbanSyncMap` mapping) was removed in #215. New sync work goes through the event stream only.
 
 ## UI
 
@@ -157,7 +155,6 @@ in #116. New sync work goes through the event stream only.
 |---|---|
 | `src/modules/sync.js` | PocketBase SDK init (`getPb`) + auth fns (`isAuthenticated`, `loginUser`, `registerUser`, `logoutUser`, `loginWithProvider`, `ensureAuthenticated`) |
 | `src/modules/authsync.js` | Auth/sync UI orchestration, login modal, backend health probe |
-| `src/modules/autosync.js` | ⚠️ Legacy LWW auto-push (`kanban-local-change` → `pushBoardFull`) — deprecated, targets write-locked collections; removed with #116 |
 | `src/modules/event-sourcing/emitter.js` | `scheduleDomainEvent` — stamp, then ingest with origin `local` |
 | `src/modules/event-sourcing/ingest.js` | `ingestEvent(event, { origin })` — single ingest path: validate, project (sole writer), `DATA_CHANGED`, persist |
 | `src/modules/event-sourcing/hlc.js` | Hybrid Logical Clock + `compareHlc` |
