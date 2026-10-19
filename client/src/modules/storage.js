@@ -22,6 +22,8 @@ const NEWEST_APPLIED_KEY = 'kanvana:ingest:newestAppliedHlc';
 const LEGACY_COLUMNS_KEY = 'kanbanColumns';
 const LEGACY_TASKS_KEY = 'kanbanTasks';
 const LEGACY_LABELS_KEY = 'kanbanLabels';
+// Left behind by the removed whole-record LWW sync path (ADR-0004).
+const LEGACY_SYNC_KEYS = ['kanbanSyncMap', 'kanbanAutoSyncEnabled'];
 
 const DEFAULT_BOARD_ID = 'default';
 // Well-known stable id for the auto-seeded "Default Board". Every fresh device
@@ -467,6 +469,7 @@ export async function initStorage() {
   }
 
   await normalizeIdbState(db);
+  for (const key of LEGACY_SYNC_KEYS) localStorage.removeItem(key);
 
   // Load everything into in-memory state.
   state.boards = safeParseArray(await db.get(KV_STORE, BOARDS_KEY)) || [];
