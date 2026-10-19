@@ -364,3 +364,61 @@ describe('sync-queue push', () => {
     await expect(getSyncStatus()).resolves.toMatchObject({ depth: 1, retrying: true, paused: false });
   });
 });
+
+// #217: the server holds a unique index on (owner, local_id). A second push of
+// an event it already holds (two tabs, or a retry after a lost response) comes
+// back as this exact PocketBase 0.40 body, recorded against a local instance.
+const DUPLICATE_LOCAL_ID_BODY = {
+  data: {
+    local_id: { code: 'validation_not_unique', message: 'Value must be unique.' },
+    owner: { code: 'validation_not_unique', message: 'Value must be unique.' },
+  },
+  message: 'Failed to create record.',
+  status: 400,
+};
+
+describe('sync-queue duplicate rejection (#217)', () => {
+  it('AC-003/AC-005: a unique (owner, local_id) rejection marks the event synced with no retry', async () => {
+    let attempts = 0;
+    server.use(http.post(EVENTS_URL, async () => {
+      attempts += 1;
+      return HttpResponse.json(DUPLICATE_LOCAL_ID_BODY, { status: 400 });
+    }));
+    const calls = [];
+    _setTimingForTesting({ debounceMs: 1, schedule: (ms) => { calls.push(ms); return 0; } });
+
+    setAuth();
+    await persistEvent(makeEvent({ counter: 0, id: 'evt-already-on-server' }));
+    initSyncQueue();
+    emit(EVENT_EMITTED, makeEvent({ counter: 0 }));
+
+    await waitFor(async () => expect((await getUnsyncedEvents()).length).toBe(0));
+    await _settleForTesting();
+    expect(attempts).toBe(1);
+    expect(calls).toEqual([]);
+    await expect(getSyncStatus()).resolves.toMatchObject({ depth: 0, retrying: false, paused: false });
+  });
+
+  it.each([
+    ['a not-unique error on another field', { hlc: { code: 'validation_not_unique', message: 'Value must be unique.' } }],
+    ['a not-unique local_id alongside another validation error', {
+      local_id: { code: 'validation_not_unique', message: 'Value must be unique.' },
+      event_type: { code: 'validation_required', message: 'Cannot be blank.' },
+    }],
+    ['a missing required field', { event_type: { code: 'validation_required', message: 'Cannot be blank.' } }],
+  ])('still treats %s as a permanent failure', async (_label, data) => {
+    server.use(http.post(EVENTS_URL, async () => HttpResponse.json(
+      { data, message: 'Failed to create record.', status: 400 }, { status: 400 },
+    )));
+    const calls = [];
+    _setTimingForTesting({ debounceMs: 1, schedule: (ms) => { calls.push(ms); return 0; } });
+
+    setAuth();
+    await persistEvent(makeEvent({ counter: 0 }));
+    initSyncQueue();
+    emit(EVENT_EMITTED, makeEvent({ counter: 0 }));
+
+    await waitFor(() => expect(calls).toEqual([60 * 60 * 1000]));
+    expect(await getUnsyncedEvents()).toHaveLength(1);
+  });
+});
