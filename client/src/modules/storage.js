@@ -833,7 +833,6 @@ export function saveColumns(columns) {
   const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
   state.columns[boardId] = columns;
   scheduleReadModelPersist(boardId, 'columns', columns);
-  emitLocalChange(boardId, 'column');
 }
 
 // ── Tasks ──────────────────────────────────────────────────────────────────────
@@ -951,11 +950,6 @@ export function loadTasks() {
   return defaults;
 }
 
-function emitLocalChange(boardId, entity) {
-  if (typeof window === 'undefined') return;
-  window.dispatchEvent(new CustomEvent('kanban-local-change', { detail: { boardId, entity } }));
-}
-
 export function saveTasks(tasks) {
   ensureBoardsInitialized();
   const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
@@ -965,7 +959,6 @@ export function saveTasks(tasks) {
   state.tasks[boardId] = normalized;
   taskCacheByBoard.set(boardId, normalized);
   scheduleReadModelPersist(boardId, 'tasks', normalized);
-  emitLocalChange(boardId, 'task');
 }
 
 // Persist a live-task set without destroying the board's task tombstones.
@@ -1000,7 +993,6 @@ export function saveLabels(labels) {
   const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
   state.labels[boardId] = labels;
   scheduleReadModelPersist(boardId, 'labels', labels);
-  emitLocalChange(boardId, 'label');
 }
 
 // ── Settings ───────────────────────────────────────────────────────────────────
