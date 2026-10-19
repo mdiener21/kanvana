@@ -136,7 +136,7 @@ boards in v1.
 
 `boards`, `tasks`, `columns`, `labels`, and `task_relationships` are the old whole-record LWW mirrors.
 The event-sourced migration (`1746100010`) sets the `createRule`/`updateRule`/`deleteRule` of the
-last four to `null` (reads kept), and `1746100014` does the same for `boards` (#216). Events reference
+last four to `null` (reads kept), and `1746100015` does the same for `boards` (#216). Events reference
 boards by their text local UUID, never by relation. They are scheduled for removal after a 30-day quiet period — **issue #116**. Do not
 write to them. Their schemas remain in `data-models.md` for reference.
 
