@@ -1,6 +1,6 @@
 import { renderIcons } from './icons.js';
-import { initializeThemeToggle } from './theme.js';
-import { initStorage, ensureBoardsInitialized, getActiveBoardId, getActiveBoardName } from './storage.js';
+import { bootPage } from './page-boot.js';
+import { ensureBoardsInitialized, getActiveBoardId, getActiveBoardName } from './storage.js';
 import { isDoneColumnId, loadTasks } from './storage.js';
 
 function isoDateOnly(value) {
@@ -243,7 +243,6 @@ function renderDueDateCalendar({ tasks, monthDate, boardId }) {
 }
 
 function main() {
-  initializeThemeToggle();
   ensureBoardsInitialized();
   renderIcons();
 
@@ -278,7 +277,4 @@ function main() {
   update();
 }
 
-initStorage().then(main).catch((err) => {
-  console.error('[Kanvana] Failed to initialise storage for calendar:', err);
-  main();
-});
+bootPage().then(main);

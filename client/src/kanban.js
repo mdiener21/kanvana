@@ -5,18 +5,12 @@ import { renderBoard, setBoardFilterQuery } from './modules/render.js';
 import { initializeModalHandlers } from './modules/modals.js';
 import { showEditModal } from './modules/modals.js';
 import { importTasks } from './modules/importexport.js';
-import { initializeThemeToggle } from './modules/theme.js';
 import { initializeBoardsUI } from './modules/boards.js';
 import { initializeSettingsUI } from './modules/settings.js';
 import { initializeNotifications } from './modules/notifications.js';
-import { initStorage, ensureBoardsInitialized, setActiveBoardId } from './modules/storage.js';
+import { ensureBoardsInitialized, setActiveBoardId } from './modules/storage.js';
+import { bootPage } from './modules/page-boot.js';
 import { initializeSwimLaneControls } from './modules/swimlanes.js';
-import { initializeAuthSyncUI } from './modules/authsync.js';
-import { initAuthRefresh } from './modules/sync.js';
-import { initSyncQueue } from './modules/event-sourcing/sync-queue.js';
-import { initSnapshotSync } from './modules/event-sourcing/snapshot-sync.js';
-import { initRealtime } from './modules/event-sourcing/realtime.js';
-import { initSyncIndicator } from './modules/event-sourcing/sync-indicator.js';
 
 // Add task button listeners
 document.addEventListener('DOMContentLoaded', async () => {
@@ -89,8 +83,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // Load all board data from IDB into memory before any rendering.
-  await initStorage();
+  // Storage, theme, auth and sync are shared by every page; rendering waits for it.
+  await bootPage({ mountAuthUi: true });
 
   // Deep-link support (e.g., from calendar.html): open a task modal by ID.
   const urlParams = new URLSearchParams(window.location.search);
@@ -108,8 +102,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     versionEl.title = `Version ${__APP_VERSION__}`;
   }
 
-  initializeThemeToggle();
-
   // Settings (per-board)
   initializeSettingsUI();
   initializeSwimLaneControls(() => renderBoard());
@@ -124,22 +116,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Boards (create/select + restore last active)
   initializeBoardsUI();
-
-  // Auth/sync UI
-  initAuthRefresh();
-  initializeAuthSyncUI();
-
-  // Event-sourced outbound push queue (drains unsynced events to PocketBase)
-  initSyncQueue();
-
-  // Snapshot upload: push locally-saved snapshots to PB (pre-flight + GC)
-  initSnapshotSync();
-
-  // Inbound sync: SSE realtime subscription + launch/reconnect catch-up pull
-  initRealtime();
-
-  // Header sync-state indicator (Live / Syncing / unsynced / Offline)
-  initSyncIndicator();
 
   // Initialize modal handlers
   initializeModalHandlers();
