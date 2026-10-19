@@ -12,9 +12,9 @@ import { BarChart, HeatmapChart, LineChart } from 'echarts/charts';
 import { CanvasRenderer } from 'echarts/renderers';
 import { renderIcons } from './icons.js';
 import { escapeHtml } from './security.js';
-import { initializeThemeToggle } from './theme.js';
 import { getChartTheme } from './chart-theme.js';
-import { initStorage, ensureBoardsInitialized, getActiveBoardId, getActiveBoardName } from './storage.js';
+import { bootPage } from './page-boot.js';
+import { ensureBoardsInitialized, getActiveBoardId, getActiveBoardName } from './storage.js';
 import { loadColumns, loadTasks } from './storage.js';
 import { isDoneColumn } from './constants.js';
 
@@ -685,7 +685,6 @@ function buildCfdOption({ labels, seriesDefs, boardName }) {
 // ---------------------------------------------------------------------------
 
 function main() {
-  initializeThemeToggle();
   ensureBoardsInitialized();
   renderIcons();
 
@@ -846,7 +845,4 @@ function main() {
   });
 }
 
-initStorage().then(main).catch((err) => {
-  console.error('[Kanvana] Failed to initialise storage for reports:', err);
-  main(); // attempt to render with empty state rather than blank page
-});
+bootPage().then(main);
