@@ -127,15 +127,14 @@ boards in v1.
   `data-models.md`.
 - **`snapshots`** — client-computed projection snapshots (immutable inserts). Fields: `owner`,
   `board_id` (text; null for global), `hlc` (json), `payload` (gzipped **file**), `local_id`.
-- **`boards`** — board metadata; still writable. (Boards are referenced from events by their text local
-  UUID, not by relation.)
 - **`users`** — built-in auth collection.
 
 ### Legacy collections (deprecated, write-locked)
 
-`tasks`, `columns`, `labels`, and `task_relationships` are the old whole-record LWW mirrors. The
-event-sourced migration (`1746100010`) sets their `createRule`/`updateRule`/`deleteRule` to `null`
-(reads kept), and they are scheduled for removal after a 30-day quiet period — **issue #116**. Do not
+`boards`, `tasks`, `columns`, `labels`, and `task_relationships` are the old whole-record LWW mirrors.
+The event-sourced migration (`1746100010`) sets the `createRule`/`updateRule`/`deleteRule` of the
+last four to `null` (reads kept), and `1746100014` does the same for `boards` (#216). Events reference
+boards by their text local UUID, never by relation. They are scheduled for removal after a 30-day quiet period — **issue #116**. Do not
 write to them. Their schemas remain in `data-models.md` for reference.
 
 The client still carries the matching legacy code — `sync.js` `pushBoardFull()` / `pullAllBoards()` and
