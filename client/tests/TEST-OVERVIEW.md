@@ -4,11 +4,11 @@ Generated from test source. Do not edit by hand; run `npm run test:overview` fro
 
 ## Fast Scan
 
-- Test files: 103
-- Test cases: 981
-- Unit files: 45
+- Test files: 105
+- Test cases: 986
+- Unit files: 46
 - DOM integration files: 32
-- E2E files: 24
+- E2E files: 25
 - Performance files: 1
 
 ## How To Use This
@@ -52,6 +52,17 @@ These lists compare source/spec filenames against test file names and test title
 ## Test Files
 
 ## Unit Tests
+
+### Backend Boards Lock
+
+- Path: `tests/unit/backend-boards-lock.test.js`
+- Type: Unit
+- Test count: 4
+
+- `tests/unit/backend-boards-lock.test.js:47` boards lock migration exists
+- `tests/unit/backend-boards-lock.test.js:51` after the migration, boards create/update/delete are admin-only (AC-001)
+- `tests/unit/backend-boards-lock.test.js:58` after the migration, boards list/view stay owner-only (AC-002)
+- `tests/unit/backend-boards-lock.test.js:65` rolling the migration back restores the owner rules (AC-003)
 
 ### Backend Event Schema
 
@@ -1540,6 +1551,14 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/e2e/dragdrop.spec.js:55` Drag and Drop Performance > should drag task from In Progress to Done
 - `tests/e2e/dragdrop.spec.js:82` Drag and Drop Performance > should handle multiple consecutive drops
 - `tests/e2e/dragdrop.spec.js:102` Drag and Drop Performance > should show "Show more" button when Done column has many tasks
+
+### Boards Locked Collection
+
+- Path: `tests/e2e/event-sourcing/boards-locked-collection.spec.ts`
+- Type: End-to-End
+- Test count: 1
+
+- `tests/e2e/event-sourcing/boards-locked-collection.spec.ts:70` boards created, renamed and deleted still sync with the boards collection locked
 
 ### Timetracking Convergence
 
