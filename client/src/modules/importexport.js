@@ -2,11 +2,7 @@ import {
   loadTasks,
   loadColumns,
   loadLabels,
-  loadSettings,
-  saveColumns,
-  saveTasks,
-  saveLabels,
-  saveSettings
+  loadSettings
 } from './storage.js';
 
 import { createBoard, getActiveBoardName, listBoards, setActiveBoardId, loadTasksForBoard, loadColumnsForBoard, loadLabelsForBoard, loadSettingsForBoard } from './storage.js';
@@ -639,18 +635,16 @@ export function importTasks(file) {
 
       if (!confirmed) return;
 
+      // createBoard emits the created events, so the import syncs to other devices.
+      // Missing sections fall back to the board defaults.
       const importedName = preview.importedName || 'Imported board';
-      const newBoard = createBoard(importedName);
+      const newBoard = createBoard(importedName, {
+        columns: preview.normalizedColumns ?? undefined,
+        tasks: preview.normalizedTasks,
+        labels: preview.normalizedLabels ?? undefined,
+        settings: preview.normalizedSettings ?? undefined
+      });
       if (newBoard?.id) setActiveBoardId(newBoard.id);
-
-      if (preview.normalizedColumns) saveColumns(preview.normalizedColumns);
-      saveTasks(preview.normalizedTasks);
-      if (preview.normalizedLabels) saveLabels(preview.normalizedLabels);
-      if (preview.normalizedSettings) {
-        // Merge with current defaults (e.g., locale)
-        const current = loadSettings();
-        saveSettings({ ...current, ...preview.normalizedSettings });
-      }
 
       refreshBoardsUI(newBoard?.id);
 
