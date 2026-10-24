@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The board page loads faster. The header logo is now about 4 KB to download instead of 144 KB, with no visible change.
+
 ## [3.4.1] - 2026-10-24
 
 ### Fixed
