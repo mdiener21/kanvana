@@ -13,8 +13,11 @@ import {
   _resetStorageForTesting,
   _flushPersistsForTesting,
   createBoard,
+  deleteBoard,
   listBoards
 } from '../../../src/modules/storage.js';
+import { getUnsyncedEvents } from '../../../src/modules/idb-store.js';
+import { _flushDomainEventsForTesting } from '../../../src/modules/event-sourcing/emitter.js';
 import { EVENT_ORIGIN, ingestEvent } from '../../../src/modules/event-sourcing/ingest.js';
 
 const ingestRemote = (event) => ingestEvent(event, { origin: EVENT_ORIGIN.REMOTE });
@@ -69,4 +72,24 @@ test('the tombstone survives a reload rather than resurrecting from IDB', async 
   await initStorage();
 
   expect(listBoards().map((b) => b.name)).not.toContain('Shared');
+});
+
+test('a board deleted on this device is removed on a second device through its events alone', async () => {
+  createBoard('Keep');
+  const doomed = createBoard('Doomed');
+  await _flushDomainEventsForTesting();
+  deleteBoard(doomed.id);
+  await _flushDomainEventsForTesting();
+  const outbound = await getUnsyncedEvents();
+  expect(outbound.some((e) => e.type === 'board.deleted' && e.entity_id === doomed.id)).toBe(true);
+
+  // Second device: an empty local store that receives the same event log from the server.
+  _resetStorageForTesting();
+  await deleteDB('kanvana-db');
+  await initStorage();
+  for (const event of outbound) await ingestRemote(event);
+  await _flushPersistsForTesting();
+
+  expect(listBoards().map((b) => b.name)).toContain('Keep');
+  expect(listBoards().map((b) => b.name)).not.toContain('Doomed');
 });

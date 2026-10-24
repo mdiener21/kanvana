@@ -123,25 +123,25 @@ boards in v1.
 
 - **`events`** — the event-sourced domain-event log (immutable; no update rule). Fields:
   `owner`, `hlc` (json), `scope`, `entity_id`, `board` (**text** local UUID, not a relation),
-  `event_type`, `at`, `actor_type`, `actor_id`, `payload` (json), `local_id` (dedup). Full table in
-  `data-models.md`.
+  `event_type`, `at`, `actor_type`, `actor_id`, `payload` (json), `local_id` (dedup), `created`
+  (server receipt time). Full table in `data-models.md`. A partial unique index
+  `idx_events_owner_local_id` on `(owner, local_id) WHERE local_id != ''` (migration `1746100014`,
+  #217) rejects a second push of the same event with a `400` whose field errors are
+  `validation_not_unique`; the outbound queue treats exactly that response as "already synced".
 - **`snapshots`** — client-computed projection snapshots (immutable inserts). Fields: `owner`,
   `board_id` (text; null for global), `hlc` (json), `payload` (gzipped **file**), `local_id`.
-- **`boards`** — board metadata; still writable. (Boards are referenced from events by their text local
-  UUID, not by relation.)
 - **`users`** — built-in auth collection.
 
 ### Legacy collections (deprecated, write-locked)
 
-`tasks`, `columns`, `labels`, and `task_relationships` are the old whole-record LWW mirrors. The
-event-sourced migration (`1746100010`) sets their `createRule`/`updateRule`/`deleteRule` to `null`
-(reads kept), and they are scheduled for removal after a 30-day quiet period — **issue #116**. Do not
+`boards`, `tasks`, `columns`, `labels`, and `task_relationships` are the old whole-record LWW mirrors.
+The event-sourced migration (`1746100010`) sets the `createRule`/`updateRule`/`deleteRule` of the
+last four to `null` (reads kept), and `1746100015` does the same for `boards` (#216). Events reference
+boards by their text local UUID, never by relation. They are scheduled for removal after a 30-day quiet period — **issue #116**. Do not
 write to them. Their schemas remain in `data-models.md` for reference.
 
-The client still carries the matching legacy code — `sync.js` `pushBoardFull()` / `pullAllBoards()` and
-`autosync.js` (wired to `kanban-local-change`). Because the target collections are write-locked, this
-path is effectively defunct (`pullAllBoards` has no callers); it is removed alongside the collections
-in #116. New sync work goes through the event stream only.
+The client no longer calls these collections: the legacy LWW code (full-board push/pull, auto-sync,
+the `kanbanSyncMap` mapping) was removed in #215. New sync work goes through the event stream only.
 
 ## UI
 
@@ -157,7 +157,6 @@ in #116. New sync work goes through the event stream only.
 |---|---|
 | `src/modules/sync.js` | PocketBase SDK init (`getPb`) + auth fns (`isAuthenticated`, `loginUser`, `registerUser`, `logoutUser`, `loginWithProvider`, `ensureAuthenticated`) |
 | `src/modules/authsync.js` | Auth/sync UI orchestration, login modal, backend health probe |
-| `src/modules/autosync.js` | ⚠️ Legacy LWW auto-push (`kanban-local-change` → `pushBoardFull`) — deprecated, targets write-locked collections; removed with #116 |
 | `src/modules/event-sourcing/emitter.js` | `scheduleDomainEvent` — stamp, then ingest with origin `local` |
 | `src/modules/event-sourcing/ingest.js` | `ingestEvent(event, { origin })` — single ingest path: validate, project (sole writer), `DATA_CHANGED`, persist |
 | `src/modules/event-sourcing/hlc.js` | Hybrid Logical Clock + `compareHlc` |

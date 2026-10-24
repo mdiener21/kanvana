@@ -1,6 +1,6 @@
 import { test, expect, beforeEach } from 'vitest';
 import { resetLocalStorage } from './setup.js';
-import { createBoard, getActiveBoardId, loadDeletedTasksForBoard, loadTasks, saveColumns, saveLabels, saveSettings, saveTasks } from '../../src/modules/storage.js';
+import { createBoard, loadTasks, saveColumns, saveLabels, saveSettings, saveTasks } from '../../src/modules/storage.js';
 import { addTask, updateTask, deleteTask, moveTaskToTopInColumn, updateTaskPositionsFromDrop } from '../../src/modules/tasks.js';
 
 beforeEach(() => {
@@ -142,67 +142,13 @@ test('deleteTask removes task by ID', () => {
 
 // ── permanent delete ───────────────────────────────────────────────
 
-test('deleteTask permanently removes task from live and deleted task lists by default', () => {
+test('deleteTask permanently removes the task', () => {
   addTask('Task 1', '', 'none', '', 'todo', []);
   const [task] = loadTasks();
 
   deleteTask(task.id);
 
   expect(loadTasks().find(t => t.id === task.id)).toBeUndefined();
-  expect(loadDeletedTasksForBoard(getActiveBoardId()).find(t => t.id === task.id)).toBeUndefined();
-});
-
-test('updateTaskPositionsFromDrop preserves existing task tombstones', () => {
-  saveTasks([
-    { id: 't1', title: 'Live', column: 'todo', order: 1, priority: 'none', labels: [], columnHistory: [{ column: 'todo', at: '2024-01-01T00:00:00.000Z' }] },
-    { id: 't2', title: 'Trash', column: 'todo', order: 2, priority: 'none', labels: [], deleted: true }
-  ]);
-  const item = { dataset: { taskId: 't1' } };
-  const from = { dataset: { column: 'todo' }, closest: () => from };
-  const to = { dataset: { column: 'inprogress' }, closest: () => to };
-  const fromColumn = { dataset: { column: 'todo' }, querySelectorAll: () => [] };
-  const toColumn = { dataset: { column: 'inprogress' }, querySelectorAll: () => [item] };
-  const originalDocument = globalThis.document;
-  globalThis.document = {
-    getElementById: () => null,
-    querySelectorAll: () => [fromColumn, toColumn]
-  };
-
-  try {
-    updateTaskPositionsFromDrop({ from, to, item });
-  } finally {
-    if (originalDocument) {
-      globalThis.document = originalDocument;
-    } else {
-      delete globalThis.document;
-    }
-  }
-
-  expect(loadDeletedTasksForBoard(getActiveBoardId())).toHaveLength(1);
-});
-
-test('purgeDeleted hard-removes task tombstones from storage', async () => {
-  const { purgeDeleted } = await import('../../src/modules/storage.js');
-  saveTasks([
-    { id: 'task-1', title: 'Task 1', column: 'todo', priority: 'none', deleted: true }
-  ]);
-
-  expect(loadDeletedTasksForBoard(getActiveBoardId())).toHaveLength(1);
-
-  purgeDeleted(getActiveBoardId());
-
-  expect(loadDeletedTasksForBoard(getActiveBoardId())).toHaveLength(0);
-});
-
-test('purgeDeleted with { tasks: false } keeps task tombstones', async () => {
-  const { purgeDeleted } = await import('../../src/modules/storage.js');
-  saveTasks([
-    { id: 'task-1', title: 'Task 1', column: 'todo', priority: 'none', deleted: true }
-  ]);
-
-  purgeDeleted(getActiveBoardId(), { tasks: false });
-
-  expect(loadDeletedTasksForBoard(getActiveBoardId())).toHaveLength(1);
 });
 
 // ── updateTaskPositionsFromDrop ─────────────────────────────────────

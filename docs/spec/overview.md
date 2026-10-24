@@ -120,7 +120,6 @@ All canonical specs live under `docs/spec/`. Start here when adding, changing, o
 - `src/modules/labels-modal.js` - label management modal UI
 - `src/modules/impressum.js` - impressum/imprint page logic
 - `src/modules/sync.js` - PocketBase SDK init and auth functions (`isAuthenticated`, `loginUser`, `registerUser`, `logoutUser`, `loginWithProvider`)
-- `src/modules/autosync.js` - debounced auto-push trigger for the event queue
 - `src/modules/authsync.js` - auth/sync UI orchestration, login modal handlers, backend health probe
 
 ### Event sourcing (`src/modules/event-sourcing/`)
