@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.1] - 2026-10-24
+
 ### Fixed
 
 - An imported board now syncs to your other devices. Before, only the empty board with its default columns reached them; the imported columns, tasks, labels and settings stayed on the device that did the import. Boards imported before this fix still don't sync: import the file again and delete the old copy.
