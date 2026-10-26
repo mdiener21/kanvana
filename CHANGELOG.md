@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Updated the PocketBase JS SDK to 0.28.1, which fixes a realtime race when the first connection is made and corrects `pb.filter()` escaping (#198).
 - CI now deploys GitHub Pages with `actions/upload-pages-artifact` v5 and `actions/deploy-pages` v5, which run on Node 24 (#195, #196).
+- Updated Lucide icons to 1.61. Lucide 1.0 removed brand icons, so the "Sign in with Google" button now shows a globe icon instead of the Chrome logo (#199).
 
 ## [3.4.1] - 2026-10-24
 
