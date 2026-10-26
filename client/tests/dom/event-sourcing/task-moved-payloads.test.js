@@ -1,4 +1,4 @@
-import { beforeEach, expect, test } from 'vitest';
+import { beforeEach, expect, test, vi } from 'vitest';
 import { deleteDB } from 'idb';
 import { EVENT_EMITTED, on, off } from '../../../src/modules/events.js';
 import {
@@ -90,14 +90,13 @@ test('a drop to another column emits every task on the board', async () => {
   const item = { dataset: { taskId: 'b' } };
   const from = { dataset: {}, closest: () => ({ dataset: { column: 'todo' } }) };
   const to = { dataset: {}, closest: () => ({ dataset: { column: 'doing' } }) };
-  const originalDocument = globalThis.document;
 
   const events = await movedEvents(() => {
-    globalThis.document = { getElementById: () => null, querySelectorAll: () => [] };
+    vi.stubGlobal('document', { getElementById: () => null, querySelectorAll: () => [] });
     try {
       updateTaskPositionsFromDrop({ item, from, to });
     } finally {
-      globalThis.document = originalDocument;
+      vi.unstubAllGlobals();
     }
   });
 

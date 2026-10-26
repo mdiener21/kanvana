@@ -8,21 +8,26 @@ import { _resetStorageForTesting } from '../../src/modules/storage.js';
 
 const store = {};
 
-globalThis.localStorage = {
-  _store: store,
-  getItem(key) {
-    return Object.prototype.hasOwnProperty.call(this._store, key) ? this._store[key] : null;
+// jsdom 30 exposes localStorage as a getter-only accessor, so plain assignment throws.
+Object.defineProperty(globalThis, 'localStorage', {
+  configurable: true,
+  writable: true,
+  value: {
+    _store: store,
+    getItem(key) {
+      return Object.prototype.hasOwnProperty.call(this._store, key) ? this._store[key] : null;
+    },
+    setItem(key, value) {
+      this._store[key] = String(value);
+    },
+    removeItem(key) {
+      delete this._store[key];
+    },
+    clear() {
+      for (const k in this._store) delete this._store[k];
+    }
   },
-  setItem(key, value) {
-    this._store[key] = String(value);
-  },
-  removeItem(key) {
-    delete this._store[key];
-  },
-  clear() {
-    for (const k in this._store) delete this._store[k];
-  }
-};
+});
 
 if (typeof globalThis.navigator === 'undefined') {
   globalThis.navigator = { language: 'en-US' };
