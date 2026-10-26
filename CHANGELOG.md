@@ -7,10 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Security
-
-- Updated `undici` to 7.30.1 to fix a high-severity TLS certificate validation bypass and a crash caused by TLS renegotiation (CVE-2026-87018) (#229).
-- Updated `vitest` and `@vitest/mocker` to 4.1.12, which handles manual and redirect mocks more strictly (#230).
+## [3.4.2] - 2026-10-26
 
 ### Changed
 
@@ -18,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI now deploys GitHub Pages with `actions/upload-pages-artifact` v5 and `actions/deploy-pages` v5, which run on Node 24 (#195, #196).
 - Updated Lucide icons to 1.61. Lucide 1.0 removed brand icons, so the "Sign in with Google" button now shows a globe icon instead of the Chrome logo (#199).
 - Updated the test tooling to vitest 5, msw 3, jsdom 30 and Playwright 1.64. The test setup now installs its `localStorage` mock and `document` stubs through property definitions, because jsdom 30 makes these window properties read-only (#228).
+
+### Security
+
+- Updated `undici` to 7.30.1 to fix a high-severity TLS certificate validation bypass and a crash caused by TLS renegotiation (CVE-2026-87018) (#229).
+- Updated `vitest` and `@vitest/mocker` to 4.1.12, which handles manual and redirect mocks more strictly (#230).
 
 ## [3.4.1] - 2026-10-24
 
