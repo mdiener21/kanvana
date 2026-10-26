@@ -3,7 +3,7 @@
 // produced. This guards ADR-0005 (reducer is the sole read-model writer) — if
 // an event stream is incomplete, removing the direct save*() write would lose
 // data locally and never propagate the missing change cross-device.
-import { beforeEach, expect, test } from 'vitest';
+import { beforeEach, expect, test, vi } from 'vitest';
 import { deleteDB } from 'idb';
 import { EVENT_EMITTED, on, off } from '../../../src/modules/events.js';
 import {
@@ -138,14 +138,13 @@ test('swimlane drag across priority lanes replays the priority reassignment', as
   const item = { dataset: { taskId: 'task-a' } };
   const from = { dataset: { laneKey: 'none' }, closest: () => ({ dataset: { column: 'todo' } }) };
   const to = { dataset: { laneKey: 'high' }, closest: () => ({ dataset: { column: 'todo' } }) };
-  const originalDocument = globalThis.document;
 
   const events = await collectEvents(() => {
-    globalThis.document = { getElementById: () => ({ dataset: { viewMode: 'swimlanes' } }), querySelectorAll: () => [] };
+    vi.stubGlobal('document', { getElementById: () => ({ dataset: { viewMode: 'swimlanes' } }), querySelectorAll: () => [] });
     try {
       updateTaskPositionsFromDrop({ item, from, to });
     } finally {
-      globalThis.document = originalDocument;
+      vi.unstubAllGlobals();
     }
   });
 
