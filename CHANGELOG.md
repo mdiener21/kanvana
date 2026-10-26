@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Updated `undici` to 7.30.1 to fix a high-severity TLS certificate validation bypass and a crash caused by TLS renegotiation (CVE-2026-87018) (#229).
+- Updated `vitest` and `@vitest/mocker` to 4.1.12, which handles manual and redirect mocks more strictly (#230).
+
+### Changed
+
+- Updated the PocketBase JS SDK to 0.28.1, which fixes a realtime race when the first connection is made and corrects `pb.filter()` escaping (#198).
+- CI now deploys GitHub Pages with `actions/upload-pages-artifact` v5 and `actions/deploy-pages` v5, which run on Node 24 (#195, #196).
+
 ## [3.4.1] - 2026-10-24
 
 ### Fixed
