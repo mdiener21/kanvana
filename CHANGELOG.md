@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.4] - 2026-10-27
+
 ### Added
 
 - The performance suite now measures a fresh signed-in device catching up 400 tasks (800 events) with PocketBase mocked. It records the time until every synced card is shown, the board renders and the read-model writes during the catch-up, and fails when they exceed their budgets. The baseline after the single-render fix is about 18.6 s, 1 render and 6,400 writes (#235).
