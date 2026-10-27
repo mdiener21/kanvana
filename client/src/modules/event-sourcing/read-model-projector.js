@@ -74,19 +74,27 @@ export function createReadModelProjector(ctx) {
     batch ??= { boards: new Set(), newestApplied: false };
   }
 
+  function persistBatch() {
+    const { boards, newestApplied } = batch;
+    if (newestApplied) schedulePersist(newestAppliedKey, { ...state.newestAppliedHlc });
+    if (boards.size) schedulePersist(boardsKey, state.boards);
+    // deleteBoard() drops a board's state and stored read model; saving it now would bring the keys back.
+    const live = [...boards].filter(boardId => boardId in state.tasks);
+    live.forEach(persistBoard);
+    return live;
+  }
+
   // Writes what the batch deferred; the caller awaits the scheduled writes before advancing its watermark.
   function endBatch() {
     if (!batch) return;
-    const { boards, newestApplied } = batch;
+    const live = persistBatch();
     batch = null;
-    if (newestApplied) schedulePersist(newestAppliedKey, { ...state.newestAppliedHlc });
-    if (boards.size) schedulePersist(boardsKey, state.boards);
-    for (const boardId of boards) {
-      // deleteBoard() drops a board's state and stored read model; saving it now would bring the keys back.
-      if (!(boardId in state.tasks)) continue;
-      persistBoard(boardId);
-      scheduleBoardSnapshot(boardId);
-    }
+    live.forEach(scheduleBoardSnapshot);
+  }
+
+  // A tab closed mid catch-up keeps the batch's stored events, which catch-up then skips, so save the board so far.
+  function persistBatchOnPageHide() {
+    if (batch) persistBatch();
   }
 
   function project(event, { batched = false } = {}) {
@@ -265,11 +273,13 @@ export function createReadModelProjector(ctx) {
   function register() {
     if (disconnect) return;
     disconnect = connectProjector({ classify, project, rebuild, foldOntoSnapshot, beginBatch, endBatch });
+    globalThis.addEventListener?.('pagehide', persistBatchOnPageHide);
   }
 
   function reset() {
     appliedBoardlessIds.clear();
     batch = null;
+    globalThis.removeEventListener?.('pagehide', persistBatchOnPageHide);
     disconnect?.();
     disconnect = null;
   }

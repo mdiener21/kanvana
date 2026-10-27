@@ -369,6 +369,37 @@ describe('catch-up pull', () => {
     expect(savedDuringBatch.tasks.map(t => t.title)).toContain('Written offline');
   });
 
+  it('saves the boards a catch-up has touched so far when the page is hidden', async () => {
+    server.use(http.get(EVT_LIST, () => listResponse([
+      record({ local_id: 'b', h: hlc(1), payload: { board: { name: 'Remote' } } }),
+      ...Array.from({ length: 10 }, (_, i) => ({
+        ...record({ local_id: `t${i}`, type: 'task.created', h: hlc(i + 2), payload: { task: { title: `Task ${i}`, column: 'todo' } } }),
+        entity_id: `task-${i}`,
+      })),
+    ])));
+    setAuth();
+
+    let caughtUp = false;
+    let savedOnHide;
+    const hideOnce = (e) => {
+      if (e.detail.id !== 't4') return;
+      off(EVENT_EMITTED, hideOnce);
+      queueMicrotask(async () => {
+        window.dispatchEvent(new Event('pagehide'));
+        await _flushPersistsForTesting();
+        const db = await openStore();
+        savedOnHide = { caughtUp, tasks: await db.get('read_model', 'board-1:tasks') };
+      });
+    };
+    on(EVENT_EMITTED, hideOnce);
+    const done = catchUp().then(() => { caughtUp = true; });
+    await waitFor(() => expect(savedOnHide).toBeDefined());
+    await done;
+
+    expect(savedOnHide.caughtUp).toBe(false);
+    expect(savedOnHide.tasks.map(t => t.title)).toContain('Task 4');
+  });
+
   it('a reload after a catch-up shows the same board', async () => {
     const board = 'b0a4d000-0000-4000-8000-000000000237';
     const doing = 'a6bd8bf6-220d-44ed-82db-77d8133573a1';
