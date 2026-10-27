@@ -5,6 +5,7 @@ import {
   MOVES_PER_REPETITION,
   PERFORMANCE_BACKFILL_SCENARIOS,
   PERFORMANCE_CALIBRATION,
+  PERFORMANCE_CATCHUP_SCENARIOS,
   PERFORMANCE_CI_BUDGETS,
   PERFORMANCE_REPETITIONS,
   PERFORMANCE_SCENARIOS,
@@ -475,6 +476,213 @@ for (const scenario of PERFORMANCE_BACKFILL_SCENARIOS) {
     if (!PERFORMANCE_CALIBRATION) {
       for (const [metric, limit] of Object.entries(scenario.budget)) {
         expect(metrics[metric], `${metric} exceeded its ${taskCount}/backfill budget`).toBeLessThanOrEqual(limit);
+      }
+    }
+  });
+}
+
+// The well-known default board every fresh device seeds, so pulled events land on the board on screen.
+const CATCHUP_BOARD_ID = '00000000-0000-4000-8000-000000000001';
+const CATCHUP_TODO_COLUMN_ID = '00000000-0000-4000-8000-000000000010';
+const CATCHUP_TASK_NAMESPACE = 0x235;
+const CATCHUP_TASK_ID_PREFIX = CATCHUP_TASK_NAMESPACE.toString(16).padStart(8, '0');
+const PB_USER = { id: 'perfcatchupuser1', collectionId: '_pb_users_auth_', collectionName: 'users', email: 'perf@example.test', name: 'Perf', verified: true };
+
+function base64UrlJson(value) {
+  return Buffer.from(JSON.stringify(value)).toString('base64url');
+}
+
+// The SDK only checks the payload's exp; the mocked server never verifies the signature.
+const PB_TOKEN = `${base64UrlJson({ alg: 'HS256', typ: 'JWT' })}.${base64UrlJson({ id: PB_USER.id, type: 'auth', collectionId: PB_USER.collectionId, exp: 4102444800 })}.perf`;
+
+function catchUpRecord(index, type, entityId, payload, wallTime) {
+  const at = new Date(wallTime).toISOString();
+  return {
+    id: `perfrec${String(index).padStart(8, '0')}`,
+    collectionName: 'events',
+    local_id: deterministicUuid(0xe235, index + 1),
+    event_type: type,
+    hlc: { wallTime, counter: 0, nodeId: 'perf-remote-device' },
+    at,
+    actor_type: 'human',
+    actor_id: PB_USER.id,
+    scope: 'board',
+    board: CATCHUP_BOARD_ID,
+    entity_id: entityId,
+    payload,
+    owner: PB_USER.id,
+    created: at.replace('T', ' '),
+  };
+}
+
+// Stamped when the device first pulls, so they are newer than the board the device seeded at
+// boot and project in order. History older than that seed takes the late-event rebuild path
+// instead, which is not what this scenario measures. Too recent for a snapshot to be due.
+function createCatchUpRecords(taskCount, startedAt) {
+  const records = [];
+  for (let index = 0; index < taskCount; index += 1) {
+    const taskId = deterministicUuid(CATCHUP_TASK_NAMESPACE, index + 1);
+    const createdAt = startedAt + index * 2;
+    const created = new Date(createdAt).toISOString();
+    const task = createTask({
+      id: taskId,
+      title: `Synced task ${String(index + 1).padStart(4, '0')}`,
+      description: `Catch-up fixture item ${index + 1}`,
+      priority: ['low', 'medium', 'high', 'urgent'][index % 4],
+      column: CATCHUP_TODO_COLUMN_ID,
+      order: index + 1,
+      creationDate: created,
+      changeDate: created,
+      columnHistory: [{ column: CATCHUP_TODO_COLUMN_ID, at: created }],
+    });
+    records.push(catchUpRecord(records.length, 'task.created', taskId, { task }, createdAt));
+    const edited = new Date(createdAt + 1).toISOString();
+    records.push(catchUpRecord(records.length, 'task.updated', taskId, { fields: { description: `Edited catch-up item ${index + 1}`, changeDate: edited } }, createdAt + 1));
+  }
+  return records;
+}
+
+// Everything off localhost is aborted (the production build loads an analytics script).
+async function mockPocketBase(context, taskCount) {
+  const unmocked = [];
+  let records = null;
+  let created = 0;
+  await context.route((url) => !['127.0.0.1', 'localhost'].includes(url.hostname), (route) => route.abort());
+  await context.route('**/api/**', async (route) => {
+    const request = route.request();
+    const method = request.method();
+    const { pathname, searchParams } = new URL(request.url());
+    const json = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+    if (pathname === '/api/health') return json({ code: 200, message: 'API is healthy.', data: {} });
+    if (pathname === '/api/collections/users/auth-refresh') return json({ token: PB_TOKEN, record: PB_USER });
+    if (pathname === '/api/realtime') return route.fulfill({ status: 204 });
+    const collection = pathname.match(/^\/api\/collections\/(events|snapshots)\/records(?:\/[^/]+)?$/)?.[1];
+    if (collection && method === 'GET') {
+      if (collection === 'events') records ??= createCatchUpRecords(taskCount, Date.now());
+      const items = collection === 'events' ? records : [];
+      const page = Number(searchParams.get('page') || 1);
+      const perPage = Number(searchParams.get('perPage') || 30);
+      return json({ page, perPage, totalItems: -1, totalPages: -1, items: items.slice((page - 1) * perPage, page * perPage) });
+    }
+    if (collection && method === 'POST') {
+      created += 1;
+      let body = {};
+      try { body = request.postDataJSON() ?? {}; } catch { body = {}; }
+      return json({ ...body, id: `perfcreated${String(created).padStart(7, '0')}`, collectionName: collection });
+    }
+    if (collection && method === 'DELETE') return route.fulfill({ status: 204 });
+    unmocked.push(`${method} ${pathname}`);
+    return json({ message: 'Not mocked by the performance harness.' }, 404);
+  });
+  return unmocked;
+}
+
+// Runs before the app: signs the device in, stands in for the realtime stream, and counts
+// read-model writes at the IndexedDB boundary so the count survives changes to how the
+// projector schedules them. A read-model write is one put() or delete() on the read_model
+// store, or on the kv keys the projector also owns: the board list, a board's settings and
+// the newest-applied HLC map.
+function installCatchUpInstrumentation({ token, user }) {
+  globalThis.__kanvanaPerfMarks = true;
+  localStorage.setItem('pocketbase_auth', JSON.stringify({ token, record: user }));
+
+  const writes = [];
+  globalThis.__kanvanaReadModelWrites = writes;
+  const kvReadModelKey = (key) => key === 'kanbanBoards'
+    || key === 'kanvana:ingest:newestAppliedHlc'
+    || (typeof key === 'string' && /^kanbanBoard:.+:settings$/.test(key));
+  for (const method of ['put', 'delete']) {
+    const original = IDBObjectStore.prototype[method];
+    IDBObjectStore.prototype[method] = function countReadModelWrite(...args) {
+      const key = method === 'put' ? args[1] : args[0];
+      if (this.name === 'read_model' || (this.name === 'kv' && kvReadModelKey(key))) {
+        writes.push({ at: performance.now(), key: `${this.name}:${String(key)}` });
+      }
+      return original.apply(this, args);
+    };
+  }
+
+  globalThis.EventSource = class FakeEventSource extends EventTarget {
+    constructor(url) {
+      super();
+      this.url = url;
+      this.readyState = 0;
+      setTimeout(() => {
+        this.readyState = 1;
+        this.dispatchEvent(new MessageEvent('PB_CONNECT', { data: '{"clientId":"perf-realtime"}', lastEventId: 'perf-realtime' }));
+      }, 0);
+    }
+
+    close() {
+      this.readyState = 2;
+    }
+  };
+}
+
+// The catch-up starts when the server begins answering the first event pull; the device's
+// own boot (seeding and rendering its default board) comes before that and is not counted.
+async function readCatchUpCounters(page) {
+  return page.evaluate(({ full, reconcile }) => {
+    const pull = performance.getEntriesByType('resource')
+      .find((entry) => new URL(entry.name).pathname === '/api/collections/events/records' && entry.name.includes('page='));
+    const since = pull ? pull.responseStart : Infinity;
+    return {
+      boardRenders: [...performance.getEntriesByName(full), ...performance.getEntriesByName(reconcile)]
+        .filter((mark) => mark.startTime >= since).length,
+      readModelWrites: globalThis.__kanvanaReadModelWrites.filter((write) => write.at >= since).length,
+    };
+  }, { full: FULL_RENDER_MARK, reconcile: RECONCILE_RENDER_MARK });
+}
+
+// Writes are scheduled, not awaited, so the run is over only once nothing moves for a second.
+async function waitForCatchUpToSettle(page) {
+  let previous = await readCatchUpCounters(page);
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    await page.waitForTimeout(1000);
+    const current = await readCatchUpCounters(page);
+    if (current.boardRenders === previous.boardRenders && current.readModelWrites === previous.readModelWrites) return current;
+    previous = current;
+  }
+  throw new Error('catch-up kept rendering or writing for a minute after all cards were shown');
+}
+
+for (const scenario of PERFORMANCE_CATCHUP_SCENARIOS) {
+  const { taskCount } = scenario;
+  test(`${taskCount} tasks (${taskCount * 2} events) catch up on a fresh signed-in device within budget`, async ({ browser }, testInfo) => {
+    test.setTimeout(300_000 * PERFORMANCE_REPETITIONS);
+    const samples = [];
+
+    for (let repetition = 0; repetition < PERFORMANCE_REPETITIONS; repetition += 1) {
+      const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 1440, height: 900 } });
+      try {
+        const unmocked = await mockPocketBase(context, taskCount);
+        await context.addInitScript(installCatchUpInstrumentation, { token: PB_TOKEN, user: PB_USER });
+        const page = await context.newPage();
+
+        await page.goto('/', { waitUntil: 'domcontentloaded' });
+        const allCardsShownMs = await (await page.waitForFunction(({ prefix, count }) => (
+          document.querySelectorAll(`.task[data-task-id^="${prefix}-"]`).length === count ? performance.now() : false
+        ), { prefix: CATCHUP_TASK_ID_PREFIX, count: taskCount }, { polling: 'raf', timeout: 280_000 })).jsonValue();
+        const settled = await waitForCatchUpToSettle(page);
+
+        expect(unmocked, 'the app called PocketBase endpoints the harness does not mock').toEqual([]);
+        samples.push({ allCardsShownMs, ...settled });
+      } finally {
+        await context.close();
+      }
+    }
+
+    const metrics = {
+      allCardsShownMs: median(samples.map((sample) => sample.allCardsShownMs)),
+      boardRenders: Math.max(...samples.map((sample) => sample.boardRenders)),
+      readModelWrites: Math.max(...samples.map((sample) => sample.readModelWrites)),
+    };
+    const result = { scenario: { taskCount, events: taskCount * 2, mode: 'catch-up' }, repetitions: PERFORMANCE_REPETITIONS, metrics: rounded(metrics), baseline: scenario.baseline, budget: scenario.budget };
+    console.log(`KANVANA_PERFORMANCE ${JSON.stringify(result)}`);
+    await testInfo.attach('performance-result', { body: JSON.stringify(result, null, 2), contentType: 'application/json' });
+    if (!PERFORMANCE_CALIBRATION) {
+      for (const [metric, limit] of Object.entries(scenario.budget)) {
+        expect(metrics[metric], `${metric} exceeded its ${taskCount}/catch-up budget`).toBeLessThanOrEqual(limit);
       }
     }
   });

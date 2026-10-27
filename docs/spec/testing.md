@@ -100,7 +100,12 @@ transform makes cold startup swing several hundred percent between runs, which n
 survives. It generates fixed synthetic 400-task and 1,000-task boards in standard and swimlane views.
 Each steady-state scenario runs three cold starts and five real `page.mouse` SortableJS drops per start.
 Separate 400-task and 1,000-task scenarios start without the migration flag and time the real
-event-log backfill. Each scenario prints one `KANVANA_PERFORMANCE` JSON record and attaches the
+event-log backfill. A catch-up scenario signs a fresh device in and pulls 400 tasks / 800 events
+(one `task.created` and one `task.updated` per task) onto the board it shows. PocketBase is mocked
+with `page.route`, the realtime stream is replaced in-page, and every request that would leave
+localhost is aborted (the production build loads an analytics script). The pulled events are stamped
+when the device first pulls, so they are newer than the default board it seeded at boot and project
+in order. Each scenario prints one `KANVANA_PERFORMANCE` JSON record and attaches the
 same JSON to the Playwright result. The smoke check holds an image request open to prove that
 startup timing stops at the board-render mark, before browser `load` finishes.
 CI uploads `client/test-results/performance-report.json` for review after each run.
@@ -126,6 +131,16 @@ CI uploads `client/test-results/performance-report.json` for review after each r
 - `startupBoardRenders` / `steadyStateBoardRenders` — completed full and reconcile renders. The app
   only emits these marks when the harness sets `globalThis.__kanvanaPerfMarks`, so production sessions
   never accumulate an unbounded mark buffer.
+- `allCardsShownMs` (catch-up) — navigation start to the first animation frame in which every synced
+  card is in the DOM.
+- `boardRenders` (catch-up) — full and reconcile render marks from the moment the server starts
+  answering the first event pull. The device's own boot render comes before that and is not counted.
+- `readModelWrites` (catch-up) — `put()` and `delete()` calls on IndexedDB object stores in the same
+  window, counted by wrapping `IDBObjectStore.prototype` before the app loads, so the count does not
+  depend on how the projector schedules or batches them. It counts every call on the `read_model`
+  store, plus calls on the `kv` keys the projector also owns: `kanbanBoards`,
+  `kanbanBoard:<id>:settings` and `kanvana:ingest:newestAppliedHlc`. Event-log, HLC, watermark and
+  sync-queue writes are excluded. Counting stops once renders and writes are unchanged for one second.
 - `browserCrashEvents` — page crashes. A crash aborts the repetition, and the sample is still recorded
   so the budget fails on the crash rather than on whichever call threw first.
 
@@ -179,9 +194,21 @@ Drop and heap budgets carry measured headroom because they move with runner load
 | 400 swimlane | 160 / 165 | 4,726 / 5,000 | 10,069 / 10,600 | 14,795 / 15,600 | 1 | 10 | 0 |
 | 1,000 swimlane | 400 / 405 | 9,286 / 9,800 | 20,869 / 22,000 | 30,155 / 31,700 | 1 | 10 | 0 |
 
+The catch-up baseline was recorded locally on 2026-10-27, after #234, from three runs of three cold
+starts (medians 18,573.6, 18,656.9 and 17,176.7 ms; renders and writes identical in every run). The
+writes are 8 per event: tasks, columns, labels, task tombstones and applied event ids in `read_model`,
+and the board list, board settings and newest-applied HLC in `kv`. The renders budget is the ticket's
+ceiling of 2 for the whole catch-up; writes sit just above baseline and time is about 2x.
+
+| Catch-up scenario | All cards shown baseline / budget (ms) | Renders baseline / budget | Read-model writes baseline / budget |
+|---|---:|---:|---:|
+| 400 tasks / 800 events | 18,573.6 / 37,000 | 1 / 2 | 6,400 / 6,500 |
+
 ### Known limits
 
-- Startup and backfill baselines are local because GitHub has not yet run those revised metrics.
+- The catch-up scenario covers only events newer than the device's own seed. Pulled history older
+  than that seed takes the late-event rebuild path, which this scenario does not measure.
+- Startup, backfill and catch-up baselines are local because GitHub has not yet run those revised metrics.
   Use the manual `performance-calibration.yml` workflow for three independent GitHub-runner samples
   after the workflow reaches the default branch. Its three matrix jobs each upload a JSON report.
 - Swimlane view hides Done, so drops into a large Done column are exercised by the two standard
@@ -191,6 +218,12 @@ To collect a candidate baseline without enforcing the existing thresholds:
 
 ```bash
 KANVANA_PERF_CALIBRATE=1 npm run test:perf
+```
+
+To run only the catch-up scenario:
+
+```bash
+npm run test:perf -- --grep "catch up"
 ```
 
 Set `KANVANA_PERF_RUNS` to a positive integer for additional repetitions. Update
