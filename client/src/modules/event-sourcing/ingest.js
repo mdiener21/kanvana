@@ -20,6 +20,8 @@ export function createSuperseded() {
   return { snapshots: [], events: [] };
 }
 const loggedDrops = new Set();
+let batchDepth = 0;
+let batchChanged = false;
 
 // Until the projector (ADR-0005) connects, events are only persisted, which is what boot-time backfill needs.
 export function connectProjector(next) {
@@ -38,28 +40,54 @@ export function ingestEvent(input, { origin = EVENT_ORIGIN.LOCAL, receivedAt } =
 }
 
 // Catch-up's path: validated and sorted once; resolves to the events not stored before, for its watermark.
+// Every DATA_CHANGED is a full board render, so the batch signals once at the end instead of per event.
 export async function ingestRemoteBatch(items) {
   const valid = items
     .map(({ event, receivedAt }) => ({ event: validateEvent(event), receivedAt }))
     .filter(({ event }) => event)
     .sort((a, b) => compareHlc(a.event.hlc, b.event.hlc));
+  const stored = await storedIds();
   const fresh = [];
-  for (const { event, receivedAt } of valid) {
-    if (await ingestRemote(event, receivedAt)) fresh.push(event);
+  const writes = [];
+  batchDepth += 1;
+  try {
+    for (const { event, receivedAt } of valid) {
+      if (await ingestRemote(event, receivedAt, stored, writes)) fresh.push(event);
+      stored?.add(event.id);
+    }
+    await Promise.all(writes);
+  } finally {
+    batchDepth -= 1;
+    if (batchDepth === 0 && batchChanged) {
+      batchChanged = false;
+      emit(DATA_CHANGED, { batch: true });
+    }
   }
   return fresh;
 }
 
+function signalChanged(detail) {
+  if (batchDepth > 0) batchChanged = true;
+  else emit(DATA_CHANGED, detail);
+}
+
 // The event store, unlike session memory, survives a reload (#178).
-async function ingestRemote(event, receivedAt) {
-  if (await isStored(event.id)) return false;
+// Projection is in memory, so a batch need not wait for each write before the next event; it awaits them all once.
+async function ingestRemote(event, receivedAt, stored, writes) {
+  if (stored?.has(event.id) || await isStored(event.id)) return false;
   if (reachedServerTooLate(event, receivedAt)) {
     logDrop(event);
     return true;
   }
   if (projector?.classify(event) === EVENT_ORDER.LATE && !await foldIntoCoveringSnapshot(event)) return true;
   await observeRemote(event.hlc);
-  await commit(event, EVENT_ORIGIN.REMOTE);
+  const written = commit(event, EVENT_ORIGIN.REMOTE);
+  if (!writes) await written;
+  else {
+    // The batch rethrows a failed write after the loop; this only stops it reading as unhandled meanwhile.
+    written.catch(() => {});
+    writes.push(written);
+  }
   return true;
 }
 
@@ -80,6 +108,11 @@ async function isStored(id) {
   return Boolean(db && await db.get(EVENTS_STORE, id));
 }
 
+async function storedIds() {
+  const db = getDbRef();
+  return db ? new Set(await db.getAllKeys(EVENTS_STORE)) : null;
+}
+
 // The events before a covered event may be gone, so one the snapshot lacks is folded onto the snapshot.
 async function foldIntoCoveringSnapshot(event) {
   const key = snapshotKeyForEvent(event);
@@ -96,7 +129,10 @@ function commit(event, origin) {
   const order = projector?.classify(event);
   // A late local edit still shows at once; the rebuild then puts it in order.
   if (order !== EVENT_ORDER.LATE || origin === EVENT_ORIGIN.LOCAL) {
-    if (projector?.project(event)) emit(DATA_CHANGED, { event });
+    if (projector?.project(event)) {
+      if (origin === EVENT_ORIGIN.LOCAL) emit(DATA_CHANGED, { event });
+      else signalChanged({ event });
+    }
   }
   emit(EVENT_EMITTED, event);
   committedDuringRebuild.get(key)?.set(event.id, event);
@@ -150,7 +186,7 @@ async function runRebuild(key) {
     const snapshot = await loadSnapshot(key);
     const stored = await loadEventsAfter(key, snapshot?.hlc ?? null);
     const pending = [...collected.values()].filter((event) => !snapshot || compareHlc(event.hlc, snapshot.hlc) > 0);
-    if (projector?.rebuild(key, snapshot, [...stored, ...pending], replaced)) emit(DATA_CHANGED, { rebuilt: key });
+    if (projector?.rebuild(key, snapshot, [...stored, ...pending], replaced)) signalChanged({ rebuilt: key });
   } finally {
     committedDuringRebuild.delete(key);
   }
