@@ -1,5 +1,5 @@
 import { expect, test, vi } from 'vitest';
-import { applyEvent, createProjectionState } from '../../../src/modules/reducer.js';
+import { applyEvent, applyEvents, createProjectionState } from '../../../src/modules/reducer.js';
 
 function event(overrides) {
   return {
@@ -272,4 +272,89 @@ test('subtask and relationship events update embedded task collections', () => {
   expect(toggled.tasks[0].subTasks).toEqual([{ id: 'sub-a', text: 'Check', completed: true }]);
   expect(withRelationship.tasks[0].relationships).toEqual([{ type: 'related', targetTaskId: 'task-b' }]);
   expect(withoutRelationship.tasks[0].relationships).toEqual([]);
+});
+
+function hlcAt(wallTime) {
+  return { wallTime, counter: 0, nodeId: 'node-a' };
+}
+
+function richState() {
+  return createProjectionState({
+    boards: [{ id: 'board-a', name: 'Board' }],
+    tasks: [
+      { id: 'task-a', title: 'A', column: 'todo', order: 1, labels: ['label-a'], subTasks: [{ id: 'sub-a', title: 'S', completed: false }], relationships: [], columnHistory: [{ column: 'todo', at: 't0' }] },
+      { id: 'task-b', title: 'B', column: 'todo', order: 2, labels: [], subTasks: [], relationships: [], columnHistory: [] }
+    ],
+    columns: [{ id: 'todo', name: 'To do', order: 1 }, { id: 'done', name: 'Done', order: 2 }],
+    labels: [{ id: 'label-a', name: 'Bug' }],
+    settings: { swimlanes: false },
+    timeTracking: { customers: [{ id: 'cust-a', name: 'Acme' }], projects: [{ id: 'proj-a', customerId: 'cust-a', name: 'Site' }] }
+  });
+}
+
+function mixedEvents() {
+  const list = [
+    event({ id: 'e1', type: 'task.created', entity_id: 'task-c', payload: { task: { title: 'C', column: 'todo', order: 3 } } }),
+    event({ id: 'e2', type: 'task.updated', entity_id: 'task-a', payload: { fields: { title: 'A2' } } }),
+    event({ id: 'e3', type: 'task.moved', entity_id: 'task-a', payload: { order: [{ id: 'task-a', column: 'done', order: 1 }] } }),
+    event({ id: 'e4', type: 'subtask.toggled', entity_id: 'task-a', payload: { subtask_id: 'sub-a', completed: true } }),
+    event({ id: 'e5', type: 'label.added_to_task', entity_id: 'task-b', payload: { label_id: 'label-a' } }),
+    event({ id: 'e6', type: 'relationship.added', entity_id: 'task-b', payload: { relationship: { type: 'related', targetTaskId: 'task-a' } } }),
+    event({ id: 'e7', type: 'task.deleted', entity_id: 'task-c' }),
+    event({ id: 'e8', type: 'task.updated', entity_id: 'task-c', payload: { fields: { title: 'resurrected?' } } }),
+    event({ id: 'e9', type: 'column.created', entity_id: 'doing', payload: { column: { name: 'Doing', order: 3 } } }),
+    event({ id: 'e10', type: 'column.reordered', entity_id: 'doing', payload: { order: [{ id: 'doing', order: 2 }, { id: 'done', order: 3 }] } }),
+    event({ id: 'e11', type: 'label.updated', entity_id: 'label-a', payload: { fields: { name: 'Defect' } } }),
+    event({ id: 'e12', type: 'settings.updated', payload: { fields: { swimlanes: true } } }),
+    event({ id: 'e13', type: 'settings.updated', scope: 'global', board_id: null, payload: { fields: { theme: 'dark' } } }),
+    event({ id: 'e14', type: 'board.updated', entity_id: 'board-a', payload: { fields: { name: 'Renamed' } } }),
+    event({ id: 'e15', type: 'time_entry.created', scope: 'timetracking', board_id: null, entity_id: 'entry-a', payload: { timeEntry: { projectId: 'proj-a', minutes: 30 } } }),
+    event({ id: 'e16', type: 'project.archived', scope: 'timetracking', board_id: null, entity_id: 'proj-a' }),
+    event({ id: 'e17', type: 'customer.deleted', scope: 'timetracking', board_id: null, entity_id: 'cust-a' })
+  ].map((entry, index) => ({ ...entry, hlc: hlcAt(1000 + index) }));
+  return [...list, list[1], list[6]];
+}
+
+test('applying a list of events equals applying them one by one, duplicates and tombstones included', () => {
+  const events = mixedEvents();
+
+  const oneByOne = events.reduce((state, entry) => applyEvent(state, entry), richState());
+  const asList = applyEvents(richState(), events);
+
+  expect(asList).toEqual(oneByOne);
+  expect(asList.tasks.map((task) => task.id)).toEqual(['task-a', 'task-b']);
+  expect(asList.tasks[0]).toMatchObject({ title: 'A2', column: 'done', doneDate: '2026-05-26T00:00:00.000Z' });
+});
+
+test('applying a list of events leaves the input state unchanged', () => {
+  const input = richState();
+  const before = structuredClone(input);
+
+  const next = applyEvents(input, mixedEvents());
+
+  expect(input).toEqual(before);
+  expect(next).not.toBe(input);
+  expect(next.tasks[0]).not.toBe(input.tasks[0]);
+  expect(next.tasks[0].subTasks[0]).not.toBe(input.tasks[0].subTasks[0]);
+  expect(next.appliedEventIds).not.toBe(input.appliedEventIds);
+});
+
+// Copying the state once per event made a list cost tasks x events copies (#238); one copy keeps it linear.
+test('applying a list of events copies the state once, not once per event', () => {
+  const tasks = Array.from({ length: 2000 }, (_, index) => ({
+    id: `task-${index}`, title: 'T', column: 'todo', order: index, labels: ['a', 'b'],
+    subTasks: [{ id: 's1', title: 'x', completed: false }, { id: 's2', title: 'y', completed: true }],
+    relationships: [{ type: 'related', targetTaskId: 'task-0' }],
+    columnHistory: Array.from({ length: 10 }, () => ({ column: 'todo', at: 't0' }))
+  }));
+  const events = Array.from({ length: 2000 }, (_, index) => event({
+    id: `settings-${index}`, type: 'settings.updated', hlc: hlcAt(index), payload: { fields: { n: index } }
+  }));
+
+  const started = performance.now();
+  const next = applyEvents(createProjectionState({ tasks }), events);
+  const elapsed = performance.now() - started;
+
+  expect(next.settings).toEqual({ n: 1999 });
+  expect(elapsed).toBeLessThan(500);
 });

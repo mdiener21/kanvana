@@ -7,6 +7,7 @@ import { deleteDB } from 'idb';
 import { server } from '../../mocks/server.js';
 import { DATA_CHANGED, EVENT_EMITTED, on, off } from '../../../src/modules/events.js';
 import { getPb } from '../../../src/modules/sync.js';
+import { EVENT_ORIGIN, ingestEvent } from '../../../src/modules/event-sourcing/ingest.js';
 import { addTask } from '../../../src/modules/tasks.js';
 import {
   getUnsyncedEvents,
@@ -367,6 +368,35 @@ describe('catch-up pull', () => {
 
     expect(savedDuringBatch.caughtUp).toBe(false);
     expect(savedDuringBatch.tasks.map(t => t.title)).toContain('Written offline');
+  });
+
+  // The batch applies each board's events as one list (#238); a local edit made meanwhile must still see them.
+  it('a local edit made during a catch-up applies on top of the events the batch already took in', async () => {
+    server.use(http.get(EVT_LIST, () => listResponse([
+      record({ local_id: 'b', h: hlc(1), payload: { board: { name: 'Remote' } } }),
+      ...Array.from({ length: 10 }, (_, i) => ({
+        ...record({ local_id: `t${i}`, type: 'task.created', h: hlc(i + 2), payload: { task: { title: `Task ${i}`, column: 'todo' } } }),
+        entity_id: `task-${i}`,
+      })),
+    ])));
+    setAuth();
+
+    let edited;
+    const editOnce = (e) => {
+      if (e.detail.id !== 't9') return;
+      off(EVENT_EMITTED, editOnce);
+      edited = ingestEvent({
+        id: 'local-edit', type: 'task.updated', hlc: hlc(0, Date.now()), at: new Date().toISOString(),
+        actor: { type: 'human', id: null }, scope: 'board', board_id: 'board-1', entity_id: 'task-0',
+        payload: { fields: { title: 'Edited meanwhile' } },
+      }, { origin: EVENT_ORIGIN.LOCAL });
+    };
+    on(EVENT_EMITTED, editOnce);
+    await catchUp();
+    await edited;
+
+    expect(loadTasksForBoard('board-1')).toHaveLength(10);
+    expect(loadTasksForBoard('board-1').find(t => t.id === 'task-0').title).toBe('Edited meanwhile');
   });
 
   it('a reload after a catch-up shows the same board', async () => {

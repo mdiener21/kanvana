@@ -164,12 +164,12 @@ export const PERFORMANCE_BACKFILL_SCENARIOS = [
 
 // A fresh signed-in device catches up one task.created and one task.updated per
 // task on the board it shows (#235), with PocketBase mocked. Baseline recorded locally on
-// 2026-10-27 after #237 (read model saved once per board per catch-up batch); readModelWrites
-// is 8 per batch for the one affected board, not per event.
+// 2026-10-27 after #238 (each board's batch applied to one copy of the board; read model saved
+// once per board per catch-up batch); readModelWrites is 8 per batch for the one affected board.
 export const PERFORMANCE_CATCHUP_SCENARIOS = [
   {
     taskCount: 400,
-    baseline: { allCardsShownMs: 4529.2, boardRenders: 1, readModelWrites: 8 },
-    budget: { allCardsShownMs: 9000, boardRenders: 2, readModelWrites: 16 },
+    baseline: { allCardsShownMs: 2526, boardRenders: 1, readModelWrites: 8 },
+    budget: { allCardsShownMs: 5000, boardRenders: 2, readModelWrites: 16 },
   },
 ];
