@@ -194,15 +194,20 @@ Drop and heap budgets carry measured headroom because they move with runner load
 | 400 swimlane | 160 / 165 | 4,726 / 5,000 | 10,069 / 10,600 | 14,795 / 15,600 | 1 | 10 | 0 |
 | 1,000 swimlane | 400 / 405 | 9,286 / 9,800 | 20,869 / 22,000 | 30,155 / 31,700 | 1 | 10 | 0 |
 
-The catch-up baseline was recorded locally on 2026-10-27, after #234, from three runs of three cold
-starts (medians 18,573.6, 18,656.9 and 17,176.7 ms; renders and writes identical in every run). The
-writes are 8 per event: tasks, columns, labels, task tombstones and applied event ids in `read_model`,
-and the board list, board settings and newest-applied HLC in `kv`. The renders budget is the ticket's
-ceiling of 2 for the whole catch-up; writes sit just above baseline and time is about 2x.
+The catch-up baseline was recorded locally on 2026-10-27, after #237, from three runs of three cold
+starts (medians 3,183.6, 4,529.2 and 5,038.9 ms; renders and writes identical in every run). A remote
+catch-up batch still projects every event in memory at once, but saves the read model of each board
+it touched once, when the batch ends and before the catch-up watermark advances. The 8 writes are one
+each of tasks, columns, labels, task tombstones and applied event ids in `read_model`, and the board
+list, board settings and newest-applied HLC in `kv`, for the one board the scenario syncs. The
+renders budget is the ceiling of 2 for the whole catch-up; writes allow one more full save of the
+board and time is about 2x.
+
+Before #237 the same scenario took 18,573.6 ms and made 6,400 writes (8 per event), after #234.
 
 | Catch-up scenario | All cards shown baseline / budget (ms) | Renders baseline / budget | Read-model writes baseline / budget |
 |---|---:|---:|---:|
-| 400 tasks / 800 events | 18,573.6 / 37,000 | 1 / 2 | 6,400 / 6,500 |
+| 400 tasks / 800 events | 4,529.2 / 9,000 | 1 / 2 | 8 / 16 |
 
 ### Known limits
 

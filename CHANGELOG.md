@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Syncing a board to a new or long-offline device is much faster, and the board no longer blinks while it syncs. The app used to redraw the whole board once for every synced change and wait for each change to be saved before applying the next. It now saves them together and redraws once when the sync is done.
 - Syncing many changes is faster again: the app no longer reads this device's clock id from storage for every synced change, only once per session (#236).
+- Syncing a board to a new device is faster again. While it catches up, the app now saves each board's tasks, columns, labels and settings once when the sync is done, instead of once for every synced change. In the 400-task test this cut the saves from 6,400 to 8 and the time until every card shows from about 18.6 s to about 4.5 s. Your own edits during a sync are still saved at once (#237).
 
 ## [3.4.2] - 2026-10-26
 
