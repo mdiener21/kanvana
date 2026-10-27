@@ -9,26 +9,27 @@ let current = {
   nodeId: null
 };
 
+// Set once current.nodeId is known to match the stored id. A transient id from
+// emitLocalSync() leaves it unset, so the next call still reconciles with storage.
+let nodeIdPersisted = false;
+
 async function ensureNodeId() {
+  if (nodeIdPersisted && current.nodeId) return current.nodeId;
+
   const db = await openStore();
   const stored = await db.get(KV_STORE, HLC_NODE_KEY);
   if (typeof stored === 'string' && stored) {
     current.nodeId = stored;
-    return stored;
-  }
-
-  if (current.nodeId) {
+  } else {
+    current.nodeId ||= crypto.randomUUID();
     await db.put(KV_STORE, current.nodeId, HLC_NODE_KEY);
-    return current.nodeId;
   }
-
-  const nodeId = crypto.randomUUID();
-  await db.put(KV_STORE, nodeId, HLC_NODE_KEY);
-  current.nodeId = nodeId;
-  return nodeId;
+  nodeIdPersisted = true;
+  return current.nodeId;
 }
 
 export async function initHlc() {
+  nodeIdPersisted = false;
   await ensureNodeId();
 }
 
@@ -119,9 +120,11 @@ export function laterHlc(a, b) {
 
 export function _resetHlcForTesting() {
   current = { wallTime: 0, counter: 0, nodeId: null };
+  nodeIdPersisted = false;
 }
 
 export function _setHlcForTesting(next) {
+  nodeIdPersisted = false;
   current = {
     wallTime: Number.isFinite(next?.wallTime) ? next.wallTime : 0,
     counter: Number.isFinite(next?.counter) ? next.counter : 0,
