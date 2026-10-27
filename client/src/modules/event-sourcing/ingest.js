@@ -49,6 +49,8 @@ export async function ingestRemoteBatch(items) {
   const stored = await storedIds();
   const fresh = [];
   const writes = [];
+  const batchProjector = projector;
+  batchProjector?.beginBatch();
   batchDepth += 1;
   try {
     for (const { event, receivedAt } of valid) {
@@ -57,12 +59,15 @@ export async function ingestRemoteBatch(items) {
     }
     await Promise.all(writes);
   } finally {
+    batchProjector?.endBatch();
     batchDepth -= 1;
     if (batchDepth === 0 && batchChanged) {
       batchChanged = false;
       emit(DATA_CHANGED, { batch: true });
     }
   }
+  // The read model the batch deferred is stored before the caller advances its watermark.
+  await flushPendingPersists();
   return fresh;
 }
 
@@ -81,7 +86,7 @@ async function ingestRemote(event, receivedAt, stored, writes) {
   }
   if (projector?.classify(event) === EVENT_ORDER.LATE && !await foldIntoCoveringSnapshot(event)) return true;
   await observeRemote(event.hlc);
-  const written = commit(event, EVENT_ORIGIN.REMOTE);
+  const written = commit(event, EVENT_ORIGIN.REMOTE, { batched: Boolean(writes) });
   if (!writes) await written;
   else {
     // The batch rethrows a failed write after the loop; this only stops it reading as unhandled meanwhile.
@@ -124,12 +129,12 @@ async function foldIntoCoveringSnapshot(event) {
   return true;
 }
 
-function commit(event, origin) {
+function commit(event, origin, { batched = false } = {}) {
   const key = snapshotKeyForEvent(event);
   const order = projector?.classify(event);
   // A late local edit still shows at once; the rebuild then puts it in order.
   if (order !== EVENT_ORDER.LATE || origin === EVENT_ORIGIN.LOCAL) {
-    if (projector?.project(event)) {
+    if (projector?.project(event, { batched })) {
       if (origin === EVENT_ORIGIN.LOCAL) emit(DATA_CHANGED, { event });
       else signalChanged({ event });
     }

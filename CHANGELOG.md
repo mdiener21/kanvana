@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Syncing many changes is faster again: the app no longer reads this device's clock id from storage for every synced change, only once per session (#236).
+- Syncing a board to a new device is faster again. While it catches up, the app now saves each board's tasks, columns, labels and settings once when the sync is done, instead of once for every synced change. In the 400-task test this cut the saves from 6,400 to 8 and the time until every card shows from about 18.6 s to about 4.5 s. Your own edits during a sync are still saved at once (#237).
 
 ## [3.4.3] - 2026-10-27
 

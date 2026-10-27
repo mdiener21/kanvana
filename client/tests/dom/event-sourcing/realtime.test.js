@@ -7,6 +7,7 @@ import { deleteDB } from 'idb';
 import { server } from '../../mocks/server.js';
 import { DATA_CHANGED, EVENT_EMITTED, on, off } from '../../../src/modules/events.js';
 import { getPb } from '../../../src/modules/sync.js';
+import { addTask } from '../../../src/modules/tasks.js';
 import {
   getUnsyncedEvents,
   openStore,
@@ -15,7 +16,12 @@ import {
 } from '../../../src/modules/idb-store.js';
 import {
   initStorage,
+  createBoard,
   listBoards,
+  loadColumnsForBoard,
+  loadLabelsForBoard,
+  loadSettingsForBoard,
+  loadTasksForBoard,
   renameBoard,
   _flushPersistsForTesting,
   _resetStorageForTesting,
@@ -287,6 +293,155 @@ describe('catch-up pull', () => {
 
     expect(listBoards().map(b => b.name)).toContain('Big');
     expect(changes).toBe(1);
+  });
+
+  // The board's full task list was rewritten after every pulled event (#237).
+  it('saves each part of a caught-up board once per batch, not once per event', async () => {
+    const tasks = Array.from({ length: 20 }, (_, i) => ({
+      ...record({ local_id: `t${i}`, type: 'task.created', h: hlc(i + 2), payload: { task: { title: `Task ${i}`, column: 'todo' } } }),
+      entity_id: `task-${i}`,
+    }));
+    server.use(http.get(EVT_LIST, () => listResponse([
+      record({ local_id: 'b', h: hlc(1), payload: { board: { name: 'Big' } } }),
+      ...tasks,
+    ])));
+    setAuth();
+    await _flushPersistsForTesting();
+
+    const writes = new Map();
+    const originalPut = IDBObjectStore.prototype.put;
+    const put = vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (value, key) {
+      if (this.name === 'read_model' || ['kanbanBoards', 'kanbanBoard:board-1:settings', 'kanvana:ingest:newestAppliedHlc'].includes(key)) {
+        writes.set(key, (writes.get(key) ?? 0) + 1);
+      }
+      return originalPut.call(this, value, key);
+    });
+    try {
+      await catchUp();
+      await _flushPersistsForTesting();
+    } finally {
+      put.mockRestore();
+    }
+
+    expect(loadTasksForBoard('board-1')).toHaveLength(20);
+    expect(Object.fromEntries(writes)).toEqual({
+      'board-1:tasks': 1,
+      'board-1:columns': 1,
+      'board-1:labels': 1,
+      'board-1:taskTombstones': 1,
+      'board-1:appliedEventIds': 1,
+      kanbanBoards: 1,
+      'kanbanBoard:board-1:settings': 1,
+      'kanvana:ingest:newestAppliedHlc': 1,
+    });
+  });
+
+  it('saves a local edit made during a catch-up at once, not when the batch ends', async () => {
+    const localBoard = createBoard('Local').id;
+    await _flushPersistsForTesting();
+    server.use(http.get(EVT_LIST, () => listResponse([
+      record({ local_id: 'b', h: hlc(1), payload: { board: { name: 'Remote' } } }),
+      ...Array.from({ length: 10 }, (_, i) => ({
+        ...record({ local_id: `t${i}`, type: 'task.created', h: hlc(i + 2), payload: { task: { title: `Task ${i}`, column: 'todo' } } }),
+        entity_id: `task-${i}`,
+      })),
+    ])));
+    setAuth();
+
+    let caughtUp = false;
+    let savedDuringBatch;
+    const editOnce = (e) => {
+      if (e.detail.id !== 'b') return;
+      off(EVENT_EMITTED, editOnce);
+      queueMicrotask(async () => {
+        addTask('Written offline', '', 'none', '', 'todo');
+        await _flushPersistsForTesting();
+        const db = await openStore();
+        savedDuringBatch = { caughtUp, tasks: await db.get('read_model', `${localBoard}:tasks`) };
+      });
+    };
+    on(EVENT_EMITTED, editOnce);
+    const done = catchUp().then(() => { caughtUp = true; });
+    await waitFor(() => expect(savedDuringBatch).toBeDefined());
+    await done;
+
+    expect(savedDuringBatch.caughtUp).toBe(false);
+    expect(savedDuringBatch.tasks.map(t => t.title)).toContain('Written offline');
+  });
+
+  it('a reload after a catch-up shows the same board', async () => {
+    const board = 'b0a4d000-0000-4000-8000-000000000237';
+    const doing = 'a6bd8bf6-220d-44ed-82db-77d8133573a1';
+    const done = '4918ed87-fd87-4870-ba1c-18e0ffced28a';
+    const keep = 'c0a4d000-0000-4000-8000-000000000001';
+    const gone = 'c0a4d000-0000-4000-8000-000000000002';
+    const pulled = [
+      record({ local_id: 'b', board, h: hlc(1), payload: { board: { name: 'Synced', createdAt: '2026-06-07T00:00:00.000Z' } } }),
+      { ...record({ local_id: 'c', type: 'column.created', board, h: hlc(2), payload: { column: { name: 'Doing', order: 1, color: '#3b82f6', collapsed: false, wipLimit: 0 } } }), entity_id: doing },
+      { ...record({ local_id: 'cd', type: 'column.created', board, h: hlc(2, 1001), payload: { column: { name: 'Done', order: 2, role: 'done', color: '#16a34a', collapsed: false, wipLimit: 0 } } }), entity_id: done },
+      { ...record({ local_id: 'l', type: 'label.created', board, h: hlc(3), payload: { label: { name: 'Bug', color: '#f00', group: '' } } }), entity_id: '95c69be2-84b6-4d83-ab98-c7f239bae63f' },
+      record({ local_id: 's', type: 'settings.updated', board, h: hlc(4), payload: { fields: { showPriority: false, swimLaneCellCollapsedKeys: [], swimLaneCollapsedKeys: [], swimLaneOrder: [] } } }),
+      { ...record({ local_id: 't1', type: 'task.created', board, h: hlc(5), payload: { task: { title: 'Keep', column: doing, labels: [], relationships: [] } } }), entity_id: keep },
+      { ...record({ local_id: 't2', type: 'task.created', board, h: hlc(6), payload: { task: { title: 'Gone', column: doing, labels: [], relationships: [] } } }), entity_id: gone },
+      { ...record({ local_id: 'u1', type: 'task.updated', board, h: hlc(7), payload: { fields: { title: 'Kept' } } }), entity_id: keep },
+      { ...record({ local_id: 'd2', type: 'task.deleted', board, h: hlc(8) }), entity_id: gone },
+    ];
+    server.use(http.get(EVT_LIST, () => listResponse(pulled)));
+    setAuth();
+    await catchUp();
+    const before = {
+      boards: listBoards(),
+      tasks: loadTasksForBoard(board),
+      columns: loadColumnsForBoard(board),
+      labels: loadLabelsForBoard(board),
+      settings: loadSettingsForBoard(board),
+    };
+
+    _resetStorageForTesting();
+    await initStorage();
+
+    expect({
+      boards: listBoards(),
+      tasks: loadTasksForBoard(board),
+      columns: loadColumnsForBoard(board),
+      labels: loadLabelsForBoard(board),
+      settings: loadSettingsForBoard(board),
+    }).toEqual(before);
+    expect(before.tasks.map(t => t.title)).toEqual(['Kept']);
+    const db = await openStore();
+    expect((await db.get('read_model', `${board}:appliedEventIds`)).sort()).toEqual(pulled.map(r => r.local_id).sort());
+    // The tombstone survived the reload: a re-created deleted task stays deleted.
+    await applyRemoteEvent({ ...record({ local_id: 'again', type: 'task.created', board, h: hlc(9), payload: { task: { title: 'Gone', column: doing } } }), entity_id: gone });
+    expect(loadTasksForBoard(board).map(t => t.title)).toEqual(['Kept']);
+  });
+
+  it('advances the catch-up watermark only after the board read model is stored', async () => {
+    server.use(http.get(EVT_LIST, () => listResponse([
+      record({ local_id: 'b', h: hlc(1), payload: { board: { name: 'Synced' } } }),
+      ...Array.from({ length: 5 }, (_, i) => ({
+        ...record({ local_id: `t${i}`, type: 'task.created', h: hlc(i + 2), payload: { task: { title: `Task ${i}`, column: 'todo' } } }),
+        entity_id: `task-${i}`,
+      })),
+    ])));
+    setAuth();
+    await _flushPersistsForTesting();
+
+    const log = [];
+    const originalPut = IDBObjectStore.prototype.put;
+    const put = vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (value, key) {
+      if (key === `${LAST_SEEN_PREFIX}board-1`) log.push('watermark');
+      const request = originalPut.call(this, value, key);
+      if (this.name === 'read_model') request.addEventListener('success', () => log.push(`stored ${key}`));
+      return request;
+    });
+    try {
+      await catchUp();
+    } finally {
+      put.mockRestore();
+    }
+
+    expect(log.at(-1)).toBe('watermark');
+    expect(log).toEqual(expect.arrayContaining(['stored board-1:tasks', 'stored board-1:appliedEventIds']));
   });
 
   it('signals no DATA_CHANGED when the pulled batch is already stored', async () => {
