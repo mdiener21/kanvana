@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.3] - 2026-10-27
+
 ### Fixed
 
 - Syncing a board to a new or long-offline device is much faster, and the board no longer blinks while it syncs. The app used to redraw the whole board once for every synced change and wait for each change to be saved before applying the next. It now saves them together and redraws once when the sync is done.
