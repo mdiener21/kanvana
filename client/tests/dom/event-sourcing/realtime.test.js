@@ -5,7 +5,7 @@ import { http, HttpResponse } from 'msw';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { deleteDB } from 'idb';
 import { server } from '../../mocks/server.js';
-import { EVENT_EMITTED, on, off } from '../../../src/modules/events.js';
+import { DATA_CHANGED, EVENT_EMITTED, on, off } from '../../../src/modules/events.js';
 import { getPb } from '../../../src/modules/sync.js';
 import {
   getUnsyncedEvents,
@@ -265,6 +265,44 @@ describe('catch-up pull', () => {
 
     const db = await openStore();
     expect(await db.get(KV_STORE, `${LAST_SEEN_PREFIX}board-1`)).toEqual(hlc(2));
+  });
+
+  // Each DATA_CHANGED is a full board render; one per pulled event made a large catch-up crawl.
+  it('signals DATA_CHANGED once for the whole pulled batch', async () => {
+    const tasks = Array.from({ length: 30 }, (_, i) => ({
+      ...record({ local_id: `t${i}`, type: 'task.created', h: hlc(i + 2), payload: { task: { title: `Task ${i}`, column: 'todo' } } }),
+      entity_id: `task-${i}`,
+    }));
+    server.use(http.get(EVT_LIST, () => listResponse([
+      record({ local_id: 'b', h: hlc(1), payload: { board: { name: 'Big' } } }),
+      ...tasks,
+    ])));
+    setAuth();
+
+    let changes = 0;
+    const handler = () => { changes += 1; };
+    on(DATA_CHANGED, handler);
+    await catchUp();
+    off(DATA_CHANGED, handler);
+
+    expect(listBoards().map(b => b.name)).toContain('Big');
+    expect(changes).toBe(1);
+  });
+
+  it('signals no DATA_CHANGED when the pulled batch is already stored', async () => {
+    server.use(http.get(EVT_LIST, () => listResponse([
+      record({ local_id: 'b', h: hlc(1), payload: { board: { name: 'Seen' } } }),
+    ])));
+    setAuth();
+    await catchUp();
+
+    let changes = 0;
+    const handler = () => { changes += 1; };
+    on(DATA_CHANGED, handler);
+    await catchUp();
+    off(DATA_CHANGED, handler);
+
+    expect(changes).toBe(0);
   });
 
   it('a poison event among good ones is skipped: good ones applied, poison not persisted, logged once (#181)', async () => {
