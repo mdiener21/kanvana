@@ -56,7 +56,7 @@ jobs:
 
       - name: Upload performance measurements
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: chromium-performance-measurements
           path: client/test-results/performance-report.json
@@ -94,7 +94,7 @@ jobs:
           [ -f client/dist/manifest.webmanifest ] || (echo "ERROR: client/dist/manifest.webmanifest missing" && exit 1)
 
       - name: Upload dist artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-dist
           path: client/dist

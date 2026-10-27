@@ -38,7 +38,7 @@ jobs:
 
       - name: Upload measurements
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: chromium-calibration-${{ matrix.sample }}
           path: client/test-results/performance-report.json
