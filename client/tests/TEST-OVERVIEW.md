@@ -4,9 +4,9 @@ Generated from test source. Do not edit by hand; run `npm run test:overview` fro
 
 ## Fast Scan
 
-- Test files: 108
-- Test cases: 990
-- Unit files: 46
+- Test files: 109
+- Test cases: 994
+- Unit files: 47
 - DOM integration files: 35
 - E2E files: 25
 - Performance files: 1
@@ -171,6 +171,14 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/unit/event-sourcing/board-delete-replay.test.js:48` a board deleted elsewhere does not come back when its events replay
 - `tests/unit/event-sourcing/board-delete-replay.test.js:63` the tombstone survives a reload rather than resurrecting from IDB
 - `tests/unit/event-sourcing/board-delete-replay.test.js:77` a board deleted on this device is removed on a second device through its events alone
+
+### Board Import Convergence
+
+- Path: `tests/unit/event-sourcing/board-import-convergence.test.js`
+- Type: Unit
+- Test count: 1
+
+- `tests/unit/event-sourcing/board-import-convergence.test.js:73` a board import emits events a second device can rebuild the whole board from
 
 ### Board Scaffold Convergence
 
@@ -1066,7 +1074,7 @@ These lists compare source/spec filenames against test file names and test title
 
 - Path: `tests/dom/event-sourcing/realtime.test.js`
 - Type: DOM Integration
-- Test count: 16
+- Test count: 18
 
 - `tests/dom/event-sourcing/realtime.test.js:89` realtime subscription > AC-001: opens exactly one owner-filtered subscription; second call is a no-op
 - `tests/dom/event-sourcing/realtime.test.js:98` realtime subscription > AC-002: stopRealtime closes the subscription
@@ -1081,9 +1089,11 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/dom/event-sourcing/realtime.test.js:222` catch-up pull > fetches boards missed during an automatic SSE reconnect
 - `tests/dom/event-sourcing/realtime.test.js:235` catch-up pull > does not skip a delayed board creation older than the catch-up watermark
 - `tests/dom/event-sourcing/realtime.test.js:250` catch-up pull > AC-005: pulls events > lastSeenHlc, applies in order, advances lastSeenHlc atomically
-- `tests/dom/event-sourcing/realtime.test.js:270` catch-up pull > a poison event among good ones is skipped: good ones applied, poison not persisted, logged once (#181)
-- `tests/dom/event-sourcing/realtime.test.js:299` catch-up pull > ingests timetracking events under their own watermark without touching boards
-- `tests/dom/event-sourcing/realtime.test.js:328` catch-up pull > AC-005/AC-006: re-running catch-up applies nothing new (idempotent overlap)
+- `tests/dom/event-sourcing/realtime.test.js:271` catch-up pull > signals DATA_CHANGED once for the whole pulled batch
+- `tests/dom/event-sourcing/realtime.test.js:292` catch-up pull > signals no DATA_CHANGED when the pulled batch is already stored
+- `tests/dom/event-sourcing/realtime.test.js:308` catch-up pull > a poison event among good ones is skipped: good ones applied, poison not persisted, logged once (#181)
+- `tests/dom/event-sourcing/realtime.test.js:337` catch-up pull > ingests timetracking events under their own watermark without touching boards
+- `tests/dom/event-sourcing/realtime.test.js:366` catch-up pull > AC-005/AC-006: re-running catch-up applies nothing new (idempotent overlap)
 
 ### Replay Fidelity
 
@@ -1194,8 +1204,8 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/dom/event-sourcing/task-moved-payloads.test.js:54` addTask emits the renumbered column with the new task first
 - `tests/dom/event-sourcing/task-moved-payloads.test.js:72` updateTask to another column emits every task on the board
 - `tests/dom/event-sourcing/task-moved-payloads.test.js:89` a drop to another column emits every task on the board
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:118` moveTaskToTopInColumn emits every task on the board
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:135` sortColumnTasks emits the sorted column with the column id as entity id
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:117` moveTaskToTopInColumn emits every task on the board
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:134` sortColumnTasks emits the sorted column with the column id as entity id
 
 ### Msw Example
 
@@ -1789,11 +1799,12 @@ _No executable test cases detected._
 
 - Path: `tests/performance/large-board.spec.js`
 - Type: Performance
-- Test count: 3
+- Test count: 4
 
-- `tests/performance/large-board.spec.js:297` smoke: 400-task standard board renders within startup budget
-- `tests/performance/large-board.spec.js:345` ${scenario.taskCount} tasks in ${scenario.view} view stay within performance budgets
-- `tests/performance/large-board.spec.js:427` ${taskCount} tasks complete event-log backfill within budget
+- `tests/performance/large-board.spec.js:298` smoke: 400-task standard board renders within startup budget
+- `tests/performance/large-board.spec.js:346` ${scenario.taskCount} tasks in ${scenario.view} view stay within performance budgets
+- `tests/performance/large-board.spec.js:428` ${taskCount} tasks complete event-log backfill within budget
+- `tests/performance/large-board.spec.js:651` ${taskCount} tasks (${taskCount * 2} events) catch up on a fresh signed-in device within budget
 
 ## Other Tests
 

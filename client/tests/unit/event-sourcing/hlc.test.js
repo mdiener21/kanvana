@@ -1,7 +1,7 @@
 import { beforeEach, expect, test, vi } from 'vitest';
 import { deleteDB } from 'idb';
 import { resetLocalStorage } from '../setup.js';
-import { compareHlc, laterHlc, emitLocal, observeRemote, MAX_DRIFT_MS, _resetHlcForTesting, _setHlcForTesting } from '../../../src/modules/event-sourcing/hlc.js';
+import { compareHlc, laterHlc, emitLocal, emitLocalSync, observeRemote, HLC_NODE_KEY, MAX_DRIFT_MS, _resetHlcForTesting, _setHlcForTesting } from '../../../src/modules/event-sourcing/hlc.js';
 
 const DB_NAME = 'kanvana-db';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -116,4 +116,38 @@ test('laterHlc picks the later stamp and ignores a missing one', () => {
   expect(laterHlc(a, undefined)).toBe(a);
   expect([a, null, b].reduce(laterHlc, null)).toBe(b);
   expect(laterHlc(null, null)).toBeNull();
+});
+
+function spyOnNodeIdReads() {
+  const get = vi.spyOn(IDBObjectStore.prototype, 'get');
+  return () => get.mock.calls.filter(([key]) => key === HLC_NODE_KEY).length;
+}
+
+test('observing a catch-up of 800 remote clocks reads the stored node id at most once (#236)', async () => {
+  const nodeIdReads = spyOnNodeIdReads();
+
+  for (let i = 0; i < 800; i += 1) {
+    await observeRemote({ wallTime: 1000 + i, counter: 0, nodeId: 'node-b' });
+  }
+
+  expect(nodeIdReads()).toBeLessThanOrEqual(1);
+});
+
+test('a node id made in memory before storage was read gives way to the stored one (#236)', async () => {
+  const stored = (await emitLocal()).nodeId;
+  _resetHlcForTesting();
+
+  const transient = emitLocalSync().nodeId;
+  expect(transient).not.toBe(stored);
+
+  expect((await observeRemote({ wallTime: 1000, counter: 0, nodeId: 'node-b' })).nodeId).toBe(stored);
+  expect(emitLocalSync().nodeId).toBe(stored);
+});
+
+test('a node id made in memory before any was stored is persisted and kept (#236)', async () => {
+  const transient = emitLocalSync().nodeId;
+
+  expect((await observeRemote({ wallTime: 1000, counter: 0, nodeId: 'node-b' })).nodeId).toBe(transient);
+  _resetHlcForTesting();
+  expect((await emitLocal()).nodeId).toBe(transient);
 });
