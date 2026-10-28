@@ -22,8 +22,7 @@
     "pwa:icons": "node scripts/generate-pwa-icons.mjs",
     "test:ui": "playwright test --ui",
     "test:debug": "playwright test --debug",
-    "test:overview": "node scripts/generate-test-overview.mjs",
-    "check:spec-sync": "node scripts/check-spec-sync.mjs"
+    "test:overview": "node scripts/generate-test-overview.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",

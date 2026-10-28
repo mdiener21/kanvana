@@ -7,8 +7,8 @@ How engineering skills should consume this repo's domain documentation.
 1. **`CONTEXT.md`** at the repo root — domain model, entity schemas, key workflows, architecture
    boundaries, and storage/sync layer. Read this first before working on any feature.
    It is hand-maintained (not generated); update it when schemas or workflows change.
-2. **`docs/adr/`** — Architecture Decision Records. Currently:
-   - `0001-two-log-audit-trail.md` — why the audit trail is split into task-embedded + board-scoped logs.
+2. **`docs/adr/`** — Architecture Decision Records. ADR-0004 (event-sourced sync) and ADR-0005
+   (reducer is the sole read-model writer) govern the client; 0001 and 0002 are superseded.
    Read any ADR that touches the area you're about to change before proposing structural edits.
 
 If either doesn't exist, proceed silently. Don't flag their absence; don't suggest creating them

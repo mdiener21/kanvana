@@ -364,7 +364,7 @@ ingestEvent (event-sourcing/ingest.js) — one path, origin is a parameter:
 | Boundary | Rule |
 |---|---|
 | Cross-board data | Use `loadTasksForBoard(id)` / `loadColumnsForBoard(id)` — never read or write another board's state |
-| Rendering | All state changes must end with `renderBoard()` or an incremental sync helper |
+| Rendering | Mutations emit a domain event; the reducer projects it and emits `DATA_CHANGED`, which `render.js` and page modules subscribe to. Feature modules do not call `renderBoard()` after a mutation |
 | Circular deps | Use `events.js` bus for render triggers; do not use `await import('./render.js')` outside of initialization |
 | Done column | Use `isDoneColumn(col)` from `constants.js` — checks both `role === 'done'` and legacy `id === 'done'` |
 | UUID | All entity IDs use `generateUUID()` from `utils.js`; no numeric or legacy string IDs post-migration |
