@@ -7,6 +7,11 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
 
+    if (token === '--allow-empty') {
+      args.allowEmpty = true;
+      continue;
+    }
+
     if (token === '--bump') {
       args.bump = argv[index + 1] ?? args.bump;
       index += 1;
@@ -126,7 +131,7 @@ function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function updateChangelog(changelogPath, version, dateIso, notesFilePath) {
+function updateChangelog(changelogPath, version, dateIso, notesFilePath, allowEmpty) {
   const changelogRaw = fs.readFileSync(changelogPath, 'utf8').replace(/\r\n/g, '\n');
 
   const unreleasedHeader = '## [Unreleased]';
@@ -150,7 +155,10 @@ function updateChangelog(changelogPath, version, dateIso, notesFilePath) {
   const sections = extractSections(unreleasedBody);
 
   if (Object.keys(sections).length === 0) {
-    throw new Error('## [Unreleased] has no bullet entries to release. Add changelog entries first.');
+    if (!allowEmpty) {
+      throw new Error('## [Unreleased] has no bullet entries to release. Add changelog entries first.');
+    }
+    sections.Changed = '- Maintenance updates.';
   }
 
   const newReleaseBlock = buildReleaseBlock(version, dateIso, sections);
@@ -185,7 +193,7 @@ function updateReadmeBadge(readmePath, nextVersion) {
 }
 
 function main() {
-  const { bump, notesFile, date, packageDir } = parseArgs(process.argv.slice(2));
+  const { bump, notesFile, date, packageDir, allowEmpty } = parseArgs(process.argv.slice(2));
   assertSupportedBumpType(bump);
 
   const cwd = process.cwd();
@@ -199,8 +207,8 @@ function main() {
   const currentVersion = packageJson.version;
   const nextVersion = bumpVersion(currentVersion, bump);
 
+  updateChangelog(changelogPath, nextVersion, date || todayIsoDate(), notesFilePath, allowEmpty);
   updatePackageVersion(packageJsonPath, nextVersion);
-  updateChangelog(changelogPath, nextVersion, date || todayIsoDate(), notesFilePath);
   updateReadmeBadge(readmePath, nextVersion);
 
   process.stdout.write(`${nextVersion}`);
