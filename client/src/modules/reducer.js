@@ -315,6 +315,15 @@ function applyCustomerCreated(state, event) {
   return { ...state, timeTracking: { ...tt, customers: [...tt.customers, { ...event.payload.customer, id: event.entity_id }] } };
 }
 
+function updateTimeTrackingItem(collection) {
+  return (state, event) => {
+    const fields = event.payload?.fields && typeof event.payload.fields === 'object' ? event.payload.fields : {};
+    const tt = cloneTimeTracking(state.timeTracking);
+    tt[collection] = tt[collection].map((item) => item.id === event.entity_id ? { ...item, ...fields, id: item.id } : item);
+    return { ...state, timeTracking: tt };
+  };
+}
+
 // Brings a tombstoned item back as archived; a no-op when it exists or was never deleted.
 function restoreArchived(tt, collection, id) {
   const snapshot = tt.tombstones[collection][id];
@@ -410,10 +419,12 @@ const handlers = {
   'board.deleted': applyBoardDeleted,
   'settings.updated': applySettingsUpdated,
   'customer.created': applyCustomerCreated,
+  'customer.updated': updateTimeTrackingItem('customers'),
   'customer.archived': archiveHandler('customers', true),
   'customer.unarchived': archiveHandler('customers', false),
   'customer.deleted': guardedDeleteHandler('customers', 'customer', isCustomerInUse),
   'project.created': applyProjectCreated,
+  'project.updated': updateTimeTrackingItem('projects'),
   'project.archived': archiveHandler('projects', true),
   'project.unarchived': archiveHandler('projects', false),
   'project.deleted': guardedDeleteHandler('projects', 'project', isProjectInUse),

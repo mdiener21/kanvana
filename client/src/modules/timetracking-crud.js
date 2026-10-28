@@ -92,6 +92,21 @@ export function addCustomer(rawName) {
   return { ok: true, customer };
 }
 
+function updateName(entity, item, validation) {
+  if (!item) return { ok: false, reason: CRUD_ERROR.NOT_FOUND };
+  if (!validation.ok) return validation;
+  if (item.name !== validation.name) scheduleDomainEvent({
+    type: `${entity}.updated`, scope: EVENT_SCOPE.TIMETRACKING, entityId: item.id,
+    payload: { fields: { name: validation.name }, before: { name: item.name } }
+  });
+  return { ok: true };
+}
+
+export function updateCustomerName(id, rawName) {
+  const tt = loadTimeTracking();
+  return updateName('customer', customerById(tt, id), validateCustomerName(rawName, tt.customers, id));
+}
+
 export function addProject(customerId, rawName) {
   const tt = loadTimeTracking();
   const validation = validateProjectName(rawName, customerId, tt.projects);
@@ -109,6 +124,12 @@ export function addProject(customerId, rawName) {
     payload: { project }
   });
   return { ok: true, project };
+}
+
+export function updateProjectName(id, rawName) {
+  const tt = loadTimeTracking();
+  const project = projectById(tt, id);
+  return updateName('project', project, validateProjectName(rawName, project?.customerId, tt.projects, id));
 }
 
 function normaliseEntryFields({ projectId, description = '', start, end }) {

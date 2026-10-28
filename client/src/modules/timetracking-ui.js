@@ -3,7 +3,7 @@ import { on, off, DATA_CHANGED } from './events.js';
 import { renderIcons } from './icons.js';
 import { DEFAULT_APP_KEYBINDINGS, matchesKey, keyLabel } from './constants.js';
 import {
-  addCustomer, addProject, setCustomerArchived, setProjectArchived, deleteCustomer, deleteProject, CRUD_ERROR
+  addCustomer, addProject, updateCustomerName, updateProjectName, setCustomerArchived, setProjectArchived, deleteCustomer, deleteProject, CRUD_ERROR
 } from './timetracking-crud.js';
 import { isCustomerInUse, isProjectInUse } from './timetracking-references.js';
 import { escapeHtml } from './security.js';
@@ -15,6 +15,7 @@ import { loadTimeTrackingSettings } from './timetracking-settings.js';
 import { mountSettingsPanel } from './timetracking-settings-panel.js';
 import { mountReportsPanel } from './timetracking-reports-panel.js';
 import { WEEK } from './timetracking-report.js';
+import { h, $, $$ } from './dom.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -48,6 +49,8 @@ function itemActionsHtml(kind, item, inUse) {
   const hintId = `tt-in-use-${kind}-${id}`;
   return `
     <span class="tt-item-actions">
+      <button type="button" class="tt-entry-action" data-action="edit" data-kind="${kind}" data-id="${id}"
+        aria-label="Edit ${kind} ${name}" title="Edit ${kind} ${name}"><span data-lucide="pencil" aria-hidden="true"></span></button>
       <button type="button" class="tt-entry-action" data-action="${item.archived ? 'unarchive' : 'archive'}" data-kind="${kind}" data-id="${id}"
         aria-label="${archiveLabel}" title="${archiveLabel}">
         <span data-lucide="${item.archived ? 'archive-restore' : 'archive'}" aria-hidden="true"></span>
@@ -128,13 +131,32 @@ export function mountProjectsPanel(container) {
   const projectInput = container.querySelector('#tt-new-project-input');
   const customerSelect = container.querySelector('#tt-customer-select');
   const list = container.querySelector('.tt-customer-list');
+  let closingEdit = null;
 
   function refresh() {
+    const drafts = [...$$('[data-action="save"]', list)].map((button) => {
+      const row = button.closest('.tt-customer-row, .tt-project-row');
+      const input = $('.tt-item-name-input', row);
+      return { ...button.dataset, input, actions: button.parentElement, focused: document.activeElement === input,
+        start: input.selectionStart, end: input.selectionEnd };
+    }).filter(({ kind, id }) => !closingEdit || closingEdit.kind !== kind || closingEdit.id !== id);
     const tt = loadTimeTracking();
     const selected = customerSelect.value;
     customerSelect.innerHTML = customerOptionsHtml(tt);
     customerSelect.value = [...customerSelect.options].some((o) => o.value === selected) ? selected : '';
     list.innerHTML = customerListHtml(tt);
+    for (const draft of drafts) {
+      const button = [...$$('[data-action="edit"]', list)].find((item) => item.dataset.kind === draft.kind && item.dataset.id === draft.id);
+      if (!button) continue;
+      const row = button.closest('.tt-customer-row, .tt-project-row');
+      $(`.tt-${draft.kind}-name`, row).replaceWith(draft.input);
+      button.parentElement.replaceWith(draft.actions);
+      if (draft.focused) {
+        draft.input.focus();
+        draft.input.setSelectionRange(draft.start, draft.end);
+      }
+    }
+    renderIcons(list);
   }
 
   function submit(input, entity, create) {
@@ -160,6 +182,42 @@ export function mountProjectsPanel(container) {
     const btn = ev.target.closest('button[data-action]');
     if (!btn) return;
     const { action, kind, id } = btn.dataset;
+    if (action === 'edit') {
+      const row = btn.closest(kind === 'customer' ? '.tt-customer-row' : '.tt-project-row');
+      const label = $(`.tt-${kind}-name`, row);
+      const input = h('input', { class: 'tt-input tt-item-name-input', maxlength: 120,
+        'aria-label': `${kind === 'customer' ? 'Customer' : 'Project'} name` });
+      input.value = label.textContent;
+      input.addEventListener('keydown', (event) => {
+        if (matchesKey(event, DEFAULT_APP_KEYBINDINGS.ttSubmitInline)) {
+          event.preventDefault();
+          event.stopPropagation();
+          $('[data-action="save"]', input.closest('.tt-customer-row, .tt-project-row')).click();
+        } else if (matchesKey(event, DEFAULT_APP_KEYBINDINGS.ttCloseModal)) {
+          event.preventDefault();
+          event.stopPropagation();
+          $('[data-action="cancel"]', input.closest('.tt-customer-row, .tt-project-row')).click();
+        }
+      });
+      label.replaceWith(input);
+      btn.replaceWith(
+        h('button', { type: 'button', class: 'tt-btn-secondary', 'data-action': 'save', 'data-kind': kind, 'data-id': id }, `Save ${kind}`),
+        h('button', { type: 'button', class: 'tt-btn-secondary', 'data-action': 'cancel', 'data-kind': kind, 'data-id': id }, 'Cancel')
+      );
+      input.focus();
+      input.select();
+      return;
+    }
+    if (action === 'cancel') { closingEdit = { kind, id }; refresh(); closingEdit = null; return; }
+    if (action === 'save') {
+      const row = btn.closest(kind === 'customer' ? '.tt-customer-row' : '.tt-project-row');
+      closingEdit = { kind, id };
+      const result = (kind === 'customer' ? updateCustomerName : updateProjectName)(id, $('input', row).value);
+      if (!result.ok) showToast(ERROR_MESSAGES[kind][result.reason]);
+      else refresh();
+      closingEdit = null;
+      return;
+    }
     const actions = ITEM_ACTIONS[kind];
     const result = action === 'delete' ? actions.remove(id) : actions.setArchived(id, action === 'archive');
     if (result.reason === CRUD_ERROR.IN_USE) showToast(IN_USE_MESSAGE);
