@@ -235,6 +235,7 @@
 .tt-project-row.tt-archived { opacity: 0.6; }
 .tt-project-name { flex: 1; }
 .tt-item-actions { display: inline-flex; gap: 2px; }
+.tt-item-name-input { min-width: 0; flex: 1; }
 .tt-entry-action[aria-disabled="true"] { opacity: 0.4; cursor: not-allowed; }
 .tt-entry-action[aria-disabled="true"]:hover { background: transparent; color: var(--text-muted, #6b7280); }
 .tt-empty {

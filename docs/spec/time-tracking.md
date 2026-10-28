@@ -148,6 +148,7 @@ Constructed through factories in `schema.js`; IDs via `generateUUID()`.
 ## Projects and Customers
 
 - Create customers and projects inline (`Enter` to add); a project needs a customer
+- Rename customers and projects using the pencil button; `Enter` saves and `Escape` cancels
 - Archive / unarchive customers and projects
 - Delete is enabled only when nothing references the item (no entries for a project, no projects
   for a customer); otherwise the control explains "In use — archive instead"

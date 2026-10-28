@@ -180,6 +180,17 @@ const ACME_C = { id: 'c1', name: 'Acme', color: '#000', archived: false };
 const WEBSITE_P = { id: 'p1', customerId: 'c1', name: 'Website', color: '#000', archived: false };
 const ON_WEBSITE = { id: 'te-9', projectId: 'p1', description: '', start: '2026-10-08T07:00:00.000Z', end: '2026-10-08T08:00:00.000Z' };
 
+test('renaming customers and projects preserves their relationships and entries on replay', () => {
+  const state = baseState({ customers: [ACME_C], projects: [WEBSITE_P], timeEntries: [ON_WEBSITE] });
+  const next = applyEvents(state, [
+    event({ type: 'customer.updated', entity_id: 'c1', payload: { fields: { name: 'Acme Ltd' } } }),
+    event({ type: 'project.updated', entity_id: 'p1', payload: { fields: { name: 'Shop' } } })
+  ]);
+  expect(next.timeTracking.customers).toEqual([{ ...ACME_C, name: 'Acme Ltd' }]);
+  expect(next.timeTracking.projects).toEqual([{ ...WEBSITE_P, name: 'Shop' }]);
+  expect(next.timeTracking.timeEntries).toEqual([ON_WEBSITE]);
+});
+
 test('customer.archived / unarchived toggle the archived flag', () => {
   const archived = applyEvent(baseState({ customers: [ACME_C] }), event({ type: 'customer.archived', entity_id: 'c1' }));
   expect(archived.timeTracking.customers[0].archived).toBe(true);

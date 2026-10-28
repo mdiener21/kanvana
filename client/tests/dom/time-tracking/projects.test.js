@@ -21,6 +21,9 @@ vi.mock('../../../src/modules/event-sourcing/emitter.js', async () => {
       if (event.type === 'project.created') state.projects = [...state.projects, event.payload.project];
       const [entity, action] = event.type.split('.');
       const key = { customer: 'customers', project: 'projects' }[entity];
+      if (key && action === 'updated') {
+        state[key] = state[key].map((x) => x.id === event.entityId ? { ...x, ...event.payload.fields } : x);
+      }
       if (key && (action === 'archived' || action === 'unarchived')) {
         state[key] = state[key].map((x) => (x.id === event.entityId ? { ...x, archived: action === 'archived' } : x));
       }
@@ -202,6 +205,84 @@ test('selection falls back to the placeholder when the selected customer disappe
   emit(DATA_CHANGED);
 
   expect(customerSelect().value).toBe('');
+});
+
+test('a customer can be renamed from the projects list', () => {
+  mount({ customers: [{ id: 'c1', name: 'Acme', color: '#000', archived: false }] });
+  fireEvent.click(screen.getByRole('button', { name: 'Edit customer Acme' }));
+  const input = screen.getByRole('textbox', { name: 'Customer name' });
+  fireEvent.input(input, { target: { value: 'Acme Ltd' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save customer' }));
+  expect(within(list()).getByText('Acme Ltd')).toBeTruthy();
+  expect(within(customerSelect()).getByRole('option', { name: 'Acme Ltd' })).toBeTruthy();
+});
+
+test('a project can be renamed while keeping its customer', () => {
+  mount({
+    customers: [{ id: 'c1', name: 'Acme', color: '#000', archived: false }],
+    projects: [{ id: 'p1', customerId: 'c1', name: 'Website', color: '#000', archived: false }]
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Edit project Website' }));
+  fireEvent.input(screen.getByRole('textbox', { name: 'Project name' }), { target: { value: 'Shop' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save project' }));
+  expect(within(screen.getByRole('list', { name: 'Projects for Acme' })).getByText('Shop')).toBeTruthy();
+});
+
+test('Enter saves an edited name and Escape cancels an edit', () => {
+  mount({ customers: [{ id: 'c1', name: 'Acme', color: '#000', archived: false }] });
+  fireEvent.click(screen.getByRole('button', { name: 'Edit customer Acme' }));
+  let input = screen.getByRole('textbox', { name: 'Customer name' });
+  fireEvent.input(input, { target: { value: 'Acme Ltd' } });
+  fireEvent.keyDown(input, { key: 'Enter' });
+  fireEvent.click(screen.getByRole('button', { name: 'Edit customer Acme Ltd' }));
+  input = screen.getByRole('textbox', { name: 'Customer name' });
+  fireEvent.input(input, { target: { value: 'Cancelled' } });
+  fireEvent.keyDown(input, { key: 'Escape' });
+  expect(within(list()).getByText('Acme Ltd')).toBeTruthy();
+});
+
+test('an unrelated data refresh preserves an in-progress project rename', () => {
+  mount({
+    customers: [{ id: 'c1', name: 'Acme', color: '#000', archived: false }],
+    projects: [{ id: 'p1', customerId: 'c1', name: 'Website', color: '#000', archived: false }]
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Edit project Website' }));
+  fireEvent.input(screen.getByRole('textbox', { name: 'Project name' }), { target: { value: 'Shop' } });
+  state.customers = [...state.customers, { id: 'c2', name: 'Globex', color: '#111', archived: false }];
+  emit(DATA_CHANGED);
+  expect(within(list()).getByText('Globex')).toBeTruthy();
+  expect(screen.getByRole('textbox', { name: 'Project name' }).value).toBe('Shop');
+  fireEvent.click(screen.getByRole('button', { name: 'Save project' }));
+  expect(within(list()).getByText('Shop')).toBeTruthy();
+});
+
+test('saving one rename preserves another draft and its keyboard controls', () => {
+  mount({
+    customers: [{ id: 'c1', name: 'Acme', color: '#000', archived: false }],
+    projects: [{ id: 'p1', customerId: 'c1', name: 'Website', color: '#000', archived: false }]
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Edit customer Acme' }));
+  fireEvent.input(screen.getByRole('textbox', { name: 'Customer name' }), { target: { value: 'Acme Ltd' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Edit project Website' }));
+  fireEvent.input(screen.getByRole('textbox', { name: 'Project name' }), { target: { value: 'Shop' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save customer' }));
+  const input = screen.getByRole('textbox', { name: 'Project name' });
+  expect(input.value).toBe('Shop');
+  fireEvent.keyDown(input, { key: 'Enter' });
+  expect(within(list()).getByText('Shop')).toBeTruthy();
+});
+
+test('renaming rejects duplicate names and keeps the edit open', () => {
+  mount({ customers: [
+    { id: 'c1', name: 'Acme', color: '#000', archived: false },
+    { id: 'c2', name: 'Globex', color: '#111', archived: false }
+  ] });
+  fireEvent.click(screen.getByRole('button', { name: 'Edit customer Acme' }));
+  fireEvent.input(screen.getByRole('textbox', { name: 'Customer name' }), { target: { value: 'globex' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save customer' }));
+  expect(toastText()).toContain('already exists');
+  expect(screen.getByRole('textbox', { name: 'Customer name' }).value).toBe('globex');
+  expect(scheduleDomainEvent).not.toHaveBeenCalled();
 });
 
 describe('archive and delete', () => {

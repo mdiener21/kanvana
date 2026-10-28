@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Rename customers and projects in Time Tracking using the pencil button.
+
 ## [3.4.5] - 2026-10-28
 
 ### Fixed
