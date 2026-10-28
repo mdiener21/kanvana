@@ -1,0 +1,96 @@
+name: Automatic Release
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: automatic-release
+  queue: max
+
+jobs:
+  prepare:
+    if: >-
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      vars.AUTO_RELEASE_ENABLED != 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out tested commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Check whether this commit needs a release
+        id: check
+        env:
+          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          latest=$(git ls-remote origin refs/heads/main | cut -f1)
+          current_version=$(git show "$TESTED_SHA:client/package.json" | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).version')
+          previous_version=$(git show "$TESTED_SHA^:client/package.json" | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).version')
+          if [ "$latest" != "$TESTED_SHA" ]; then
+            echo 'The tested commit is no longer the tip of main; a newer CI run will handle it.'
+            echo 'release=false' >> "$GITHUB_OUTPUT"
+          elif [ "$current_version" != "$previous_version" ]; then
+            echo 'The release PR itself does not need another release.'
+            echo 'release=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'release=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create release App token
+        if: steps.check.outputs.release == 'true'
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - name: Setup Node
+        if: steps.check.outputs.release == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Prepare patch release
+        if: steps.check.outputs.release == 'true'
+        id: prepare
+        run: |
+          version=$(node scripts/prepare-release.mjs --bump patch --allow-empty --notes-file .release-notes.md --package-dir client)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          npm install --package-lock-only --ignore-scripts --prefix client
+          rm .release-notes.md
+
+      - name: Create release pull request
+        if: steps.check.outputs.release == 'true'
+        id: release-pr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          branch: release/automatic
+          base: main
+          commit-message: 'chore(release): prepare v${{ steps.prepare.outputs.version }}'
+          title: 'chore(release): prepare v${{ steps.prepare.outputs.version }}'
+          body: |
+            Automated patch release. Release notes are taken from CHANGELOG.md.
+            Required checks must pass before this pull request is merged.
+          delete-branch: true
+          add-paths: |
+            client/package.json
+            client/package-lock.json
+            CHANGELOG.md
+            README.md
+
+      - name: Enable auto-merge
+        if: steps.check.outputs.release == 'true' && steps.release-pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_NUMBER: ${{ steps.release-pr.outputs.pull-request-number }}
+        run: gh pr merge "$PR_NUMBER" --auto --squash

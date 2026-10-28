@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Patch releases are prepared automatically after successful CI, with the existing changelog notes and required checks before publication.
+
 ## [3.4.5] - 2026-10-28
 
 ### Fixed
