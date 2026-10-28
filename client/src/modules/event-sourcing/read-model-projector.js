@@ -59,7 +59,7 @@ export function createReadModelProjector(ctx) {
     if (boardlessSlots.has(event.scope)) return appliedBoardlessIds.has(event.id);
     const boardId = event.board_id;
     if (typeof boardId !== 'string' || !boardId) return false;
-    return boardMemory(boardId).appliedEventIds.has(event.id);
+    return Boolean(batch?.pending.get(boardId)?.ids.has(event.id)) || boardMemory(boardId).appliedEventIds.has(event.id);
   }
 
   function noteApplied(key, hlc, { batched = false } = {}) {
@@ -71,10 +71,11 @@ export function createReadModelProjector(ctx) {
   }
 
   function beginBatch() {
-    batch ??= { boards: new Set(), newestApplied: false };
+    batch ??= { boards: new Set(), newestApplied: false, pending: new Map() };
   }
 
   function persistBatch() {
+    for (const boardId of [...batch.pending.keys()]) applyPending(boardId);
     const { boards, newestApplied } = batch;
     if (newestApplied) schedulePersist(newestAppliedKey, { ...state.newestAppliedHlc });
     if (boards.size) schedulePersist(boardsKey, state.boards);
@@ -114,19 +115,34 @@ export function createReadModelProjector(ctx) {
     const boardId = event.board_id;
     if (typeof boardId !== 'string' || !boardId) return false;
 
-    const memory = boardMemory(boardId);
-    const projected = applyEvent(createProjectionState({
-      boards: state.boards,
-      ...liveBoard(boardId),
-      ...memory
-    }), event);
+    if (batched && batch) {
+      const pending = batch.pending.get(boardId) ?? { events: [], ids: new Set() };
+      pending.events.push(event);
+      pending.ids.add(event.id);
+      batch.pending.set(boardId, pending);
+      batch.boards.add(boardId);
+      noteApplied(boardId, event.hlc, { batched: true });
+      return true;
+    }
 
-    const deferred = batched && batch !== null;
-    writeBoard(boardId, projected, { deferred });
-    noteApplied(boardId, event.hlc, { batched: deferred });
-    if (deferred) batch.boards.add(boardId);
-    else scheduleBoardSnapshot(boardId);
+    applyPending(boardId);
+    writeBoard(boardId, applyEvent(boardProjection(boardId), event));
+    noteApplied(boardId, event.hlc);
+    scheduleBoardSnapshot(boardId);
     return true;
+  }
+
+  // A batch takes each board's in-order events as one list, so the board is copied once per run, not per event (#238).
+  // Anything that reads or replaces the board mid-batch applies its pending run first.
+  function applyPending(boardId) {
+    const pending = batch?.pending.get(boardId);
+    if (!pending) return;
+    batch.pending.delete(boardId);
+    writeBoard(boardId, applyEvents(boardProjection(boardId), pending.events), { deferred: true });
+  }
+
+  function boardProjection(boardId) {
+    return createProjectionState({ boards: state.boards, ...liveBoard(boardId), ...boardMemory(boardId) });
   }
 
   function scheduleBoardSnapshot(boardId) {
@@ -168,6 +184,7 @@ export function createReadModelProjector(ctx) {
 
   // Entities nothing in the event log knows of come from writes that emit no event yet (import), so they stay.
   function rebuild(key, snapshot, events, superseded = createSuperseded()) {
+    applyPending(key);
     const projected = fold(key, snapshot, events, { live: true });
     const newest = [snapshot?.hlc, ...events.map((event) => event.hlc)].reduce(laterHlc, null);
 
