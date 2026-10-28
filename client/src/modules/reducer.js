@@ -422,7 +422,8 @@ const handlers = {
   'time_entry.deleted': applyTimeEntryDeleted
 };
 
-export function applyEvent(state, event) {
+// Handlers never mutate the state they get, so a private working copy (`copy` = identity) can take many events in turn.
+function applyOne(state, event, copy) {
   if (state.appliedEventIds.has(event.id)) return state;
 
   const handler = Object.hasOwn(handlers, event.type) ? handlers[event.type] : null;
@@ -431,9 +432,13 @@ export function applyEvent(state, event) {
     return state;
   }
 
-  const next = handler(cloneState(state), event);
+  const next = handler(copy(state), event);
   next.appliedEventIds.add(event.id);
   return next;
+}
+
+export function applyEvent(state, event) {
+  return applyOne(state, event, cloneState);
 }
 
 export function applyEvents(state, events) {
@@ -441,5 +446,5 @@ export function applyEvents(state, events) {
     if (a.hlc.wallTime !== b.hlc.wallTime) return a.hlc.wallTime - b.hlc.wallTime;
     if (a.hlc.counter !== b.hlc.counter) return a.hlc.counter - b.hlc.counter;
     return a.hlc.nodeId < b.hlc.nodeId ? -1 : a.hlc.nodeId > b.hlc.nodeId ? 1 : 0;
-  }).reduce((nextState, event) => applyEvent(nextState, event), state);
+  }).reduce((working, event) => applyOne(working, event, (same) => same), cloneState(state));
 }

@@ -5,7 +5,7 @@ Generated from test source. Do not edit by hand; run `npm run test:overview` fro
 ## Fast Scan
 
 - Test files: 109
-- Test cases: 994
+- Test cases: 1005
 - Unit files: 47
 - DOM integration files: 35
 - E2E files: 25
@@ -233,7 +233,7 @@ These lists compare source/spec filenames against test file names and test title
 
 - Path: `tests/unit/event-sourcing/hlc.test.js`
 - Type: Unit
-- Test count: 10
+- Test count: 13
 
 - `tests/unit/event-sourcing/hlc.test.js:16` emitLocal creates a stable HLC node id that persists across sessions
 - `tests/unit/event-sourcing/hlc.test.js:26` emitLocal advances wallTime and resets counter when physical time moves forward
@@ -245,6 +245,9 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/unit/event-sourcing/hlc.test.js:91` observeRemote does not advance the local clock beyond the drift limit (#181)
 - `tests/unit/event-sourcing/hlc.test.js:102` observeRemote still adopts a remote clock ahead by less than the drift limit
 - `tests/unit/event-sourcing/hlc.test.js:110` laterHlc picks the later stamp and ignores a missing one
+- `tests/unit/event-sourcing/hlc.test.js:126` observing a catch-up of 800 remote clocks reads the stored node id at most once (#236)
+- `tests/unit/event-sourcing/hlc.test.js:136` a node id made in memory before storage was read gives way to the stored one (#236)
+- `tests/unit/event-sourcing/hlc.test.js:147` a node id made in memory before any was stored is persisted and kept (#236)
 
 ### Out Of Order Ingest
 
@@ -274,7 +277,7 @@ These lists compare source/spec filenames against test file names and test title
 
 - Path: `tests/unit/event-sourcing/reducer.test.js`
 - Type: Unit
-- Test count: 12
+- Test count: 15
 
 - `tests/unit/event-sourcing/reducer.test.js:18` applyEvent is idempotent by event id
 - `tests/unit/event-sourcing/reducer.test.js:35` task.deleted tombstones prevent later task updates from resurrecting the task
@@ -288,6 +291,9 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/unit/event-sourcing/reducer.test.js:224` settings.updated in the timetracking scope touches neither board nor global settings
 - `tests/unit/event-sourcing/reducer.test.js:238` projection state carries an empty time-tracking slot that survives events
 - `tests/unit/event-sourcing/reducer.test.js:246` subtask and relationship events update embedded task collections
+- `tests/unit/event-sourcing/reducer.test.js:318` applying a list of events equals applying them one by one, duplicates and tombstones included
+- `tests/unit/event-sourcing/reducer.test.js:329` applying a list of events leaves the input state unchanged
+- `tests/unit/event-sourcing/reducer.test.js:343` applying a list of events copies the state once, not once per event
 
 ### Snapshot
 
@@ -1074,26 +1080,31 @@ These lists compare source/spec filenames against test file names and test title
 
 - Path: `tests/dom/event-sourcing/realtime.test.js`
 - Type: DOM Integration
-- Test count: 18
+- Test count: 23
 
-- `tests/dom/event-sourcing/realtime.test.js:89` realtime subscription > AC-001: opens exactly one owner-filtered subscription; second call is a no-op
-- `tests/dom/event-sourcing/realtime.test.js:98` realtime subscription > AC-002: stopRealtime closes the subscription
-- `tests/dom/event-sourcing/realtime.test.js:106` realtime subscription > does not subscribe when unauthenticated
-- `tests/dom/event-sourcing/realtime.test.js:114` applyRemoteEvent > AC-003/AC-007: projects, emits EVENT_EMITTED, advances HLC, stores as synced
-- `tests/dom/event-sourcing/realtime.test.js:133` applyRemoteEvent > a remote HLC far in the future is rejected and does not advance the local clock (#181)
-- `tests/dom/event-sourcing/realtime.test.js:141` applyRemoteEvent > AC-004: an echo of an already-applied event is a no-op in the projection
-- `tests/dom/event-sourcing/realtime.test.js:149` applyRemoteEvent > AC-004 after a reload: an SSE echo of an edit applied before the reload does not undo a newer edit (#178)
-- `tests/dom/event-sourcing/realtime.test.js:164` applyRemoteEvent > projects a live timetracking event into the time-tracking slot, never into a board
-- `tests/dom/event-sourcing/realtime.test.js:184` catch-up pull > discovers all account boards even while the realtime connection is pending
-- `tests/dom/event-sourcing/realtime.test.js:207` catch-up pull > downloads boards when realtime subscription fails
-- `tests/dom/event-sourcing/realtime.test.js:222` catch-up pull > fetches boards missed during an automatic SSE reconnect
-- `tests/dom/event-sourcing/realtime.test.js:235` catch-up pull > does not skip a delayed board creation older than the catch-up watermark
-- `tests/dom/event-sourcing/realtime.test.js:250` catch-up pull > AC-005: pulls events > lastSeenHlc, applies in order, advances lastSeenHlc atomically
-- `tests/dom/event-sourcing/realtime.test.js:271` catch-up pull > signals DATA_CHANGED once for the whole pulled batch
-- `tests/dom/event-sourcing/realtime.test.js:292` catch-up pull > signals no DATA_CHANGED when the pulled batch is already stored
-- `tests/dom/event-sourcing/realtime.test.js:308` catch-up pull > a poison event among good ones is skipped: good ones applied, poison not persisted, logged once (#181)
-- `tests/dom/event-sourcing/realtime.test.js:337` catch-up pull > ingests timetracking events under their own watermark without touching boards
-- `tests/dom/event-sourcing/realtime.test.js:366` catch-up pull > AC-005/AC-006: re-running catch-up applies nothing new (idempotent overlap)
+- `tests/dom/event-sourcing/realtime.test.js:96` realtime subscription > AC-001: opens exactly one owner-filtered subscription; second call is a no-op
+- `tests/dom/event-sourcing/realtime.test.js:105` realtime subscription > AC-002: stopRealtime closes the subscription
+- `tests/dom/event-sourcing/realtime.test.js:113` realtime subscription > does not subscribe when unauthenticated
+- `tests/dom/event-sourcing/realtime.test.js:121` applyRemoteEvent > AC-003/AC-007: projects, emits EVENT_EMITTED, advances HLC, stores as synced
+- `tests/dom/event-sourcing/realtime.test.js:140` applyRemoteEvent > a remote HLC far in the future is rejected and does not advance the local clock (#181)
+- `tests/dom/event-sourcing/realtime.test.js:148` applyRemoteEvent > AC-004: an echo of an already-applied event is a no-op in the projection
+- `tests/dom/event-sourcing/realtime.test.js:156` applyRemoteEvent > AC-004 after a reload: an SSE echo of an edit applied before the reload does not undo a newer edit (#178)
+- `tests/dom/event-sourcing/realtime.test.js:171` applyRemoteEvent > projects a live timetracking event into the time-tracking slot, never into a board
+- `tests/dom/event-sourcing/realtime.test.js:191` catch-up pull > discovers all account boards even while the realtime connection is pending
+- `tests/dom/event-sourcing/realtime.test.js:214` catch-up pull > downloads boards when realtime subscription fails
+- `tests/dom/event-sourcing/realtime.test.js:229` catch-up pull > fetches boards missed during an automatic SSE reconnect
+- `tests/dom/event-sourcing/realtime.test.js:242` catch-up pull > does not skip a delayed board creation older than the catch-up watermark
+- `tests/dom/event-sourcing/realtime.test.js:257` catch-up pull > AC-005: pulls events > lastSeenHlc, applies in order, advances lastSeenHlc atomically
+- `tests/dom/event-sourcing/realtime.test.js:278` catch-up pull > signals DATA_CHANGED once for the whole pulled batch
+- `tests/dom/event-sourcing/realtime.test.js:300` catch-up pull > saves each part of a caught-up board once per batch, not once per event
+- `tests/dom/event-sourcing/realtime.test.js:340` catch-up pull > saves a local edit made during a catch-up at once, not when the batch ends
+- `tests/dom/event-sourcing/realtime.test.js:374` catch-up pull > a local edit made during a catch-up applies on top of the events the batch already took in
+- `tests/dom/event-sourcing/realtime.test.js:402` catch-up pull > a reload after a catch-up shows the same board
+- `tests/dom/event-sourcing/realtime.test.js:448` catch-up pull > advances the catch-up watermark only after the board read model is stored
+- `tests/dom/event-sourcing/realtime.test.js:477` catch-up pull > signals no DATA_CHANGED when the pulled batch is already stored
+- `tests/dom/event-sourcing/realtime.test.js:493` catch-up pull > a poison event among good ones is skipped: good ones applied, poison not persisted, logged once (#181)
+- `tests/dom/event-sourcing/realtime.test.js:522` catch-up pull > ingests timetracking events under their own watermark without touching boards
+- `tests/dom/event-sourcing/realtime.test.js:551` catch-up pull > AC-005/AC-006: re-running catch-up applies nothing new (idempotent overlap)
 
 ### Replay Fidelity
 

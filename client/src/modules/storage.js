@@ -552,6 +552,7 @@ export function _resetStorageForTesting() {
 // ── Boards ─────────────────────────────────────────────────────────────────────
 
 export function listBoards() {
+  readModelProjector.applyAllPending();
   const boards = state.boards;
   if (!Array.isArray(boards)) return [];
   return boards
@@ -761,6 +762,7 @@ export function deleteBoard(boardId) {
     delete slot[id];
   }
   taskCacheByBoard.delete(id);
+  readModelProjector.dropBoard(id);
   for (const kind of ['tasks', 'columns', 'labels', 'taskTombstones', 'appliedEventIds']) scheduleReadModelDelete(id, kind);
   scheduleDelete(keyFor(id, 'settings'));
   return true;
@@ -1074,21 +1076,25 @@ export function saveGlobalSettings(settings) {
 // ── Cross-board read helpers
 
 export function loadTasksForBoard(boardId) {
+  readModelProjector.applyAllPending();
   const raw = state.tasks[boardId];
   return (safeParseArray(raw) || []).filter(t => !t.deleted);
 }
 
 export function loadColumnsForBoard(boardId) {
+  readModelProjector.applyAllPending();
   const raw = state.columns[boardId];
   return (safeParseArray(raw) || []).filter(c => !c.deleted);
 }
 
 export function loadLabelsForBoard(boardId) {
+  readModelProjector.applyAllPending();
   const raw = state.labels[boardId];
   return (safeParseArray(raw) || []).filter(l => !l.deleted);
 }
 
 export function loadSettingsForBoard(boardId) {
+  readModelProjector.applyAllPending();
   const raw = state.settings[boardId];
   return safeParseObject(raw) || null;
 }
