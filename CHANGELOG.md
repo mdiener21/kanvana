@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Patch releases are prepared automatically after successful CI, with the existing changelog notes and required checks before publication.
 
+## [3.4.5] - 2026-10-28
+
 ### Fixed
 
 - Syncing a board to a new device is faster again. While it catches up, the app now saves each board's tasks, columns, labels and settings once when the sync is done, instead of once for every synced change. In the 400-task test this cut the saves from 6,400 to 8 and the time until every card shows from about 18.6 s to about 4.5 s. Your own edits during a sync are still saved at once. If the tab closes during a sync, the board is saved as far as it got (#237).
