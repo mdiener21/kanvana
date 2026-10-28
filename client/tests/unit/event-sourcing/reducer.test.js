@@ -340,21 +340,22 @@ test('applying a list of events leaves the input state unchanged', () => {
 });
 
 // Copying the state once per event made a list cost tasks x events copies (#238); one copy keeps it linear.
+// Copying the task list means walking it; this list counts its walks, and its copies (via Symbol.species) keep counting.
 test('applying a list of events copies the state once, not once per event', () => {
-  const tasks = Array.from({ length: 2000 }, (_, index) => ({
-    id: `task-${index}`, title: 'T', column: 'todo', order: index, labels: ['a', 'b'],
-    subTasks: [{ id: 's1', title: 'x', completed: false }, { id: 's2', title: 'y', completed: true }],
-    relationships: [{ type: 'related', targetTaskId: 'task-0' }],
-    columnHistory: Array.from({ length: 10 }, () => ({ column: 'todo', at: 't0' }))
-  }));
-  const events = Array.from({ length: 2000 }, (_, index) => event({
+  let walks = 0;
+  class CountingTasks extends Array {
+    map(...args) {
+      walks += 1;
+      return super.map(...args);
+    }
+  }
+  const tasks = CountingTasks.from([{ id: 'task-a', title: 'A', column: 'todo', order: 1 }]);
+  const events = Array.from({ length: 50 }, (_, index) => event({
     id: `settings-${index}`, type: 'settings.updated', hlc: hlcAt(index), payload: { fields: { n: index } }
   }));
 
-  const started = performance.now();
   const next = applyEvents(createProjectionState({ tasks }), events);
-  const elapsed = performance.now() - started;
 
-  expect(next.settings).toEqual({ n: 1999 });
-  expect(elapsed).toBeLessThan(500);
+  expect(next.settings).toEqual({ n: 49 });
+  expect(walks).toBe(1);
 });

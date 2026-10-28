@@ -8,7 +8,7 @@ import { server } from '../../mocks/server.js';
 import { DATA_CHANGED, EVENT_EMITTED, on, off } from '../../../src/modules/events.js';
 import { getPb } from '../../../src/modules/sync.js';
 import { EVENT_ORIGIN, ingestEvent } from '../../../src/modules/event-sourcing/ingest.js';
-import { addTask } from '../../../src/modules/tasks.js';
+import { addTask, moveTaskToTopInColumn } from '../../../src/modules/tasks.js';
 import {
   getUnsyncedEvents,
   openStore,
@@ -18,7 +18,9 @@ import {
 import {
   initStorage,
   createBoard,
+  deleteBoard,
   listBoards,
+  setActiveBoardId,
   loadColumnsForBoard,
   loadLabelsForBoard,
   loadSettingsForBoard,
@@ -429,6 +431,66 @@ describe('catch-up pull', () => {
 
     expect(loadTasksForBoard('board-1')).toHaveLength(10);
     expect(loadTasksForBoard('board-1').find(t => t.id === 'task-0').title).toBe('Edited meanwhile');
+  });
+
+  it('a local command issued during a catch-up builds on the events the batch already took in', async () => {
+    server.use(http.get(EVT_LIST, () => listResponse([
+      record({ local_id: 'b', h: hlc(1), payload: { board: { name: 'Remote' } } }),
+      ...Array.from({ length: 10 }, (_, i) => ({
+        ...record({ local_id: `t${i}`, type: 'task.created', h: hlc(i + 2), payload: { task: { title: `Task ${i}`, column: 'todo' } } }),
+        entity_id: `task-${i}`,
+      })),
+    ])));
+    setAuth();
+
+    let moved;
+    const moveOnce = (e) => {
+      if (e.detail.id !== 't9') return;
+      off(EVENT_EMITTED, moveOnce);
+      setActiveBoardId('board-1');
+      moveTaskToTopInColumn('task-9', 'todo');
+    };
+    const captureMove = (e) => {
+      if (e.detail.type === 'task.moved') moved = e.detail;
+    };
+    on(EVENT_EMITTED, moveOnce);
+    on(EVENT_EMITTED, captureMove);
+    await catchUp();
+    off(EVENT_EMITTED, captureMove);
+
+    expect(moved.board_id).toBe('board-1');
+    expect(moved.payload.order).toHaveLength(10);
+    expect(moved.payload.order.find(entry => entry.id === 'task-9').order).toBe(1);
+    expect(loadTasksForBoard('board-1').find(t => t.id === 'task-9').order).toBe(1);
+  });
+
+  it('a board deleted during a catch-up stays deleted when the batch ends', async () => {
+    const keep = createBoard('Keep').id;
+    // A clock ahead of this device keeps the events after the delete in order rather than late.
+    const ahead = Date.now() + 30_000;
+    server.use(http.get(EVT_LIST, () => listResponse([
+      record({ local_id: 'b', h: hlc(1, ahead), payload: { board: { name: 'Remote' } } }),
+      ...Array.from({ length: 10 }, (_, i) => ({
+        ...record({ local_id: `t${i}`, type: 'task.created', h: hlc((i + 2) * 10, ahead), payload: { task: { title: `Task ${i}`, column: 'todo' } } }),
+        entity_id: `task-${i}`,
+      })),
+    ])));
+    setAuth();
+
+    const deleteOnce = (e) => {
+      if (e.detail.id !== 't4') return;
+      off(EVENT_EMITTED, deleteOnce);
+      deleteBoard('board-1');
+    };
+    on(EVENT_EMITTED, deleteOnce);
+    await catchUp();
+    await _flushPersistsForTesting();
+
+    expect(listBoards().map(b => b.id)).toContain(keep);
+    expect(listBoards().map(b => b.id)).not.toContain('board-1');
+    expect(loadTasksForBoard('board-1')).toEqual([]);
+    const db = await openStore();
+    expect(await db.get('read_model', 'board-1:tasks')).toBeUndefined();
   });
 
   it('a reload after a catch-up shows the same board', async () => {

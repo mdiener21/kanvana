@@ -71,26 +71,25 @@ export function createReadModelProjector(ctx) {
   }
 
   function beginBatch() {
-    batch ??= { boards: new Set(), newestApplied: false, pending: new Map() };
+    batch ??= { boards: new Set(), saved: new Set(), dropped: new Set(), newestApplied: false, pending: new Map() };
   }
 
   function persistBatch() {
-    for (const boardId of [...batch.pending.keys()]) applyPending(boardId);
-    const { boards, newestApplied } = batch;
-    if (newestApplied) schedulePersist(newestAppliedKey, { ...state.newestAppliedHlc });
-    if (boards.size) schedulePersist(boardsKey, state.boards);
-    // deleteBoard() drops a board's state and stored read model; saving it now would bring the keys back.
-    const live = [...boards].filter(boardId => boardId in state.tasks);
-    live.forEach(persistBoard);
-    return live;
+    applyAllPending();
+    if (batch.newestApplied) schedulePersist(newestAppliedKey, { ...state.newestAppliedHlc });
+    if (batch.boards.size) schedulePersist(boardsKey, state.boards);
+    batch.boards.forEach(persistBoard);
+    batch.boards.forEach((boardId) => batch.saved.add(boardId));
+    batch.boards.clear();
+    batch.newestApplied = false;
   }
 
-  // Writes what the batch deferred; the caller awaits the scheduled writes before advancing its watermark.
   function endBatch() {
     if (!batch) return;
-    const live = persistBatch();
+    persistBatch();
+    const { saved } = batch;
     batch = null;
-    live.forEach(scheduleBoardSnapshot);
+    saved.forEach(scheduleBoardSnapshot);
   }
 
   // A tab closed mid catch-up keeps the batch's stored events, which catch-up then skips, so save the board so far.
@@ -116,6 +115,8 @@ export function createReadModelProjector(ctx) {
     if (typeof boardId !== 'string' || !boardId) return false;
 
     if (batched && batch) {
+      // deleteBoard() removed the board's state and stored read model; queuing would bring them back.
+      if (batch.dropped.has(boardId)) return false;
       const pending = batch.pending.get(boardId) ?? { events: [], ids: new Set() };
       pending.events.push(event);
       pending.ids.add(event.id);
@@ -127,18 +128,31 @@ export function createReadModelProjector(ctx) {
 
     applyPending(boardId);
     writeBoard(boardId, applyEvent(boardProjection(boardId), event));
+    saveBoard(boardId);
     noteApplied(boardId, event.hlc);
     scheduleBoardSnapshot(boardId);
     return true;
   }
 
-  // A batch takes each board's in-order events as one list, so the board is copied once per run, not per event (#238).
-  // Anything that reads or replaces the board mid-batch applies its pending run first.
+  // One list per board copies it once per run, not once per event (#238).
   function applyPending(boardId) {
     const pending = batch?.pending.get(boardId);
     if (!pending) return;
     batch.pending.delete(boardId);
-    writeBoard(boardId, applyEvents(boardProjection(boardId), pending.events), { deferred: true });
+    writeBoard(boardId, applyEvents(boardProjection(boardId), pending.events));
+  }
+
+  // Reads mid-batch must see the queued events, or a local command builds its payload from a stale board.
+  function applyAllPending() {
+    if (batch) [...batch.pending.keys()].forEach(applyPending);
+  }
+
+  function dropBoard(boardId) {
+    if (!batch) return;
+    batch.pending.delete(boardId);
+    batch.boards.delete(boardId);
+    batch.saved.delete(boardId);
+    batch.dropped.add(boardId);
   }
 
   function boardProjection(boardId) {
@@ -222,6 +236,7 @@ export function createReadModelProjector(ctx) {
       taskTombstones,
       appliedEventIds: projected.appliedEventIds
     });
+    saveBoard(key);
     noteApplied(key, newest);
     return true;
   }
@@ -240,11 +255,7 @@ export function createReadModelProjector(ctx) {
   // Once a snapshot holds a board's applied ids, prune them from the live set.
   function onBoardSnapshotSaved(boardId, snapshotState) {
     state.snapshotAppliedIds[boardId] = new Set(snapshotState.appliedEventIds);
-    writeAppliedIds(boardId, safeParseArray(state.appliedEventIds[boardId]) || []);
-  }
-
-  function writeAppliedIds(boardId, appliedIds) {
-    setAppliedIds(boardId, appliedIds);
+    setAppliedIds(boardId, safeParseArray(state.appliedEventIds[boardId]) || []);
     scheduleReadModelPersist(boardId, 'appliedEventIds', state.appliedEventIds[boardId]);
   }
 
@@ -258,7 +269,7 @@ export function createReadModelProjector(ctx) {
     schedulePersist(slot.persistKey, value);
   }
 
-  function writeBoard(boardId, projected, { deferred = false } = {}) {
+  function writeBoard(boardId, projected) {
     state.boards = projected.boards;
     state.tasks[boardId] = projected.tasks;
     state.columns[boardId] = projected.columns;
@@ -267,7 +278,9 @@ export function createReadModelProjector(ctx) {
     state.taskTombstones[boardId] = [...projected.taskTombstones];
     taskCacheByBoard.set(boardId, projected.tasks);
     setAppliedIds(boardId, projected.appliedEventIds);
-    if (deferred) return;
+  }
+
+  function saveBoard(boardId) {
     schedulePersist(boardsKey, state.boards);
     persistBoard(boardId);
   }
@@ -290,16 +303,16 @@ export function createReadModelProjector(ctx) {
   function register() {
     if (disconnect) return;
     disconnect = connectProjector({ classify, project, rebuild, foldOntoSnapshot, beginBatch, endBatch });
-    globalThis.addEventListener?.('pagehide', persistBatchOnPageHide);
+    window.addEventListener('pagehide', persistBatchOnPageHide);
   }
 
   function reset() {
     appliedBoardlessIds.clear();
     batch = null;
-    globalThis.removeEventListener?.('pagehide', persistBatchOnPageHide);
+    window.removeEventListener('pagehide', persistBatchOnPageHide);
     disconnect?.();
     disconnect = null;
   }
 
-  return { register, reset };
+  return { register, reset, applyAllPending, dropBoard };
 }

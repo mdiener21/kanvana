@@ -49,6 +49,7 @@ export async function ingestRemoteBatch(items) {
   const stored = await storedIds();
   const fresh = [];
   const writes = [];
+  // The projector can reconnect while the batch awaits; the one that began the batch must end it.
   const batchProjector = projector;
   batchProjector?.beginBatch();
   batchDepth += 1;
