@@ -1,6 +1,7 @@
 name: Publish Release
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -38,14 +39,11 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Stop when tag already exists
-        if: steps.tagcheck.outputs.exists == 'true'
-        run: |
-          echo "Tag v${{ steps.version.outputs.version }} already exists. Skipping publish."
-
       - name: Extract release notes from changelog
-        if: steps.tagcheck.outputs.exists == 'false'
         run: |
+          if [ '${{ steps.tagcheck.outputs.exists }}' = 'true' ]; then
+            git checkout "v${{ steps.version.outputs.version }}" -- CHANGELOG.md
+          fi
           node scripts/extract-release-notes.mjs --version "${{ steps.version.outputs.version }}" --notes-file .release-notes.md
 
       - name: Create and push tag
@@ -57,10 +55,13 @@ jobs:
           git push origin "v${{ steps.version.outputs.version }}"
 
       - name: Publish GitHub Release
-        if: steps.tagcheck.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          if gh release view "v${{ steps.version.outputs.version }}" > /dev/null 2>&1; then
+            echo 'Release already exists.'
+            exit 0
+          fi
           gh release create "v${{ steps.version.outputs.version }}" \
             --title "v${{ steps.version.outputs.version }}" \
             --notes-file .release-notes.md

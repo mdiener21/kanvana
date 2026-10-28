@@ -26,7 +26,6 @@ jobs:
   test:
     name: Run tests
     runs-on: ubuntu-latest
-    continue-on-error: true
     if: ${{ !inputs.skip_tests }}
 
     steps:
@@ -107,16 +106,22 @@ jobs:
       - name: Clean generated release notes artifact
         run: rm -f .release-notes.md
 
+      - name: Create release App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       - name: Create release pull request
         id: release_pr
-        continue-on-error: true
         uses: peter-evans/create-pull-request@v7
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: Bump version to v${{ steps.prepare.outputs.version }} and update changelog
+          token: ${{ steps.app-token.outputs.token }}
+          commit-message: 'chore(release): prepare v${{ steps.prepare.outputs.version }}'
           branch: release/v${{ steps.prepare.outputs.version }}
           base: main
-          title: Bump version to v${{ steps.prepare.outputs.version }} and update changelog
+          title: 'chore(release): prepare v${{ steps.prepare.outputs.version }}'
           body: |
             Automated release preparation for **v${{ steps.prepare.outputs.version }}**.
 
@@ -131,8 +136,6 @@ jobs:
             After merge to `main`, workflow `.github/workflows/publish-release.yml` will:
             - create/push tag `v${{ steps.prepare.outputs.version }}`
             - publish GitHub Release notes from `CHANGELOG.md`
-          labels: |
-            release
           delete-branch: true
           add-paths: |
             client/package.json
@@ -146,7 +149,5 @@ jobs:
             echo "Release PR number: ${{ steps.release_pr.outputs.pull-request-number }}"
             echo "Release PR URL: ${{ steps.release_pr.outputs.pull-request-url }}"
           else
-            echo "Workflow created branch release/v${{ steps.prepare.outputs.version }} but could not open a PR."
-            echo "Enable repository setting: Allow GitHub Actions to create and approve pull requests."
-            echo "Manual PR URL: https://github.com/${{ github.repository }}/compare/main...release/v${{ steps.prepare.outputs.version }}?expand=1"
+            echo "No release pull request was created; check the workflow output."
           fi

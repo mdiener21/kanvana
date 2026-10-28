@@ -83,7 +83,13 @@ Mutations generally follow: **load → modify → save → `renderBoard()`**.
 
 ## Release Process
 
-Preferred approach: run the manual GitHub Actions workflow `Generate Release` (`.github/workflows/release.yml`).
+Patch releases are prepared automatically by `.github/workflows/automatic-release.yml` after a successful `CI` push run on the current `main` tip. The release App opens a PR and enables auto-merge; the required PR checks must pass before publication. Updates without an Unreleased entry receive a `Maintenance updates.` note. Several updates may be included in one release when CI runs are superseded.
+
+For a minor or major release, first set the repository Actions variable `AUTO_RELEASE_ENABLED` to `false`, wait for any Automatic Release run to finish, and close any open `release/automatic` PR. Run the manual `Generate Release` workflow on `main` with the desired bump, review and merge its PR after required checks pass, and wait for the tag and release to be published. Then delete the variable or set it to `true`. Set the variable before merging the changes intended for that release; otherwise they may already have been published in a patch.
+
+The release App must be installed on this repository with Contents and Pull requests read/write permissions. `RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY` are Actions secrets. Keep auto-merge enabled and require the Test, Build, and Semgrep Security Scan checks in the `main` ruleset. The App must not bypass the ruleset. Automatic releases wait for successful CI, including its deployment jobs; investigate failed runs in Actions and rerun them. A new push to `main` supersedes older CI runs.
+
+To recover if tag creation succeeded but GitHub Release creation failed, rerun `Publish Release` on `main`; the workflow uses the changelog at the existing tag. If an automatic PR is stale, update its branch or close it and rerun the successful CI run for the current `main` tip.
 
 When asked to generate a release:
 
@@ -95,7 +101,7 @@ When asked to generate a release:
 6. **Merge release PR** — once merged, workflow `.github/workflows/publish-release.yml` runs automatically on `main`.
 7. **Tag + publish** — publish workflow creates tag `vX.Y.Z` and publishes GitHub Release notes from `CHANGELOG.md`.
 
-If PR creation fails in workflow, enable repository setting: `Allow GitHub Actions to create and approve pull requests`.
+If PR creation fails, check the release App installation, its permissions and the two Actions secrets.
 
 If workflow automation is unavailable, fall back to the manual process above using the same sequence.
 
@@ -103,7 +109,7 @@ If workflow automation is unavailable, fall back to the manual process above usi
 
 - **Version source of truth**: `package.json` → Vite injects as `__APP_VERSION__` → footer displays it
 - **Changelog format**: Keep a Changelog. Sections: `### Added/Changed/Removed (version)`
-- **Commit message**: `Bump version to vX.Y.Z and update changelog`
+- **Commit message**: `chore(release): prepare vX.Y.Z`
 - **Tag**: Annotated `vX.Y.Z` with brief comma-separated summary
 - **Release automation**: `.github/workflows/release.yml` + `.github/workflows/publish-release.yml` + `scripts/prepare-release.mjs` + `scripts/extract-release-notes.mjs`
 - **Docs to update on feature changes**: `CHANGELOG.md`, relevant `docs/spec/*.md` files, `docs/specification-kanban.md` (when spec governance changes), `CLAUDE.md`, `.github/copilot-instructions.md` (if module structure changes)
