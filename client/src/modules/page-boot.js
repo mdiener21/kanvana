@@ -4,9 +4,11 @@ import { initAuthRefresh } from './sync.js';
 import { initializeAuthSyncUI } from './authsync.js';
 import { initSyncQueue } from './event-sourcing/sync-queue.js';
 import { initSyncSession } from './event-sourcing/sync-session.js';
+import { checkDataOwner, listenForDataOwnerWipe } from './event-sourcing/data-owner.js';
 import { initSyncIndicator } from './event-sourcing/sync-indicator.js';
 
 export async function bootPage({ mountAuthUi = false } = {}) {
+  listenForDataOwnerWipe();
   try {
     await initStorage();
   } catch (err) {
@@ -17,6 +19,6 @@ export async function bootPage({ mountAuthUi = false } = {}) {
   initAuthRefresh();
   if (mountAuthUi) initializeAuthSyncUI();
   initSyncQueue();
-  initSyncSession();
+  initSyncSession({ beforeSignIn: checkDataOwner });
   initSyncIndicator();
 }

@@ -73,6 +73,8 @@ export function saveTimeTrackingSettings(patch) {
 // Per-device convenience state: deliberately local storage, not a domain event, so it never syncs.
 const LAST_USED_PROJECT_KEY = 'kanvana:timetracking:lastUsedProjectId';
 
+// A project of the account that used this browser last; it does not outlive that account here.
+export const clearLastUsedProjectId = () => localStorage.removeItem(LAST_USED_PROJECT_KEY);
 export const loadLastUsedProjectId = () => idOrNull(localStorage.getItem(LAST_USED_PROJECT_KEY));
 
 export function rememberLastUsedProject(projectId) {
