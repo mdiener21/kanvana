@@ -152,6 +152,7 @@ export async function downloadAllSnapshots() {
 
   const out = [];
   for (const [key, record] of winners) {
+    if (!isAuthenticated()) break; // signed out mid-way: nothing more may reach the server
     const snapshot = await inflate(pb, record);
     if (snapshot) out.push({ key, ...snapshot });
   }

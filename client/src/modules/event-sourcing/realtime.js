@@ -19,6 +19,7 @@ let _connectUnsubscribe = null;
 let _starting = null;
 let _catchingUp = null;
 let _handlers = null;
+let _pullGeneration = 0;
 
 function recordToEvent(r) {
   return {
@@ -73,20 +74,20 @@ async function subscribeRealtime() {
 }
 
 export async function stopRealtime() {
+  _pullGeneration += 1;
   if (_starting) { try { await _starting; } catch {} }
-  if (_connectUnsubscribe) {
-    await _connectUnsubscribe();
-    _connectUnsubscribe = null;
-  }
-  if (!_unsubscribe) return;
-  const unsub = _unsubscribe;
+  const unsubscribes = [_connectUnsubscribe, _unsubscribe].filter(Boolean);
+  _connectUnsubscribe = null;
   _unsubscribe = null;
-  await unsub();
+  // Started in one tick, the SDK sees no topics left and just closes the connection.
+  // One at a time, it would POST the remaining topics first, which fails once signed out.
+  await Promise.all(unsubscribes.map((unsubscribe) => unsubscribe()));
 }
 
 // For a device that joined after server cleanup, the snapshot is the only surviving history.
-async function hydrateFromRemoteSnapshots() {
+async function hydrateFromRemoteSnapshots(isStale) {
   for (const snapshot of await downloadAllSnapshots()) {
+    if (isStale()) return;
     const seen = await getLastSeen(snapshot.key);
     if (seen && compareHlc(snapshot.hlc, seen) <= 0) continue;
     await adoptSnapshot(snapshot.key, snapshot.state, snapshot.hlc);
@@ -107,13 +108,17 @@ async function catchUpAfterPending() {
 }
 
 async function pullRemoteState() {
-  await hydrateFromRemoteSnapshots();
+  const generation = _pullGeneration;
+  const isStale = () => generation !== _pullGeneration;
+  await hydrateFromRemoteSnapshots(isStale);
+  if (isStale()) return;
   const pb = getPb();
   const ownerId = getUser()?.id;
   const records = await pb.collection('events').getFullList({
     filter: `owner = "${ownerId}"`,
     requestKey: null,
   });
+  if (isStale()) return;
 
   // A rejected event must not advance a watermark (#181).
   const fresh = await ingestRemoteBatch(records.map((record) => ({ event: recordToEvent(record), receivedAt: record.created })));

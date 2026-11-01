@@ -228,6 +228,48 @@ describe('catch-up pull', () => {
     }
   });
 
+  it('sends no further request once realtime is stopped during a pull', async () => {
+    stubRealtime();
+    let releaseSnapshots;
+    const snapshotsHeld = new Promise((res) => { releaseSnapshots = res; });
+    let snapshotRequests = 0;
+    let eventRequests = 0;
+    server.use(
+      http.get(SNAP_LIST, async () => { snapshotRequests += 1; await snapshotsHeld; return listResponse([]); }),
+      http.get(EVT_LIST, () => { eventRequests += 1; return listResponse([]); }),
+    );
+    setAuth();
+    const pull = catchUp();
+    await waitFor(() => expect(snapshotRequests).toBe(1));
+
+    await stopRealtime();
+    releaseSnapshots();
+    await pull;
+
+    expect(eventRequests).toBe(0);
+  });
+
+  it('applies nothing from a pull that realtime was stopped during', async () => {
+    stubRealtime();
+    let releaseEvents;
+    const eventsHeld = new Promise((res) => { releaseEvents = res; });
+    let eventRequests = 0;
+    server.use(http.get(EVT_LIST, async () => {
+      eventRequests += 1;
+      await eventsHeld;
+      return listResponse([record({ local_id: 'late', h: hlc(1), payload: { board: { name: 'Previous account' } } })]);
+    }));
+    setAuth();
+    const pull = catchUp();
+    await waitFor(() => expect(eventRequests).toBe(1));
+
+    await stopRealtime();
+    releaseEvents();
+    await pull;
+
+    expect(listBoards().map((b) => b.name)).not.toContain('Previous account');
+  });
+
   it('fetches boards missed during an automatic SSE reconnect', async () => {
     const rt = stubRealtime();
     setAuth();
