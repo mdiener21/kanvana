@@ -127,7 +127,7 @@ The storage layer is split into three modules:
 
 | Module | Responsibility |
 |---|---|
-| `idb-store.js` | IDB connection singleton, key helpers, fire-and-forget `schedulePersist()` / `scheduleReadModelPersist()` / `scheduleDelete()`, plus event helpers (`persistEvent`, `getUnsyncedEvents`, `markEventSynced`) |
+| `idb-store.js` | IDB connection singleton, key helpers, fire-and-forget `schedulePersist()` / `scheduleReadModelPersist()` / `scheduleDelete()`, event helpers (`persistEvent`, `getUnsyncedEvents`, `markEventSynced`), and the Data Owner record (`getDataOwner`, `claimDataOwner`, `replaceLocalData`) |
 | `board-serializer.js` | Board import normalizer — remaps non-UUID IDs, coerces fields on import or IDB migration |
 | `storage.js` | In-memory `state` + all public CRUD functions. Imports from both above. Owns `state`/schedulers; wires them into the read-model projector. |
 | `event-sourcing/read-model-projector.js` | `createReadModelProjector()` — the read-model projection host, extracted from `storage.js` ([#119](docs/adr/0005-reducer-sole-read-model-writer.md)). Connects to the ingest interface on `register()` and folds each ingested domain event into the injected `state` via the pure reducer (the sole writer). |
@@ -142,6 +142,8 @@ The storage layer is split into three modules:
 | `kanvana:hlc:node` | Persisted Hybrid Logical Clock node id |
 | `kanvana:timetracking` | Time-tracking projection (`customers` / `projects` / `timeEntries`, plus `tombstones` of deleted customers / projects) |
 | `kanvana:sync:lastSeenHlc:{scope}` | Per-scope catch-up watermark (`{boardId}`, `__global__` or `__timetracking__`) |
+| `kanvana:dataOwner` | Id of the account local data belongs to (§4 Data Owner); absent until the first sign-in |
+| `kanvana:sync:firstPullPending` | Set by a wipe, cleared when the session first goes live: the new owner's data has not been pulled yet |
 
 **Pattern:** `initStorage()` (async, called once at startup) → synchronous CRUD functions read/write
 in-memory `state` → fire-and-forget IDB writes via `scheduleReadModelPersist()` → `renderBoard()`.
@@ -205,11 +207,12 @@ manual push/pull); the header **sync-state indicator** shows `Live` / `Syncing�
 | `sync.js` | PocketBase SDK instance (`getPb`) + auth only (`isAuthenticated`, `ensureAuthenticated`, `getUser`, `loginUser`, `registerUser`, `logoutUser`, `loginWithProvider`, `refreshAuth`, `initAuthRefresh`) |
 | `authsync.js` | Auth UI — login modal, OAuth2 (Google/Apple/Microsoft), logout, backend health probe |
 | `event-sourcing/sync-session.js` | **Lifecycle** — the one state machine for sync (`signed-out` → `catching-up` → `live` ⇄ `offline`, plus `paused`). The only sync module that listens to `auth-changed`, `online` and `offline`; it starts and stops the queue, realtime and snapshot upload. `initSyncSession()`, `getSyncSessionState()`; `createSyncSession({ network, beforeSignIn })` takes the network side and a check run on each new sign-in |
-| `event-sourcing/sync-queue.js` | **Outbound** — drains unsynced events to the PB `events` collection in HLC order (debounce, in-flight cap, three-tier retry, no rollback). Runs only between `startSyncQueue({ onAuthRejected })` and `stopSyncQueue()`; `drainSyncQueue()`, `getSyncStatus()` |
+| `event-sourcing/data-owner.js` | **Account check** — `checkDataOwner(userId)`, the session's `beforeSignIn`: applies the Data Owner policy, and coordinates tabs during a switch. Also ends the first pull after a wipe |
+| `event-sourcing/sync-queue.js` | **Outbound** — drains unsynced events to the PB `events` collection in HLC order (debounce, in-flight cap, three-tier retry, no rollback), stamped with the Data Owner, and pushes nothing when the signed-in account is not the Data Owner. Runs only between `startSyncQueue({ onAuthRejected })` and `stopSyncQueue()`; `drainSyncQueue()`, `getSyncStatus()` |
 | `event-sourcing/ingest.js` | **Ingest interface** — `ingestEvent(event, { origin, receivedAt })`, the single entry point of the event log for local and remote events (catch-up uses `ingestRemoteBatch(items)`, which validates and sorts once, applies each board's in-order events to one copy of the board as one list (#238) and saves each touched board's read model once when the batch ends (#237), and returns the events not stored before): validate, observe the remote HLC (remote only), project, `DATA_CHANGED`, `EVENT_EMITTED`, persist (`synced` = origin is `remote`) |
 | `event-sourcing/realtime.js` | **Inbound** — SSE subscription (`startRealtime({ onConnect })`, `stopRealtime()`) + catch-up pull (`catchUp()`), run by the session; a stop also ends a pull in flight; remote events go through `ingestEvent(…, { origin: 'remote' })` (deduped by id) |
 | `event-sourcing/hlc.js` | Hybrid Logical Clock — `emitLocal()`, `observeRemote()`, `compareHlc()` |
-| `event-sourcing/snapshot.js`, `snapshot-sync.js` | Client snapshots + upload + event GC. Snapshots are always taken locally; upload runs only between `startSnapshotSync()` and `stopSnapshotSync()` |
+| `event-sourcing/snapshot.js`, `snapshot-sync.js` | Client snapshots + upload + event GC. Snapshots are always taken locally; upload runs only between `startSnapshotSync()` and `stopSnapshotSync()`, and only as the Data Owner |
 | `event-sourcing/sync-indicator.js` | Header sync-state indicator (#115), rendered from the session state and queue depth |
 
 **Data Owner** — the account the browser's local data belongs to. One browser holds one local database
@@ -218,6 +221,32 @@ account signing in wipes local data, after a prompt if unsynced events would be 
 Owner. Events are only ever pushed under the Data Owner. Sign-out keeps local data visible and usable
 offline, keeps the Data Owner, and clears the token locally without revoking it on the server
 ([ADR-0006](docs/adr/0006-data-owner-account-policy.md)).
+
+How a switch works (`data-owner.js`, run on each new sign-in, with no network, also at an offline launch):
+
+- **Wipe.** `replaceLocalData()` clears every object store and writes the new owner in **one transaction**,
+  so an interruption leaves the old owner with all its data, or the new owner with none. A later boot with
+  the old owner still recorded runs the check again. The page then reloads, which is what resets the
+  in-memory state, caches and watermarks.
+- **What survives a wipe.** The HLC node id (it identifies the browser) and localStorage display
+  preferences: theme, the notification banner flag, the report period. Everything else goes, including
+  global settings, watermarks and the last-used time-tracking project.
+- **Prompt.** `confirmDialog` with `destructive: true`, so Cancel has focus. A wipe refuses when more events
+  are unsynced than the user agreed to lose, and the prompt asks again with the new number.
+- **Other tabs.** The auth store is in localStorage, so every tab's session sees the sign-in. A Web Lock lets
+  one tab settle the switch while the others wait, signed-out; a hidden tab does not prompt until it is
+  looked at. The tab that wiped tells the others to reload over a `BroadcastChannel`.
+- **First pull.** All tabs come back empty after a wipe, and two pulling at once would lose events: a remote
+  event the other tab stored first is skipped, so it is never projected here. So one tab pulls under a
+  second Web Lock and the others then reload. `kanvana:sync:firstPullPending` lets another tab take over if
+  that one dies.
+- **Default board.** The page seeds the stable default board before it knows what the new account holds. That
+  seed has no demo tasks and emits no events, and its events go out only if the first catch-up shows the
+  account has never had this board, so nothing newer than the account's own history lands on the stable ids.
+
+Known limits. Without Web Locks (plain http) both locks are skipped: two visible tabs could each prompt, and
+the first pull is not serialised. A write from another tab in the moment between a wipe committing and that
+tab receiving the notice can land in the new owner's database.
 
 **Auth:** Email/password or OAuth2. `isAuthenticated()` / `ensureAuthenticated()` guard all sync
 operations. The `auth-changed` window event fires on auth state change, including a token refresh; the
@@ -349,7 +378,8 @@ inspectImportPayload → buildImportConfirmationMessage → importTasks
 
 ### Sync Flow (event-sourced)
 ```
-[sign-in, launch signed in]  → beforeSignIn check → catching-up (or offline if there is no network)
+[sign-in, launch signed in]  → beforeSignIn: Data Owner check (§4), stays signed-out until settled
+                               → catching-up (or offline if there is no network)
 [online, re-auth, SSE reconnect] → catching-up
 
 catching-up (event-sourcing/sync-session.js), one pull per transition:
@@ -370,7 +400,7 @@ ingestEvent (event-sourcing/ingest.js) — one path, origin is a parameter:
    2. remote only: drop if it reached the server a grace window after its HLC; classify against the key's newest applied HLC (§9 Ordering)
    3. project: read-model-projector folds event into state (sole writer, deduped by id)
               → emit(DATA_CHANGED) → renderBoard()      [synchronous for local events; skipped for a late remote one]
-   4. emit(EVENT_EMITTED) → outbound sync-queue schedules a drain if it is running (HLC order, unsynced only)
+   4. emit(EVENT_EMITTED) → outbound sync-queue schedules a drain if it is running (HLC order, unsynced only, as the Data Owner)
    5. persistEvent (synced = origin === 'remote')        [async; the returned promise settles here]
    6. late event only: rebuildScope(key)                  [the promise settles after the rebuild]
 ```
