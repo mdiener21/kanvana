@@ -7,11 +7,12 @@
 
 import { getPb, isAuthenticated, getUser } from '../sync.js';
 import { compareHlc } from './hlc.js';
-import { serializeState, GLOBAL_SNAPSHOT_KEY, isOlderThanGraceWindow, scopeForSnapshotKey, setAfterSnapshotSaved } from './snapshot.js';
+import { serializeState, GLOBAL_SNAPSHOT_KEY, isOlderThanGraceWindow, loadSnapshot, scopeForSnapshotKey, setAfterSnapshotSaved } from './snapshot.js';
 import { createProjectionState } from '../reducer.js';
 import { EVENT_SCOPE } from '../constants.js';
 
 let _uploadGeneration = 0;
+let _uploading = false;
 
 // PB snapshots have no scope column: global keeps its legacy empty board_id,
 // every other key (board ids, the timetracking sentinel) is stored as-is.
@@ -183,11 +184,20 @@ async function inflate(pb, record) {
 }
 
 export function startSnapshotSync() {
+  _uploading = true;
   setAfterSnapshotSaved(uploadSnapshot);
+}
+
+// A snapshot another tab saved (#222), which only the leader may upload.
+export async function uploadStoredSnapshot(key) {
+  if (!_uploading) return;
+  const stored = await loadSnapshot(key);
+  if (stored) await uploadSnapshot(key, stored.state, stored.hlc);
 }
 
 // Snapshots keep being taken locally; only the upload stops, including one in flight.
 export function stopSnapshotSync() {
+  _uploading = false;
   setAfterSnapshotSaved(null);
   _uploadGeneration += 1;
 }

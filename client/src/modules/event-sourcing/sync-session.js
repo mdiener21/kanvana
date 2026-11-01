@@ -3,7 +3,7 @@
 
 import { getUser, isAuthenticated } from '../sync.js';
 import { catchUpAfterPending, startRealtime, stopRealtime } from './realtime.js';
-import { startSnapshotSync, stopSnapshotSync } from './snapshot-sync.js';
+import { startSnapshotSync, stopSnapshotSync, uploadStoredSnapshot } from './snapshot-sync.js';
 import { drainSyncQueue, startSyncQueue, stopSyncQueue, SYNC_STATUS_CHANGED } from './sync-queue.js';
 
 export const SESSION_STATE = Object.freeze({
@@ -63,7 +63,7 @@ export function transitionSession(state, event) {
 
 const DEFAULT_CONNECT_WAIT_MS = 3000;
 
-const POCKETBASE_NETWORK = {
+export const POCKETBASE_NETWORK = {
   startRealtime: (onConnect) => startRealtime({ onConnect }),
   stopRealtime,
   catchUp: catchUpAfterPending,
@@ -74,6 +74,7 @@ const POCKETBASE_NETWORK = {
   stopQueue: stopSyncQueue,
   startSnapshots: startSnapshotSync,
   stopSnapshots: stopSnapshotSync,
+  uploadStoredSnapshot,
 };
 
 function isAuthRejection(err) {
@@ -104,7 +105,10 @@ export function createSyncSession({
 
   function dispatch(event) {
     const next = transitionSession(state, event);
-    if (next === state) return;
+    if (next !== state) enter(next);
+  }
+
+  function enter(next) {
     state = next;
     entry += 1;
     enterState(next);
@@ -203,6 +207,21 @@ export function createSyncSession({
     if (id) signIn(id);
   }
 
+  // This tab just became sync leader (#222), so nothing has run on the network from here
+  // yet. A pull running now went through the old, inert network side, so it starts over.
+  // Paused keeps its queue and upload stopped until fresh credentials; realtime stays up.
+  function takeOver() {
+    if (state === LIVE || state === CATCHING_UP) enter(CATCHING_UP);
+    else if (state === PAUSED) runCatchUp(entry).catch((err) => console.error('[Kanvana] Sync catch-up failed', err));
+  }
+
+  // Only the leader's pushes can be rejected, so a follower learns of it here, which a
+  // later takeover needs. Auth and network state are this tab's own.
+  function noteLeaderState(leaderState) {
+    if (leaderState === PAUSED) dispatch(EVENT.AUTH_REJECTED);
+    else if (leaderState === LIVE && state === PAUSED) dispatch(isOnline() ? EVENT.SIGNED_IN : EVENT.SIGNED_IN_OFFLINE);
+  }
+
   function start() {
     listeners = {
       auth: onAuthChanged,
@@ -225,10 +244,11 @@ export function createSyncSession({
     entry += 1;
   }
 
-  return { start, dispose, getState: () => state };
+  return { start, dispose, takeOver, noteLeaderState, getState: () => state };
 }
 
 let _session = null;
+let _leaderState = null; // the leader tab's session state, in a follower tab (#222)
 
 export function initSyncSession(options = {}) {
   if (_session || typeof window === 'undefined') return;
@@ -240,10 +260,23 @@ export function initSyncSession(options = {}) {
 }
 
 export function getSyncSessionState() {
-  return _session?.getState() ?? SESSION_STATE.SIGNED_OUT;
+  const own = _session?.getState() ?? SESSION_STATE.SIGNED_OUT;
+  if (!_leaderState || own === SIGNED_OUT || own === OFFLINE) return own;
+  return _leaderState;
+}
+
+export function takeOverSyncSession() {
+  _session?.takeOver();
+}
+
+// Null once this tab is the leader itself.
+export function setLeaderSessionState(leaderState) {
+  _leaderState = leaderState;
+  if (leaderState) _session?.noteLeaderState(leaderState);
 }
 
 export function _resetSyncSessionForTesting() {
   _session?.dispose();
   _session = null;
+  _leaderState = null;
 }
