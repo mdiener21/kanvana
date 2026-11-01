@@ -6,7 +6,7 @@
 //   Offline       gray    — no network or not logged in
 // Re-renders (no reload, AC-005) on DATA_CHANGED and SYNC_STATUS_CHANGED.
 
-import { on, off, DATA_CHANGED } from '../events.js';
+import { on, off, DATA_CHANGED, PEER_SYNC_CHANGED } from '../events.js';
 import { getSyncStatus, SYNC_STATUS_CHANGED } from './sync-queue.js';
 import { getSyncSessionState, SESSION_STATE } from './sync-session.js';
 
@@ -52,6 +52,7 @@ export function initSyncIndicator() {
   };
   _handlers = { rerender };
   on(DATA_CHANGED, rerender);
+  on(PEER_SYNC_CHANGED, rerender);
   window.addEventListener(SYNC_STATUS_CHANGED, rerender);
 
   rerender();
@@ -60,6 +61,7 @@ export function initSyncIndicator() {
 export function _resetSyncIndicatorForTesting() {
   if (_handlers) {
     off(DATA_CHANGED, _handlers.rerender);
+    off(PEER_SYNC_CHANGED, _handlers.rerender);
     window.removeEventListener(SYNC_STATUS_CHANGED, _handlers.rerender);
   }
   _handlers = null;

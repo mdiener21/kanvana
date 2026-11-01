@@ -3,7 +3,7 @@
 
 import { getUser, isAuthenticated } from '../sync.js';
 import { catchUpAfterPending, startRealtime, stopRealtime } from './realtime.js';
-import { startSnapshotSync, stopSnapshotSync } from './snapshot-sync.js';
+import { startSnapshotSync, stopSnapshotSync, uploadStoredSnapshot } from './snapshot-sync.js';
 import { drainSyncQueue, startSyncQueue, stopSyncQueue, SYNC_STATUS_CHANGED } from './sync-queue.js';
 
 export const SESSION_STATE = Object.freeze({
@@ -74,6 +74,7 @@ export const POCKETBASE_NETWORK = {
   stopQueue: stopSyncQueue,
   startSnapshots: startSnapshotSync,
   stopSnapshots: stopSnapshotSync,
+  uploadStoredSnapshot,
 };
 
 function isAuthRejection(err) {
@@ -247,6 +248,7 @@ export function createSyncSession({
 }
 
 let _session = null;
+let _leaderState = null; // the leader tab's session state, in a follower tab (#222)
 
 export function initSyncSession(options = {}) {
   if (_session || typeof window === 'undefined') return;
@@ -258,10 +260,23 @@ export function initSyncSession(options = {}) {
 }
 
 export function getSyncSessionState() {
-  return _session?.getState() ?? SESSION_STATE.SIGNED_OUT;
+  const own = _session?.getState() ?? SESSION_STATE.SIGNED_OUT;
+  if (!_leaderState || own === SIGNED_OUT || own === OFFLINE) return own;
+  return _leaderState;
+}
+
+export function takeOverSyncSession() {
+  _session?.takeOver();
+}
+
+// Null once this tab is the leader itself.
+export function setLeaderSessionState(leaderState) {
+  _leaderState = leaderState;
+  if (leaderState) _session?.noteLeaderState(leaderState);
 }
 
 export function _resetSyncSessionForTesting() {
   _session?.dispose();
   _session = null;
+  _leaderState = null;
 }

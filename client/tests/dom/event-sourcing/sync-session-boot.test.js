@@ -103,6 +103,7 @@ async function openBoard({ signedIn = false, unsynced = [], snapshots = {} } = {
     sync: await import('../../../src/modules/sync.js'),
     idb: await import('../../../src/modules/idb-store.js'),
     queue: await import('../../../src/modules/event-sourcing/sync-queue.js'),
+    leader: await import('../../../src/modules/event-sourcing/sync-leader.js'),
     realtime: await import('../../../src/modules/event-sourcing/realtime.js'),
     session: await import('../../../src/modules/event-sourcing/sync-session.js'),
     indicator: await import('../../../src/modules/event-sourcing/sync-indicator.js'),
@@ -150,6 +151,7 @@ afterAll(() => {
 afterEach(async () => {
   if (page) {
     page.session._resetSyncSessionForTesting();
+    page.leader._resetSyncLeaderForTesting();
     page.queue._resetSyncQueueForTesting();
     await page.queue._settleForTesting();
     await page.realtime._resetRealtimeForTesting();

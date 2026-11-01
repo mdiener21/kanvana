@@ -12,12 +12,13 @@ vi.mock('../../src/modules/theme.js', () => ({ initializeThemeToggle: record('th
 vi.mock('../../src/modules/sync.js', () => ({ initAuthRefresh: record('auth refresh') }));
 vi.mock('../../src/modules/authsync.js', () => ({ initializeAuthSyncUI: record('auth UI') }));
 vi.mock('../../src/modules/event-sourcing/sync-queue.js', () => ({ initSyncQueue: record('queue') }));
+vi.mock('../../src/modules/event-sourcing/sync-leader.js', () => ({ initSyncLeader: async () => { calls.push('sync leader'); } }));
 vi.mock('../../src/modules/event-sourcing/sync-session.js', () => ({ initSyncSession: record('sync session') }));
 vi.mock('../../src/modules/event-sourcing/sync-indicator.js', () => ({ initSyncIndicator: record('sync indicator') }));
 
 const { bootPage } = await import('../../src/modules/page-boot.js');
 
-const SYNC_ORDER = ['storage', 'theme', 'auth refresh', 'queue', 'sync session', 'sync indicator'];
+const SYNC_ORDER = ['storage', 'theme', 'auth refresh', 'queue', 'sync leader', 'sync session', 'sync indicator'];
 
 beforeEach(() => { calls.length = 0; });
 
@@ -29,7 +30,7 @@ describe('bootPage (#218)', () => {
 
   it('mounts the auth UI after auth refresh only when the page asks for it', async () => {
     await bootPage({ mountAuthUi: true });
-    expect(calls).toEqual(['storage', 'theme', 'auth refresh', 'auth UI', 'queue', 'sync session', 'sync indicator']);
+    expect(calls).toEqual(['storage', 'theme', 'auth refresh', 'auth UI', 'queue', 'sync leader', 'sync session', 'sync indicator']);
   });
 
   it('still sets up theme and sync when storage fails to open', async () => {
