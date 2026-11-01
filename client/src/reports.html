@@ -147,6 +147,23 @@
     </section>
 
   </main>
+  <!-- Confirm / Alert Modal -->
+  <div id="dialog-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="dialog-modal-title">
+    <div class="modal-backdrop" data-close-modal></div>
+    <article class="modal-content">
+      <header class="modal-header-row">
+        <h3 id="dialog-modal-title">Confirm</h3>
+        <button id="dialog-close-btn" type="button" class="icon-btn" aria-label="Close" title="Close">
+          <span data-lucide="x" aria-hidden="true"></span>
+        </button>
+      </header>
+      <p id="dialog-modal-message"></p>
+      <div class="form-actions">
+        <button type="button" id="dialog-cancel-btn" class="btn btn-secondary">Cancel</button>
+        <button type="button" id="dialog-confirm-btn" class="btn btn-primary">OK</button>
+      </div>
+    </article>
+  </div>
 
   <script type="module" src="./modules/reports.js"></script>
   <script type="module" src="./modules/pwa.js"></script>
