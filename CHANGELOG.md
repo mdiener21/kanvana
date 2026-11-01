@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Added browser tests for the journeys a user would notice breaking: board import and export, templates, labels, columns, search, calendar, reports and notifications. Six known bugs they found are marked `test.fixme` until fixed (#231).
+
 ## [3.4.7] - 2026-10-28
 
 ### Added
