@@ -255,6 +255,25 @@ describe('a local edit', () => {
   });
 });
 
+describe('a board setting written without an event', () => {
+  it('survives the other tab writing out its copy of the board, and shows there', async () => {
+    const { leader, follower } = await leaderAndFollower();
+    leader.storage.setActiveBoardId(BOARD);
+    follower.storage.setActiveBoardId(BOARD);
+
+    leader.storage.saveSettings({ ...leader.storage.loadSettings(), swimLanesEnabled: true });
+    await waitFor(() => expect(follower.storage.loadSettings().swimLanesEnabled).toBe(true));
+
+    updateTask(follower, { title: 'Written out by the follower' });
+    await waitFor(() => expect(taskIn(leader).title).toBe('Written out by the follower'));
+    await follower.idb.flushPendingPersists();
+    await leader.idb.flushPendingPersists();
+
+    const db = await leader.idb.openStore();
+    expect((await db.get('kv', `kanbanBoard:${BOARD}:settings`)).swimLanesEnabled).toBe(true);
+  });
+});
+
 describe('a snapshot the leader adopts', () => {
   it('drops from the follower what it dropped itself', async () => {
     const { leader, follower } = await leaderAndFollower();

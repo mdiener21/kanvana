@@ -434,6 +434,22 @@ describe('no Web Locks (AC-004)', () => {
     await waitFor(() => expect(two.storage.loadTasksForBoard(BOARD).map((task) => task.id)).toContain('task-1'));
   });
 
+  it('tells the other tab when the queue changes, so its indicator does not stay on an old count', async () => {
+    const one = await openTab();
+    const two = await openTab();
+    await goLive(one, two);
+    await settle();
+    const statuses = () => FakeBroadcastChannel.log.filter((message) => message.type === 'status').length;
+    const before = statuses();
+
+    await edit(one);
+    await waitFor(() => expect(pushesBy(one)).toBe(1));
+
+    await waitFor(() => expect(statuses()).toBeGreaterThan(before));
+    await waitFor(() => expect(two.element.textContent).toContain('Live'));
+    expect(stateOf(two)).toBe('live');
+  });
+
   it('works with no BroadcastChannel either', async () => {
     vi.stubGlobal('BroadcastChannel', undefined);
     const one = await openTab();

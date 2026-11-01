@@ -3,7 +3,9 @@
 // a BroadcastChannel: which events reached the shared store, and the leader's sync status.
 // Taking the lock depends on nothing about the user, so sign-in checks stay out of it.
 
-import { EVENTS_STORED, PEER_SYNC_CHANGED, SNAPSHOT_ADOPTED, emit, off, on } from '../events.js';
+import { BOARD_SETTINGS_WRITTEN, EVENTS_STORED, PEER_SYNC_CHANGED, SNAPSHOT_ADOPTED, emit, off, on } from '../events.js';
+import { flushPendingPersists } from '../idb-store.js';
+import { refreshBoardSettings } from '../storage.js';
 import { ingestMissedEvents, ingestStoredEvents, rebuildAfterPeerAdoption } from './ingest.js';
 import { setAfterSnapshotSaved } from './snapshot.js';
 import { isSyncQueueRetrying, scheduleDrain, setPeerRetrying, SYNC_STATUS_CHANGED } from './sync-queue.js';
@@ -14,6 +16,7 @@ const CHANNEL_NAME = 'kanvana:sync';
 
 const MESSAGE = Object.freeze({
   EVENTS_STORED: 'events-stored',
+  BOARD_SETTINGS_WRITTEN: 'board-settings-written',
   SNAPSHOT_ADOPTED: 'snapshot-adopted',
   SNAPSHOT_SAVED: 'snapshot-saved',
   STATUS: 'status',
@@ -38,7 +41,7 @@ function post(message) {
 }
 
 function postStatus() {
-  if (!_elected || !_isLeader) return;
+  if (!_isLeader) return;
   post({ type: MESSAGE.STATUS, session: getSyncSessionState(), retrying: isSyncQueueRetrying() });
 }
 
@@ -76,6 +79,13 @@ function onSnapshotAdopted({ detail: { key, forgotten } }) {
   post({ type: MESSAGE.SNAPSHOT_ADOPTED, key, forgotten });
 }
 
+// The others re-read the settings, so they must be stored first.
+function onBoardSettingsWritten({ detail: { boardId } }) {
+  flushPendingPersists()
+    .then(() => post({ type: MESSAGE.BOARD_SETTINGS_WRITTEN, boardId }))
+    .catch(logFailure('Announcing board settings'));
+}
+
 // Notices arriving while a batch folds join the next one, so a burst renders only a few times.
 async function applyPeerEvents() {
   if (_applyingPeerEvents) return;
@@ -100,6 +110,9 @@ const HANDLERS = {
     applyPeerEvents();
     if (_elected && _isLeader && local) scheduleDrain();
   },
+  [MESSAGE.BOARD_SETTINGS_WRITTEN]: ({ boardId }) => {
+    refreshBoardSettings(boardId).catch(logFailure('Reading board settings'));
+  },
   [MESSAGE.SNAPSHOT_ADOPTED]: ({ key, forgotten }) => {
     rebuildAfterPeerAdoption(key, forgotten).catch(logFailure('Rebuilding after another tab\'s snapshot'));
   },
@@ -107,9 +120,11 @@ const HANDLERS = {
     if (_elected && _isLeader) _real.uploadStoredSnapshot(key).catch(logFailure('Snapshot upload'));
   },
   [MESSAGE.STATUS]: ({ session, retrying }) => {
-    if (_isLeader) return;
-    setLeaderSessionState(session);
-    setPeerRetrying(retrying);
+    // With no election every tab leads, but the queue depth they show is shared.
+    if (!_isLeader) {
+      setLeaderSessionState(session);
+      setPeerRetrying(retrying);
+    }
     emit(PEER_SYNC_CHANGED);
   },
   [MESSAGE.STATUS_REQUEST]: postStatus,
@@ -209,6 +224,7 @@ export async function initSyncLeader({ network = POCKETBASE_NETWORK } = {}) {
     _channel.onmessage = ({ data }) => HANDLERS[data?.type]?.(data);
     on(EVENTS_STORED, onEventsStored);
     on(SNAPSHOT_ADOPTED, onSnapshotAdopted);
+    on(BOARD_SETTINGS_WRITTEN, onBoardSettingsWritten);
   }
   window.addEventListener(SYNC_STATUS_CHANGED, postStatus);
 
@@ -233,6 +249,7 @@ export function _resetSyncLeaderForTesting() {
   _channel?.close();
   off(EVENTS_STORED, onEventsStored);
   off(SNAPSHOT_ADOPTED, onSnapshotAdopted);
+  off(BOARD_SETTINGS_WRITTEN, onBoardSettingsWritten);
   window.removeEventListener(SYNC_STATUS_CHANGED, postStatus);
   if (_lifecycle) {
     document.removeEventListener('freeze', stepDown);
