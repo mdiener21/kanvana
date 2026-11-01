@@ -1,7 +1,7 @@
 import { generateUUID } from './utils.js';
 import { normalizePriority as sharedNormalizePriority, isHexColor, defaultColumnColor, normalizeStringKeys, normalizeRelationships, normalizeSubTasks } from './normalize.js';
 import { DONE_COLUMN_ID, DONE_COLUMN_ROLE, isDoneColumn } from './constants.js';
-import { openStore, KV_STORE, READ_MODEL_STORE, EVENTS_STORE, SNAPSHOTS_STORE, isDefaultBoardDeferred, takeDeferredDefaultBoard, schedulePersist, scheduleDelete, scheduleReadModelPersist, scheduleReadModelDelete, keyFor, readModelKeyFor, _flushPersistsForTesting as _flushIdbPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
+import { openStore, KV_STORE, READ_MODEL_STORE, EVENTS_STORE, SNAPSHOTS_STORE, isFirstPullPending, schedulePersist, scheduleDelete, scheduleReadModelPersist, scheduleReadModelDelete, keyFor, readModelKeyFor, _flushPersistsForTesting as _flushIdbPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
 // Re-export IDB helpers that tests import from this module for backward compatibility.
 import { normalizeBoardModelIds } from './board-serializer.js';
 import { initHlc, laterHlc } from './event-sourcing/hlc.js';
@@ -490,7 +490,7 @@ export async function initStorage() {
     state.snapshotAppliedIds[board.id] = (await loadSnapshot(board.id))?.state.appliedEventIds ?? new Set();
   }
   state.newestAppliedHlc = await loadNewestAppliedHlc(db);
-  defaultBoardDeferred = await isDefaultBoardDeferred();
+  defaultBoardDeferred = await isFirstPullPending();
 
   // One-shot: give pre-event-sourcing state an event log so it can sync at all.
   const backfillStartedAt = globalThis.__kanvanaPerfMarks ? performance.now() : null;
@@ -682,10 +682,10 @@ function emitBoardScaffoldEvents(boardId, { columns = [], labels = [] }) {
 // the account has never had this board (#221).
 export async function publishDeferredDefaultBoard() {
   if (!defaultBoardDeferred) return;
-  const board = state.boards.find((b) => b.id === STABLE_DEFAULT_BOARD_ID);
-  if (!board && state.boards.length === 0) return; // this page has not seeded yet
+  ensureBoardsInitialized(); // going live can come before this page's first read of a board
   defaultBoardDeferred = false;
-  if (!await takeDeferredDefaultBoard() || !board) return;
+  const board = state.boards.find((b) => b.id === STABLE_DEFAULT_BOARD_ID);
+  if (!board) return;
 
   const db = await openStore();
   const events = await db.getAll(EVENTS_STORE);

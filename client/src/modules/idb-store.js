@@ -10,7 +10,7 @@ const EVENTS_STORE = 'events';
 const SNAPSHOTS_STORE = 'snapshots';
 const READ_MODEL_STORE = 'read_model';
 const DATA_OWNER_KEY = 'kanvana:dataOwner';
-const DEFERRED_DEFAULT_BOARD_KEY = 'kanvana:defaultBoard:deferred';
+const FIRST_PULL_PENDING_KEY = 'kanvana:sync:firstPullPending';
 
 let _db = null;
 let _needsV2DataMigration = false;
@@ -156,7 +156,7 @@ export async function replaceLocalData({ ownerId, maxUnsynced, keepKvKeys = [] }
     await tx.objectStore(SNAPSHOTS_STORE).clear();
     await tx.objectStore(READ_MODEL_STORE).clear();
     await kv.put(ownerId, DATA_OWNER_KEY);
-    await kv.put(true, DEFERRED_DEFAULT_BOARD_KEY);
+    await kv.put(true, FIRST_PULL_PENDING_KEY);
     await tx.done;
   } catch (err) {
     // A transaction left to finish on its own would commit the part already done.
@@ -167,19 +167,14 @@ export async function replaceLocalData({ ownerId, maxUnsynced, keepKvKeys = [] }
   return { replaced: true, unsynced };
 }
 
-export async function isDefaultBoardDeferred() {
+export async function isFirstPullPending() {
   const db = await getDB();
-  return Boolean(await db.get(KV_STORE, DEFERRED_DEFAULT_BOARD_KEY));
+  return Boolean(await db.get(KV_STORE, FIRST_PULL_PENDING_KEY));
 }
 
-// True for one caller only, so two tabs reaching the same point do not both act on it.
-export async function takeDeferredDefaultBoard() {
+export async function clearFirstPullPending() {
   const db = await getDB();
-  const tx = db.transaction(KV_STORE, 'readwrite');
-  const deferred = await tx.store.get(DEFERRED_DEFAULT_BOARD_KEY);
-  if (deferred) await tx.store.delete(DEFERRED_DEFAULT_BOARD_KEY);
-  await tx.done;
-  return Boolean(deferred);
+  await db.delete(KV_STORE, FIRST_PULL_PENDING_KEY);
 }
 
 // A page about to reload after a wipe must not write the old account's state into the new

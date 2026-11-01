@@ -1,9 +1,9 @@
 // #218 AC-002: the shared page boot sets up the same sync pieces in one fixed order.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { calls, initStorage } = vi.hoisted(() => {
+const { calls, initStorage, checkDataOwner, sessionOptions } = vi.hoisted(() => {
   const calls = [];
-  return { calls, initStorage: vi.fn(async () => { calls.push('storage'); }) };
+  return { calls, initStorage: vi.fn(async () => { calls.push('storage'); }), checkDataOwner: async () => true, sessionOptions: [] };
 });
 const record = (name) => () => { calls.push(name); };
 
@@ -12,7 +12,12 @@ vi.mock('../../src/modules/theme.js', () => ({ initializeThemeToggle: record('th
 vi.mock('../../src/modules/sync.js', () => ({ initAuthRefresh: record('auth refresh') }));
 vi.mock('../../src/modules/authsync.js', () => ({ initializeAuthSyncUI: record('auth UI') }));
 vi.mock('../../src/modules/event-sourcing/sync-queue.js', () => ({ initSyncQueue: record('queue') }));
-vi.mock('../../src/modules/event-sourcing/sync-session.js', () => ({ initSyncSession: record('sync session') }));
+vi.mock('../../src/modules/event-sourcing/sync-session.js', () => ({
+  initSyncSession: (options) => { calls.push('sync session'); sessionOptions.push(options); },
+}));
+vi.mock('../../src/modules/event-sourcing/data-owner.js', () => ({
+  checkDataOwner, listenForDataOwnerWipe: () => {}, initDataOwnerAfterCatchUp: () => {},
+}));
 vi.mock('../../src/modules/event-sourcing/sync-indicator.js', () => ({ initSyncIndicator: record('sync indicator') }));
 
 const { bootPage } = await import('../../src/modules/page-boot.js');
@@ -25,6 +30,12 @@ describe('bootPage (#218)', () => {
   it('sets up storage, theme, auth refresh, queue, the sync session and the indicator in that order', async () => {
     await bootPage();
     expect(calls).toEqual(SYNC_ORDER);
+  });
+
+  it('gives the session the Data Owner check to run on every sign-in (#221)', async () => {
+    sessionOptions.length = 0;
+    await bootPage();
+    expect(sessionOptions).toEqual([{ beforeSignIn: checkDataOwner }]);
   });
 
   it('mounts the auth UI after auth refresh only when the page asks for it', async () => {

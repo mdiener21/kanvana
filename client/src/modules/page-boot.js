@@ -1,10 +1,10 @@
-import { initStorage, publishDeferredDefaultBoard } from './storage.js';
+import { initStorage } from './storage.js';
 import { initializeThemeToggle } from './theme.js';
 import { initAuthRefresh } from './sync.js';
 import { initializeAuthSyncUI } from './authsync.js';
-import { initSyncQueue, SYNC_STATUS_CHANGED } from './event-sourcing/sync-queue.js';
-import { getSyncSessionState, initSyncSession, SESSION_STATE } from './event-sourcing/sync-session.js';
-import { checkDataOwner, listenForDataOwnerWipe } from './event-sourcing/data-owner.js';
+import { initSyncQueue } from './event-sourcing/sync-queue.js';
+import { initSyncSession } from './event-sourcing/sync-session.js';
+import { checkDataOwner, initDataOwnerAfterCatchUp, listenForDataOwnerWipe } from './event-sourcing/data-owner.js';
 import { initSyncIndicator } from './event-sourcing/sync-indicator.js';
 
 export async function bootPage({ mountAuthUi = false } = {}) {
@@ -21,8 +21,5 @@ export async function bootPage({ mountAuthUi = false } = {}) {
   initSyncQueue();
   initSyncSession({ beforeSignIn: checkDataOwner });
   initSyncIndicator();
-  window.addEventListener(SYNC_STATUS_CHANGED, () => {
-    if (getSyncSessionState() !== SESSION_STATE.LIVE) return;
-    publishDeferredDefaultBoard().catch((err) => console.error('[Kanvana] Default board publish failed', err));
-  });
+  initDataOwnerAfterCatchUp();
 }

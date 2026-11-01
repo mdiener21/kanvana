@@ -86,7 +86,7 @@ async function teardownPage() {
   if (page.isBoard) await waitFor(() => expect(document.getElementById('board-container')?.dataset.viewMode).toBeTruthy(), { timeout: 20000 });
   // Going live publishes a deferred default board; it must land in this test's database.
   if (page.session.getSyncSessionState() === 'live') {
-    await waitFor(async () => expect(await page.idb.isDefaultBoardDeferred()).toBe(false));
+    await waitFor(async () => expect(await page.idb.isFirstPullPending()).toBe(false));
     await settle(50);
   }
   await page.storage._flushPersistsForTesting().catch(() => {});
@@ -371,7 +371,7 @@ describe('what a wipe keeps and removes', () => {
 
     const db = await openDB('kanvana-db');
     const kvKeys = await db.getAllKeys('kv');
-    expect(kvKeys.sort()).toEqual(['kanvana:dataOwner', 'kanvana:defaultBoard:deferred', 'kanvana:hlc:node']);
+    expect(kvKeys.sort()).toEqual(['kanvana:dataOwner', 'kanvana:hlc:node', 'kanvana:sync:firstPullPending']);
     expect(await db.get('kv', 'kanvana:hlc:node')).toBe('node-of-this-browser');
     expect(await db.getAllKeys('events')).toEqual([]);
     expect(await db.getAllKeys('snapshots')).toEqual([]);
@@ -637,6 +637,88 @@ describe('other tabs', () => {
     await waitFor(() => expect(notices).toEqual(['wiped']));
     otherTab.close();
   }, 30000);
+
+  it('keeps the new account signed in when the wipe notice reaches a tab in the middle of its own check', async () => {
+    serveBackend();
+    Object.defineProperty(navigator, 'locks', {
+      configurable: true,
+      value: {
+        request: async (_name, work) => {
+          const otherTab = new BroadcastChannel('kanvana:data-owner-wipe');
+          otherTab.postMessage('wiped');
+          otherTab.close();
+          await waitFor(() => expect(reloads).toBe(1));
+          return work(); // this page's connection is closed by now
+        },
+      },
+    });
+    try {
+      await openPage({ user: USER_B, seed: seedOwnedBy(USER_A, { unsynced: ['evt-1'] }) });
+      await waitFor(() => expect(reloads).toBe(1));
+      await settle();
+    } finally {
+      delete navigator.locks;
+    }
+
+    expect(page.sync.isAuthenticated()).toBe(true);
+    expect(promptIsOpen()).toBe(false);
+  }, 30000);
+
+  describe('the first pull after a wipe', () => {
+    const wiped = async ({ idb }) => {
+      await idb.replaceLocalData({ ownerId: USER_B.id, maxUnsynced: 0 });
+    };
+    // Stands in for another tab holding the lock until the test lets it go.
+    function lockHeldByAnotherTab() {
+      let release;
+      const held = new Promise((res) => { release = res; });
+      Object.defineProperty(navigator, 'locks', {
+        configurable: true,
+        value: { request: async (_name, work) => { await held; return work(); } },
+      });
+      return release;
+    }
+
+    afterEach(() => { delete navigator.locks; });
+
+    it('waits, pulling nothing, while another tab does it, then reloads to load the result', async () => {
+      serveBackend();
+      const release = lockHeldByAnotherTab();
+      await openPage({ user: USER_B, seed: wiped });
+      await settle(400);
+
+      expect(page.session.getSyncSessionState()).toBe('signed-out');
+      expect(requests.filter((r) => r.includes('/collections/events'))).toEqual([]);
+
+      await page.idb.clearFirstPullPending(); // the other tab finished
+      release();
+
+      await waitFor(() => expect(reloads).toBe(1));
+      expect(page.session.getSyncSessionState()).toBe('signed-out');
+      expect(requests.filter((r) => r.includes('/collections/events'))).toEqual([]);
+    }, 30000);
+
+    it('takes over when the tab that held it went away without finishing', async () => {
+      serveBackend();
+      const release = lockHeldByAnotherTab();
+      await openPage({ user: USER_B, seed: wiped });
+      await settle();
+
+      release();
+
+      await live();
+      await waitFor(async () => expect(await page.idb.isFirstPullPending()).toBe(false));
+      expect(reloads).toBe(0);
+    }, 30000);
+
+    it('marks it finished once the session is live, so later launches do not wait', async () => {
+      serveBackend();
+      await openPage({ user: USER_B, seed: wiped });
+      await live();
+
+      await waitFor(async () => expect(await page.idb.isFirstPullPending()).toBe(false));
+    }, 30000);
+  });
 
   it('a tab that waited out another tab\'s wipe reloads instead of syncing the old data it still holds', async () => {
     serveBackend();
