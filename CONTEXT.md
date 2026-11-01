@@ -211,6 +211,13 @@ manual push/pull); the header **sync-state indicator** shows `Live` / `Syncingâ€
 | `event-sourcing/snapshot.js`, `snapshot-sync.js` | Client snapshots + upload + event GC |
 | `event-sourcing/sync-indicator.js` | Header sync-state indicator (#115) |
 
+**Data Owner** â€” the account the browser's local data belongs to. One browser holds one local database
+with at most one Data Owner. Data created offline has none until the first sign-in claims it. A different
+account signing in wipes local data, after a prompt if unsynced events would be lost, and becomes the Data
+Owner. Events are only ever pushed under the Data Owner. Sign-out keeps local data visible and usable
+offline, keeps the Data Owner, and clears the token locally without revoking it on the server
+([ADR-0006](docs/adr/0006-data-owner-account-policy.md)).
+
 **Auth:** Email/password or OAuth2. `isAuthenticated()` / `ensureAuthenticated()` guard all sync
 operations. The `auth-changed` window event fires on auth state change; the queue, realtime, and UI
 all subscribe.
