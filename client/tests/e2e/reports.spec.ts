@@ -12,6 +12,7 @@ const MONDAY = new Date('2026-11-09T10:00:00+01:00');
 const THIS_WEEK = new Date('2026-11-12T10:00:00+01:00');
 
 test('the reports page loads and shows the tasks completed on the board', async ({ page }) => {
+  test.slow(); // a long journey on the dev server; it needs room under parallel load
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
 

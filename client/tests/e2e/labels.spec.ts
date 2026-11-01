@@ -22,6 +22,7 @@ const search = (page: Page) => page.getByLabel('Search tasks by label, title, or
 const row = (page: Page, name: string) => dialog(page, 'Manage Labels').locator('.label-item', { hasText: name });
 
 test('a label can be created, recoloured, assigned, filtered by and deleted', async ({ page }) => {
+  test.slow(); // a long journey on the dev server; it needs room under parallel load
   await openBlankBoard(page);
   await addTask(page, 'To Do', 'Plan offsite');
   await addTask(page, 'To Do', 'Book venue');

@@ -9,6 +9,11 @@ const DANGER = 'rgb(220, 38, 38)';
 const day = (page: Page, title: string) => page.getByTitle(title, { exact: true });
 const badge = (cell: Locator) => cell.locator('.rpt-due-count');
 
+// Every journey here first builds a board of dated tasks on the dev server, so give them room under parallel load.
+test.beforeEach(() => {
+  test.slow();
+});
+
 async function buildBoard(page: Page): Promise<void> {
   await page.clock.setFixedTime(new Date('2026-11-12T10:00:00+01:00'));
   await openBlankBoard(page);

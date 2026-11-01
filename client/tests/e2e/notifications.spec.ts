@@ -19,6 +19,11 @@ const quickBell = (page: Page) => page.locator('#notifications-quick-btn');
 const menuBell = (page: Page) => page.locator('#notifications-btn');
 const quickBadge = (page: Page) => page.locator('#notification-quick-badge');
 
+// Every journey here first builds a board of dated tasks on the dev server, so give them room under parallel load.
+test.beforeEach(() => {
+  test.slow();
+});
+
 async function startBoard(page: Page): Promise<void> {
   await page.clock.setFixedTime(new Date('2026-11-12T10:00:00+01:00'));
   await openBlankBoard(page);

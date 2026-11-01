@@ -65,6 +65,7 @@ async function deleteBoard(page: Page, name: string): Promise<void> {
 }
 
 test('an exported board imports as a new board with the same columns, tasks, labels, settings and done state', async ({ page }) => {
+  test.slow(); // a long journey on the dev server; it needs room under parallel load
   await openBlankBoard(page, BOARD);
   await addColumn(page, 'Review', '#8b5cf6');
   await addLabel(page, 'Risky', 'Flags', '#ffff00');
