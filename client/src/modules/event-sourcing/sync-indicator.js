@@ -1,14 +1,14 @@
-// Header sync-state indicator (#115). Single read-only element that derives its
-// state from existing plumbing — never mutates sync state. Four states per PRD §5.7:
+// Header sync-state indicator (#115). Single read-only element that renders the sync
+// session's state and the queue depth — never mutates sync state. Four states per PRD §5.7:
 //   Live ●        green   — online, logged in, queue empty
 //   Syncing… (N)  yellow  — N events draining
 //   ⚠ N unsynced  orange  — events stuck (network/5xx retry, or auth-paused)
 //   Offline       gray    — no network or not logged in
-// Re-renders (no reload, AC-005) on DATA_CHANGED + auth-changed/online/offline.
+// Re-renders (no reload, AC-005) on DATA_CHANGED and SYNC_STATUS_CHANGED.
 
 import { on, off, DATA_CHANGED } from '../events.js';
-import { isAuthenticated } from '../sync.js';
 import { getSyncStatus, SYNC_STATUS_CHANGED } from './sync-queue.js';
+import { getSyncSessionState, SESSION_STATE } from './sync-session.js';
 
 const ELEMENT_ID = 'sync-indicator';
 
@@ -20,12 +20,12 @@ const STATE = {
 };
 
 async function deriveState() {
-  const online = typeof navigator === 'undefined' || navigator.onLine;
-  if (!online || !isAuthenticated()) return STATE.offline();
+  const session = getSyncSessionState();
+  if (session === SESSION_STATE.SIGNED_OUT || session === SESSION_STATE.OFFLINE) return STATE.offline();
 
-  const { depth, retrying, paused } = await getSyncStatus();
+  const { depth, retrying } = await getSyncStatus();
   if (depth === 0) return STATE.live();
-  if (retrying || paused) return STATE.unsynced(depth);
+  if (retrying || session === SESSION_STATE.PAUSED) return STATE.unsynced(depth);
   return STATE.syncing(depth);
 }
 
@@ -33,10 +33,11 @@ let _el = null;
 let _handlers = null;
 
 export async function renderSyncIndicator() {
-  if (!_el) return;
+  const el = _el;
+  if (!el) return;
   const { text, cls } = await deriveState();
-  _el.textContent = text;
-  _el.className = `sync-indicator ${cls}`;
+  el.textContent = text;
+  el.className = `sync-indicator ${cls}`;
 }
 
 export function initSyncIndicator() {
@@ -51,9 +52,6 @@ export function initSyncIndicator() {
   };
   _handlers = { rerender };
   on(DATA_CHANGED, rerender);
-  window.addEventListener('auth-changed', rerender);
-  window.addEventListener('online', rerender);
-  window.addEventListener('offline', rerender);
   window.addEventListener(SYNC_STATUS_CHANGED, rerender);
 
   rerender();
@@ -62,9 +60,6 @@ export function initSyncIndicator() {
 export function _resetSyncIndicatorForTesting() {
   if (_handlers) {
     off(DATA_CHANGED, _handlers.rerender);
-    window.removeEventListener('auth-changed', _handlers.rerender);
-    window.removeEventListener('online', _handlers.rerender);
-    window.removeEventListener('offline', _handlers.rerender);
     window.removeEventListener(SYNC_STATUS_CHANGED, _handlers.rerender);
   }
   _handlers = null;

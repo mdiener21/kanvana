@@ -40,10 +40,13 @@ import {
   startRealtime,
   stopRealtime,
   catchUp,
-  initRealtime,
   LAST_SEEN_PREFIX,
   _resetRealtimeForTesting,
 } from '../../../src/modules/event-sourcing/realtime.js';
+import {
+  initSyncSession,
+  _resetSyncSessionForTesting,
+} from '../../../src/modules/event-sourcing/sync-session.js';
 
 const EVT_LIST = '*/api/collections/events/records';
 const SNAP_LIST = '*/api/collections/snapshots/records';
@@ -79,6 +82,7 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 afterAll(() => server.close());
 
 beforeEach(async () => {
+  _resetSyncSessionForTesting();
   await _resetRealtimeForTesting();
   _resetStorageForTesting();
   _resetIdbForTesting();
@@ -89,6 +93,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  _resetSyncSessionForTesting();
   await _resetRealtimeForTesting();
   server.resetHandlers();
   getPb().authStore.clear();
@@ -203,7 +208,7 @@ describe('catch-up pull', () => {
         record({ local_id: 'device-b', board: 'board-b', h: hlc(2), payload: { board: { name: 'Device B' } } }),
       ]);
     }));
-    initRealtime();
+    initSyncSession({ connectWaitMs: 1 });
     setAuth();
     try {
       await waitFor(() => expect(listBoards().map(b => b.name)).toEqual(['Device A', 'Device B']));
@@ -219,7 +224,7 @@ describe('catch-up pull', () => {
     server.use(http.get(EVT_LIST, () => listResponse([
       record({ local_id: 'remote-board', h: hlc(1), payload: { board: { name: 'Remote' } } }),
     ])));
-    initRealtime();
+    initSyncSession();
     setAuth();
     try {
       await waitFor(() => expect(listBoards().map(b => b.name)).toContain('Remote'));
@@ -228,10 +233,55 @@ describe('catch-up pull', () => {
     }
   });
 
+  it('sends no further request once realtime is stopped during a pull', async () => {
+    stubRealtime();
+    let releaseSnapshots;
+    const snapshotsHeld = new Promise((res) => { releaseSnapshots = res; });
+    let snapshotRequests = 0;
+    let eventRequests = 0;
+    server.use(
+      http.get(SNAP_LIST, async () => { snapshotRequests += 1; await snapshotsHeld; return listResponse([]); }),
+      http.get(EVT_LIST, () => { eventRequests += 1; return listResponse([]); }),
+    );
+    setAuth();
+    const pull = catchUp();
+    await waitFor(() => expect(snapshotRequests).toBe(1));
+
+    await stopRealtime();
+    releaseSnapshots();
+    await pull;
+
+    expect(eventRequests).toBe(0);
+  });
+
+  it('applies nothing from a pull that realtime was stopped during', async () => {
+    stubRealtime();
+    let releaseEvents;
+    const eventsHeld = new Promise((res) => { releaseEvents = res; });
+    let eventRequests = 0;
+    server.use(http.get(EVT_LIST, async () => {
+      eventRequests += 1;
+      await eventsHeld;
+      return listResponse([record({ local_id: 'late', h: hlc(1), payload: { board: { name: 'Previous account' } } })]);
+    }));
+    setAuth();
+    const pull = catchUp();
+    await waitFor(() => expect(eventRequests).toBe(1));
+
+    await stopRealtime();
+    releaseEvents();
+    await pull;
+
+    expect(listBoards().map((b) => b.name)).not.toContain('Previous account');
+  });
+
   it('fetches boards missed during an automatic SSE reconnect', async () => {
     const rt = stubRealtime();
+    server.use(http.get(EVT_LIST, () => listResponse([])));
+    initSyncSession();
     setAuth();
-    await startRealtime();
+    await waitFor(() => expect(rt.calls.map(call => call.topic)).toContain('events/*'));
+    await new Promise(resolve => setTimeout(resolve, 20));
     server.use(http.get(EVT_LIST, () => listResponse([
       record({ local_id: 'missed', h: hlc(1), payload: { board: { name: 'Created while disconnected' } } }),
     ])));
