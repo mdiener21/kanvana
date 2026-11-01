@@ -52,11 +52,11 @@ Drains IDB events where `synced=false` to the PocketBase `events` collection, th
 - **Three-tier retry** on failure (`classifyError`):
   | Error | Tier | Behaviour |
   |---|---|---|
-  | 401 / 403 | auth | Pause the queue; resume on the next `auth-changed`. |
+  | 401 / 403 | auth | Stop the queue and tell the sync session, which enters `paused`; re-authentication resumes through `catching-up`. |
   | other 4xx | permanent | Retry after **1 hour**. |
   | 5xx / network | network | Exponential backoff: **5s → 30s → 120s → 300s**. |
-- **Resume triggers**: the `online` window event and `auth-changed` (un-pause) force an immediate drain.
-- **Status**: `getSyncStatus()` returns `{ depth, retrying, paused }` for the header indicator (#115).
+- **Resume triggers**: the sync session starts the queue and forces an immediate drain each time it goes `live`. While the session is not `live`, no drain or retry fires.
+- **Status**: `getSyncStatus()` returns `{ depth, retrying }`; the header indicator (#115) combines it with the session state.
 
 ### Inbound: realtime + catch-up (`event-sourcing/realtime.js`)
 
@@ -101,8 +101,8 @@ To bound replay and prune old events:
   and forces re-login.
 - After registration the UI shows "Check your email to confirm your account before logging in." — no
   auto-login (PocketBase requires email confirmation before first login).
-- On auth state change the `auth-changed` window event fires; the sync queue, realtime, and header UI
-  all subscribe to it.
+- On auth state change the `auth-changed` window event fires; the sync session and the header UI
+  subscribe to it.
 
 ## PocketBase URL / Nginx
 
@@ -160,6 +160,7 @@ the `kanbanSyncMap` mapping) was removed in #215. New sync work goes through the
 | `src/modules/event-sourcing/emitter.js` | `scheduleDomainEvent` — stamp, then ingest with origin `local` |
 | `src/modules/event-sourcing/ingest.js` | `ingestEvent(event, { origin })` — single ingest path: validate, project (sole writer), `DATA_CHANGED`, persist |
 | `src/modules/event-sourcing/hlc.js` | Hybrid Logical Clock + `compareHlc` |
+| `src/modules/event-sourcing/sync-session.js` | Sync lifecycle state machine; the only sync module listening to auth, `online` and `offline` |
 | `src/modules/event-sourcing/sync-queue.js` | Outbound push queue; `getSyncStatus` |
 | `src/modules/event-sourcing/realtime.js` | Inbound SSE subscription + catch-up pull; `isRealtimeActive` |
 | `src/modules/event-sourcing/snapshot.js` | Snapshot scheduling, serialize, local GC, hydrate |

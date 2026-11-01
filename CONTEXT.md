@@ -204,12 +204,13 @@ manual push/pull); the header **sync-state indicator** shows `Live` / `Syncing�
 |---|---|
 | `sync.js` | PocketBase SDK instance (`getPb`) + auth only (`isAuthenticated`, `ensureAuthenticated`, `getUser`, `loginUser`, `registerUser`, `logoutUser`, `loginWithProvider`, `refreshAuth`, `initAuthRefresh`) |
 | `authsync.js` | Auth UI — login modal, OAuth2 (Google/Apple/Microsoft), logout, backend health probe |
-| `event-sourcing/sync-queue.js` | **Outbound** — drains unsynced events to the PB `events` collection in HLC order (debounce, in-flight cap, three-tier retry, no rollback); `getSyncStatus()` |
+| `event-sourcing/sync-session.js` | **Lifecycle** — the one state machine for sync (`signed-out` → `catching-up` → `live` ⇄ `offline`, plus `paused`). The only sync module that listens to `auth-changed`, `online` and `offline`; it starts and stops the queue, realtime and snapshot upload. `initSyncSession()`, `getSyncSessionState()`; `createSyncSession({ network, beforeSignIn })` takes the network side and a check run on each new sign-in |
+| `event-sourcing/sync-queue.js` | **Outbound** — drains unsynced events to the PB `events` collection in HLC order (debounce, in-flight cap, three-tier retry, no rollback). Runs only between `startSyncQueue({ onAuthRejected })` and `stopSyncQueue()`; `drainSyncQueue()`, `getSyncStatus()` |
 | `event-sourcing/ingest.js` | **Ingest interface** — `ingestEvent(event, { origin, receivedAt })`, the single entry point of the event log for local and remote events (catch-up uses `ingestRemoteBatch(items)`, which validates and sorts once, applies each board's in-order events to one copy of the board as one list (#238) and saves each touched board's read model once when the batch ends (#237), and returns the events not stored before): validate, observe the remote HLC (remote only), project, `DATA_CHANGED`, `EVENT_EMITTED`, persist (`synced` = origin is `remote`) |
-| `event-sourcing/realtime.js` | **Inbound** — SSE subscription + launch/reconnect catch-up pull; remote events go through `ingestEvent(…, { origin: 'remote' })` (deduped by id) |
+| `event-sourcing/realtime.js` | **Inbound** — SSE subscription (`startRealtime({ onConnect })`, `stopRealtime()`) + catch-up pull (`catchUp()`), run by the session; a stop also ends a pull in flight; remote events go through `ingestEvent(…, { origin: 'remote' })` (deduped by id) |
 | `event-sourcing/hlc.js` | Hybrid Logical Clock — `emitLocal()`, `observeRemote()`, `compareHlc()` |
-| `event-sourcing/snapshot.js`, `snapshot-sync.js` | Client snapshots + upload + event GC |
-| `event-sourcing/sync-indicator.js` | Header sync-state indicator (#115) |
+| `event-sourcing/snapshot.js`, `snapshot-sync.js` | Client snapshots + upload + event GC. Snapshots are always taken locally; upload runs only between `startSnapshotSync()` and `stopSnapshotSync()` |
+| `event-sourcing/sync-indicator.js` | Header sync-state indicator (#115), rendered from the session state and queue depth |
 
 **Data Owner** — the account the browser's local data belongs to. One browser holds one local database
 with at most one Data Owner. Data created offline has none until the first sign-in claims it. A different
@@ -219,11 +220,11 @@ offline, keeps the Data Owner, and clears the token locally without revoking it 
 ([ADR-0006](docs/adr/0006-data-owner-account-policy.md)).
 
 **Auth:** Email/password or OAuth2. `isAuthenticated()` / `ensureAuthenticated()` guard all sync
-operations. The `auth-changed` window event fires on auth state change; the queue, realtime, and UI
-all subscribe.
+operations. The `auth-changed` window event fires on auth state change, including a token refresh; the
+sync session and the auth UI subscribe. The session treats only a different account as a sign-in.
 
 **Snapshot adoption = snapshot + replay (#180).** At launch and on every reconnect, catch-up
-(`realtime.js` `catchUp()`) first adopts each server snapshot newer than the key's last-seen HLC, for
+(`realtime.js` `catchUp()`, run by the sync session) first adopts each server snapshot newer than the key's last-seen HLC, for
 board, `__global__` and `__timetracking__` keys alike. `adoptSnapshot(key, state, hlc)` (`ingest.js`)
 saves it and rebuilds the key's view as the snapshot plus this device's stored events newer than it, in
 HLC order (`rebuildScope`, §9 Ordering); it never replaces the view wholesale. So an unsynced local edit
@@ -348,6 +349,16 @@ inspectImportPayload → buildImportConfirmationMessage → importTasks
 
 ### Sync Flow (event-sourced)
 ```
+[sign-in, launch signed in]  → beforeSignIn check → catching-up (or offline if there is no network)
+[online, re-auth, SSE reconnect] → catching-up
+
+catching-up (event-sourcing/sync-session.js), one pull per transition:
+   1. stop the queue, start snapshot upload
+   2. start the SSE subscription, waiting at most 3 s    (the initial PB_CONNECT is covered by the pull)
+   3. catchUp() once; once more if SSE connected during it  → live: start the queue and drain
+offline, sign-out → stop the queue, snapshot upload and realtime; a push rejected with 401/403 → paused
+                    (queue and upload stopped, realtime stays up)
+
 [local mutation] → scheduleDomainEvent() (stamp UUID + sync HLC) → ingestEvent(event, { origin: 'local' })
 [remote event]   → realtime.js SSE → ingestEvent(event, { origin: 'remote', receivedAt: record.created })
                    catchUp() → ingestRemoteBatch([{ event, receivedAt }]) → the same remote path per event
@@ -359,7 +370,7 @@ ingestEvent (event-sourcing/ingest.js) — one path, origin is a parameter:
    2. remote only: drop if it reached the server a grace window after its HLC; classify against the key's newest applied HLC (§9 Ordering)
    3. project: read-model-projector folds event into state (sole writer, deduped by id)
               → emit(DATA_CHANGED) → renderBoard()      [synchronous for local events; skipped for a late remote one]
-   4. emit(EVENT_EMITTED) → outbound sync-queue schedules a drain (HLC order, unsynced only)
+   4. emit(EVENT_EMITTED) → outbound sync-queue schedules a drain if it is running (HLC order, unsynced only)
    5. persistEvent (synced = origin === 'remote')        [async; the returned promise settles here]
    6. late event only: rebuildScope(key)                  [the promise settles after the rebuild]
 ```
