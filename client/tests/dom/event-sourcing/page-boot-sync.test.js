@@ -61,6 +61,7 @@ afterAll(() => server.close());
 
 afterEach(async () => {
   if (page) {
+    page.session._resetSyncSessionForTesting();
     page.queue._resetSyncQueueForTesting();
     await page.queue._settleForTesting();
     await page.realtime._resetRealtimeForTesting();
@@ -88,6 +89,7 @@ async function openPage(name, { signedIn = false, unsynced = [], snapshots = {} 
     idb: await import('../../../src/modules/idb-store.js'),
     queue: await import('../../../src/modules/event-sourcing/sync-queue.js'),
     realtime: await import('../../../src/modules/event-sourcing/realtime.js'),
+    session: await import('../../../src/modules/event-sourcing/sync-session.js'),
     indicator: await import('../../../src/modules/event-sourcing/sync-indicator.js'),
     snapshot: await import('../../../src/modules/event-sourcing/snapshot.js'),
   };

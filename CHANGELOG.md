@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Added browser tests for the journeys a user would notice breaking: board import and export, templates, labels, columns, search, calendar, reports and notifications. Six known bugs they found are marked `test.fixme` until fixed (#231).
+- Signing in, opening the app or coming back online now downloads your changes once instead of two or three times, so sync finishes sooner (#219).
+
+### Fixed
+
+- Going offline now stops all sync activity, including upload retries, until the connection returns. The app then catches up first and sends your queued changes after that (#219).
+- Signing out now stops all sync activity, so nothing is sent to the server until you sign in again. Your edits stay on this device and are sent at your next sign-in (#219).
 
 ## [3.4.7] - 2026-10-28
 

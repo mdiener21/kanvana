@@ -1,5 +1,5 @@
-// Inbound sync: PocketBase realtime SSE subscription + launch/reconnect
-// catch-up pull (issue #114, PRD §4.8). Every remote event goes through the
+// Inbound sync: PocketBase realtime SSE subscription + catch-up pull (issue #114,
+// PRD §4.8), both run by the sync session. Every remote event goes through the
 // same ingest interface as local events (#177), so the projector's id dedup
 // makes echoes and catch-up/SSE overlap no-ops. Remote events are persisted as
 // already-synced so the outbound queue never pushes them back.
@@ -18,7 +18,8 @@ let _unsubscribe = null;
 let _connectUnsubscribe = null;
 let _starting = null;
 let _catchingUp = null;
-let _handlers = null;
+let _onConnect = null;
+let _pullGeneration = 0;
 
 function recordToEvent(r) {
   return {
@@ -48,8 +49,10 @@ export async function applyRemoteEvent(record) {
   await ingestEvent(recordToEvent(record), { origin: EVENT_ORIGIN.REMOTE, receivedAt: record.created });
 }
 
-export async function startRealtime() {
+// `onConnect` fires on every SSE connect, the initial one and each automatic reconnect.
+export async function startRealtime({ onConnect } = {}) {
   if (_unsubscribe || !isAuthenticated()) return;
+  _onConnect = onConnect ?? null;
   if (_starting) return _starting;
   _starting = subscribeRealtime().finally(() => { _starting = null; });
   return _starting;
@@ -58,9 +61,7 @@ export async function startRealtime() {
 async function subscribeRealtime() {
   const pb = getPb();
   const ownerId = getUser()?.id;
-  _connectUnsubscribe = await pb.realtime.subscribe('PB_CONNECT', () => {
-    catchUpAfterPending().catch(err => console.error('[Kanvana] Realtime reconnect catch-up failed', err));
-  });
+  _connectUnsubscribe = await pb.realtime.subscribe('PB_CONNECT', () => _onConnect?.());
   try {
     _unsubscribe = await pb.collection('events').subscribe('*', (e) => {
       if (e.action === 'create') applyRemoteEvent(e.record);
@@ -73,20 +74,20 @@ async function subscribeRealtime() {
 }
 
 export async function stopRealtime() {
+  _pullGeneration += 1;
   if (_starting) { try { await _starting; } catch {} }
-  if (_connectUnsubscribe) {
-    await _connectUnsubscribe();
-    _connectUnsubscribe = null;
-  }
-  if (!_unsubscribe) return;
-  const unsub = _unsubscribe;
+  const unsubscribes = [_connectUnsubscribe, _unsubscribe].filter(Boolean);
+  _connectUnsubscribe = null;
   _unsubscribe = null;
-  await unsub();
+  // Started in one tick, the SDK sees no topics left and just closes the connection.
+  // One at a time, it would POST the remaining topics first, which fails once signed out.
+  await Promise.all(unsubscribes.map((unsubscribe) => unsubscribe()));
 }
 
 // For a device that joined after server cleanup, the snapshot is the only surviving history.
-async function hydrateFromRemoteSnapshots() {
+async function hydrateFromRemoteSnapshots(isStale) {
   for (const snapshot of await downloadAllSnapshots()) {
+    if (isStale()) return;
     const seen = await getLastSeen(snapshot.key);
     if (seen && compareHlc(snapshot.hlc, seen) <= 0) continue;
     await adoptSnapshot(snapshot.key, snapshot.state, snapshot.hlc);
@@ -101,19 +102,25 @@ export async function catchUp() {
   return _catchingUp;
 }
 
-async function catchUpAfterPending() {
-  if (_catchingUp) await _catchingUp;
+// A pull already running may have read the server before this was asked for, or may
+// have been cut short by a stop, so this one starts fresh after it.
+export async function catchUpAfterPending() {
+  if (_catchingUp) await _catchingUp.catch(() => {});
   await catchUp();
 }
 
 async function pullRemoteState() {
-  await hydrateFromRemoteSnapshots();
+  const generation = _pullGeneration;
+  const isStale = () => generation !== _pullGeneration;
+  await hydrateFromRemoteSnapshots(isStale);
+  if (isStale()) return;
   const pb = getPb();
   const ownerId = getUser()?.id;
   const records = await pb.collection('events').getFullList({
     filter: `owner = "${ownerId}"`,
     requestKey: null,
   });
+  if (isStale()) return;
 
   // A rejected event must not advance a watermark (#181).
   const fresh = await ingestRemoteBatch(records.map((record) => ({ event: recordToEvent(record), receivedAt: record.created })));
@@ -130,39 +137,9 @@ async function pullRemoteState() {
   }
 }
 
-async function onAuthChanged() {
-  if (isAuthenticated()) {
-    await onOnline();
-  } else {
-    await stopRealtime();
-  }
-}
-
-async function onOnline() {
-  if (!isAuthenticated()) return;
-  await Promise.all([catchUp(), startRealtime()]);
-  await catchUp();
-}
-
-export function initRealtime() {
-  if (typeof window === 'undefined' || _handlers) return;
-  _handlers = {
-    auth: () => { onAuthChanged().catch(err => console.error('[Kanvana] Realtime auth handler failed', err)); },
-    online: () => { onOnline().catch(err => console.error('[Kanvana] Realtime online handler failed', err)); },
-  };
-  window.addEventListener('auth-changed', _handlers.auth);
-  window.addEventListener('online', _handlers.online);
-  if (isAuthenticated()) _handlers.online();
-}
-
 export async function _resetRealtimeForTesting() {
-  if (_handlers && typeof window !== 'undefined') {
-    window.removeEventListener('auth-changed', _handlers.auth);
-    window.removeEventListener('online', _handlers.online);
-  }
-  _handlers = null;
   await stopRealtime();
-  if (_catchingUp) await _catchingUp;
+  if (_catchingUp) await _catchingUp.catch(() => {});
 }
 
 // True when the SSE subscription is live (used by the header sync indicator, #115).

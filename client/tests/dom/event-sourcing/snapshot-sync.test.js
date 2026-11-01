@@ -8,7 +8,7 @@ import { server } from '../../mocks/server.js';
 import { getPb } from '../../../src/modules/sync.js';
 import { createProjectionState } from '../../../src/modules/reducer.js';
 import { GLOBAL_SNAPSHOT_KEY, GRACE_WINDOW_MS, TIMETRACKING_SNAPSHOT_KEY } from '../../../src/modules/event-sourcing/snapshot.js';
-import { SERVER_CLOCK_MARGIN_MS, uploadSnapshot, buildSnapshotForm } from '../../../src/modules/event-sourcing/snapshot-sync.js';
+import { SERVER_CLOCK_MARGIN_MS, uploadSnapshot, buildSnapshotForm, stopSnapshotSync } from '../../../src/modules/event-sourcing/snapshot-sync.js';
 
 const SNAP_LIST = '*/api/collections/snapshots/records';
 const SNAP_DELETE = '*/api/collections/snapshots/records/:id';
@@ -37,6 +37,26 @@ beforeEach(() => { getPb().authStore.clear(); });
 afterEach(() => { server.resetHandlers(); getPb().authStore.clear(); });
 
 describe('snapshot upload', () => {
+  it('sends nothing more once stopped during an upload (#219)', async () => {
+    let release;
+    const held = new Promise((res) => { release = res; });
+    let listed = 0;
+    let created = 0;
+    server.use(
+      http.get(SNAP_LIST, async () => { listed += 1; await held; return listResponse([]); }),
+      http.post(SNAP_LIST, () => { created += 1; return HttpResponse.json({ id: 'snap-new' }); }),
+    );
+    setAuth();
+    const upload = uploadSnapshot('board-1', state, hlc(10));
+    await waitFor(() => expect(listed).toBe(1));
+
+    stopSnapshotSync();
+    release();
+
+    await expect(upload).resolves.toEqual({ skipped: 'stopped' });
+    expect(created).toBe(0);
+  });
+
   it('skips when unauthenticated', async () => {
     const res = await uploadSnapshot('board-1', state, hlc(10));
     expect(res.skipped).toBe('unauth');
