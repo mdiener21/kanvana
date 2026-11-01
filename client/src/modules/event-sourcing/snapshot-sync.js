@@ -11,6 +11,8 @@ import { serializeState, GLOBAL_SNAPSHOT_KEY, isOlderThanGraceWindow, scopeForSn
 import { createProjectionState } from '../reducer.js';
 import { EVENT_SCOPE } from '../constants.js';
 
+let _uploadGeneration = 0;
+
 // PB snapshots have no scope column: global keeps its legacy empty board_id,
 // every other key (board ids, the timetracking sentinel) is stored as-is.
 function boardIdFor(key) {
@@ -65,28 +67,33 @@ export async function uploadSnapshot(key, state, hlc) {
   const pb = getPb();
   const ownerId = getUser()?.id;
   const boardId = boardIdFor(key);
+  const generation = _uploadGeneration;
+  const stopped = () => generation !== _uploadGeneration;
 
   const existing = await pb.collection('snapshots').getFullList({
     filter: snapshotFilter(ownerId, boardId),
     requestKey: null,
   });
+  if (stopped()) return { skipped: 'stopped' };
 
   // Pre-flight (AC-009): skip if the server already covers this HLC.
   const covered = existing.some(s => s.hlc && compareHlc(s.hlc, hlc) >= 0);
   if (covered) return { skipped: 'covered' };
 
   const payload = await gzipJson(serializeState(state));
+  if (stopped()) return { skipped: 'stopped' };
   const form = buildSnapshotForm(ownerId, boardId, hlc, payload);
   const created = await pb.collection('snapshots').create(form, { requestKey: null });
 
   // Arbitration (AC-009): drop every prior snapshot for this board — local HLC
   // is the new winner (none were >= it, checked above).
   for (const s of existing) {
+    if (stopped()) return { uploaded: created.id };
     await pb.collection('snapshots').delete(s.id, { requestKey: null });
   }
 
   // Server-side GC (AC-010): delete events covered by the snapshot HLC.
-  await gcServerEvents(pb, ownerId, key, hlc);
+  if (!stopped()) await gcServerEvents(pb, ownerId, key, hlc, stopped);
 
   return { uploaded: created.id };
 }
@@ -94,13 +101,14 @@ export async function uploadSnapshot(key, state, hlc) {
 export const SERVER_CLOCK_MARGIN_MS = 60 * 60 * 1000;
 
 // The server hook judges the grace window by its own clock: keep a margin, and skip a delete it still refuses.
-async function gcServerEvents(pb, ownerId, key, snapshotHlc) {
+async function gcServerEvents(pb, ownerId, key, snapshotHlc, stopped) {
   const events = await pb.collection('events').getFullList({
     filter: eventFilter(ownerId, key),
     requestKey: null,
   });
   const cutoff = Date.now() - SERVER_CLOCK_MARGIN_MS;
   for (const e of events) {
+    if (stopped()) return;
     if (!e.hlc || compareHlc(e.hlc, snapshotHlc) > 0 || !isOlderThanGraceWindow(e.hlc, cutoff)) continue;
     try {
       await pb.collection('events').delete(e.id, { requestKey: null });
@@ -175,5 +183,15 @@ async function inflate(pb, record) {
 }
 
 export function initSnapshotSync() {
+  startSnapshotSync();
+}
+
+export function startSnapshotSync() {
   setAfterSnapshotSaved(uploadSnapshot);
+}
+
+// Snapshots keep being taken locally; only the upload stops, including one in flight.
+export function stopSnapshotSync() {
+  setAfterSnapshotSaved(null);
+  _uploadGeneration += 1;
 }
