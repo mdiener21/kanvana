@@ -146,17 +146,24 @@ export async function replaceLocalData({ ownerId, maxUnsynced, keepKvKeys = [] }
     await tx.done.catch(() => {});
     return { replaced: false, unsynced };
   }
-  const kv = tx.objectStore(KV_STORE);
-  const keep = new Set(keepKvKeys);
-  for (const key of await kv.getAllKeys()) {
-    if (!keep.has(key)) await kv.delete(key);
+  try {
+    const kv = tx.objectStore(KV_STORE);
+    const keep = new Set(keepKvKeys);
+    for (const key of await kv.getAllKeys()) {
+      if (!keep.has(key)) await kv.delete(key);
+    }
+    await tx.objectStore(EVENTS_STORE).clear();
+    await tx.objectStore(SNAPSHOTS_STORE).clear();
+    await tx.objectStore(READ_MODEL_STORE).clear();
+    await kv.put(ownerId, DATA_OWNER_KEY);
+    await kv.put(true, DEFERRED_DEFAULT_BOARD_KEY);
+    await tx.done;
+  } catch (err) {
+    // A transaction left to finish on its own would commit the part already done.
+    try { tx.abort(); } catch { /* the failure already aborted it */ }
+    await tx.done.catch(() => {});
+    throw err;
   }
-  await tx.objectStore(EVENTS_STORE).clear();
-  await tx.objectStore(SNAPSHOTS_STORE).clear();
-  await tx.objectStore(READ_MODEL_STORE).clear();
-  await kv.put(ownerId, DATA_OWNER_KEY);
-  await kv.put(true, DEFERRED_DEFAULT_BOARD_KEY);
-  await tx.done;
   return { replaced: true, unsynced };
 }
 
