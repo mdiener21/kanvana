@@ -7,12 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- With several tabs open, an edit in one tab now shows in the others straight away, and swimlane changes do too (#222).
+
 ### Changed
 
+- With several tabs open, only one tab now talks to the server. When you close it, another tab takes over within a few seconds, and every tab shows the same sync status (#222).
 - Signing in, opening the app or coming back online now downloads your changes once instead of two or three times, so sync finishes sooner (#219).
 
 ### Fixed
 
+- An edit in one tab can no longer be undone on reload by another tab that had not seen it yet (#222).
 - Going offline now stops all sync activity, including upload retries, until the connection returns. The app then catches up first and sends your queued changes after that (#219).
 - Signing out now stops all sync activity, so nothing is sent to the server until you sign in again. Your edits stay on this device and are sent at your next sign-in (#219).
 
