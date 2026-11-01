@@ -9,6 +9,7 @@ import { deleteDB } from 'idb';
 import { server } from '../../mocks/server.js';
 import { emit, EVENT_EMITTED } from '../../../src/modules/events.js';
 import {
+  claimDataOwner,
   persistEvent,
   getUnsyncedEvents,
   _resetIdbForTesting,
@@ -68,8 +69,73 @@ beforeEach(async () => {
   _resetSyncQueueForTesting();
   _resetIdbForTesting();
   await deleteDB('kanvana-db');
+  await claimDataOwner('user1');
   getPb().authStore.clear();
   _setTimingForTesting({ debounceMs: 1 });
+});
+
+describe('sync-queue and the Data Owner (#221 AC-014)', () => {
+  it('stamps pushed events with the Data Owner', async () => {
+    const owners = [];
+    server.use(http.post(EVENTS_URL, async ({ request }) => {
+      owners.push((await request.json()).owner);
+      return HttpResponse.json({ id: 'rec' });
+    }));
+    await persistEvent(makeEvent());
+
+    setAuth('user1');
+    startSyncQueue();
+    await drainSyncQueue();
+
+    expect(owners).toEqual(['user1']);
+    expect(await getUnsyncedEvents()).toHaveLength(0);
+  });
+
+  it('pushes nothing when the signed-in account is not the Data Owner', async () => {
+    let posts = 0;
+    server.use(http.post(EVENTS_URL, () => { posts += 1; return HttpResponse.json({ id: 'rec' }); }));
+    await persistEvent(makeEvent());
+
+    setAuth('someone-else');
+    startSyncQueue();
+    await drainSyncQueue();
+
+    expect(posts).toBe(0);
+    expect(await getUnsyncedEvents()).toHaveLength(1);
+  });
+
+  it('pushes nothing when local data has no Data Owner yet', async () => {
+    _resetIdbForTesting();
+    await deleteDB('kanvana-db');
+    let posts = 0;
+    server.use(http.post(EVENTS_URL, () => { posts += 1; return HttpResponse.json({ id: 'rec' }); }));
+    await persistEvent(makeEvent());
+
+    setAuth('user1');
+    startSyncQueue();
+    await drainSyncQueue();
+
+    expect(posts).toBe(0);
+  });
+
+  it('stops pushing once another account signs in during a drain', async () => {
+    const owners = [];
+    server.use(http.post(EVENTS_URL, async ({ request }) => {
+      owners.push((await request.json()).owner);
+      setAuth('someone-else');
+      return HttpResponse.json({ id: 'rec' });
+    }));
+    _setTimingForTesting({ debounceMs: 1, maxInFlight: 1 });
+    await persistEvent(makeEvent({ counter: 0 }));
+    await persistEvent(makeEvent({ counter: 1 }));
+    await persistEvent(makeEvent({ counter: 2 }));
+
+    setAuth('user1');
+    startSyncQueue();
+    await drainSyncQueue();
+
+    expect(owners).toEqual(['user1']);
+  });
 });
 
 describe('sync-queue across a local snapshot (#176)', () => {

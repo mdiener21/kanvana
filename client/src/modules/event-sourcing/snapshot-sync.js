@@ -6,6 +6,7 @@
 // snapshot HLC). Race-on-write: highest HLC wins, losers discarded (PRD #23).
 
 import { getPb, isAuthenticated, getUser } from '../sync.js';
+import { getDataOwner } from '../idb-store.js';
 import { compareHlc } from './hlc.js';
 import { serializeState, GLOBAL_SNAPSHOT_KEY, isOlderThanGraceWindow, scopeForSnapshotKey, setAfterSnapshotSaved } from './snapshot.js';
 import { createProjectionState } from '../reducer.js';
@@ -65,10 +66,13 @@ export async function uploadSnapshot(key, state, hlc) {
   if (!isAuthenticated()) return { skipped: 'unauth' };
 
   const pb = getPb();
-  const ownerId = getUser()?.id;
-  const boardId = boardIdFor(key);
   const generation = _uploadGeneration;
-  const stopped = () => generation !== _uploadGeneration;
+  // The snapshot holds the Data Owner's data, and the auth store can change under a running
+  // upload from another tab; the event cleanup below must not run as anyone else (ADR-0006).
+  const ownerId = await getDataOwner();
+  if (getUser()?.id !== ownerId) return { skipped: 'not-owner' };
+  const boardId = boardIdFor(key);
+  const stopped = () => generation !== _uploadGeneration || getUser()?.id !== ownerId;
 
   const existing = await pb.collection('snapshots').getFullList({
     filter: snapshotFilter(ownerId, boardId),

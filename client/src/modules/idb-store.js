@@ -9,6 +9,8 @@ const KV_STORE = 'kv';
 const EVENTS_STORE = 'events';
 const SNAPSHOTS_STORE = 'snapshots';
 const READ_MODEL_STORE = 'read_model';
+const DATA_OWNER_KEY = 'kanvana:dataOwner';
+const DEFERRED_DEFAULT_BOARD_KEY = 'kanvana:defaultBoard:deferred';
 
 let _db = null;
 let _needsV2DataMigration = false;
@@ -115,6 +117,68 @@ export async function markEventSynced(id) {
   const event = await db.get(EVENTS_STORE, id);
   if (!event) return;
   await db.put(EVENTS_STORE, { ...event, synced: true });
+}
+
+export async function getDataOwner() {
+  const db = await getDB();
+  return (await db.get(KV_STORE, DATA_OWNER_KEY)) ?? null;
+}
+
+// Local data with no Data Owner goes to the first account to ask; the result is whoever owns it now.
+export async function claimDataOwner(userId) {
+  const db = await getDB();
+  const tx = db.transaction(KV_STORE, 'readwrite');
+  const owner = await tx.store.get(DATA_OWNER_KEY);
+  if (!owner) await tx.store.put(userId, DATA_OWNER_KEY);
+  await tx.done;
+  return owner ?? userId;
+}
+
+// One transaction, so an interruption leaves either the old owner with all its data or
+// the new owner with none: there is no state where one account's data is the other's.
+// Refuses, changing nothing, when more events are unsynced than the user agreed to lose.
+export async function replaceLocalData({ ownerId, maxUnsynced, keepKvKeys = [] }) {
+  const db = await getDB();
+  const tx = db.transaction([KV_STORE, EVENTS_STORE, SNAPSHOTS_STORE, READ_MODEL_STORE], 'readwrite');
+  const unsynced = (await tx.objectStore(EVENTS_STORE).getAll()).filter((e) => e.synced !== true).length;
+  if (unsynced > maxUnsynced) {
+    tx.abort();
+    await tx.done.catch(() => {});
+    return { replaced: false, unsynced };
+  }
+  const kv = tx.objectStore(KV_STORE);
+  const keep = new Set(keepKvKeys);
+  for (const key of await kv.getAllKeys()) {
+    if (!keep.has(key)) await kv.delete(key);
+  }
+  await tx.objectStore(EVENTS_STORE).clear();
+  await tx.objectStore(SNAPSHOTS_STORE).clear();
+  await tx.objectStore(READ_MODEL_STORE).clear();
+  await kv.put(ownerId, DATA_OWNER_KEY);
+  await kv.put(true, DEFERRED_DEFAULT_BOARD_KEY);
+  await tx.done;
+  return { replaced: true, unsynced };
+}
+
+export async function isDefaultBoardDeferred() {
+  const db = await getDB();
+  return Boolean(await db.get(KV_STORE, DEFERRED_DEFAULT_BOARD_KEY));
+}
+
+// True for one caller only, so two tabs reaching the same point do not both act on it.
+export async function takeDeferredDefaultBoard() {
+  const db = await getDB();
+  const tx = db.transaction(KV_STORE, 'readwrite');
+  const deferred = await tx.store.get(DEFERRED_DEFAULT_BOARD_KEY);
+  if (deferred) await tx.store.delete(DEFERRED_DEFAULT_BOARD_KEY);
+  await tx.done;
+  return Boolean(deferred);
+}
+
+// A page about to reload after a wipe must not write the old account's state into the new
+// account's database; a closed connection makes every later write fail.
+export function closeStore() {
+  _db?.close();
 }
 
 /**

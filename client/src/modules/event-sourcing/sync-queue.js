@@ -5,7 +5,7 @@
 
 import { EVENT_EMITTED, off, on } from '../events.js';
 import { getPb, isAuthenticated, getUser } from '../sync.js';
-import { getUnsyncedEvents, markEventSynced } from '../idb-store.js';
+import { getDataOwner, getUnsyncedEvents, markEventSynced } from '../idb-store.js';
 import { compareHlc } from './hlc.js';
 
 const DEFAULT_DEBOUNCE_MS = 500;
@@ -148,9 +148,12 @@ async function runDrain() {
   const generation = _generation;
   const stopped = () => generation !== _generation;
   const pb = getPb();
-  const ownerId = getUser()?.id;
+  // Events belong to the Data Owner, whoever is signed in by now (ADR-0006). The auth store
+  // is shared across tabs, so it can change under a running drain.
+  const ownerId = await getDataOwner();
+  const accountChanged = () => !ownerId || getUser()?.id !== ownerId;
   const events = (await getUnsyncedEvents()).sort((a, b) => compareHlc(a.hlc, b.hlc));
-  if (stopped()) return;
+  if (stopped() || accountChanged()) return;
   if (events.length === 0) { _retryIndex = 0; _retrying = false; return; }
   _retrying = false;
 
@@ -159,7 +162,7 @@ async function runDrain() {
   let failure = null; // 'network' | 'permanent'
 
   async function worker() {
-    while (cursor < events.length && !authFailure && !stopped()) {
+    while (cursor < events.length && !authFailure && !stopped() && !accountChanged()) {
       const event = events[cursor++];
       try {
         await pushEvent(pb, ownerId, event);
