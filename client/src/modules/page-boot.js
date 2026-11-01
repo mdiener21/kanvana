@@ -3,8 +3,7 @@ import { initializeThemeToggle } from './theme.js';
 import { initAuthRefresh } from './sync.js';
 import { initializeAuthSyncUI } from './authsync.js';
 import { initSyncQueue } from './event-sourcing/sync-queue.js';
-import { initSnapshotSync } from './event-sourcing/snapshot-sync.js';
-import { initRealtime } from './event-sourcing/realtime.js';
+import { initSyncSession } from './event-sourcing/sync-session.js';
 import { initSyncIndicator } from './event-sourcing/sync-indicator.js';
 
 export async function bootPage({ mountAuthUi = false } = {}) {
@@ -18,7 +17,6 @@ export async function bootPage({ mountAuthUi = false } = {}) {
   initAuthRefresh();
   if (mountAuthUi) initializeAuthSyncUI();
   initSyncQueue();
-  initSnapshotSync();
-  initRealtime();
+  initSyncSession();
   initSyncIndicator();
 }

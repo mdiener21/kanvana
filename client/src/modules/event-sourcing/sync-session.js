@@ -1,4 +1,10 @@
-// Sync session (#219): the one owner of the sync lifecycle.
+// Sync session (#219): the one owner of the sync lifecycle. Only this module reacts to
+// auth, `online` and `offline`; the queue, realtime and snapshot upload take commands.
+
+import { getUser, isAuthenticated } from '../sync.js';
+import { catchUpAfterPending, startRealtime, stopRealtime } from './realtime.js';
+import { startSnapshotSync, stopSnapshotSync } from './snapshot-sync.js';
+import { drainSyncQueue, startSyncQueue, stopSyncQueue, SYNC_STATUS_CHANGED } from './sync-queue.js';
 
 export const SESSION_STATE = Object.freeze({
   SIGNED_OUT: 'signed-out',
@@ -57,6 +63,19 @@ export function transitionSession(state, event) {
 
 const DEFAULT_CONNECT_WAIT_MS = 3000;
 
+const POCKETBASE_NETWORK = {
+  startRealtime: (onConnect) => startRealtime({ onConnect }),
+  stopRealtime,
+  catchUp: catchUpAfterPending,
+  startQueue: (onAuthRejected) => {
+    startSyncQueue({ onAuthRejected });
+    drainSyncQueue();
+  },
+  stopQueue: stopSyncQueue,
+  startSnapshots: startSnapshotSync,
+  stopSnapshots: stopSnapshotSync,
+};
+
 function isAuthRejection(err) {
   const status = err?.status ?? err?.response?.status;
   return status === 401 || status === 403;
@@ -67,9 +86,9 @@ function isAuthRejection(err) {
 // network work: while it is pending the session stays signed-out, and a false result
 // keeps it there (#221).
 export function createSyncSession({
-  network,
+  network = POCKETBASE_NETWORK,
   beforeSignIn = async () => true,
-  getUserId,
+  getUserId = () => (isAuthenticated() ? getUser()?.id ?? null : null),
   isOnline = () => navigator.onLine,
   connectWaitMs = DEFAULT_CONNECT_WAIT_MS,
   onStateChange = () => {},
@@ -207,4 +226,24 @@ export function createSyncSession({
   }
 
   return { start, dispose, getState: () => state };
+}
+
+let _session = null;
+
+export function initSyncSession(options = {}) {
+  if (_session || typeof window === 'undefined') return;
+  _session = createSyncSession({
+    onStateChange: () => window.dispatchEvent(new CustomEvent(SYNC_STATUS_CHANGED)),
+    ...options,
+  });
+  _session.start();
+}
+
+export function getSyncSessionState() {
+  return _session?.getState() ?? SESSION_STATE.SIGNED_OUT;
+}
+
+export function _resetSyncSessionForTesting() {
+  _session?.dispose();
+  _session = null;
 }

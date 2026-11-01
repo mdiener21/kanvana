@@ -182,10 +182,6 @@ async function inflate(pb, record) {
   }) };
 }
 
-export function initSnapshotSync() {
-  startSnapshotSync();
-}
-
 export function startSnapshotSync() {
   setAfterSnapshotSaved(uploadSnapshot);
 }
