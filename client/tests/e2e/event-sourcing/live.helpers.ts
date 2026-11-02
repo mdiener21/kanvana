@@ -122,8 +122,7 @@ export async function twoDevices(browser: Browser, email: string): Promise<Devic
   };
 }
 
-// Both devices on a new blank board. The first-run board holds demo tasks each device makes
-// for itself and never syncs (storage.js), so two devices only match fully on a board like this.
+// Both devices on a new blank board, for a journey that the first-run board's demo tasks would clutter.
 export async function twoDevicesOnNewBoard(browser: Browser, email: string, name = 'Shared Board'): Promise<Devices> {
   const devices = await twoDevices(browser, email);
   await createBoard(devices.a, name);

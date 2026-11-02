@@ -517,6 +517,11 @@ A snapshot is folded from events alone. Known limit until those writes emit even
 without an event (swimlane grouping) is reset by a rebuild to the last replayed `settings.updated` that
 carries it.
 
+**Demo tasks** on the default board have stable ids and no `task.created`: each device seeds its own, so a
+new device joining an account with real data adds nothing to the others. Events on one device still name the
+same tasks on all. With no snapshot to start from, a rebuild or a first snapshot therefore folds onto the demo
+tasks this device holds, as they were seeded. A device without them, after an account switch, stays without.
+
 **Grace window.** `GRACE_WINDOW_MS` (`snapshot.js`) is **30 days**. It must exceed a realistic offline
 period: a laptop left closed over a two- to three-week holiday, plus a week of margin for a late return
 or a spare device. 30 days covers that while keeping the event store, and the server's events
