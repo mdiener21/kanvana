@@ -575,3 +575,178 @@ describe('dispose', () => {
     expect(network.log).toEqual([]);
   });
 });
+
+// #222: a follower tab's session runs on a network side that does nothing; becoming sync
+// leader must then do the network work the session's current state calls for.
+describe('taking over as sync leader', () => {
+  async function liveFollower(network) {
+    startSession(network);
+    signIn();
+    await flush();
+    await flush();
+    expect(session.getState()).toBe('live');
+    network.catchUp.mockClear();
+    network.startRealtime.mockClear();
+    network.startQueue.mockClear();
+    network.startSnapshots.mockClear();
+    network.log.length = 0;
+  }
+
+  it('from live: subscribes, pulls once, then goes live and starts the queue', async () => {
+    const network = fakeNetwork();
+    await liveFollower(network);
+
+    session.takeOver();
+    expect(session.getState()).toBe('catching-up');
+    await flush();
+    await flush();
+
+    expect(session.getState()).toBe('live');
+    expect(network.catchUp).toHaveBeenCalledTimes(1);
+    expect(network.startSnapshots).toHaveBeenCalledTimes(1);
+    const order = network.log.filter((entry) => ['realtime start', 'catch-up', 'queue start'].includes(entry));
+    expect(order).toEqual(['realtime start', 'catch-up', 'queue start']);
+  });
+
+  it('while catching up: drops the pull in progress and runs one that counts', async () => {
+    const network = fakeNetwork();
+    const stuck = deferred();
+    network.catchUpResult = () => stuck.promise;
+    startSession(network);
+    signIn();
+    await flush();
+    expect(network.catchUp).toHaveBeenCalledTimes(1);
+
+    network.catchUpResult = () => Promise.resolve();
+    session.takeOver();
+    await flush();
+    await flush();
+    stuck.resolve();
+    await flush();
+
+    expect(session.getState()).toBe('live');
+    expect(network.catchUp).toHaveBeenCalledTimes(2);
+    expect(network.startQueue).toHaveBeenCalledTimes(1);
+  });
+
+  it('while signed out: does nothing until someone signs in', async () => {
+    const network = fakeNetwork();
+    startSession(network);
+
+    session.takeOver();
+    await flush();
+
+    expect(session.getState()).toBe('signed-out');
+    expect(network.startRealtime).not.toHaveBeenCalled();
+    expect(network.catchUp).not.toHaveBeenCalled();
+    expect(network.startQueue).not.toHaveBeenCalled();
+
+    signIn();
+    await flush();
+    await flush();
+    expect(session.getState()).toBe('live');
+    expect(network.catchUp).toHaveBeenCalledTimes(1);
+  });
+
+  it('while the sign-in check is pending: leaves the sign-in to run once the check passes', async () => {
+    const network = fakeNetwork();
+    const check = deferred();
+    startSession(network, { beforeSignIn: () => check.promise });
+    signIn();
+    await flush();
+
+    session.takeOver();
+    await flush();
+    expect(session.getState()).toBe('signed-out');
+    expect(network.catchUp).not.toHaveBeenCalled();
+
+    check.resolve(true);
+    await flush();
+    await flush();
+    expect(session.getState()).toBe('live');
+    expect(network.catchUp).toHaveBeenCalledTimes(1);
+  });
+
+  it('while offline: stays offline with no network work, and catches up on the online event', async () => {
+    const network = fakeNetwork();
+    online = false;
+    auth = 'user-a';
+    startSession(network);
+    await flush();
+
+    session.takeOver();
+    await flush();
+    expect(session.getState()).toBe('offline');
+    expect(network.startRealtime).not.toHaveBeenCalled();
+    expect(network.catchUp).not.toHaveBeenCalled();
+
+    setOnline(true);
+    await flush();
+    await flush();
+    expect(session.getState()).toBe('live');
+    expect(network.catchUp).toHaveBeenCalledTimes(1);
+  });
+
+  it('while paused: holds realtime and pulls once, but pushes nothing until fresh credentials', async () => {
+    const network = fakeNetwork();
+    await liveFollower(network);
+    session.noteLeaderState('paused');
+    expect(session.getState()).toBe('paused');
+    network.startQueue.mockClear();
+
+    session.takeOver();
+    await flush();
+    await flush();
+
+    expect(session.getState()).toBe('paused');
+    expect(network.startRealtime).toHaveBeenCalledTimes(1);
+    expect(network.catchUp).toHaveBeenCalledTimes(1);
+    expect(network.startQueue).not.toHaveBeenCalled();
+    expect(network.startSnapshots).not.toHaveBeenCalled();
+
+    signIn();
+    await flush();
+    await flush();
+    expect(session.getState()).toBe('live');
+    expect(network.startQueue).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('following the leader tab', () => {
+  async function liveFollower(network) {
+    startSession(network);
+    signIn();
+    await flush();
+    await flush();
+  }
+
+  it('pauses with the leader and leaves paused when the leader is live again', async () => {
+    const network = fakeNetwork();
+    await liveFollower(network);
+
+    session.noteLeaderState('paused');
+    expect(session.getState()).toBe('paused');
+
+    session.noteLeaderState('live');
+    await flush();
+    await flush();
+    expect(session.getState()).toBe('live');
+  });
+
+  it('does not take auth or network state from the leader', async () => {
+    const network = fakeNetwork();
+    startSession(network);
+
+    session.noteLeaderState('paused');
+    session.noteLeaderState('live');
+    expect(session.getState()).toBe('signed-out');
+
+    auth = 'user-a';
+    online = false;
+    window.dispatchEvent(new CustomEvent('auth-changed'));
+    await flush();
+    session.noteLeaderState('paused');
+    session.noteLeaderState('live');
+    expect(session.getState()).toBe('offline');
+  });
+});

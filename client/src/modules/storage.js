@@ -10,6 +10,7 @@ import { checkAndScheduleSnapshot, loadSnapshot, snapshotKeyForEvent, _resetSnap
 import { createReadModelProjector } from './event-sourcing/read-model-projector.js';
 import { backfillEventLog } from './event-sourcing/backfill.js';
 import { createTimeTrackingState } from './reducer.js';
+import { BOARD_SETTINGS_WRITTEN, DATA_CHANGED, emit } from './events.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -1084,6 +1085,17 @@ export function saveSettings(settings) {
   const normalized = normalizeSettings(settings);
   state.settings[boardId] = normalized;
   schedulePersist(keyFor(boardId, 'settings'), normalized);
+  emit(BOARD_SETTINGS_WRITTEN, { boardId });
+}
+
+// Another tab wrote settings no event carries (swimlanes, #222). This tab writes its copy
+// out with every board save, so an old copy here would undo them.
+export async function refreshBoardSettings(boardId) {
+  const db = await openStore();
+  const stored = safeParseObject(await db.get(KV_STORE, keyFor(boardId, 'settings')));
+  if (!stored) return;
+  state.settings[boardId] = stored;
+  emit(DATA_CHANGED, { settings: boardId });
 }
 
 export function loadGlobalSettings() {

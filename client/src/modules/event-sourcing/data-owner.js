@@ -4,7 +4,7 @@
 // Tabs share the auth store and the database, so every tab's session sees one sign-in. The
 // lock lets one tab settle an account switch while the others wait, still signed-out; a tab
 // that wiped tells the others to reload. A browser without Web Locks (plain http) runs
-// without the locks: hidden tabs still do not prompt, and a wipe in one tab reloads the rest.
+// without the lock: hidden tabs still do not prompt, and a wipe in one tab reloads the rest.
 
 import { alertDialog, confirmDialog } from '../dialog.js';
 import { claimDataOwner, clearFirstPullPending, closeStore, flushPendingPersists, getDataOwner, getUnsyncedEvents, isFirstPullPending, replaceLocalData } from '../idb-store.js';
@@ -14,11 +14,9 @@ import { clearLastUsedProjectId } from '../timetracking-settings.js';
 import { flushDomainEvents } from './emitter.js';
 import { HLC_NODE_KEY } from './hlc.js';
 import { waitForStoppedPull } from './realtime.js';
-import { getSyncSessionState, SESSION_STATE } from './sync-session.js';
-import { SYNC_STATUS_CHANGED } from './sync-queue.js';
+import { getSyncSessionState, POCKETBASE_NETWORK, SESSION_STATE } from './sync-session.js';
 
 const SWITCH_LOCK = 'kanvana:data-owner-switch';
-const FIRST_PULL_LOCK = 'kanvana:data-owner-first-pull';
 const WIPE_CHANNEL = 'kanvana:data-owner-wipe';
 // The HLC node id identifies this browser, not an account. Theme and other display
 // preferences live in localStorage and stay too; everything else in the database goes.
@@ -28,8 +26,6 @@ const WAIT_UNTIL_VISIBLE = 'wait-until-visible';
 let _reload = () => window.location.reload();
 let _channel = null;
 let _reloading = false;
-let _endFirstPull = null; // set while this tab holds the first-pull lock
-let _firstPullSettled = false;
 
 function reloadPage() {
   _reloading = true;
@@ -115,35 +111,11 @@ async function settleAccountSwitch(userId) {
   return false;
 }
 
-// After a wipe every tab starts empty. Two pulling at once would lose events: a remote event
-// the other tab stored first is skipped, so this tab never projects it and then saves a board
-// list without it. So one tab pulls, and the others wait and load the result from storage.
-// The lock outlives a tab that dies, and the pending mark lets the next tab take over.
-function takeFirstPull(userId) {
-  if (!navigator.locks || _endFirstPull) return true;
-  return new Promise((resolve, reject) => {
-    navigator.locks.request(FIRST_PULL_LOCK, async () => {
-      if (signedInUserId() !== userId) { resolve(false); return; }
-      if (!await isFirstPullPending()) {
-        reloadPage();
-        resolve(false);
-        return;
-      }
-      await new Promise((end) => {
-        _endFirstPull = end;
-        resolve(true);
-      });
-    }).catch(reject);
-  });
-}
-
 // A false result keeps the session signed-out; after a wipe the page is reloading, and the
 // new page finds the signed-in account already the Data Owner.
 export async function checkDataOwner(userId) {
   try {
-    if (await claimDataOwner(userId) === userId) {
-      return await isFirstPullPending() ? await takeFirstPull(userId) : true;
-    }
+    if (await claimDataOwner(userId) === userId) return true;
     for (;;) {
       const outcome = await withSwitchLock(() => settleAccountSwitch(userId));
       if (outcome !== WAIT_UNTIL_VISIBLE) return outcome;
@@ -163,23 +135,24 @@ export async function checkDataOwner(userId) {
   }
 }
 
-// A waiting tab reloads when the lock is released, so all of this is saved by then.
 async function settleFirstPull() {
-  if (_firstPullSettled) return;
-  _firstPullSettled = true;
   if (!await isFirstPullPending()) return;
   await publishDeferredDefaultBoard();
   await flushLocalWrites();
   await clearFirstPullPending();
-  _endFirstPull?.();
 }
 
-// Going live means the session's first catch-up is over, whatever it found.
-export function initDataOwnerAfterCatchUp() {
-  window.addEventListener(SYNC_STATUS_CHANGED, () => {
-    if (getSyncSessionState() !== SESSION_STATE.LIVE) return;
-    settleFirstPull().catch((err) => console.error('[Kanvana] Finishing the first catch-up failed', err));
-  });
+// The network side only the leader tab runs (#222), because a follower's session goes live
+// on a pull that did nothing. A pull that failed, or that a stop cut short, leaves the first
+// pull pending: only a finished one shows what the new owner's account holds.
+export function createNetworkSettlingFirstPull(network = POCKETBASE_NETWORK) {
+  return {
+    ...network,
+    catchUp: async () => {
+      await network.catchUp();
+      if (getSyncSessionState() === SESSION_STATE.CATCHING_UP) await settleFirstPull();
+    },
+  };
 }
 
 export function _setReloadForTesting(reload) {
@@ -190,8 +163,5 @@ export function _resetDataOwnerForTesting() {
   _channel?.close();
   _channel = null;
   _reloading = false;
-  _endFirstPull?.();
-  _endFirstPull = null;
-  _firstPullSettled = false;
   _reload = () => window.location.reload();
 }

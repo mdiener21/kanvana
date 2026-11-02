@@ -62,6 +62,20 @@ export function createReadModelProjector(ctx) {
     return Boolean(batch?.pending.get(boardId)?.ids.has(event.id)) || boardMemory(boardId).appliedEventIds.has(event.id);
   }
 
+  // Board scopes remember applied ids durably. Board-less ones remember only this session,
+  // so a stored event counts as missed if it is newer than the key's newest applied one.
+  // A board deleted here keeps its events but not its memory: they must not bring it back.
+  function missedEvents(events) {
+    const deleted = new Set(events.filter((event) => event.type === 'board.deleted').map((event) => event.board_id));
+    const removedHere = (boardId) => deleted.has(boardId) && !state.boards.some((board) => board.id === boardId);
+    return events.filter((event) => {
+      if (hasApplied(event)) return false;
+      if (!boardlessSlots.has(event.scope)) return !removedHere(event.board_id);
+      const newest = state.newestAppliedHlc[snapshotKeyForEvent(event)];
+      return !newest || compareHlc(event.hlc, newest) > 0;
+    });
+  }
+
   function noteApplied(key, hlc, { batched = false } = {}) {
     const newest = laterHlc(state.newestAppliedHlc[key], hlc);
     if (!newest || newest === state.newestAppliedHlc[key]) return;
@@ -302,7 +316,7 @@ export function createReadModelProjector(ctx) {
 
   function register() {
     if (disconnect) return;
-    disconnect = connectProjector({ classify, project, rebuild, foldOntoSnapshot, beginBatch, endBatch });
+    disconnect = connectProjector({ classify, project, rebuild, foldOntoSnapshot, beginBatch, endBatch, missedEvents });
     window.addEventListener('pagehide', persistBatchOnPageHide);
   }
 

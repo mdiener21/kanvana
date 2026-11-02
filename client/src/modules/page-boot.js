@@ -4,7 +4,8 @@ import { initAuthRefresh } from './sync.js';
 import { initializeAuthSyncUI } from './authsync.js';
 import { initSyncQueue } from './event-sourcing/sync-queue.js';
 import { initSyncSession } from './event-sourcing/sync-session.js';
-import { checkDataOwner, initDataOwnerAfterCatchUp, listenForDataOwnerWipe } from './event-sourcing/data-owner.js';
+import { checkDataOwner, createNetworkSettlingFirstPull, listenForDataOwnerWipe } from './event-sourcing/data-owner.js';
+import { initSyncLeader } from './event-sourcing/sync-leader.js';
 import { initSyncIndicator } from './event-sourcing/sync-indicator.js';
 
 export async function bootPage({ mountAuthUi = false } = {}) {
@@ -19,7 +20,9 @@ export async function bootPage({ mountAuthUi = false } = {}) {
   initAuthRefresh();
   if (mountAuthUi) initializeAuthSyncUI();
   initSyncQueue();
-  initSyncSession({ beforeSignIn: checkDataOwner });
+  initSyncSession({
+    beforeSignIn: checkDataOwner,
+    network: await initSyncLeader({ network: createNetworkSettlingFirstPull() }),
+  });
   initSyncIndicator();
-  initDataOwnerAfterCatchUp();
 }

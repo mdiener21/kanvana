@@ -30,6 +30,7 @@ let _retryIndex = 0;
 let _emittedHandler = null;
 let _inFlightDrain = null;
 let _retrying = false;
+let _peerRetrying = false; // the leader tab's, in a follower tab (#222)
 
 function notifySyncStatusChanged() {
   if (typeof window !== 'undefined') {
@@ -205,6 +206,7 @@ export function _resetSyncQueueForTesting() {
   _onAuthRejected = null;
   _retryIndex = 0;
   _retrying = false;
+  _peerRetrying = false;
   _emittedHandler = null;
   _debounceMs = DEFAULT_DEBOUNCE_MS;
   _maxInFlight = DEFAULT_MAX_IN_FLIGHT;
@@ -223,7 +225,15 @@ export function _setTimingForTesting({ debounceMs, maxInFlight, backoff, schedul
 // depth = events still unsynced; retrying = network/5xx backoff in progress.
 export async function getSyncStatus() {
   const depth = (await getUnsyncedEvents()).length;
-  return { depth, retrying: _retrying };
+  return { depth, retrying: _retrying || _peerRetrying };
+}
+
+export function isSyncQueueRetrying() {
+  return _retrying;
+}
+
+export function setPeerRetrying(retrying) {
+  _peerRetrying = retrying;
 }
 
 export async function _settleForTesting() {

@@ -86,11 +86,12 @@ async function teardownPage() {
   if (page.isBoard) await waitFor(() => expect(document.getElementById('board-container')?.dataset.viewMode).toBeTruthy(), { timeout: 20000 });
   // Going live publishes a deferred default board; it must land in this test's database.
   if (page.session.getSyncSessionState() === 'live') {
-    await waitFor(async () => expect(await page.idb.isFirstPullPending()).toBe(false));
+    await waitFor(async () => expect(await page.idb.isFirstPullPending()).toBe(false), { timeout: 500 }).catch(() => {});
     await settle(50);
   }
   await page.storage._flushPersistsForTesting().catch(() => {});
   page.dataOwner._resetDataOwnerForTesting();
+  page.leader._resetSyncLeaderForTesting();
   page.session._resetSyncSessionForTesting();
   page.queue._resetSyncQueueForTesting();
   await page.queue._settleForTesting();
@@ -118,6 +119,7 @@ async function openPage({ html = 'index.html', entry = '../../../src/kanban.js',
     indicator: await import('../../../src/modules/event-sourcing/sync-indicator.js'),
     snapshot: await import('../../../src/modules/event-sourcing/snapshot.js'),
     dataOwner: await import('../../../src/modules/event-sourcing/data-owner.js'),
+    leader: await import('../../../src/modules/event-sourcing/sync-leader.js'),
   };
   page = modules;
   modules.isBoard = domReady;
@@ -643,7 +645,9 @@ describe('other tabs', () => {
     Object.defineProperty(navigator, 'locks', {
       configurable: true,
       value: {
-        request: async (_name, work) => {
+        request: async (name, ...rest) => {
+          const work = rest.at(-1);
+          if (name === 'kanvana:sync-leader') return work({ name });
           const otherTab = new BroadcastChannel('kanvana:data-owner-wipe');
           otherTab.postMessage('wiped');
           otherTab.close();
@@ -665,57 +669,71 @@ describe('other tabs', () => {
   }, 30000);
 
   describe('the first pull after a wipe', () => {
+    const stableId = '00000000-0000-4000-8000-000000000001';
     const wiped = async ({ idb }) => {
       await idb.replaceLocalData({ ownerId: USER_B.id, maxUnsynced: 0 });
     };
-    // Stands in for another tab holding the lock until the test lets it go.
-    function lockHeldByAnotherTab() {
-      let release;
-      const held = new Promise((res) => { release = res; });
+    // Another tab holds the leader lock until the test hands it over.
+    function anotherTabLeads() {
+      let handOver;
+      const handedOver = new Promise((res) => { handOver = res; });
       Object.defineProperty(navigator, 'locks', {
         configurable: true,
-        value: { request: async (_name, work) => { await held; return work(); } },
+        value: {
+          request: (name, ...rest) => {
+            const work = rest.at(-1);
+            if (name !== 'kanvana:sync-leader') return Promise.resolve(work({ name }));
+            if (rest[0].ifAvailable) return Promise.resolve(work(null));
+            return handedOver.then(() => work({ name }));
+          },
+        },
       });
-      return release;
+      return handOver;
     }
 
     afterEach(() => { delete navigator.locks; });
 
-    it('waits, pulling nothing, while another tab does it, then reloads to load the result', async () => {
+    it('a follower going live is not a finished pull: it publishes nothing and leaves the pull pending', async () => {
       serveBackend();
-      const release = lockHeldByAnotherTab();
+      anotherTabLeads();
       await openPage({ user: USER_B, seed: wiped });
+      await live();
       await settle(400);
 
-      expect(page.session.getSyncSessionState()).toBe('signed-out');
       expect(requests.filter((r) => r.includes('/collections/events'))).toEqual([]);
-
-      await page.idb.clearFirstPullPending(); // the other tab finished
-      release();
-
-      await waitFor(() => expect(reloads).toBe(1));
-      expect(page.session.getSyncSessionState()).toBe('signed-out');
-      expect(requests.filter((r) => r.includes('/collections/events'))).toEqual([]);
+      expect(await page.idb.isFirstPullPending()).toBe(true);
+      const db = await page.idb.openStore();
+      expect((await db.getAll(page.idb.EVENTS_STORE)).filter((e) => e.board_id === stableId)).toEqual([]);
     }, 30000);
 
-    it('takes over when the tab that held it went away without finishing', async () => {
+    it('is finished by the tab that takes over as leader', async () => {
       serveBackend();
-      const release = lockHeldByAnotherTab();
+      const handOver = anotherTabLeads();
       await openPage({ user: USER_B, seed: wiped });
-      await settle();
-
-      release();
-
       await live();
-      await waitFor(async () => expect(await page.idb.isFirstPullPending()).toBe(false));
+
+      handOver();
+
+      await waitFor(() => expect(requests.filter((r) => r === 'GET /api/collections/events/records').length).toBeGreaterThan(0), { timeout: 10000 });
+      await waitFor(async () => expect(await page.idb.isFirstPullPending()).toBe(false), { timeout: 10000 });
       expect(reloads).toBe(0);
     }, 30000);
 
-    it('marks it finished once the session is live, so later launches do not wait', async () => {
+    it('a pull that failed leaves it pending and emits nothing for the default board', async () => {
+      serveBackend();
+      server.use(http.get(EVT_LIST, () => new HttpResponse(null, { status: 500 })));
+      await openPage({ user: USER_B, seed: wiped });
+      await live();
+      await settle(400);
+
+      expect(await page.idb.isFirstPullPending()).toBe(true);
+      expect(pushes).toEqual([]);
+    }, 30000);
+
+    it('later launches find it finished and sync as usual', async () => {
       serveBackend();
       await openPage({ user: USER_B, seed: wiped });
       await live();
-
       await waitFor(async () => expect(await page.idb.isFirstPullPending()).toBe(false));
     }, 30000);
   });
@@ -725,7 +743,9 @@ describe('other tabs', () => {
     Object.defineProperty(navigator, 'locks', {
       configurable: true,
       value: {
-        request: async (_name, work) => {
+        request: async (name, ...rest) => {
+          const work = rest.at(-1);
+          if (name === 'kanvana:sync-leader') return work({ name });
           await page.idb.replaceLocalData({ ownerId: USER_B.id, maxUnsynced: 99 });
           return work();
         },
