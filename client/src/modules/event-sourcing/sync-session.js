@@ -101,6 +101,8 @@ export function createSyncSession({
   let realtimeStopped = Promise.resolve();
   let pullStarted = false;
   let pullAgain = false;
+  let connectAttempt = 0;
+  let subscribing = false;
   let listeners = null;
 
   function dispatch(event) {
@@ -132,19 +134,36 @@ export function createSyncSession({
     }
   }
 
-  // Subscribe before pulling: an event created after the pull reads the server arrives
-  // over SSE, so one pull leaves no gap. The wait is capped because a stuck SSE
-  // connection must not hold back the pull.
+  // Subscribe before pulling, so one pull leaves no gap; a stuck SSE must not hold the pull back.
   async function connectRealtime() {
+    connectAttempt += 1;
+    const attempt = connectAttempt;
+    subscribing = true;
     const subscribed = network.startRealtime(onRealtimeConnect).then(() => true, (err) => {
       console.error('[Kanvana] Realtime subscribe failed', err);
       return false;
+    }).finally(() => {
+      if (attempt === connectAttempt) subscribing = false;
     });
     let timer;
     const timedOut = new Promise((res) => { timer = setTimeout(res, connectWaitMs, null); });
     const result = await Promise.race([subscribed, timedOut]);
     clearTimeout(timer);
-    if (result === null) subscribed.then((ok) => { if (ok) onRealtimeConnect(); });
+    if (result === null) subscribed.then((ok) => { if (ok && attempt === connectAttempt) onLateConnection(); });
+  }
+
+  // The pull that ran before the subscription came up may have missed events (#219).
+  function onLateConnection() {
+    if (state === CATCHING_UP) {
+      if (pullStarted) pullAgain = true;
+    } else if (state === LIVE) {
+      const current = entry;
+      network.catchUp().catch((err) => {
+        if (current !== entry) return;
+        if (isAuthRejection(err)) dispatch(EVENT.AUTH_REJECTED);
+        else console.error('[Kanvana] Sync catch-up failed', err);
+      });
+    }
   }
 
   async function runCatchUp(current) {
@@ -170,9 +189,9 @@ export function createSyncSession({
     dispatch(EVENT.CATCH_UP_DONE);
   }
 
-  // An SSE connect before the pull starts is covered by that pull, including the
-  // initial connect; one after it means the pull may have missed events.
+  // The subscription's first connect is settled by connectRealtime, so only reconnects get here.
   function onRealtimeConnect() {
+    if (subscribing) return;
     if (state !== CATCHING_UP) { dispatch(EVENT.REALTIME_RECONNECTED); return; }
     if (pullStarted) pullAgain = true;
   }

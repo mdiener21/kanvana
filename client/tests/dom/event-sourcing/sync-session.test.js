@@ -208,6 +208,96 @@ describe('failures while catching up', () => {
     expect(session.getState()).toBe('live');
   });
 
+  describe('an SSE connection that takes longer than the wait (#219)', () => {
+    async function liveBeforeConnected(network, states) {
+      const connecting = deferred();
+      network.realtimeResult = () => connecting.promise;
+      startSession(network, { connectWaitMs: 1, onStateChange: (state) => states.push(state) });
+      signIn();
+      await new Promise((r) => setTimeout(r, 20));
+      return connecting;
+    }
+
+    it('pulls once more and stays live when it connects after the pull finished', async () => {
+      const network = fakeNetwork();
+      const states = [];
+      const connecting = await liveBeforeConnected(network, states);
+      expect(session.getState()).toBe('live');
+
+      network.connect();
+      connecting.resolve();
+      await flush();
+      await flush();
+
+      expect(network.catchUp).toHaveBeenCalledTimes(2);
+      expect(states).toEqual(['catching-up', 'live']);
+      expect(network.startQueue).toHaveBeenCalledTimes(1);
+    });
+
+    it('pulls once more when it connects during the pull', async () => {
+      const network = fakeNetwork();
+      const states = [];
+      const pull = deferred();
+      network.catchUpResult = () => pull.promise;
+      const connecting = await liveBeforeConnected(network, states);
+      expect(session.getState()).toBe('catching-up');
+
+      network.connect();
+      connecting.resolve();
+      await flush();
+      network.catchUpResult = () => Promise.resolve();
+      pull.resolve();
+      await flush();
+      await flush();
+
+      expect(network.catchUp).toHaveBeenCalledTimes(2);
+      expect(states).toEqual(['catching-up', 'live']);
+    });
+
+    it('adds no pull when the subscription fails', async () => {
+      const network = fakeNetwork();
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const connecting = await liveBeforeConnected(network, []);
+
+      connecting.reject(new Error('SSE unavailable'));
+      await flush();
+      await flush();
+
+      expect(network.catchUp).toHaveBeenCalledTimes(1);
+      vi.restoreAllMocks();
+    });
+
+    it('pauses when the extra pull is rejected', async () => {
+      const network = fakeNetwork();
+      const connecting = await liveBeforeConnected(network, []);
+      network.catchUpResult = () => Promise.reject(Object.assign(new Error('nope'), { status: 401 }));
+
+      connecting.resolve();
+      await flush();
+      await flush();
+
+      expect(session.getState()).toBe('paused');
+    });
+
+    it('still catches up once on a genuine reconnect afterwards', async () => {
+      const network = fakeNetwork();
+      const states = [];
+      const connecting = await liveBeforeConnected(network, states);
+      connecting.resolve();
+      await flush();
+      await flush();
+      expect(network.catchUp).toHaveBeenCalledTimes(2);
+
+      network.connect();
+      await flush();
+      await flush();
+      await flush();
+
+      expect(network.catchUp).toHaveBeenCalledTimes(3);
+      expect(states).toEqual(['catching-up', 'live', 'catching-up', 'live']);
+    });
+  });
+
   it('goes live after a failed pull so the queue and realtime keep working', async () => {
     const network = fakeNetwork();
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
