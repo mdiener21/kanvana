@@ -54,6 +54,12 @@ must not sign out a phone.
   cost of keeping local data usable offline.
 - A token copied before logout stays valid until it expires. This is accepted for the reason above.
 - After a switch, A's data is not available offline on that browser until A signs back in and catches up.
+- After a switch the new owner gets a default board with no demo tasks, and its events are published only if
+  the first finished pull shows the account has never had that board. Seeding it normally would put events
+  newer than the account's own history on the stable default board ids, which loses that account's real board.
+- A wipe bumps a data generation that every tab checks inside each write transaction, so a tab that has not
+  heard of the wipe yet can not write into the new owner's data. It reloads instead, and an edit made in that
+  moment is lost without a prompt.
 - Installs that predate this ADR have local data and no Data Owner, so case 1 applies: the next account
   to sign in claims the data. An account already signed in at upgrade claims it at launch. If a different
   person signs in first on an upgraded browser, that person claims the previous user's data. This window

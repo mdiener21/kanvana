@@ -275,8 +275,20 @@ How a switch works (`data-owner.js`, run on each new sign-in, with no network, a
   shows the account has never had this board, so nothing newer than the account's own history lands on the
   stable ids. `kanvana:sync:firstPullPending` marks that pull as still to come; a failed pull leaves it set.
 
-Known limits. Without Web Locks (plain http) the lock is skipped, so two visible tabs could each prompt. A write from another tab in the moment between a wipe committing and that
-tab receiving the notice can land in the new owner's database.
+- **A tab that missed the wipe.** The notice takes time to arrive, so it is not what protects the new owner's
+  data. A wipe bumps `kanvana:dataGeneration` in its transaction, each tab pins the generation when it opens the
+  database, and every write of account data (`writeIfDataCurrent()` and the `schedule*` helpers in `idb-store.js`)
+  checks it inside its own transaction. On a mismatch the write is dropped and the page reloads, so nothing from a
+  tab still holding the old owner reaches the events store, the read model, snapshots or the queue.
+
+Known limits. Without Web Locks (plain http) the lock is skipped, so two visible tabs could each prompt. A tab that
+missed a wipe keeps showing the old owner's data from its own memory until the notice or its first dropped write
+reloads it, and an edit made there in that moment is lost without a prompt, since the prompt could not count it. Its
+tab-to-tab notices can still go out in that moment: they carry ids only, so a tab acting on one finds nothing to
+fold, though a `snapshot-adopted` can hide the entities it names from that tab's view until its next rebuild. Three
+writes skip the check because they hold no account data: the HLC node id, the first claim of unowned data (no wipe
+can have happened), and the boot migration from legacy localStorage (it runs before any wipe on that browser).
+localStorage preferences are outside IndexedDB and are not checked.
 
 **Auth:** Email/password or OAuth2. `isAuthenticated()` / `ensureAuthenticated()` guard all sync
 operations. The `auth-changed` window event fires on auth state change, including a token refresh; the

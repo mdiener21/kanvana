@@ -4,7 +4,7 @@
 // makes echoes and catch-up/SSE overlap no-ops. Remote events are persisted as
 // already-synced so the outbound queue never pushes them back.
 
-import { openStore, KV_STORE } from '../idb-store.js';
+import { openStore, writeIfDataCurrent, KV_STORE } from '../idb-store.js';
 import { getPb, isAuthenticated, getUser } from '../sync.js';
 import { compareHlc, laterHlc } from './hlc.js';
 import { EVENT_ORIGIN, adoptSnapshot, ingestEvent, ingestRemoteBatch } from './ingest.js';
@@ -41,8 +41,7 @@ async function getLastSeen(key) {
 }
 
 async function setLastSeen(key, hlc) {
-  const db = await openStore();
-  await db.put(KV_STORE, hlc, LAST_SEEN_PREFIX + key);
+  await writeIfDataCurrent(KV_STORE, (store) => store.put(hlc, LAST_SEEN_PREFIX + key));
 }
 
 export async function applyRemoteEvent(record) {

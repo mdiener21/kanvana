@@ -7,7 +7,7 @@
 // without the lock: hidden tabs still do not prompt, and a wipe in one tab reloads the rest.
 
 import { alertDialog, confirmDialog } from '../dialog.js';
-import { claimDataOwner, clearFirstPullPending, closeStore, flushPendingPersists, getDataOwner, getUnsyncedEvents, isFirstPullPending, replaceLocalData } from '../idb-store.js';
+import { claimDataOwner, clearFirstPullPending, closeStore, flushPendingPersists, getDataOwner, getUnsyncedEvents, isFirstPullPending, onDataReplaced, replaceLocalData } from '../idb-store.js';
 import { publishDeferredDefaultBoard } from '../storage.js';
 import { getUser, isAuthenticated, logoutUser } from '../sync.js';
 import { clearLastUsedProjectId } from '../timetracking-settings.js';
@@ -28,6 +28,7 @@ let _channel = null;
 let _reloading = false;
 
 function reloadPage() {
+  if (_reloading) return;
   _reloading = true;
   closeStore();
   _reload();
@@ -39,6 +40,7 @@ function signedInUserId() {
 
 // Called before storage loads, so a wipe during the load still reaches this page.
 export function listenForDataOwnerWipe() {
+  onDataReplaced(reloadPage);
   if (_channel || typeof BroadcastChannel === 'undefined') return;
   _channel = new BroadcastChannel(WIPE_CHANNEL);
   _channel.onmessage = () => reloadPage();

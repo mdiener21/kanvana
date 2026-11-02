@@ -373,7 +373,7 @@ describe('what a wipe keeps and removes', () => {
 
     const db = await openDB('kanvana-db');
     const kvKeys = await db.getAllKeys('kv');
-    expect(kvKeys.sort()).toEqual(['kanvana:dataOwner', 'kanvana:hlc:node', 'kanvana:sync:firstPullPending']);
+    expect(kvKeys.sort()).toEqual(['kanvana:dataGeneration', 'kanvana:dataOwner', 'kanvana:hlc:node', 'kanvana:sync:firstPullPending']);
     expect(await db.get('kv', 'kanvana:hlc:node')).toBe('node-of-this-browser');
     expect(await db.getAllKeys('events')).toEqual([]);
     expect(await db.getAllKeys('snapshots')).toEqual([]);
