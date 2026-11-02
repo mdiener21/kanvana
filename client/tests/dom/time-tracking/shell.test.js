@@ -185,7 +185,7 @@ test('closing the cheat-sheet with its Close button restores focus', () => {
   const navBtn = document.getElementById('tt-nav-settings');
   navBtn.focus();
   fireEvent.keyDown(navBtn, { key: '?', shiftKey: true });
-  fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+  fireEvent.click(within(helpModal()).getByRole('button', { name: 'Close' }));
   expect(helpModal().hidden).toBe(true);
   expect(document.activeElement).toBe(navBtn);
 });

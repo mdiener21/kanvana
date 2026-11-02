@@ -137,6 +137,17 @@ async function pullRemoteState() {
   }
 }
 
+// A stopped pull checks for that between steps, so it only outlives the stop by the local
+// write in progress or a request whose result it will ignore; the cap covers a hung request.
+export async function waitForStoppedPull(capMs = 3000) {
+  await stopRealtime();
+  if (!_catchingUp) return;
+  let timer;
+  const capped = new Promise((res) => { timer = setTimeout(res, capMs); });
+  await Promise.race([_catchingUp.catch(() => {}), capped]);
+  clearTimeout(timer);
+}
+
 export async function _resetRealtimeForTesting() {
   await stopRealtime();
   if (_catchingUp) await _catchingUp.catch(() => {});

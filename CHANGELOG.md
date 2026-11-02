@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An edit in one tab can no longer be undone on reload by another tab that had not seen it yet (#222).
 - Going offline now stops all sync activity, including upload retries, until the connection returns. The app then catches up first and sends your queued changes after that (#219).
 - Signing out now stops all sync activity, so nothing is sent to the server until you sign in again. Your edits stay on this device and are sent at your next sign-in (#219).
+- Signing in with a different account no longer uploads the previous account's changes to the new account or shows its boards. This browser's data now belongs to one account. Another account signing in replaces it, and if changes have not reached the server yet you are asked first: discard them and continue, or cancel and sign out with everything kept (#221).
 
 ## [3.4.7] - 2026-10-28
 

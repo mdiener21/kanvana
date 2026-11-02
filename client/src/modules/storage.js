@@ -1,7 +1,7 @@
 import { generateUUID } from './utils.js';
 import { normalizePriority as sharedNormalizePriority, isHexColor, defaultColumnColor, normalizeStringKeys, normalizeRelationships, normalizeSubTasks } from './normalize.js';
 import { DONE_COLUMN_ID, DONE_COLUMN_ROLE, isDoneColumn } from './constants.js';
-import { openStore, KV_STORE, READ_MODEL_STORE, EVENTS_STORE, SNAPSHOTS_STORE, schedulePersist, scheduleDelete, scheduleReadModelPersist, scheduleReadModelDelete, keyFor, readModelKeyFor, _flushPersistsForTesting as _flushIdbPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
+import { openStore, KV_STORE, READ_MODEL_STORE, EVENTS_STORE, SNAPSHOTS_STORE, isFirstPullPending, schedulePersist, scheduleDelete, scheduleReadModelPersist, scheduleReadModelDelete, keyFor, readModelKeyFor, _flushPersistsForTesting as _flushIdbPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
 // Re-export IDB helpers that tests import from this module for backward compatibility.
 import { normalizeBoardModelIds } from './board-serializer.js';
 import { initHlc, laterHlc } from './event-sourcing/hlc.js';
@@ -58,6 +58,9 @@ const state = {
 // Per-board default-task cache (keeps defaults stable within a session).
 const taskCacheByBoard = new Map();
 const syntheticDoneIdByBoard = new Map();
+
+// After an account switch the default board's events wait for the first catch-up (#221).
+let defaultBoardDeferred = false;
 
 // Sole writer of the read model (ADR-0005), extracted from this module (#119).
 // Wired with the closure `state` + schedulers; the reducer stays pure.
@@ -488,6 +491,7 @@ export async function initStorage() {
     state.snapshotAppliedIds[board.id] = (await loadSnapshot(board.id))?.state.appliedEventIds ?? new Set();
   }
   state.newestAppliedHlc = await loadNewestAppliedHlc(db);
+  defaultBoardDeferred = await isFirstPullPending();
 
   // One-shot: give pre-event-sourcing state an event log so it can sync at all.
   const backfillStartedAt = globalThis.__kanvanaPerfMarks ? performance.now() : null;
@@ -546,6 +550,7 @@ export function _resetStorageForTesting() {
   state.timeTracking = null;
   taskCacheByBoard.clear();
   syntheticDoneIdByBoard.clear();
+  defaultBoardDeferred = false;
   readModelProjector.reset();
   _resetSnapshotSchedulerForTesting();
 }
@@ -619,6 +624,7 @@ export function ensureBoardsInitialized() {
   const created = nowIso();
   const boardId = STABLE_DEFAULT_BOARD_ID;
   const defaults = stableDefaultBoardData();
+  if (defaultBoardDeferred) defaults.tasks = [];
   const board = { id: boardId, name: 'Default Board', createdAt: created };
   state.boards = [board];
   state.activeBoardId = boardId;
@@ -633,6 +639,7 @@ export function ensureBoardsInitialized() {
   scheduleReadModelPersist(boardId, 'tasks', state.tasks[boardId]);
   scheduleReadModelPersist(boardId, 'labels', state.labels[boardId]);
   schedulePersist(keyFor(boardId, 'settings'), state.settings[boardId]);
+  if (defaultBoardDeferred) return;
 
   // Emit the scaffold to the event log so a second device reconstructs the
   // default board's columns/labels (and converges with this one via the stable
@@ -668,6 +675,27 @@ function emitBoardScaffoldEvents(boardId, { columns = [], labels = [] }) {
       payload: { label }
     });
   }
+}
+
+// A browser just handed to another account seeds the default board before it knows what that
+// account holds. Newer create events for the stable ids would go into the account's history
+// and could bring back what it deleted, so they are only emitted if the first catch-up shows
+// the account has never had this board (#221).
+export async function publishDeferredDefaultBoard() {
+  if (!defaultBoardDeferred) return;
+  ensureBoardsInitialized(); // going live can come before this page's first read of a board
+  defaultBoardDeferred = false;
+  const board = state.boards.find((b) => b.id === STABLE_DEFAULT_BOARD_ID);
+  if (!board) return;
+
+  const db = await openStore();
+  const events = await db.getAll(EVENTS_STORE);
+  const known = events.some((e) => e.type === 'board.created' && e.entity_id === board.id)
+    || await db.get(SNAPSHOTS_STORE, board.id);
+  if (known) return;
+  scheduleDomainEvent({ type: 'board.created', boardId: board.id, entityId: board.id, payload: { board } });
+  const live = (items) => (items || []).filter((item) => !item.deleted);
+  emitBoardScaffoldEvents(board.id, { columns: live(state.columns[board.id]), labels: live(state.labels[board.id]) });
 }
 
 export function createBoard(name, initialData = {}) {
