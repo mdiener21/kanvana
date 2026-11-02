@@ -1,4 +1,5 @@
 {
+  "boardName": "Personal Work Kanban",
   "columns": [
     {
       "id": "todo",
@@ -48,7 +49,7 @@
       "order": 1,
       "creationDate": "2026-01-06T14:38:28.093Z",
       "labels": [
-        "feature"
+        "featuret-237acf3a"
       ]
     },
     {
@@ -71,9 +72,7 @@
       "column": "verified",
       "order": 1,
       "creationDate": "2026-01-06T14:38:28.093Z",
-      "labels": [
-        "bug"
-      ]
+      "labels": []
     }
   ],
   "labels": [
