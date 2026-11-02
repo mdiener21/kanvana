@@ -1,4 +1,5 @@
-import { generateUUID } from './utils.js';
+import { byOrder, generateUUID } from './utils.js';
+import { isDoneColumn } from './constants.js';
 import { getActiveBoardId, isDoneColumnId, loadColumns, loadTasks } from './storage.js';
 import { normalizeHexColor } from './normalize.js';
 import { normalizeWipLimit } from './wip-limit.js';
@@ -8,11 +9,26 @@ import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 export function addColumn(name, color, wipLimit = 0) {
   if (!name || name.trim() === '') return;
   
-  const columns = loadColumns();
-  const maxOrder = columns.reduce((max, c) => Math.max(max, c.order ?? 0), 0);
+  const columns = [...loadColumns()].sort(byOrder);
+  const doneIndex = columns.findIndex(isDoneColumn);
   const id = generateUUID();
-  const newColumn = { id, name: name.trim(), color: normalizeHexColor(color), order: maxOrder - 1, collapsed: false, wipLimit: normalizeWipLimit(wipLimit) };
-  columns.push(newColumn);
+  const newColumn = { id, name: name.trim(), color: normalizeHexColor(color), order: doneIndex + 1, collapsed: false, wipLimit: normalizeWipLimit(wipLimit) };
+  columns.splice(doneIndex, 0, newColumn);
+
+  // A default board's columns have no order, so no order for the new column alone can
+  // place it before Done: its siblings need numbering too. Reordered goes first so the
+  // board never shows the new column on the wrong side of Done (#259).
+  const siblingOrder = columns.flatMap((column, index) => (
+    column.id !== id && column.order !== index + 1 ? [{ id: column.id, order: index + 1 }] : []
+  ));
+  if (siblingOrder.length > 0) {
+    scheduleDomainEvent({
+      type: 'column.reordered',
+      boardId: getActiveBoardId(),
+      entityId: '',
+      payload: { order: siblingOrder }
+    });
+  }
   scheduleDomainEvent({
     type: 'column.created',
     boardId: getActiveBoardId(),

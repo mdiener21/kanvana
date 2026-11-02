@@ -42,8 +42,7 @@ async function deleteColumn(page: Page, name: string): Promise<void> {
   await column(page, name).getByRole('menuitem', { name: 'Delete', exact: true }).click();
 }
 
-test.fixme('new columns go before the permanent Done column', async ({ page }) => {
-  // Bug: addColumn sets order to maxOrder - 1, so on a board whose columns have no order (every default board) it lands first (#259).
+test('new columns go before the permanent Done column', async ({ page }) => {
   await openBlankBoard(page);
   await addColumn(page, 'Review');
   await expect(columnHeadings(page)).toHaveText(['To Do', 'In Progress', 'Review', 'Done']);
