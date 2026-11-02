@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clicking a day in the calendar after changing month now lists that day's tasks instead of none (#260).
 - The Personal Work Kanban template is now offered when creating a board (#261).
 
+## [3.4.8] - 2026-11-02
+
 ### Added
 
 - With several tabs open, an edit in one tab now shows in the others straight away, and swimlane changes do too (#222).
