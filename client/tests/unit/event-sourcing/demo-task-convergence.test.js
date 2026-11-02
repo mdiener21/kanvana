@@ -1,6 +1,6 @@
 // #263: demo tasks are never emitted, yet events on one device name the same tasks on the others,
 // and a rebuild from the event log, which holds no task.created for them, keeps them.
-import { beforeEach, expect, test } from 'vitest';
+import { beforeEach, describe, expect, test } from 'vitest';
 import { deleteDB } from 'idb';
 import { resetLocalStorage } from '../setup.js';
 import {
@@ -11,9 +11,9 @@ import {
   ensureBoardsInitialized,
   loadTasksForBoard
 } from '../../../src/modules/storage.js';
-import { EVENT_ORIGIN, ingestEvent, ingestRemoteBatch } from '../../../src/modules/event-sourcing/ingest.js';
+import { EVENT_ORIGIN, adoptSnapshot, ingestEvent, ingestRemoteBatch } from '../../../src/modules/event-sourcing/ingest.js';
 import { loadSnapshot, SNAPSHOT_EVENT_THRESHOLD, _resetSnapshotSchedulerForTesting, _setJitterForTesting } from '../../../src/modules/event-sourcing/snapshot.js';
-import { replaceLocalData } from '../../../src/modules/idb-store.js';
+import { getDbRef, replaceLocalData } from '../../../src/modules/idb-store.js';
 import { EVENT_EMITTED, off, on } from '../../../src/modules/events.js';
 
 const BOARD = '00000000-0000-4000-8000-000000000001';
@@ -121,6 +121,58 @@ test('a device without demo tasks after an account switch does not gain them in 
   await ingestRemote('task.updated', TIME_STONE, 1, { fields: { title: 'Edited on A' } });
 
   expect(loadTasksForBoard(BOARD)).toEqual([]);
+});
+
+// CONTEXT.md §9, Durability: a catch-up batch defers remote read-model writes, not a local edit's.
+test('a local edit during catch-up stores its read model with its event, before the batch ends', async () => {
+  let readBack = null;
+  let batchEnded = false;
+  const local = { ...olderRemoteEvent('task.updated', TIME_STONE, 0, { fields: { title: 'Local edit' } }), id: 'local-1', hlc: { wallTime: Date.now() + 5_000, counter: 0, nodeId: 'me' } };
+  const whileBatching = (e) => {
+    if (readBack || e.detail.id === local.id) return;
+    ingestEvent(local);
+    const tx = getDbRef().transaction(['read_model', 'events']);
+    readBack = Promise.all([tx.objectStore('read_model').get(`${BOARD}:tasks`), tx.objectStore('events').get(local.id), Promise.resolve(batchEnded)]);
+  };
+  on(EVENT_EMITTED, whileBatching);
+  const edits = Array.from({ length: 5 }, (_, i) => ({ event: { ...olderRemoteEvent('task.updated', SOUL_STONE, i + 1, { fields: { title: `Remote ${i}` } }), hlc: { wallTime: Date.now() + i, counter: 0, nodeId: 'device-a' } } }));
+  const batch = ingestRemoteBatch(edits).then(() => { batchEnded = true; });
+  await expect.poll(() => readBack).toBeTruthy();
+  const [tasks, storedEvent, endedWhenAsked] = await readBack;
+  off(EVENT_EMITTED, whileBatching);
+  await batch;
+
+  expect(endedWhenAsked).toBe(false);
+  expect(storedEvent?.id).toBe(local.id);
+  expect(tasks.find((task) => task.id === TIME_STONE).title).toBe('Local edit');
+});
+
+// CONTEXT.md §9, Demo tasks: the known limits of carrying them in snapshots.
+describe('adopting a snapshot', () => {
+  const stateWithTasks = (tasks) => ({ boards: [{ id: BOARD, name: 'Default Board' }], tasks, columns: [], labels: [], settings: {} });
+  const snapshotHlc = { wallTime: LONG_AGO + 100, counter: 0, nodeId: 'device-a' };
+
+  test('that holds demo tasks gives them to a device without any', async () => {
+    const carried = demoTask(TIME_STONE);
+    await replaceLocalData({ ownerId: 'user-b', maxUnsynced: Infinity, keepKvKeys: [] });
+    _resetStorageForTesting();
+    await initStorage();
+    ensureBoardsInitialized();
+    expect(loadTasksForBoard(BOARD)).toEqual([]);
+
+    await adoptSnapshot(BOARD, stateWithTasks([{ ...carried, title: 'Edited on A' }]), snapshotHlc);
+
+    expect(demoTask(TIME_STONE).title).toBe('Edited on A');
+  });
+
+  test('that lacks them leaves untouched demo tasks, and removes one its covered events edited', async () => {
+    await ingestRemote('task.updated', TIME_STONE, 1, { fields: { title: 'Edited on A' } });
+
+    await adoptSnapshot(BOARD, stateWithTasks([]), snapshotHlc);
+
+    expect(demoTask(SOUL_STONE)).toBeDefined();
+    expect(demoTask(TIME_STONE)).toBeUndefined();
+  });
 });
 
 test('a snapshot holds the demo tasks with the changes it covers', async () => {

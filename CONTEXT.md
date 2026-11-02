@@ -511,18 +511,27 @@ whose snapshot covers it can order it differently from one that never snapshotte
 Rebuilds of one key run one at a time; requests made while one waits share it, and events committed
 during a rebuild are folded into it.
 
-A rebuild is the reducer's fold, with three exceptions so it does not lose state no event carries yet:
+A rebuild is the reducer's fold, with four exceptions so it does not lose state no event carries yet:
 board and global settings start from the live value under the snapshot's (they merge field by field);
-task delete records are kept (deletes are permanent); and tasks, columns and labels that no snapshot,
-replayed event or (on adoption) replaced snapshot or covered stored event knows of (written by import, which emits no event yet) are kept as they are.
-A snapshot is folded from events alone. Known limit until those writes emit events: a setting written
+task delete records are kept (deletes are permanent); tasks, columns and labels that no snapshot,
+replayed event or (on adoption) replaced snapshot or covered stored event knows of (written by import, which emits no event yet) are kept as they are;
+and with no snapshot to start from, the fold starts from the demo tasks this device holds.
+A snapshot is folded from events alone, except for that same start from the demo tasks. Known limit until those writes emit events: a setting written
 without an event (swimlane grouping) is reset by a rebuild to the last replayed `settings.updated` that
 carries it.
 
-**Demo tasks** on the default board have stable ids and no `task.created`: each device seeds its own, so a
-new device joining an account with real data adds nothing to the others. Events on one device still name the
-same tasks on all. With no snapshot to start from, a rebuild or a first snapshot therefore folds onto the demo
-tasks this device holds, as they were seeded. A device without them, after an account switch, stays without.
+**Demo tasks** on the default board have stable ids and no `task.created`: each device seeds its own, and seeding
+adds nothing to the others. Events on one device still name the same tasks on all. A device's first snapshot folds
+onto the demo tasks it holds, as they were seeded, so its snapshots carry them with the changes they cover, since
+those events are then collected. A device without them, after an account switch, stays without through a replay.
+Known limits, because snapshots sync:
+
+- A device without demo tasks **gains them** by adopting a snapshot that holds them, so a new device joining an
+  account whose history was snapshotted on a device holding them does receive them.
+- A device holding them that adopts a snapshot without them (taken on a device that had none) keeps the untouched
+  ones and **loses each one an event covered by that snapshot changed**.
+
+Folding them out of snapshots would make the second case the rule (ADR-0004, Amendment: demo tasks).
 
 **Grace window.** `GRACE_WINDOW_MS` (`snapshot.js`) is **30 days**. It must exceed a realistic offline
 period: a laptop left closed over a two- to three-week holiday, plus a week of margin for a late return
@@ -567,8 +576,9 @@ Remaining windows:
 - **Browsers without `commit()`** (Safari before 15) auto-commit, with the same all-or-nothing result.
 - **Browser, OS or power failure:** IndexedDB's default durability does not promise a flush to disk.
 - **A failed batch** (quota, say) is logged and stores nothing, while the screen keeps the edit until the next load.
-- **Catch-up** stores remote events as they arrive and saves the read model at the end of the batch, or at `pagehide`
-  (#237), so this pairing is for local edits; the event store still holds what the read model missed.
+- **Catch-up** stores remote events as they arrive and saves their read model at the end of the batch, or at `pagehide`
+  (#237), so this pairing is for local edits; the event store still holds what the read model missed. A local edit made
+  during catch-up is not deferred: its project applies the queued events and saves the board in the edit's own batch.
 
 ### Event Envelope
 
