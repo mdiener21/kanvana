@@ -578,7 +578,7 @@ Remaining windows:
 - **A failed batch** (quota, say) is logged and stores nothing, while the screen keeps the edit until the next load.
 - **Catch-up** stores remote events as they arrive and saves their read model at the end of the batch, or at `pagehide`
   (#237), so this pairing is for local edits; the event store still holds what the read model missed. A local edit made
-  during catch-up is not deferred: its project applies the queued events and saves the board in the edit's own batch.
+  during catch-up is not deferred: the board, with the events queued so far, is saved in the edit's own batch.
 
 ### Event Envelope
 
