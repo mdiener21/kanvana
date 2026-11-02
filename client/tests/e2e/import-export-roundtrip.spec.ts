@@ -181,8 +181,7 @@ test('a column WIP limit survives export and import', async ({ page }) => {
   await expect(column(page, 'To Do').locator('.task-counter')).toHaveText('0/5');
 });
 
-test.fixme('the countdown thresholds survive export and import', async ({ page }) => {
-  // Bug: the export and import settings normalizers drop both thresholds, though settings must round-trip (#258).
+test('the countdown thresholds survive export and import', async ({ page }) => {
   await openBlankBoard(page, BOARD);
   const settings = await openSettings(page);
   const urgent = settings.getByLabel('Days until due date to show countdown in red (urgent)');

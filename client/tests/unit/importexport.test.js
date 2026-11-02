@@ -82,6 +82,41 @@ test('inspectImportPayload keeps a column WIP limit and defaults it to no limit 
   expect(limits).toEqual({ Todo: 5, Doing: 0, Done: 0 });
 });
 
+test('exportBoard writes the board countdown thresholds', () => {
+  const board = createBoard('Thresholds', { settings: { countdownUrgentThreshold: 9, countdownWarningThreshold: 20 } });
+
+  const exported = captureExportJson(() => exportBoard(board.id));
+
+  expect(exported.settings.countdownUrgentThreshold).toBe(9);
+  expect(exported.settings.countdownWarningThreshold).toBe(20);
+});
+
+test('inspectImportPayload keeps countdown thresholds and clamps out-of-range values', () => {
+  const inspectSettings = (settings) => inspectImportPayload({
+    boardName: 'Thresholds',
+    columns: [{ id: 'done', name: 'Done', color: '#16a34a', order: 1 }],
+    tasks: [],
+    settings
+  }, { name: 'thresholds.json', size: 128 }).normalizedSettings;
+
+  expect(inspectSettings({ countdownUrgentThreshold: 9, countdownWarningThreshold: 20 }))
+    .toMatchObject({ countdownUrgentThreshold: 9, countdownWarningThreshold: 20 });
+  expect(inspectSettings({ countdownUrgentThreshold: 0, countdownWarningThreshold: 9999 }))
+    .toMatchObject({ countdownUrgentThreshold: 1, countdownWarningThreshold: 365 });
+});
+
+test('inspectImportPayload leaves countdown thresholds unset when the file omits them', () => {
+  const { normalizedSettings } = inspectImportPayload({
+    boardName: 'Older export',
+    columns: [{ id: 'done', name: 'Done', color: '#16a34a', order: 1 }],
+    tasks: [],
+    settings: { showPriority: true }
+  }, { name: 'older.json', size: 128 });
+
+  expect(normalizedSettings).not.toHaveProperty('countdownUrgentThreshold');
+  expect(normalizedSettings).not.toHaveProperty('countdownWarningThreshold');
+});
+
 test('inspectImportPayload remaps legacy model ids to UUIDs while preserving references', () => {
   const preview = inspectImportPayload({
     boardName: 'Legacy IDs',

@@ -262,6 +262,18 @@ export function buildImportConfirmationMessage(preview) {
 
 // normalizePriority, isHexColor imported from normalize.js
 
+// Same bounds as storage's normalizeSettings. A missing value stays unset so the board default applies.
+function normalizeCountdownThresholds(settings) {
+  const rawUrgent = Number.parseInt((settings.countdownUrgentThreshold ?? '').toString(), 10);
+  const rawWarning = Number.parseInt((settings.countdownWarningThreshold ?? '').toString(), 10);
+  const urgent = Number.isFinite(rawUrgent) ? Math.min(365, Math.max(1, rawUrgent)) : undefined;
+  const warning = Number.isFinite(rawWarning) ? Math.min(365, Math.max(urgent ?? 1, rawWarning)) : undefined;
+  return {
+    ...(urgent !== undefined ? { countdownUrgentThreshold: urgent } : {}),
+    ...(warning !== undefined ? { countdownWarningThreshold: warning } : {})
+  };
+}
+
 function normalizeSettingsForExport(settings) {
   const obj = settings && typeof settings === 'object' && !Array.isArray(settings) ? settings : {};
   const showPriority = obj.showPriority !== false;
@@ -304,6 +316,7 @@ function normalizeSettingsForExport(settings) {
     locale,
     defaultPriority,
     notificationDays,
+    ...normalizeCountdownThresholds(obj),
     swimLanesEnabled,
     swimLaneGroupBy,
     swimLaneLabelGroup,
@@ -510,6 +523,7 @@ function normalizeImportedSettings(settings) {
     ...(locale ? { locale } : {})
     ,...(defaultPriority ? { defaultPriority } : {})
     ,...(notificationDays !== undefined ? { notificationDays } : {})
+    ,...normalizeCountdownThresholds(settings)
     ,swimLanesEnabled
     ,swimLaneGroupBy
     ,swimLaneLabelGroup
