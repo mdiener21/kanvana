@@ -26,6 +26,14 @@ export function normalizeHexColor(value, fallback = DEFAULT_COLUMN_COLOR) {
 }
 
 /**
+ * A countdown threshold in days, clamped to [min, 365]; undefined when not a number, so the caller picks its default.
+ */
+export function normalizeCountdownThreshold(value, min = 1) {
+  const raw = Number.parseInt((value ?? '').toString(), 10);
+  return Number.isFinite(raw) ? Math.min(365, Math.max(min, raw)) : undefined;
+}
+
+/**
  * Display name for a board object, falling back to 'Untitled board'.
  */
 export function boardDisplayName(board) {

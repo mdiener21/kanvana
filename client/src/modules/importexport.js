@@ -8,7 +8,7 @@ import {
 import { createBoard, getActiveBoardName, listBoards, setActiveBoardId, loadTasksForBoard, loadColumnsForBoard, loadLabelsForBoard, loadSettingsForBoard } from './storage.js';
 import { normalizeBoardModelIds } from './board-serializer.js';
 import { emit, DATA_CHANGED } from './events.js';
-import { normalizePriority, isHexColor, boardDisplayName, normalizeDueDate, normalizeSubTasks } from './normalize.js';
+import { normalizePriority, isHexColor, boardDisplayName, normalizeCountdownThreshold, normalizeDueDate, normalizeSubTasks } from './normalize.js';
 import { DONE_COLUMN_ID } from './constants.js';
 import { formatBytes } from './security.js';
 import { normalizeWipLimit } from './wip-limit.js';
@@ -272,10 +272,8 @@ export function buildImportConfirmationMessage(preview) {
 
 // A missing value stays unset so the board default applies (#258).
 function normalizeCountdownThresholds(settings) {
-  const rawUrgent = Number.parseInt((settings.countdownUrgentThreshold ?? '').toString(), 10);
-  const rawWarning = Number.parseInt((settings.countdownWarningThreshold ?? '').toString(), 10);
-  const urgent = Number.isFinite(rawUrgent) ? Math.min(365, Math.max(1, rawUrgent)) : undefined;
-  const warning = Number.isFinite(rawWarning) ? Math.min(365, Math.max(urgent ?? 1, rawWarning)) : undefined;
+  const urgent = normalizeCountdownThreshold(settings.countdownUrgentThreshold);
+  const warning = normalizeCountdownThreshold(settings.countdownWarningThreshold, urgent);
   return {
     ...(urgent !== undefined ? { countdownUrgentThreshold: urgent } : {}),
     ...(warning !== undefined ? { countdownWarningThreshold: warning } : {})

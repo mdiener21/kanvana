@@ -2,6 +2,7 @@ import { byOrder, generateUUID } from './utils.js';
 import { isDoneColumn } from './constants.js';
 import { getActiveBoardId, isDoneColumnId, loadColumns, loadTasks } from './storage.js';
 import { normalizeHexColor } from './normalize.js';
+import { createColumn } from './schema.js';
 import { normalizeWipLimit } from './wip-limit.js';
 import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 
@@ -12,7 +13,7 @@ export function addColumn(name, color, wipLimit = 0) {
   const columns = [...loadColumns()].sort(byOrder);
   const doneIndex = columns.findIndex(isDoneColumn);
   const id = generateUUID();
-  const newColumn = { id, name: name.trim(), color: normalizeHexColor(color), order: doneIndex + 1, collapsed: false, wipLimit: normalizeWipLimit(wipLimit) };
+  const newColumn = createColumn({ id, name: name.trim(), color: normalizeHexColor(color), order: doneIndex + 1, wipLimit: normalizeWipLimit(wipLimit) });
   columns.splice(doneIndex, 0, newColumn);
 
   // Default boards' columns have no order, so siblings need numbers too, emitted first so the new one never shows after Done (#259).

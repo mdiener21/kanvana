@@ -1,5 +1,5 @@
 import { generateUUID } from './utils.js';
-import { normalizePriority as sharedNormalizePriority, isHexColor, defaultColumnColor, normalizeStringKeys, normalizeRelationships, normalizeSubTasks } from './normalize.js';
+import { normalizePriority as sharedNormalizePriority, isHexColor, normalizeCountdownThreshold, defaultColumnColor, normalizeStringKeys, normalizeRelationships, normalizeSubTasks } from './normalize.js';
 import { DONE_COLUMN_ID, DONE_COLUMN_ROLE, isDoneColumn } from './constants.js';
 import { openStore, isDataCurrent, writeIfDataCurrent, KV_STORE, READ_MODEL_STORE, EVENTS_STORE, SNAPSHOTS_STORE, isFirstPullPending, schedulePersist, scheduleDelete, scheduleReadModelPersist, scheduleReadModelDelete, keyFor, readModelKeyFor, _flushPersistsForTesting as _flushIdbPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
 // Re-export IDB helpers that tests import from this module for backward compatibility.
@@ -70,7 +70,7 @@ const readModelProjector = createReadModelProjector({
   loadGlobalSettings,
   safeParseArray,
   safeParseObject,
-  unemittedTasks,
+  demoTasksForReplay,
   schedulePersist,
   scheduleReadModelPersist,
   checkAndScheduleSnapshot,
@@ -325,12 +325,10 @@ function stableDefaultLabels() {
   ];
 }
 
-// In defaultTasks() order. Only the default board has these; every other caller keeps random ids.
-const STABLE_DEMO_TASK_IDS = [30, 31, 32, 33, 34, 35, 36].map((n) => `00000000-0000-4000-8000-0000000000${n}`);
-
-function stableDemoTasks(created) {
+// Numbered in defaultTasks() order. Only the default board has these; every other caller keeps random ids.
+function stableDemoTasks(created = nowIso()) {
   return defaultTasks(stableDefaultColumns(), stableDefaultLabels(), created)
-    .map((task, index) => ({ ...task, id: STABLE_DEMO_TASK_IDS[index] }));
+    .map((task, index) => ({ ...task, id: `00000000-0000-4000-8000-${String(30 + index).padStart(12, '0')}` }));
 }
 
 // Demo tasks are never emitted: each device seeds its own, with ids that let an event on one name them on all (#263).
@@ -338,15 +336,16 @@ function stableDefaultBoardData() {
   return {
     columns: stableDefaultColumns(),
     labels: stableDefaultLabels(),
-    tasks: stableDemoTasks(nowIso()),
+    tasks: stableDemoTasks(),
     settings: defaultSettings()
   };
 }
 
 // No event creates a demo task, so a replay starts from the ones this device still holds (#263).
-function unemittedTasks(boardId, liveTasks) {
+function demoTasksForReplay(boardId, liveTasks) {
   if (boardId !== STABLE_DEFAULT_BOARD_ID) return [];
-  const held = liveTasks.filter((task) => STABLE_DEMO_TASK_IDS.includes(task.id));
+  const demoIds = new Set(stableDemoTasks().map((task) => task.id));
+  const held = liveTasks.filter((task) => demoIds.has(task.id));
   if (!held.length) return [];
   const heldIds = new Set(held.map((task) => task.id));
   return stableDemoTasks(held[0].creationDate).filter((task) => heldIds.has(task.id));
@@ -1034,15 +1033,8 @@ function normalizeSettings(raw) {
     ? Math.min(365, Math.max(0, rawNotificationDays))
     : 3;
 
-  const rawUrgentThreshold = Number.parseInt((obj.countdownUrgentThreshold ?? '').toString(), 10);
-  const countdownUrgentThreshold = Number.isFinite(rawUrgentThreshold)
-    ? Math.min(365, Math.max(1, rawUrgentThreshold))
-    : 3;
-
-  const rawWarningThreshold = Number.parseInt((obj.countdownWarningThreshold ?? '').toString(), 10);
-  const countdownWarningThreshold = Number.isFinite(rawWarningThreshold)
-    ? Math.min(365, Math.max(countdownUrgentThreshold, rawWarningThreshold))
-    : 10;
+  const countdownUrgentThreshold = normalizeCountdownThreshold(obj.countdownUrgentThreshold) ?? 3;
+  const countdownWarningThreshold = normalizeCountdownThreshold(obj.countdownWarningThreshold, countdownUrgentThreshold) ?? 10;
 
   const swimLanesEnabled = obj.swimLanesEnabled === true;
   const swimLaneGroupBy = normalizeSwimLaneGroupBy(obj.swimLaneGroupBy);
