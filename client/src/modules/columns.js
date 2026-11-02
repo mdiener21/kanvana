@@ -1,4 +1,4 @@
-import { byOrder, generateUUID } from './utils.js';
+import { byColumnOrder, generateUUID } from './utils.js';
 import { isDoneColumn } from './constants.js';
 import { getActiveBoardId, isDoneColumnId, loadColumns, loadTasks } from './storage.js';
 import { normalizeHexColor } from './normalize.js';
@@ -10,7 +10,7 @@ import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 export function addColumn(name, color, wipLimit = 0) {
   if (!name || name.trim() === '') return;
   
-  const columns = [...loadColumns()].sort(byOrder);
+  const columns = [...loadColumns()].sort(byColumnOrder);
   const doneIndex = columns.findIndex(isDoneColumn);
   const id = generateUUID();
   const newColumn = createColumn({ id, name: name.trim(), color: normalizeHexColor(color), order: doneIndex + 1, wipLimit: normalizeWipLimit(wipLimit) });
