@@ -2,6 +2,7 @@ import { test, expect, beforeEach } from 'vitest';
 import { resetLocalStorage } from './setup.js';
 import { createBoard, loadColumns, saveColumns, loadTasks, saveTasks } from '../../src/modules/storage.js';
 import { addColumn, toggleColumnCollapsed, updateColumn, deleteColumn, updateColumnPositions } from '../../src/modules/columns.js';
+import { byOrder } from '../../src/modules/utils.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -20,6 +21,23 @@ test('addColumn creates a new column', () => {
   const review = after.find(c => c.name === 'Review');
   expect(review).toBeTruthy();
   expect(review.id).toMatch(UUID_RE);
+});
+
+const boardOrder = () => [...loadColumns()].sort(byOrder).map((c) => c.name);
+
+test('addColumn places new columns before Done on a default board, whose columns have no order', () => {
+  addColumn('Review', '#ff0000');
+  expect(boardOrder()).toEqual(['To Do', 'In Progress', 'Review', 'Done']);
+  addColumn('QA', '#ff0000');
+  expect(boardOrder()).toEqual(['To Do', 'In Progress', 'Review', 'QA', 'Done']);
+});
+
+test('addColumn places a new column directly before Done when Done is not last', () => {
+  addColumn('Review', '#ff0000');
+  const orderByName = { Review: 1, Done: 2, 'To Do': 3, 'In Progress': 4 };
+  saveColumns(loadColumns().map((c) => ({ ...c, order: orderByName[c.name] })));
+  addColumn('QA', '#ff0000');
+  expect(boardOrder()).toEqual(['Review', 'QA', 'Done', 'To Do', 'In Progress']);
 });
 
 test('addColumn does nothing for empty name', () => {

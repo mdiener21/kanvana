@@ -69,9 +69,9 @@ test('addColumn emits column.created with the created column payload', async () 
     addColumn('Review', '#ff0000');
   });
 
-  expect(events).toHaveLength(1);
-  expect(events[0]).toMatchObject({
-    type: 'column.created',
+  // A default board's columns have no order, so they are numbered first (#259).
+  expect(events.map((event) => event.type)).toEqual(['column.reordered', 'column.created']);
+  expect(events[1]).toMatchObject({
     payload: { column: { name: 'Review', color: '#ff0000' } }
   });
 });
