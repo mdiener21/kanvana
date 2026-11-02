@@ -14,6 +14,22 @@ import {
   reloadBoard,
 } from './journey.helpers.js';
 
+// A journey reads IndexedDB only here: what reaches other devices does not show in this page's UI.
+async function storedEventTypes(page: Page): Promise<string[]> {
+  return page.evaluate(() => new Promise<string[]>((resolve, reject) => {
+    const open = indexedDB.open('kanvana-db');
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const all = open.result.transaction('events').objectStore('events').getAll();
+      all.onerror = () => reject(all.error);
+      all.onsuccess = () => {
+        open.result.close();
+        resolve(all.result.map((event: { type: string }) => event.type));
+      };
+    };
+  }));
+}
+
 async function addColumn(page: Page, name: string): Promise<void> {
   await clickMenuButton(page, 'Add Column');
   const form = dialog(page, 'Add New Column');
@@ -116,8 +132,7 @@ test('deleting a column asks first and takes its tasks with it', async ({ page }
   await expect(card(page, 'Stays')).toBeVisible();
 });
 
-test.fixme('a deleted column stays deleted after an immediate reload', async ({ page }) => {
-  // Bug: edits are saved fire-and-forget, so a reload right after the delete can lose it (#256).
+test('a deleted column stays deleted after an immediate reload', async ({ page }) => {
   await openBlankBoard(page);
   await addColumn(page, 'Review');
   await addTask(page, 'Review', 'Goes away');
@@ -128,8 +143,10 @@ test.fixme('a deleted column stays deleted after an immediate reload', async ({ 
   await expect(columnHeadings(page)).toHaveText(['To Do', 'In Progress', 'Done']);
 
   await reloadBoard(page);
-  await expect(columnHeadings(page)).toHaveText(['To Do', 'In Progress', 'Done']);
-  await expect(allCards(page)).toHaveCount(1);
+  await expect.soft(columnHeadings(page), 'reload check').toHaveText(['To Do', 'In Progress', 'Done']);
+  await expect.soft(allCards(page), 'reload check').toHaveCount(1);
+  // Without its stored event the delete would look saved here but never reach other devices.
+  expect.soft(await storedEventTypes(page), 'stored event check').toContain('column.deleted');
 });
 
 test('the Done column cannot be deleted', async ({ page }) => {

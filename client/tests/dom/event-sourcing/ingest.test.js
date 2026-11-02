@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { deleteDB } from 'idb';
 import { DATA_CHANGED, EVENT_EMITTED, emit, off, on } from '../../../src/modules/events.js';
-import { openStore, EVENTS_STORE } from '../../../src/modules/idb-store.js';
+import { openStore, readModelKeyFor, EVENTS_STORE, READ_MODEL_STORE } from '../../../src/modules/idb-store.js';
 import {
   initStorage, createBoard, listBoards, loadTasksForBoard, loadTimeTracking, loadLabelsForBoard, loadColumnsForBoard,
   _flushPersistsForTesting, _resetStorageForTesting,
@@ -81,6 +81,37 @@ describe('local events', () => {
 
     await _flushPersistsForTesting();
     expect(await storedEvent('evt-local-2')).toMatchObject({ id: 'evt-local-2', synced: false });
+  });
+
+  test('do not save the read model when the event can not be stored (#256)', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const event = taskCreated('never-stored', { eventId: 'evt-never-stored' });
+    event.payload.notCloneable = () => {};
+
+    await expect(ingestEvent(event, { origin: EVENT_ORIGIN.LOCAL })).rejects.toThrow();
+    await _flushPersistsForTesting();
+    consoleError.mockRestore();
+
+    const db = await openStore();
+    expect(await storedEvent('evt-never-stored')).toBeUndefined();
+    expect(await db.get(READ_MODEL_STORE, readModelKeyFor(boardId, 'tasks'))).not.toContainEqual(expect.objectContaining({ id: 'never-stored' }));
+  });
+
+  test('of one tick land in a single write transaction with their read-model changes (#256)', async () => {
+    const opened = vi.spyOn(IDBDatabase.prototype, 'transaction');
+    for (const id of ['first', 'second', 'third']) {
+      scheduleDomainEvent({ type: 'task.created', boardId, entityId: id, payload: { task: { id, title: id, column: 'todo' } } });
+    }
+    await _flushPersistsForTesting();
+    const writes = opened.mock.calls.filter(([, mode]) => mode === 'readwrite');
+    opened.mockRestore();
+
+    expect(writes).toHaveLength(1);
+    const db = await openStore();
+    const stored = await db.getAll(EVENTS_STORE);
+    expect(stored.filter((event) => ['first', 'second', 'third'].includes(event.entity_id))).toHaveLength(3);
+    const tasks = await db.get(READ_MODEL_STORE, readModelKeyFor(boardId, 'tasks'));
+    expect(tasks.map((task) => task.id)).toEqual(expect.arrayContaining(['first', 'second', 'third']));
   });
 });
 

@@ -155,6 +155,20 @@ describe('a write from a tab that missed a wipe', () => {
   });
 });
 
+describe('a tab that slept through more than one wipe', () => {
+  it('still has its writes dropped', async () => {
+    const stale = await openTab();
+    await stale.idb.claimDataOwner(OWNER_A);
+    await wipeFor(await openTab(), OWNER_B);
+    await wipeFor(await openTab(), OWNER_A);
+
+    await stale.idb.persistEvent(eventOfA('old-edit'));
+
+    expect((await onDisk()).events).toEqual({});
+    expect(stale.reloads).toBe(1);
+  });
+});
+
 describe('marking an event synced around a wipe', () => {
   it('can not bring a wiped event back', async () => {
     const stale = await openTab();
