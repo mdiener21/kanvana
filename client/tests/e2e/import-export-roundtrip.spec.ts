@@ -164,8 +164,7 @@ test.fixme('the export file is named {boardName}-YYYY-MM-DD.json', async ({ page
   expect(filename).toBe(`${BOARD}-2026-11-12.json`);
 });
 
-test.fixme('a column WIP limit survives export and import', async ({ page }) => {
-  // Bug: normalizeImportedColumns drops wipLimit, so the limit is lost though columns must round-trip (#257).
+test('a column WIP limit survives export and import', async ({ page }) => {
   await openBlankBoard(page, BOARD);
   await column(page, 'To Do').getByRole('button', { name: 'To Do column menu' }).click();
   await column(page, 'To Do').getByRole('menuitem', { name: 'Edit', exact: true }).click();

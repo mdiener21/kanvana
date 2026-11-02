@@ -11,6 +11,7 @@ import { emit, DATA_CHANGED } from './events.js';
 import { normalizePriority, isHexColor, boardDisplayName, normalizeDueDate, normalizeSubTasks } from './normalize.js';
 import { DONE_COLUMN_ID } from './constants.js';
 import { formatBytes } from './security.js';
+import { normalizeWipLimit } from './wip-limit.js';
 
 export const IMPORT_LIMITS = {
   maxFileSizeBytes: 2 * 1024 * 1024,
@@ -436,6 +437,7 @@ function normalizeImportedColumns(columns) {
       name: name.trim(),
       color,
       collapsed,
+      wipLimit: normalizeWipLimit(c?.wipLimit),
       ...(id.trim() === DONE_COLUMN_ID || c?.role === 'done' ? { role: 'done' } : {}),
       ...(order !== undefined ? { order } : {})
     };

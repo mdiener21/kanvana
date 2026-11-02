@@ -66,6 +66,22 @@ test('inspectImportPayload accepts valid board export objects', () => {
   expect(preview.summary.labels).toBe(1);
 });
 
+test('inspectImportPayload keeps a column WIP limit and defaults it to no limit when absent', () => {
+  const preview = inspectImportPayload({
+    boardName: 'Limits',
+    columns: [
+      { id: 'todo', name: 'Todo', color: '#3b82f6', order: 1, wipLimit: 5 },
+      { id: 'doing', name: 'Doing', color: '#3b82f6', order: 2 },
+      { id: 'done', name: 'Done', color: '#16a34a', order: 3 }
+    ],
+    tasks: []
+  }, { name: 'limits.json', size: 128 });
+
+  expect(preview.errors).toEqual([]);
+  const limits = Object.fromEntries(preview.normalizedColumns.map((column) => [column.name, column.wipLimit]));
+  expect(limits).toEqual({ Todo: 5, Doing: 0, Done: 0 });
+});
+
 test('inspectImportPayload remaps legacy model ids to UUIDs while preserving references', () => {
   const preview = inspectImportPayload({
     boardName: 'Legacy IDs',
