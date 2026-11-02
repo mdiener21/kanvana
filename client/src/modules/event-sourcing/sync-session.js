@@ -1,5 +1,4 @@
-// Sync session (#219): the one owner of the sync lifecycle. Only this module reacts to
-// auth, `online` and `offline`; the queue, realtime and snapshot upload take commands.
+// Sync session (#219): the one owner of the sync lifecycle, and the only module reacting to auth, online and offline.
 
 import { getUser, isAuthenticated } from '../sync.js';
 import { catchUpAfterPending, startRealtime, stopRealtime } from './realtime.js';
@@ -12,9 +11,10 @@ export const SESSION_STATE = Object.freeze({
   LIVE: 'live',
   OFFLINE: 'offline',
   PAUSED: 'paused',
+  PAUSED_OFFLINE: 'paused-offline',
 });
 
-export const SESSION_EVENT = Object.freeze({
+const EVENT = Object.freeze({
   SIGNED_IN: 'signed-in',
   SIGNED_IN_OFFLINE: 'signed-in-offline',
   SIGNED_OUT: 'signed-out',
@@ -25,8 +25,7 @@ export const SESSION_EVENT = Object.freeze({
   AUTH_REJECTED: 'auth-rejected',
 });
 
-const { SIGNED_OUT, CATCHING_UP, LIVE, OFFLINE, PAUSED } = SESSION_STATE;
-const EVENT = SESSION_EVENT;
+const { SIGNED_OUT, CATCHING_UP, LIVE, OFFLINE, PAUSED, PAUSED_OFFLINE } = SESSION_STATE;
 
 const TRANSITIONS = {
   [SIGNED_OUT]: {
@@ -53,7 +52,14 @@ const TRANSITIONS = {
     [EVENT.SIGNED_IN]: CATCHING_UP,
     [EVENT.SIGNED_IN_OFFLINE]: OFFLINE,
     [EVENT.SIGNED_OUT]: SIGNED_OUT,
-    [EVENT.WENT_OFFLINE]: OFFLINE,
+    [EVENT.WENT_OFFLINE]: PAUSED_OFFLINE,
+  },
+  // Only re-authentication ends a pause, so the network coming back returns it to paused (AC-005).
+  [PAUSED_OFFLINE]: {
+    [EVENT.SIGNED_IN]: CATCHING_UP,
+    [EVENT.SIGNED_IN_OFFLINE]: OFFLINE,
+    [EVENT.SIGNED_OUT]: SIGNED_OUT,
+    [EVENT.WENT_ONLINE]: PAUSED,
   },
 };
 
@@ -82,10 +88,7 @@ function isAuthRejection(err) {
   return status === 401 || status === 403;
 }
 
-// `network` is everything that talks to the server; a tab that must not (#222) passes
-// one that does nothing. `beforeSignIn(userId)` runs on every new sign-in before any
-// network work: while it is pending the session stays signed-out, and a false result
-// keeps it there (#221).
+// beforeSignIn runs on every new sign-in before any network work; until it resolves true the session stays signed-out (#221).
 export function createSyncSession({
   network = POCKETBASE_NETWORK,
   beforeSignIn = async () => true,
@@ -97,11 +100,16 @@ export function createSyncSession({
   let state = SIGNED_OUT;
   let userId = null;
   let signInAttempt = 0;
-  let entry = 0; // bumped on every state change, so async work can tell it is stale
+  let stateVersion = 0; // bumped on every state change, so async work can tell it is stale
   let realtimeStopped = Promise.resolve();
   let pullStarted = false;
   let pullAgain = false;
+  let connectAttempt = 0;
+  let subscribing = false;
   let listeners = null;
+
+  const signedInEvent = () => (isOnline() ? EVENT.SIGNED_IN : EVENT.SIGNED_IN_OFFLINE);
+  const isPaused = () => state === PAUSED || state === PAUSED_OFFLINE;
 
   function dispatch(event) {
     const next = transitionSession(state, event);
@@ -109,22 +117,25 @@ export function createSyncSession({
   }
 
   function enter(next) {
+    const previous = state;
     state = next;
-    entry += 1;
-    enterState(next);
+    stateVersion += 1;
+    enterState(next, previous);
     onStateChange(next);
   }
 
-  function enterState(next) {
+  function enterState(next, previous) {
     if (next === LIVE) {
       network.startQueue(() => dispatch(EVENT.AUTH_REJECTED));
     } else if (next === CATCHING_UP) {
       network.stopQueue();
       network.startSnapshots();
-      runCatchUp(entry).catch((err) => console.error('[Kanvana] Sync catch-up failed', err));
+      runCatchUp(stateVersion).catch((err) => console.error('[Kanvana] Sync catch-up failed', err));
     } else if (next === PAUSED) {
       network.stopQueue();
       network.stopSnapshots();
+      // Going offline stopped realtime; a paused session holds it, and one pull, as after a takeover.
+      if (previous === PAUSED_OFFLINE) runCatchUp(stateVersion).catch((err) => console.error('[Kanvana] Sync catch-up failed', err));
     } else {
       network.stopQueue();
       network.stopSnapshots();
@@ -132,47 +143,64 @@ export function createSyncSession({
     }
   }
 
-  // Subscribe before pulling: an event created after the pull reads the server arrives
-  // over SSE, so one pull leaves no gap. The wait is capped because a stuck SSE
-  // connection must not hold back the pull.
+  // Subscribe before pulling, so one pull leaves no gap; a stuck SSE must not hold the pull back.
   async function connectRealtime() {
+    connectAttempt += 1;
+    const attempt = connectAttempt;
+    subscribing = true;
     const subscribed = network.startRealtime(onRealtimeConnect).then(() => true, (err) => {
       console.error('[Kanvana] Realtime subscribe failed', err);
       return false;
+    }).finally(() => {
+      if (attempt === connectAttempt) subscribing = false;
     });
     let timer;
     const timedOut = new Promise((res) => { timer = setTimeout(res, connectWaitMs, null); });
     const result = await Promise.race([subscribed, timedOut]);
     clearTimeout(timer);
-    if (result === null) subscribed.then((ok) => { if (ok) onRealtimeConnect(); });
+    if (result === null) subscribed.then((ok) => { if (ok && attempt === connectAttempt) onLateConnection(); });
+  }
+
+  // The pull that ran before the subscription came up may have missed events (#219).
+  function onLateConnection() {
+    if (state === CATCHING_UP) {
+      if (pullStarted) pullAgain = true;
+    } else if (state === LIVE) {
+      const current = stateVersion;
+      network.catchUp().catch((err) => {
+        if (current !== stateVersion) return;
+        if (isAuthRejection(err)) dispatch(EVENT.AUTH_REJECTED);
+        else console.error('[Kanvana] Sync catch-up failed', err);
+      });
+    }
   }
 
   async function runCatchUp(current) {
     pullStarted = false;
     pullAgain = false;
     await realtimeStopped;
-    if (current !== entry) return;
+    if (current !== stateVersion) return;
     await connectRealtime();
-    if (current !== entry) return;
+    if (current !== stateVersion) return;
     do {
       pullStarted = true;
       pullAgain = false;
       try {
         await network.catchUp();
       } catch (err) {
-        if (current !== entry) return;
+        if (current !== stateVersion) return;
         if (isAuthRejection(err)) { dispatch(EVENT.AUTH_REJECTED); return; }
         // Going live anyway keeps the queue retrying; the next SSE connect pulls again.
         console.error('[Kanvana] Sync catch-up failed', err);
       }
-      if (current !== entry) return;
+      if (current !== stateVersion) return;
     } while (pullAgain);
     dispatch(EVENT.CATCH_UP_DONE);
   }
 
-  // An SSE connect before the pull starts is covered by that pull, including the
-  // initial connect; one after it means the pull may have missed events.
+  // The subscription's first connect is settled by connectRealtime, so only reconnects get here.
   function onRealtimeConnect() {
+    if (subscribing) return;
     if (state !== CATCHING_UP) { dispatch(EVENT.REALTIME_RECONNECTED); return; }
     if (pullStarted) pullAgain = true;
   }
@@ -188,15 +216,14 @@ export function createSyncSession({
       console.error('[Kanvana] Sign-in check failed', err);
     }
     if (attempt !== signInAttempt || !allowed) return;
-    dispatch(isOnline() ? EVENT.SIGNED_IN : EVENT.SIGNED_IN_OFFLINE);
+    dispatch(signedInEvent());
   }
 
-  // PocketBase also reports a token refresh as an auth change, so only a different
-  // account is a sign-in. Fresh credentials are what a paused session is waiting for.
+  // PocketBase also reports a token refresh as an auth change; fresh credentials are what a paused session waits for.
   function onAuthChanged() {
     const id = getUserId();
     if (id === userId) {
-      if (id && state === PAUSED) dispatch(isOnline() ? EVENT.SIGNED_IN : EVENT.SIGNED_IN_OFFLINE);
+      if (id && isPaused()) dispatch(signedInEvent());
       return;
     }
     if (userId) {
@@ -207,19 +234,16 @@ export function createSyncSession({
     if (id) signIn(id);
   }
 
-  // This tab just became sync leader (#222), so nothing has run on the network from here
-  // yet. A pull running now went through the old, inert network side, so it starts over.
-  // Paused keeps its queue and upload stopped until fresh credentials; realtime stays up.
+  // Just became leader (#222): a running pull went through the old, inert network side, so it starts over.
   function takeOver() {
     if (state === LIVE || state === CATCHING_UP) enter(CATCHING_UP);
-    else if (state === PAUSED) runCatchUp(entry).catch((err) => console.error('[Kanvana] Sync catch-up failed', err));
+    else if (state === PAUSED) runCatchUp(stateVersion).catch((err) => console.error('[Kanvana] Sync catch-up failed', err));
   }
 
-  // Only the leader's pushes can be rejected, so a follower learns of it here, which a
-  // later takeover needs. Auth and network state are this tab's own.
+  // Only the leader's pushes can be rejected, and a later takeover here needs to know.
   function noteLeaderState(leaderState) {
-    if (leaderState === PAUSED) dispatch(EVENT.AUTH_REJECTED);
-    else if (leaderState === LIVE && state === PAUSED) dispatch(isOnline() ? EVENT.SIGNED_IN : EVENT.SIGNED_IN_OFFLINE);
+    if (leaderState === PAUSED || leaderState === PAUSED_OFFLINE) dispatch(EVENT.AUTH_REJECTED);
+    else if (leaderState === LIVE && isPaused()) dispatch(signedInEvent());
   }
 
   function start() {
@@ -241,7 +265,7 @@ export function createSyncSession({
     window.removeEventListener('offline', listeners.offline);
     listeners = null;
     signInAttempt += 1;
-    entry += 1;
+    stateVersion += 1;
   }
 
   return { start, dispose, takeOver, noteLeaderState, getState: () => state };
@@ -261,7 +285,7 @@ export function initSyncSession(options = {}) {
 
 export function getSyncSessionState() {
   const own = _session?.getState() ?? SESSION_STATE.SIGNED_OUT;
-  if (!_leaderState || own === SIGNED_OUT || own === OFFLINE) return own;
+  if (!_leaderState || own === SIGNED_OUT || own === OFFLINE || own === PAUSED_OFFLINE) return own;
   return _leaderState;
 }
 

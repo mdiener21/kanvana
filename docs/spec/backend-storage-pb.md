@@ -52,7 +52,7 @@ Drains IDB events where `synced=false` to the PocketBase `events` collection, th
 - **Three-tier retry** on failure (`classifyError`):
   | Error | Tier | Behaviour |
   |---|---|---|
-  | 401 / 403 | auth | Stop the queue and tell the sync session, which enters `paused`; re-authentication resumes through `catching-up`. |
+  | 401 / 403 | auth | Stop the queue and tell the sync session, which enters `paused`, and stays paused through going offline and back (`paused-offline`); only re-authentication resumes, through `catching-up`. |
   | other 4xx | permanent | Retry after **1 hour**. |
   | 5xx / network | network | Exponential backoff: **5s → 30s → 120s → 300s**. |
 - **Resume triggers**: the sync session starts the queue and forces an immediate drain each time it goes `live`. While the session is not `live`, no drain or retry fires.

@@ -44,8 +44,7 @@ export function initSyncQueue() {
   on(EVENT_EMITTED, _emittedHandler);
 }
 
-// The sync session decides when the queue runs. `onAuthRejected` fires when a push
-// comes back 401/403; the queue has stopped itself by then.
+// The session decides when the queue runs; a 401/403 push stops the queue, then fires onAuthRejected.
 export function startSyncQueue({ onAuthRejected } = {}) {
   _running = true;
   _onAuthRejected = onAuthRejected ?? null;
@@ -149,8 +148,7 @@ async function runDrain() {
   const generation = _generation;
   const stopped = () => generation !== _generation;
   const pb = getPb();
-  // Events belong to the Data Owner, whoever is signed in by now (ADR-0006). The auth store
-  // is shared across tabs, so it can change under a running drain.
+  // Events belong to the Data Owner, whoever is signed in by now; another tab can change the auth store mid-drain (ADR-0006).
   const [ownerId, unsynced] = await Promise.all([getDataOwner(), getUnsyncedEvents()]);
   const accountChanged = () => !ownerId || getUser()?.id !== ownerId;
   const events = unsynced.sort((a, b) => compareHlc(a.hlc, b.hlc));

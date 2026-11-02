@@ -39,7 +39,7 @@ npm run lint
 npm test               # unit + dom + e2e + pwa; run before opening a PR
 npm run test:unit      # or test:dom, test:e2e, test:pwa
 npm run test:perf      # Chromium perf suite on the production build; CI runs it, npm test does not
-npm run test:e2e:live  # multi-device sync against a real PocketBase; needs Docker up
+npm run test:e2e:live  # multi-device sync on a throwaway PocketBase container (needs Docker), or PB_PROXY_TARGET
 ```
 
 Local PocketBase without Docker (download from https://pocketbase.io/docs/), from the folder holding

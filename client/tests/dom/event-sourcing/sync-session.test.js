@@ -1,7 +1,13 @@
 // #219: the session's lifecycle against a fake network side. It covers the orderings
 // and races a page boot can't stage on demand; sync-session-boot.test.js covers the real thing.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createSyncSession } from '../../../src/modules/event-sourcing/sync-session.js';
+import {
+  _resetSyncSessionForTesting,
+  createSyncSession,
+  getSyncSessionState,
+  initSyncSession,
+  setLeaderSessionState,
+} from '../../../src/modules/event-sourcing/sync-session.js';
 
 function deferred() {
   let resolvePromise;
@@ -206,6 +212,96 @@ describe('failures while catching up', () => {
     // Events from before the subscription came up may have been missed by the first pull.
     expect(network.catchUp).toHaveBeenCalledTimes(2);
     expect(session.getState()).toBe('live');
+  });
+
+  describe('an SSE connection that takes longer than the wait (#219)', () => {
+    async function liveBeforeConnected(network, states) {
+      const connecting = deferred();
+      network.realtimeResult = () => connecting.promise;
+      startSession(network, { connectWaitMs: 1, onStateChange: (state) => states.push(state) });
+      signIn();
+      await new Promise((r) => setTimeout(r, 20));
+      return connecting;
+    }
+
+    it('pulls once more and stays live when it connects after the pull finished', async () => {
+      const network = fakeNetwork();
+      const states = [];
+      const connecting = await liveBeforeConnected(network, states);
+      expect(session.getState()).toBe('live');
+
+      network.connect();
+      connecting.resolve();
+      await flush();
+      await flush();
+
+      expect(network.catchUp).toHaveBeenCalledTimes(2);
+      expect(states).toEqual(['catching-up', 'live']);
+      expect(network.startQueue).toHaveBeenCalledTimes(1);
+    });
+
+    it('pulls once more when it connects during the pull', async () => {
+      const network = fakeNetwork();
+      const states = [];
+      const pull = deferred();
+      network.catchUpResult = () => pull.promise;
+      const connecting = await liveBeforeConnected(network, states);
+      expect(session.getState()).toBe('catching-up');
+
+      network.connect();
+      connecting.resolve();
+      await flush();
+      network.catchUpResult = () => Promise.resolve();
+      pull.resolve();
+      await flush();
+      await flush();
+
+      expect(network.catchUp).toHaveBeenCalledTimes(2);
+      expect(states).toEqual(['catching-up', 'live']);
+    });
+
+    it('adds no pull when the subscription fails', async () => {
+      const network = fakeNetwork();
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const connecting = await liveBeforeConnected(network, []);
+
+      connecting.reject(new Error('SSE unavailable'));
+      await flush();
+      await flush();
+
+      expect(network.catchUp).toHaveBeenCalledTimes(1);
+      vi.restoreAllMocks();
+    });
+
+    it('pauses when the extra pull is rejected', async () => {
+      const network = fakeNetwork();
+      const connecting = await liveBeforeConnected(network, []);
+      network.catchUpResult = () => Promise.reject(Object.assign(new Error('nope'), { status: 401 }));
+
+      connecting.resolve();
+      await flush();
+      await flush();
+
+      expect(session.getState()).toBe('paused');
+    });
+
+    it('still catches up once on a genuine reconnect afterwards', async () => {
+      const network = fakeNetwork();
+      const states = [];
+      const connecting = await liveBeforeConnected(network, states);
+      connecting.resolve();
+      await flush();
+      await flush();
+      expect(network.catchUp).toHaveBeenCalledTimes(2);
+
+      network.connect();
+      await flush();
+      await flush();
+      await flush();
+
+      expect(network.catchUp).toHaveBeenCalledTimes(3);
+      expect(states).toEqual(['catching-up', 'live', 'catching-up', 'live']);
+    });
   });
 
   it('goes live after a failed pull so the queue and realtime keep working', async () => {
@@ -445,6 +541,130 @@ describe('paused', () => {
 
     expect(session.getState()).toBe('paused');
     expect(network.catchUp).toHaveBeenCalledTimes(1);
+  });
+
+  describe('across a network blip (#219 AC-005)', () => {
+    it('stays paused through offline and online, and pushes nothing', async () => {
+      const network = await pausedSession();
+      const queueStarts = network.startQueue.mock.calls.length;
+
+      setOnline(false);
+      await flush();
+      expect(session.getState()).toBe('paused-offline');
+      setOnline(true);
+      await flush();
+      await flush();
+
+      expect(session.getState()).toBe('paused');
+      expect(network.startQueue).toHaveBeenCalledTimes(queueStarts);
+    });
+
+    it('stops realtime while offline, and brings it back with one pull', async () => {
+      const network = await pausedSession();
+      const pullsBefore = network.catchUp.mock.calls.length;
+      const startsBefore = network.startRealtime.mock.calls.length;
+
+      setOnline(false);
+      await flush();
+      expect(network.stopRealtime).toHaveBeenCalledTimes(1);
+      expect(network.catchUp).toHaveBeenCalledTimes(pullsBefore);
+
+      setOnline(true);
+      await flush();
+      await flush();
+      expect(network.startRealtime).toHaveBeenCalledTimes(startsBefore + 1);
+      expect(network.catchUp).toHaveBeenCalledTimes(pullsBefore + 1);
+      expect(session.getState()).toBe('paused');
+    });
+
+    it('resumes on re-authentication after the blip', async () => {
+      const network = await pausedSession();
+      setOnline(false);
+      await flush();
+      setOnline(true);
+      await flush();
+      await flush();
+
+      signIn();
+      await flush();
+      await flush();
+
+      expect(session.getState()).toBe('live');
+      expect(network.startQueue).toHaveBeenCalledTimes(2);
+    });
+
+    it('waits for the network when re-authenticated while offline, then resumes', async () => {
+      await pausedSession();
+      online = false;
+      window.dispatchEvent(new Event('offline'));
+      await flush();
+
+      signIn();
+      await flush();
+      expect(session.getState()).toBe('offline');
+
+      setOnline(true);
+      await flush();
+      await flush();
+      expect(session.getState()).toBe('live');
+    });
+
+    it('signs out from paused-offline', async () => {
+      await pausedSession();
+      setOnline(false);
+      await flush();
+
+      signOut();
+      await flush();
+
+      expect(session.getState()).toBe('signed-out');
+    });
+
+    it('does nothing on a takeover while offline', async () => {
+      const network = await pausedSession();
+      setOnline(false);
+      await flush();
+      const pullsBefore = network.catchUp.mock.calls.length;
+
+      session.takeOver();
+      await flush();
+
+      expect(session.getState()).toBe('paused-offline');
+      expect(network.catchUp).toHaveBeenCalledTimes(pullsBefore);
+    });
+
+    it('resumes when a leader that is live again tells a follower that is offline', async () => {
+      await pausedSession();
+      online = true;
+      session.noteLeaderState('paused');
+      window.dispatchEvent(new Event('offline'));
+      await flush();
+      expect(session.getState()).toBe('paused-offline');
+
+      session.noteLeaderState('live');
+      await flush();
+      await flush();
+
+      expect(session.getState()).toBe('live');
+    });
+
+    it('reports this tab offline, whatever the leader says', async () => {
+      await pausedSession();
+      session.dispose();
+      session = null;
+      initSyncSession({ network: fakeNetwork(), getUserId: () => auth, isOnline: () => online, connectWaitMs: 5 });
+      await flush();
+      await flush();
+      setLeaderSessionState('paused');
+      await flush();
+      expect(getSyncSessionState()).toBe('paused');
+
+      setOnline(false);
+      await flush();
+
+      expect(getSyncSessionState()).toBe('paused-offline');
+      _resetSyncSessionForTesting();
+    });
   });
 });
 

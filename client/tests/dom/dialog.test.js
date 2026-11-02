@@ -23,6 +23,21 @@ beforeEach(async () => {
 
 afterEach(() => { document.body.innerHTML = ''; });
 
+describe('on a page with no dialog markup', () => {
+  it('builds the dialog itself, with its icon, and it answers', async () => {
+    document.body.innerHTML = '';
+
+    const answer = confirmDialog({ title: 'Built here', message: 'Sure?', confirmText: 'Yes' });
+
+    expect(document.getElementById('dialog-modal-title').textContent).toBe('Built here');
+    expect(document.querySelector('#dialog-close-btn svg')).not.toBeNull();
+    expect(document.querySelectorAll('#dialog-modal')).toHaveLength(1);
+    document.getElementById('dialog-confirm-btn').click();
+    await expect(answer).resolves.toBe(true);
+    expect(document.getElementById('dialog-modal').classList.contains('hidden')).toBe(true);
+  });
+});
+
 describe('dialog', () => {
   it('focuses confirm on an ordinary dialog', () => {
     confirmDialog({ title: 'Delete task?' });

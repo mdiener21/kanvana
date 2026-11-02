@@ -1,7 +1,7 @@
 import { generateUUID } from './utils.js';
 import { normalizePriority as sharedNormalizePriority, isHexColor, defaultColumnColor, normalizeStringKeys, normalizeRelationships, normalizeSubTasks } from './normalize.js';
 import { DONE_COLUMN_ID, DONE_COLUMN_ROLE, isDoneColumn } from './constants.js';
-import { openStore, KV_STORE, READ_MODEL_STORE, EVENTS_STORE, SNAPSHOTS_STORE, isFirstPullPending, schedulePersist, scheduleDelete, scheduleReadModelPersist, scheduleReadModelDelete, keyFor, readModelKeyFor, _flushPersistsForTesting as _flushIdbPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
+import { openStore, isDataCurrent, writeIfDataCurrent, KV_STORE, READ_MODEL_STORE, EVENTS_STORE, SNAPSHOTS_STORE, isFirstPullPending, schedulePersist, scheduleDelete, scheduleReadModelPersist, scheduleReadModelDelete, keyFor, readModelKeyFor, _flushPersistsForTesting as _flushIdbPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
 // Re-export IDB helpers that tests import from this module for backward compatibility.
 import { normalizeBoardModelIds } from './board-serializer.js';
 import { initHlc, laterHlc } from './event-sourcing/hlc.js';
@@ -93,6 +93,7 @@ async function normalizeIdbState(db) {
   const nextBoards = [];
   const activeIdMap = new Map();
   const tx = db.transaction([KV_STORE, READ_MODEL_STORE], 'readwrite');
+  if (!await isDataCurrent(tx)) return;
   const store = tx.objectStore(KV_STORE);
   const readModel = tx.objectStore(READ_MODEL_STORE);
 
@@ -444,7 +445,7 @@ async function loadNewestAppliedHlc(db) {
   };
   for (const event of await db.getAll(EVENTS_STORE)) note(snapshotKeyForEvent(event), event.hlc);
   for (const key of await db.getAllKeys(SNAPSHOTS_STORE)) note(key, (await db.get(SNAPSHOTS_STORE, key))?.hlc);
-  await db.put(KV_STORE, newest, NEWEST_APPLIED_KEY);
+  await writeIfDataCurrent(KV_STORE, (store) => store.put(newest, NEWEST_APPLIED_KEY));
   return newest;
 }
 
@@ -677,10 +678,7 @@ function emitBoardScaffoldEvents(boardId, { columns = [], labels = [] }) {
   }
 }
 
-// A browser just handed to another account seeds the default board before it knows what that
-// account holds. Newer create events for the stable ids would go into the account's history
-// and could bring back what it deleted, so they are only emitted if the first catch-up shows
-// the account has never had this board (#221).
+// Newer create events for the stable ids could bring back what this account deleted, so they wait for the first catch-up (#221).
 export async function publishDeferredDefaultBoard() {
   if (!defaultBoardDeferred) return;
   ensureBoardsInitialized(); // going live can come before this page's first read of a board
@@ -1088,8 +1086,7 @@ export function saveSettings(settings) {
   emit(BOARD_SETTINGS_WRITTEN, { boardId });
 }
 
-// Another tab wrote settings no event carries (swimlanes, #222). This tab writes its copy
-// out with every board save, so an old copy here would undo them.
+// Another tab wrote settings no event carries (#222); this tab's old copy would undo them on its next board save.
 export async function refreshBoardSettings(boardId) {
   const db = await openStore();
   const stored = safeParseObject(await db.get(KV_STORE, keyFor(boardId, 'settings')));

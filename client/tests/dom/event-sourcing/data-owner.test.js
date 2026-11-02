@@ -183,7 +183,7 @@ const signIn = (user) => page.sync.getPb().authStore.save(jwt(user), user);
 const signOut = () => page.sync.getPb().authStore.clear();
 const settle = (ms = 250) => new Promise((r) => setTimeout(r, ms));
 const promptEl = () => document.getElementById('dialog-modal');
-const promptIsOpen = () => promptEl() && !promptEl().classList.contains('hidden');
+const promptIsOpen = () => Boolean(promptEl()) && !promptEl().classList.contains('hidden');
 const live = () => waitFor(() => expect(page.session.getSyncSessionState()).toBe('live'), { timeout: 20000 });
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
@@ -373,7 +373,7 @@ describe('what a wipe keeps and removes', () => {
 
     const db = await openDB('kanvana-db');
     const kvKeys = await db.getAllKeys('kv');
-    expect(kvKeys.sort()).toEqual(['kanvana:dataOwner', 'kanvana:hlc:node', 'kanvana:sync:firstPullPending']);
+    expect(kvKeys.sort()).toEqual(['kanvana:dataGeneration', 'kanvana:dataOwner', 'kanvana:hlc:node', 'kanvana:sync:firstPullPending']);
     expect(await db.get('kv', 'kanvana:hlc:node')).toBe('node-of-this-browser');
     expect(await db.getAllKeys('events')).toEqual([]);
     expect(await db.getAllKeys('snapshots')).toEqual([]);

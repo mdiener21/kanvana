@@ -612,6 +612,24 @@ describe('snapshots (saved in a follower)', () => {
     expect(follower.sent.filter((entry) => entry.includes('snapshots'))).toEqual([]);
   });
 
+  it('still announces its snapshots after a freeze turned it from leader into follower', async () => {
+    const first = await openTab({ snapshotJitter: () => 0 });
+    await goLive(first);
+    document.dispatchEvent(new Event('freeze'));
+    await waitFor(() => expect(locks.held(LOCK)).toBe(false));
+    const second = await openTab();
+    await goLive(second);
+    document.dispatchEvent(new Event('resume'));
+    await settle();
+    await seedDueEvents(first);
+
+    await edit(first);
+
+    await waitFor(() => expect(FakeBroadcastChannel.log.some((message) => message.type === 'snapshot-saved')).toBe(true), { timeout: 5000 });
+    await waitFor(() => expect(snapshotPosts).toBe(1), { timeout: 5000 });
+    expect(second.sent).toContain('POST /api/collections/snapshots/records');
+  });
+
   it('uploads nothing while signed out', async () => {
     const leader = await openTab({ signedIn: false });
     const follower = await openTab({ signedIn: false, snapshotJitter: () => 0 });

@@ -49,10 +49,7 @@ export async function ingestRemoteBatch(items) {
   const stored = await storedIds();
   const fresh = [];
   const writes = [];
-  // The projector can reconnect while the batch awaits; the one that began the batch must end it.
-  const batchProjector = projector;
-  batchProjector?.beginBatch();
-  batchDepth += 1;
+  const batchProjector = beginRemoteBatch();
   try {
     for (const { event, receivedAt } of valid) {
       if (await ingestRemote(event, receivedAt, stored, writes)) fresh.push(event);
@@ -68,6 +65,14 @@ export async function ingestRemoteBatch(items) {
   return fresh;
 }
 
+// The projector can reconnect while the batch awaits; the one that began the batch must end it.
+function beginRemoteBatch() {
+  const batchProjector = projector;
+  batchProjector?.beginBatch();
+  batchDepth += 1;
+  return batchProjector;
+}
+
 function endRemoteBatch(batchProjector) {
   batchProjector?.endBatch();
   batchDepth -= 1;
@@ -77,9 +82,7 @@ function endRemoteBatch(batchProjector) {
   }
 }
 
-// Another tab stored these (#222). The event store is the shared truth, so this tab folds
-// them into its own read model by the usual rules: it never copies another tab's read
-// model, which may lack this tab's newest edit. Nothing is stored or queued again.
+// Another tab stored these (#222); its read model is not copied, since it may lack this tab's newest edit.
 export async function ingestStoredEvents(ids) {
   const db = getDbRef();
   if (!db || !projector) return;
@@ -96,9 +99,7 @@ export async function ingestMissedEvents() {
 
 async function foldStoredEvents(events) {
   const lateKeys = new Set();
-  const batchProjector = projector;
-  batchProjector?.beginBatch();
-  batchDepth += 1;
+  const batchProjector = beginRemoteBatch();
   try {
     for (const event of [...events].sort((a, b) => compareHlc(a.hlc, b.hlc))) {
       // Or the next local edit here could sort before an event this tab already shows.
@@ -210,8 +211,7 @@ export async function adoptSnapshot(key, state, hlc) {
   emit(SNAPSHOT_ADOPTED, { key, forgotten: [...covered.map((event) => event.entity_id), ...held.map((item) => item?.id)] });
 }
 
-// Another tab adopted a snapshot (#222): what it replaced is known there only, and this
-// tab's rebuild must drop the same entities.
+// Another tab adopted a snapshot (#222): only it knows what was replaced, and this rebuild must drop the same.
 export function rebuildAfterPeerAdoption(key, forgotten) {
   const entry = superseded.get(key) ?? createSuperseded();
   entry.events.push(...forgotten.map((entity_id) => ({ entity_id })));

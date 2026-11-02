@@ -15,7 +15,7 @@ vi.mock('../../../src/modules/event-sourcing/sync-queue.js', () => ({
 
 vi.mock('../../../src/modules/event-sourcing/sync-session.js', () => ({
   getSyncSessionState: vi.fn(() => fake.session),
-  SESSION_STATE: { SIGNED_OUT: 'signed-out', CATCHING_UP: 'catching-up', LIVE: 'live', OFFLINE: 'offline', PAUSED: 'paused' },
+  SESSION_STATE: { SIGNED_OUT: 'signed-out', CATCHING_UP: 'catching-up', LIVE: 'live', OFFLINE: 'offline', PAUSED: 'paused', PAUSED_OFFLINE: 'paused-offline' },
 }));
 
 // events.js kept real: the indicator subscribes via the real on/emit bus.
@@ -90,6 +90,13 @@ describe('sync state indicator', () => {
     fake.status = { depth: 2, retrying: false };
     initSyncIndicator();
     await waitFor(() => expect(el().textContent).toContain('Syncing… (2)'));
+  });
+
+  it('paused with no network reads Offline, even with queued events', async () => {
+    fake.session = 'paused-offline';
+    fake.status = { depth: 2, retrying: false };
+    initSyncIndicator();
+    await waitFor(() => expect(el().textContent).toContain('Offline'));
   });
 
   it('AC-004: offline -> Offline (gray)', async () => {

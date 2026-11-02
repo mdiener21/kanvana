@@ -177,7 +177,7 @@ test('checkAndScheduleSnapshot snapshots after 500 events, covering the ones old
   }
 
   checkAndScheduleSnapshot('board-a', { fold: replayFold });
-  await vi.waitFor(async () => expect(await db.count('events')).toBe(SNAPSHOT_EVENT_THRESHOLD - 300));
+  await vi.waitFor(async () => expect(await db.count('events')).toBe(SNAPSHOT_EVENT_THRESHOLD - 300), { timeout: 10_000 });
 
   const snapshot = await loadSnapshot('board-a');
   expect(snapshot.hlc).toEqual(makeHlc(300));

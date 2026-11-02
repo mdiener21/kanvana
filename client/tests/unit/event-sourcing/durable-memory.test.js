@@ -119,9 +119,12 @@ test('a snapshot holds the board memory and the live applied set is pruned of wh
 
   const snapshot = (await loadSnapshot(boardId)).state;
   expect([...snapshot.appliedEventIds]).toEqual(expect.arrayContaining(['e-old', 'e-create']));
-  const live = await (await openStore()).get(READ_MODEL_STORE, `${boardId}:appliedEventIds`);
-  expect(live).not.toContain('e-old');
-  expect(live).not.toContain('e-create');
+  // Pruning follows the snapshot's save and event cleanup, so it lands after the wait above.
+  await vi.waitFor(async () => {
+    const live = await (await openStore()).get(READ_MODEL_STORE, `${boardId}:appliedEventIds`);
+    expect(live).not.toContain('e-old');
+    expect(live).not.toContain('e-create');
+  });
 
   // Pruned ids are still answered as applied, from the snapshot, after a reload.
   await reload();

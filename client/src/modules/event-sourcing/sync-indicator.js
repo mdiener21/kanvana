@@ -21,7 +21,7 @@ const STATE = {
 
 async function deriveState() {
   const session = getSyncSessionState();
-  if (session === SESSION_STATE.SIGNED_OUT || session === SESSION_STATE.OFFLINE) return STATE.offline();
+  if (session === SESSION_STATE.SIGNED_OUT || session === SESSION_STATE.OFFLINE || session === SESSION_STATE.PAUSED_OFFLINE) return STATE.offline();
 
   const { depth, retrying } = await getSyncStatus();
   if (depth === 0) return STATE.live();

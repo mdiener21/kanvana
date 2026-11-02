@@ -10,10 +10,11 @@ const mockAuthStore = vi.hoisted(() => ({
   onChange: vi.fn(),
 }));
 
+const mockSend = vi.hoisted(() => vi.fn());
+
 const mockCollection = vi.hoisted(() => ({
   authWithPassword: vi.fn(),
   authWithOAuth2: vi.fn(),
-  authRefresh: vi.fn(),
   create: vi.fn(),
 }));
 
@@ -22,6 +23,7 @@ vi.mock('pocketbase', () => ({
     constructor() {
       this.authStore = mockAuthStore;
       this.collection = vi.fn(() => mockCollection);
+      this.send = mockSend;
     }
   },
 }));
@@ -84,7 +86,7 @@ describe('ensureAuthenticated', () => {
     mockAuthStore.token = 'expired-tok';
     mockAuthStore.record = { id: 'user1' };
     mockAuthStore.isValid = false;
-    mockCollection.authRefresh.mockRejectedValueOnce(new Error('Token expired'));
+    mockSend.mockRejectedValueOnce(new Error('Token expired'));
     await expect(ensureAuthenticated()).resolves.toBe(false);
   });
 
@@ -92,13 +94,9 @@ describe('ensureAuthenticated', () => {
     mockAuthStore.token = 'old-tok';
     mockAuthStore.record = { id: 'user1' };
     mockAuthStore.isValid = false;
-    mockCollection.authRefresh.mockResolvedValueOnce({ token: 'new-tok', record: { id: 'user1' } });
-    // After refresh, simulate authStore updated
-    mockCollection.authRefresh.mockImplementationOnce(async () => {
-      mockAuthStore.token = 'new-tok';
-      mockAuthStore.record = { id: 'user1' };
-    });
+    mockSend.mockResolvedValueOnce({ token: 'new-tok', record: { id: 'user1' } });
     await expect(ensureAuthenticated()).resolves.toBe(true);
+    expect(mockAuthStore.save).toHaveBeenCalledWith('new-tok', { id: 'user1' });
   });
 });
 

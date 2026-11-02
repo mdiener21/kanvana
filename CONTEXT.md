@@ -212,7 +212,7 @@ manual push/pull); the header **sync-state indicator** shows `Live` / `Syncing�
 |---|---|
 | `sync.js` | PocketBase SDK instance (`getPb`) + auth only (`isAuthenticated`, `ensureAuthenticated`, `getUser`, `loginUser`, `registerUser`, `logoutUser`, `loginWithProvider`, `refreshAuth`, `initAuthRefresh`) |
 | `authsync.js` | Auth UI — login modal, OAuth2 (Google/Apple/Microsoft), logout, backend health probe |
-| `event-sourcing/sync-session.js` | **Lifecycle** — the one state machine for sync (`signed-out` → `catching-up` → `live` ⇄ `offline`, plus `paused`). The only sync module that listens to `auth-changed`, `online` and `offline`; it starts and stops the queue, realtime and snapshot upload. `initSyncSession()`, `getSyncSessionState()`; `createSyncSession({ network, beforeSignIn })` takes the network side and a check run on each new sign-in |
+| `event-sourcing/sync-session.js` | **Lifecycle** — the one state machine for sync (`signed-out` → `catching-up` → `live` ⇄ `offline`, plus `paused` ⇄ `paused-offline`). The only sync module that listens to `auth-changed`, `online` and `offline`; it starts and stops the queue, realtime and snapshot upload. `initSyncSession()`, `getSyncSessionState()`; `createSyncSession({ network, beforeSignIn })` takes the network side and a check run on each new sign-in |
 | `event-sourcing/data-owner.js` | **Account check** — `checkDataOwner(userId)`, the session's `beforeSignIn`: applies the Data Owner policy and coordinates tabs during a switch. `createNetworkSettlingFirstPull()` wraps the leader's network side to finish the first pull after a wipe |
 | `event-sourcing/sync-leader.js` | **Sync leader** (#222) — elects one tab with a Web Lock and links the tabs with a BroadcastChannel. `initSyncLeader()` resolves to the leader-gated network side the tab's session runs on |
 | `event-sourcing/sync-queue.js` | **Outbound** — drains unsynced events to the PB `events` collection in HLC order (debounce, in-flight cap, three-tier retry, no rollback), stamped with the Data Owner, and pushes nothing when the signed-in account is not the Data Owner. Runs only between `startSyncQueue({ onAuthRejected })` and `stopSyncQueue()`; `drainSyncQueue()`, `getSyncStatus()` |
@@ -234,11 +234,11 @@ the user, so it runs apart from `beforeSignIn`.
 | `snapshot-adopted` | Others rebuild the key, dropping the same entities; only the adopting tab knows what the snapshot replaced |
 | `board-settings-written` | Others re-read settings no event carries (swimlanes), which they would otherwise overwrite with their copy |
 | `snapshot-saved` | A snapshot saved in a follower is uploaded by the leader, never from the follower |
-| `status`, `status-request` | The leader's session state and retry status, which exist only in its memory, on every change and when a tab opens. `getSyncSessionState()` and `getSyncStatus()` report them in a follower, so every indicator shows the same text; a follower's own `signed-out` or `offline` wins. A paused leader pauses the followers' sessions too |
+| `status`, `status-request` | The leader's session state and retry status, which exist only in its memory, on every change and when a tab opens. `getSyncSessionState()` and `getSyncStatus()` report them in a follower, so every indicator shows the same text; a follower's own `signed-out`, `offline` or `paused-offline` wins. A paused leader pauses the followers' sessions too |
 
 **Handover.** The browser releases the lock when the tab dies; the next tab in the lock's queue folds any stored
 event it missed, then `takeOverSyncSession()` does what its state calls for: from `live` or `catching-up`, one
-catch-up and then draining; while `signed-out` or `offline`, nothing until that changes; while `paused`, realtime and
+catch-up and then draining; while `signed-out`, `offline` or `paused-offline`, nothing until that changes; while `paused`, realtime and
 one catch-up, with queue and upload stopped until fresh credentials. A tab being frozen or entering the
 back/forward cache stops its network side and leaves the lock or its queue, because a frozen holder would block every
 other tab; on resuming it claims the lock again and reads the events it missed. A tab opening as a follower reads
@@ -275,8 +275,20 @@ How a switch works (`data-owner.js`, run on each new sign-in, with no network, a
   shows the account has never had this board, so nothing newer than the account's own history lands on the
   stable ids. `kanvana:sync:firstPullPending` marks that pull as still to come; a failed pull leaves it set.
 
-Known limits. Without Web Locks (plain http) the lock is skipped, so two visible tabs could each prompt. A write from another tab in the moment between a wipe committing and that
-tab receiving the notice can land in the new owner's database.
+- **A tab that missed the wipe.** The notice takes time to arrive, so it is not what protects the new owner's
+  data. A wipe bumps `kanvana:dataGeneration` in its transaction, each tab pins the generation when it opens the
+  database, and every write of account data (`writeIfDataCurrent()` and the `schedule*` helpers in `idb-store.js`)
+  checks it inside its own transaction. On a mismatch the write is dropped and the page reloads, so nothing from a
+  tab still holding the old owner reaches the events store, the read model, snapshots or the queue.
+
+Known limits. Without Web Locks (plain http) the lock is skipped, so two visible tabs could each prompt. A tab that
+missed a wipe keeps showing the old owner's data from its own memory until the notice or its first dropped write
+reloads it, and an edit made there in that moment is lost without a prompt, since the prompt could not count it. Its
+tab-to-tab notices can still go out in that moment: they carry ids only, so a tab acting on one finds nothing to
+fold, though a `snapshot-adopted` can hide the entities it names from that tab's view until its next rebuild. Three
+writes skip the check because they hold no account data: the HLC node id, the first claim of unowned data (no wipe
+can have happened), and the boot migration from legacy localStorage (it runs before any wipe on that browser).
+localStorage preferences are outside IndexedDB and are not checked.
 
 **Auth:** Email/password or OAuth2. `isAuthenticated()` / `ensureAuthenticated()` guard all sync
 operations. The `auth-changed` window event fires on auth state change, including a token refresh; the
@@ -320,6 +332,10 @@ Development runs without a service worker. Production lifecycle tests run with `
 | `BOARD_CHANGED` | `'board:changed'` — board-level structure changed |
 | `DATA_CHANGED` | `'data:changed'` — projection changed (a domain event was applied); UI re-render trigger |
 | `EVENT_EMITTED` | `'event:emitted'` — a domain event was ingested (local or remote), after projection; wakes the outbound queue. Notification only: emitting it does not project anything |
+| `EVENTS_STORED` | `'events:stored'` — events reached the `events` store (`{ ids, local }`); the sync leader tells the other tabs (#222) |
+| `SNAPSHOT_ADOPTED` | `'snapshot:adopted'` — this tab adopted a server snapshot (`{ key, forgotten }`); the sync leader tells the other tabs which entities it replaced |
+| `PEER_SYNC_CHANGED` | `'sync:peer-changed'` — another tab's events or sync status changed what this tab shows; re-renders the sync indicator |
+| `BOARD_SETTINGS_WRITTEN` | `'settings:written'` — settings no event carries were written (`{ boardId }`); the sync leader tells the other tabs to re-read them once stored |
 
 ---
 
@@ -418,9 +434,11 @@ inspectImportPayload → buildImportConfirmationMessage → importTasks
 catching-up (event-sourcing/sync-session.js), one pull per transition:
    1. stop the queue, start snapshot upload
    2. start the SSE subscription, waiting at most 3 s    (the initial PB_CONNECT is covered by the pull)
-   3. catchUp() once; once more if SSE connected during it  → live: start the queue and drain
+   3. catchUp() once; once more if SSE reconnected during it → live: start the queue and drain
+      SSE up only after the wait: one extra pull if that pull had started, without leaving live
 offline, sign-out → stop the queue, snapshot upload and realtime; a push rejected with 401/403 → paused
-                    (queue and upload stopped, realtime stays up)
+                    (queue and upload stopped, realtime stays up; offline → paused-offline, realtime stopped;
+                    online → paused, realtime and one pull; only re-authentication resumes)
 
 [local mutation] → scheduleDomainEvent() (stamp UUID + sync HLC) → ingestEvent(event, { origin: 'local' })
 [remote event]   → realtime.js SSE → ingestEvent(event, { origin: 'remote', receivedAt: record.created })
@@ -573,4 +591,4 @@ event stream.
 Key coverage areas: storage CRUD, UUID migration, swimlane utilities, import/export preflight,
 due-date countdown, validation, normalization, subtasks, and the event-sourcing layer (HLC, reducer,
 outbound queue, realtime/catch-up, snapshots, sync indicator). Live multi-device convergence is covered
-by `tests/e2e/event-sourcing/` against a real PocketBase (`npm run test:e2e:live`; needs Docker up).
+by `tests/e2e/event-sourcing/` against a real PocketBase (`npm run test:e2e:live`; runs its own throwaway PocketBase container, so needs Docker).

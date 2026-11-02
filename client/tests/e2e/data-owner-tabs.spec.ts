@@ -1,25 +1,29 @@
 // #221: an account switch with two tabs open, in a real browser: the auth store's storage
 // event, Web Locks, BroadcastChannel and page reloads are what is under test. The backend
 // is mocked at the network layer.
-import { expect, test } from '@playwright/test';
+import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { waitForBoardReady } from './board.helpers.js';
 
-const USERS = {
+const USERS: Record<string, { id: string; email: string; name: string }> = {
   'a@e.st': { id: 'useraaaaaaaaaaa', email: 'a@e.st', name: 'User A' },
   'b@e.st': { id: 'userbbbbbbbbbbb', email: 'b@e.st', name: 'User B' },
 };
 const BOARD_OF_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
-function jwt(user) {
-  const encode = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
+function jwt(user: { id: string }): string {
+  const encode = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url');
   return `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ id: user.id, type: 'auth', exp: Math.floor(Date.now() / 1000) + 3600 })}.sig`;
 }
 
-const list = (items) => ({ json: { page: 1, perPage: 500, totalItems: items.length, totalPages: 1, items } });
+const list = (items: unknown[]) => ({ json: { page: 1, perPage: 500, totalItems: items.length, totalPages: 1, items } });
 
 // One server per test: pushes are stored and served back per owner, as PocketBase would.
-async function mockBackend(context) {
-  const server = { events: [] };
+async function mockBackend(context: BrowserContext) {
+  const events: Array<Record<string, any>> = [];
+  const server = {
+    events,
+    eventsOf: (email: string) => events.filter((event) => event.owner === USERS[email].id),
+  };
   server.events.push({
     id: 'rec-b', local_id: 'remote-board-b', owner: USERS['b@e.st'].id, event_type: 'board.created',
     hlc: { wallTime: Date.now() - 60_000, counter: 0, nodeId: 'node-remote' }, at: new Date().toISOString(),
@@ -49,39 +53,38 @@ async function mockBackend(context) {
     }
     return route.fulfill({ status: 404, json: {} });
   });
-  server.eventsOf = (email) => server.events.filter((event) => event.owner === USERS[email].id);
   return server;
 }
 
-async function signIn(page, email) {
+async function signIn(page: Page, email: string) {
   await page.locator('#login-btn').click();
   await page.locator('#login-email').fill(email);
   await page.locator('#login-password').fill('secret-password');
   await page.locator('#email-auth-submit').click();
 }
 
-const boardsOf = (page) => page.evaluate(async () => {
+const boardsOf = (page: Page) => page.evaluate(async () => {
   const { listBoards } = await import('/modules/storage.js');
   return listBoards().map((board) => board.name);
 });
 
-const dataOwner = (page) => page.evaluate(async () => {
+const dataOwner = (page: Page) => page.evaluate(async () => {
   const { getDataOwner } = await import('/modules/idb-store.js');
   return getDataOwner();
 });
 
-const unsyncedCount = (page) => page.evaluate(async () => {
+const unsyncedCount = (page: Page) => page.evaluate(async () => {
   const { getUnsyncedEvents } = await import('/modules/idb-store.js');
   return (await getUnsyncedEvents()).length;
 });
 
-const createBoard = (page, name) => page.evaluate(async (boardName) => {
+const createBoard = (page: Page, name: string) => page.evaluate(async (boardName) => {
   const { createBoard: create } = await import('/modules/storage.js');
   create(boardName);
 }, name);
 
 // A signed in and fully synced, then signed out with one edit the server never got.
-async function twoTabsWithUnsyncedDataOfA(context, server) {
+async function twoTabsWithUnsyncedDataOfA(context: BrowserContext, server: Awaited<ReturnType<typeof mockBackend>>) {
   const first = await context.newPage();
   await first.goto('/');
   await waitForBoardReady(first);
@@ -99,7 +102,7 @@ async function twoTabsWithUnsyncedDataOfA(context, server) {
   return { first, second };
 }
 
-const visiblePrompts = async (pages) => {
+const visiblePrompts = async (pages: Page[]) => {
   const open = [];
   for (const page of pages) {
     if (await page.locator('#dialog-modal').isVisible()) open.push(page);

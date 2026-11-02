@@ -1,4 +1,4 @@
-import { openStore, EVENTS_STORE, SNAPSHOTS_STORE } from '../idb-store.js';
+import { openStore, writeIfDataCurrent, EVENTS_STORE, SNAPSHOTS_STORE } from '../idb-store.js';
 import { createProjectionState, createTimeTrackingState } from '../reducer.js';
 import { compareHlc } from './hlc.js';
 import { EVENT_SCOPE } from '../constants.js';
@@ -70,12 +70,11 @@ export function serializeState(state) {
 }
 
 export async function saveSnapshot(key, state, hlc) {
-  const db = await openStore();
-  await db.put(SNAPSHOTS_STORE, {
+  await writeIfDataCurrent(SNAPSHOTS_STORE, (store) => store.put({
     payload: serializeState(state),
     hlc,
     at: new Date().toISOString()
-  }, key);
+  }, key));
 }
 
 export async function loadSnapshot(key) {
@@ -95,12 +94,12 @@ export async function loadSnapshot(key) {
 export async function gcEvents(key, snapshotHlc, now = Date.now()) {
   const db = await openStore();
   const all = await db.getAll(EVENTS_STORE);
-  const tx = db.transaction(EVENTS_STORE, 'readwrite');
-  for (const event of all) {
-    if (event.synced !== true || !isOlderThanGraceWindow(event.hlc, now)) continue;
-    if (eventMatchesSnapshotScope(key, event) && compareHlc(event.hlc, snapshotHlc) <= 0) tx.store.delete(event.id);
-  }
-  await tx.done;
+  await writeIfDataCurrent(EVENTS_STORE, (store) => {
+    for (const event of all) {
+      if (event.synced !== true || !isOlderThanGraceWindow(event.hlc, now)) continue;
+      if (eventMatchesSnapshotScope(key, event) && compareHlc(event.hlc, snapshotHlc) <= 0) store.delete(event.id);
+    }
+  });
 }
 
 function isSnapshotDue(snapshot, eventsSinceSnapshot) {

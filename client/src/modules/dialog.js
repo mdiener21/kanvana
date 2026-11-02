@@ -1,8 +1,25 @@
 import { setupModalCloseHandlers } from './modals.js';
-import { $id } from './dom.js';
+import { $id, h } from './dom.js';
+import { renderIcons } from './icons.js';
 
 let currentResolver = null;
 const waitingDialogs = [];
+
+function ensureDialogElement() {
+  if ($id('dialog-modal')) return;
+  document.body.append(h('div', { id: 'dialog-modal', class: 'modal hidden', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'dialog-modal-title' },
+    h('div', { class: 'modal-backdrop', 'data-close-modal': '' }),
+    h('article', { class: 'modal-content' },
+      h('header', { class: 'modal-header-row' },
+        h('h3', { id: 'dialog-modal-title' }, 'Confirm'),
+        h('button', { id: 'dialog-close-btn', type: 'button', class: 'icon-btn', 'aria-label': 'Close', title: 'Close' },
+          h('i', { 'data-lucide': 'x', 'aria-hidden': 'true' }))),
+      h('p', { id: 'dialog-modal-message' }),
+      h('div', { class: 'form-actions' },
+        h('button', { id: 'dialog-cancel-btn', type: 'button', class: 'btn btn-secondary' }, 'Cancel'),
+        h('button', { id: 'dialog-confirm-btn', type: 'button', class: 'btn btn-primary' }, 'OK')))));
+  renderIcons();
+}
 
 function closeDialog(result) {
   const modal = $id('dialog-modal');
@@ -14,9 +31,9 @@ function closeDialog(result) {
   waitingDialogs.shift()?.();
 }
 
-// Opening over an open dialog would orphan its promise. A sync prompt waits on its answer,
-// so a boot-time alert (the health probe) must not be able to replace it (#221).
+// A sync prompt waits on its answer, so a boot-time alert must not be able to replace it (#221).
 function openDialog(show) {
+  ensureDialogElement();
   ensureDialogHandlers();
   if (currentResolver) waitingDialogs.push(show);
   else show();

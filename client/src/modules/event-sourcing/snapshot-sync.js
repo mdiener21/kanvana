@@ -68,8 +68,7 @@ export async function uploadSnapshot(key, state, hlc) {
 
   const pb = getPb();
   const generation = _uploadGeneration;
-  // The snapshot holds the Data Owner's data, and the auth store can change under a running
-  // upload from another tab; the event cleanup below must not run as anyone else (ADR-0006).
+  // Another tab can change the auth store under a running upload; the cleanup below must not run as anyone else (ADR-0006).
   const ownerId = await getDataOwner();
   if (getUser()?.id !== ownerId) return { skipped: 'not-owner' };
   const boardId = boardIdFor(key);
