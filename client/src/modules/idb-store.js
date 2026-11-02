@@ -18,6 +18,7 @@ let _opening = null;
 let _needsV2DataMigration = false;
 let _pinnedGeneration = null;
 let _dataReplaced = false;
+let _eventBatch = null;
 let _onDataReplaced = null;
 
 // In-flight persist Promises — used by _flushPersistsForTesting().
@@ -145,8 +146,18 @@ export function scheduleReadModelDelete(boardId, kind) {
   p.finally(() => _pendingPersists.delete(p));
 }
 
-export async function persistEvent(event) {
-  await writeIfDataCurrent(EVENTS_STORE, (store) => store.put({ ...event, synced: event.synced === true }));
+// Events of one tick share a transaction: each write also holds KV_STORE, so one each would queue every other write behind them.
+export function persistEvent(event) {
+  if (!_eventBatch) {
+    const batch = { events: [] };
+    batch.written = Promise.resolve().then(() => {
+      _eventBatch = null;
+      return writeIfDataCurrent(EVENTS_STORE, (store) => Promise.all(batch.events.map((queued) => store.put(queued))));
+    });
+    _eventBatch = batch;
+  }
+  _eventBatch.events.push({ ...event, synced: event.synced === true });
+  return _eventBatch.written;
 }
 
 // Events not yet acknowledged by PocketBase. Unsorted — the sync queue orders
@@ -275,6 +286,7 @@ export function _resetIdbForTesting() {
   _needsV2DataMigration = false;
   _pinnedGeneration = null;
   _dataReplaced = false;
+  _eventBatch = null;
   _onDataReplaced = null;
   _pendingPersists.clear();
 }
