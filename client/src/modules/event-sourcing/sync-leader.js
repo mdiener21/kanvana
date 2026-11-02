@@ -9,7 +9,7 @@ import { refreshBoardSettings } from '../storage.js';
 import { ingestMissedEvents, ingestStoredEvents, rebuildAfterPeerAdoption } from './ingest.js';
 import { setAfterSnapshotSaved } from './snapshot.js';
 import { isSyncQueueRetrying, scheduleDrain, setPeerRetrying, SYNC_STATUS_CHANGED } from './sync-queue.js';
-import { getSyncSessionState, POCKETBASE_NETWORK, setLeaderSessionState, takeOverSyncSession } from './sync-session.js';
+import { getSyncSessionState, POCKETBASE_NETWORK, SESSION_STATE, setLeaderSessionState, takeOverSyncSession } from './sync-session.js';
 
 const LOCK_NAME = 'kanvana:sync-leader';
 const CHANNEL_NAME = 'kanvana:sync';
@@ -49,6 +49,10 @@ function logFailure(what) {
   return (err) => console.error(`[Kanvana] ${what} failed`, err);
 }
 
+function announceSavedSnapshots() {
+  setAfterSnapshotSaved((key) => post({ type: MESSAGE.SNAPSHOT_SAVED, key }));
+}
+
 function createGatedNetwork(real) {
   const whenLeader = (command) => (...args) => (_isLeader ? real[command](...args) : Promise.resolve());
   return {
@@ -61,7 +65,7 @@ function createGatedNetwork(real) {
     // the server: the leader then finds no snapshot due and saves none of its own.
     startSnapshots: () => {
       if (_isLeader) real.startSnapshots();
-      else setAfterSnapshotSaved((key) => post({ type: MESSAGE.SNAPSHOT_SAVED, key }));
+      else announceSavedSnapshots();
     },
     stopSnapshots: () => {
       if (_isLeader) real.stopSnapshots();
@@ -151,6 +155,9 @@ async function becomeLeader() {
 
 function becomeFollower() {
   _isLeader = false;
+  // A leader stepping down stopped the upload, and a thawed session stays live so never restarts it.
+  const session = getSyncSessionState();
+  if (session === SESSION_STATE.LIVE || session === SESSION_STATE.CATCHING_UP) announceSavedSnapshots();
   post({ type: MESSAGE.STATUS_REQUEST });
   ingestMissedEvents().catch(logFailure('Reading missed events'));
   _waiting = new AbortController();
