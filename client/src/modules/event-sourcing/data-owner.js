@@ -1,10 +1,4 @@
-// Data Owner (ADR-0006, #221): the account local data belongs to. The sync session runs
-// checkDataOwner on every new sign-in, before any network work.
-//
-// Tabs share the auth store and the database, so every tab's session sees one sign-in. The
-// lock lets one tab settle an account switch while the others wait, still signed-out; a tab
-// that wiped tells the others to reload. A browser without Web Locks (plain http) runs
-// without the lock: hidden tabs still do not prompt, and a wipe in one tab reloads the rest.
+// Data Owner (ADR-0006, #221): the sync session runs checkDataOwner on every new sign-in, before any network work.
 
 import { alertDialog, confirmDialog } from '../dialog.js';
 import { claimDataOwner, clearFirstPullPending, closeStore, flushPendingPersists, getDataOwner, getUnsyncedEvents, isFirstPullPending, onDataReplaced, replaceLocalData } from '../idb-store.js';
@@ -18,8 +12,7 @@ import { getSyncSessionState, POCKETBASE_NETWORK, SESSION_STATE } from './sync-s
 
 const SWITCH_LOCK = 'kanvana:data-owner-switch';
 const WIPE_CHANNEL = 'kanvana:data-owner-wipe';
-// The HLC node id identifies this browser, not an account. Theme and other display
-// preferences live in localStorage and stay too; everything else in the database goes.
+// The HLC node id identifies this browser, not an account.
 const KV_KEYS_KEPT_ON_WIPE = [HLC_NODE_KEY];
 const WAIT_UNTIL_VISIBLE = 'wait-until-visible';
 
@@ -113,8 +106,7 @@ async function settleAccountSwitch(userId) {
   return false;
 }
 
-// A false result keeps the session signed-out; after a wipe the page is reloading, and the
-// new page finds the signed-in account already the Data Owner.
+// A false result keeps the session signed-out; after a wipe the page is reloading.
 export async function checkDataOwner(userId) {
   try {
     if (await claimDataOwner(userId) === userId) return true;
@@ -124,8 +116,7 @@ export async function checkDataOwner(userId) {
       await whenVisible();
     }
   } catch (err) {
-    // Reloading closed the connection under this check. The auth store is shared, so
-    // treating that as a failure would sign the new account out of every tab.
+    // Reloading closed the connection under this check; failing here would sign the new account out of every tab.
     if (_reloading) return false;
     console.error('[Kanvana] Could not switch account', err);
     if (signedInUserId() === userId) logoutUser();
@@ -144,14 +135,12 @@ async function settleFirstPull() {
   await clearFirstPullPending();
 }
 
-// The network side only the leader tab runs (#222), because a follower's session goes live
-// on a pull that did nothing. A pull that failed, or that a stop cut short, leaves the first
-// pull pending: only a finished one shows what the new owner's account holds.
-export function createNetworkSettlingFirstPull(network = POCKETBASE_NETWORK) {
+// Leader only (#222), since a follower goes live on a pull that did nothing; only a finished pull shows what the account holds.
+export function createNetworkSettlingFirstPull() {
   return {
-    ...network,
+    ...POCKETBASE_NETWORK,
     catchUp: async () => {
-      await network.catchUp();
+      await POCKETBASE_NETWORK.catchUp();
       if (getSyncSessionState() === SESSION_STATE.CATCHING_UP) await settleFirstPull();
     },
   };

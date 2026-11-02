@@ -17,8 +17,7 @@ export function isAuthenticated() {
   return Boolean(pb.authStore.token && pb.authStore.record);
 }
 
-// The SDK's authRefresh saves any response, which would undo a sign-out or replace an account
-// that signed in while the request was out; the store is shared with every tab.
+// The SDK's authRefresh saves any response, which could undo a sign-out or replace an account signed in meanwhile.
 async function sendAuthRefresh(sentToken) {
   const { token, record } = await pb.send('/api/collections/users/auth-refresh', { method: 'POST', requestKey: null });
   if (pb.authStore.token === sentToken) pb.authStore.save(token, record);

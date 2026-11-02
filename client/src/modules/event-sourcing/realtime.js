@@ -13,6 +13,7 @@ import { downloadAllSnapshots } from './snapshot-sync.js';
 import { EVENT_SCOPE } from '../constants.js';
 
 const LAST_SEEN_PREFIX = 'kanvana:sync:lastSeenHlc:';
+const STOPPED_PULL_WAIT_MS = 3000;
 
 let _unsubscribe = null;
 let _connectUnsubscribe = null;
@@ -78,8 +79,7 @@ export async function stopRealtime() {
   const unsubscribes = [_connectUnsubscribe, _unsubscribe].filter(Boolean);
   _connectUnsubscribe = null;
   _unsubscribe = null;
-  // Started in one tick, the SDK sees no topics left and just closes the connection.
-  // One at a time, it would POST the remaining topics first, which fails once signed out.
+  // In one tick the SDK just closes the connection; one at a time it POSTs the remaining topics, which fails once signed out.
   await Promise.all(unsubscribes.map((unsubscribe) => unsubscribe()));
 }
 
@@ -101,8 +101,7 @@ export async function catchUp() {
   return _catchingUp;
 }
 
-// A pull already running may have read the server before this was asked for, or may
-// have been cut short by a stop, so this one starts fresh after it.
+// A running pull may predate this request or have been cut short by a stop, so this one starts after it.
 export async function catchUpAfterPending() {
   if (_catchingUp) await _catchingUp.catch(() => {});
   await catchUp();
@@ -136,13 +135,12 @@ async function pullRemoteState() {
   }
 }
 
-// A stopped pull checks for that between steps, so it only outlives the stop by the local
-// write in progress or a request whose result it will ignore; the cap covers a hung request.
-export async function waitForStoppedPull(capMs = 3000) {
+// A stopped pull only outlives the stop by its current write or an ignored request; the cap covers a hung request.
+export async function waitForStoppedPull() {
   await stopRealtime();
   if (!_catchingUp) return;
   let timer;
-  const capped = new Promise((res) => { timer = setTimeout(res, capMs); });
+  const capped = new Promise((res) => { timer = setTimeout(res, STOPPED_PULL_WAIT_MS); });
   await Promise.race([_catchingUp.catch(() => {}), capped]);
   clearTimeout(timer);
 }

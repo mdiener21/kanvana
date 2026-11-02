@@ -56,8 +56,7 @@ export function onDataReplaced(handler) {
   _onDataReplaced = handler;
 }
 
-// A wipe bumps the generation in its own transaction, so one tab's check inside a write
-// transaction can not interleave with another tab's wipe (ADR-0006). Takes a transaction over KV_STORE.
+// A check inside a write transaction over KV_STORE can not interleave with a wipe, which bumps the generation (ADR-0006).
 export async function isDataCurrent(tx) {
   const generation = (await tx.objectStore(KV_STORE).get(DATA_GENERATION_KEY)) ?? null;
   if (generation === _pinnedGeneration) return true;
@@ -181,9 +180,7 @@ export async function claimDataOwner(userId) {
   return owner ?? userId;
 }
 
-// One transaction, so an interruption leaves either the old owner with all its data or
-// the new owner with none: there is no state where one account's data is the other's.
-// Refuses, changing nothing, when more events are unsynced than the user agreed to lose.
+// One transaction, so one account's data is never the other's; refuses when more events are unsynced than the user agreed to lose.
 export async function replaceLocalData({ ownerId, maxUnsynced, keepKvKeys }) {
   const db = await getDB();
   const tx = db.transaction([KV_STORE, EVENTS_STORE, SNAPSHOTS_STORE, READ_MODEL_STORE], 'readwrite');
@@ -225,8 +222,7 @@ export async function clearFirstPullPending() {
   await writeIfDataCurrent(KV_STORE, (store) => store.delete(FIRST_PULL_PENDING_KEY));
 }
 
-// A page about to reload after a wipe must not write the old account's state into the new
-// account's database; a closed connection makes every later write fail.
+// A closed connection makes every later write fail, for a page about to reload after a wipe.
 export function closeStore() {
   _db?.close();
 }

@@ -678,10 +678,7 @@ function emitBoardScaffoldEvents(boardId, { columns = [], labels = [] }) {
   }
 }
 
-// A browser just handed to another account seeds the default board before it knows what that
-// account holds. Newer create events for the stable ids would go into the account's history
-// and could bring back what it deleted, so they are only emitted if the first catch-up shows
-// the account has never had this board (#221).
+// Newer create events for the stable ids could bring back what this account deleted, so they wait for the first catch-up (#221).
 export async function publishDeferredDefaultBoard() {
   if (!defaultBoardDeferred) return;
   ensureBoardsInitialized(); // going live can come before this page's first read of a board
@@ -1089,8 +1086,7 @@ export function saveSettings(settings) {
   emit(BOARD_SETTINGS_WRITTEN, { boardId });
 }
 
-// Another tab wrote settings no event carries (swimlanes, #222). This tab writes its copy
-// out with every board save, so an old copy here would undo them.
+// Another tab wrote settings no event carries (#222); this tab's old copy would undo them on its next board save.
 export async function refreshBoardSettings(boardId) {
   const db = await openStore();
   const stored = safeParseObject(await db.get(KV_STORE, keyFor(boardId, 'settings')));

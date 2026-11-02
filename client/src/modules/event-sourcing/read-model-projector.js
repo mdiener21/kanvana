@@ -62,9 +62,7 @@ export function createReadModelProjector(ctx) {
     return Boolean(batch?.pending.get(boardId)?.ids.has(event.id)) || boardMemory(boardId).appliedEventIds.has(event.id);
   }
 
-  // Board scopes remember applied ids durably. Board-less ones remember only this session,
-  // so a stored event counts as missed if it is newer than the key's newest applied one.
-  // A board deleted here keeps its events but not its memory: they must not bring it back.
+  // Board-less scopes remember ids per session, so newer-than-newest counts as missed; a deleted board's events must not revive it.
   function missedEvents(events) {
     const deleted = new Set(events.filter((event) => event.type === 'board.deleted').map((event) => event.board_id));
     const removedHere = (boardId) => deleted.has(boardId) && !state.boards.some((board) => board.id === boardId);
