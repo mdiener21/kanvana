@@ -585,4 +585,4 @@ event stream.
 Key coverage areas: storage CRUD, UUID migration, swimlane utilities, import/export preflight,
 due-date countdown, validation, normalization, subtasks, and the event-sourcing layer (HLC, reducer,
 outbound queue, realtime/catch-up, snapshots, sync indicator). Live multi-device convergence is covered
-by `tests/e2e/event-sourcing/` against a real PocketBase (`npm run test:e2e:live`; needs Docker up).
+by `tests/e2e/event-sourcing/` against a real PocketBase (`npm run test:e2e:live`; runs its own throwaway PocketBase container, so needs Docker).

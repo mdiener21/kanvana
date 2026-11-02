@@ -22,17 +22,15 @@ The canonical folder and naming conventions live in [`testing-strategy.md`](test
 - `npm run test:debug` - run Playwright debug mode
 - `npm run test:overview` - regenerate `tests/TEST-OVERVIEW.md` from test source
 
-### Live e2e prerequisite — Docker stack must be running
+### Live e2e prerequisite — Docker
 
-`npm run test:e2e:live` talks to a **real** PocketBase. Bring the Docker stack up first, from the repo root:
+`npm run test:e2e:live` talks to a **real** PocketBase. With no target, its global setup
+(`tests/e2e/event-sourcing/live-pocketbase.setup.js`) builds `backend/Dockerfile`, runs a throwaway
+container on an unused port with no volume, and removes it afterwards. It never touches the Docker
+stack on `:8090` or its `pb_data` volume. Set `PB_PROXY_TARGET` to use a PocketBase you run yourself.
 
-```bash
-docker compose up -d        # starts pocketbase (:8090) + nginx; wait for pb healthy
-curl -s -o /dev/null -w '%{http_code}' http://localhost:8090/api/health   # expect 200
-```
-
-If PocketBase is unreachable the live specs **self-skip** (they do not fail), so a green
-`test:e2e:live` with PB down means *nothing ran*. Verify PB health before trusting the result.
+A PocketBase that is not healthy fails the run in global setup. The specs' own skip when PocketBase
+is unreachable can then only fire if it dies during the run, so read a skip in the output as that.
 
 The unit, DOM, and mocked `test:e2e` suites need **no** Docker.
 
