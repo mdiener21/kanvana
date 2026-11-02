@@ -74,7 +74,7 @@ test('a task created, edited, moved and deleted on A shows on B without a reload
 });
 
 test.fixme('on the first-run board a new task lands in the same place on both devices', async ({ browser }) => {
-  // Bug: each device makes its own demo tasks with random ids, so A's renumbering misses B's and B keeps them above the new task.
+  // Bug: each device makes its own demo tasks with random ids, so A's renumbering misses B's and B keeps them above the new task (#263).
   test.slow();
   const { a, b, close } = await twoDevices(browser, await registerAccount('demo-order'));
   await addTask(a, 'To Do', 'First real task');
@@ -84,7 +84,7 @@ test.fixme('on the first-run board a new task lands in the same place on both de
 });
 
 test.fixme('on the first-run board a demo task deleted on A goes from B too', async ({ browser }) => {
-  // Bug: demo tasks are local-only with random ids, so a delete on A names an id B has never had and the card stays.
+  // Bug: demo tasks are local-only with random ids, so a delete on A names an id B has never had and the card stays (#263).
   test.slow();
   const { a, b, close } = await twoDevices(browser, await registerAccount('demo-delete'));
   const demo = 'Find out where the Soul Stone is';

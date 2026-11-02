@@ -81,7 +81,7 @@ test('the month buttons show the due counts of the other months', async ({ page 
 });
 
 test.fixme('clicking a day in another month lists its tasks', async ({ page }) => {
-  // Bug: the grid's click handler is bound once and keeps the first month's task map, so other months always list 0 tasks.
+  // Bug: the grid's click handler is bound once and keeps the first month's task map, so other months always list 0 tasks (#260).
   await buildBoard(page);
   await followMenuLink(page, 'View Calendar');
   await expect(page.locator('#calendar-month-label')).toHaveText('November 2026');

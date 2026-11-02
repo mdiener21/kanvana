@@ -43,7 +43,7 @@ async function deleteColumn(page: Page, name: string): Promise<void> {
 }
 
 test.fixme('new columns go before the permanent Done column', async ({ page }) => {
-  // Bug: addColumn sets order to maxOrder - 1, so on a board whose columns have no order (every default board) it lands first.
+  // Bug: addColumn sets order to maxOrder - 1, so on a board whose columns have no order (every default board) it lands first (#259).
   await openBlankBoard(page);
   await addColumn(page, 'Review');
   await expect(columnHeadings(page)).toHaveText(['To Do', 'In Progress', 'Review', 'Done']);
@@ -114,6 +114,18 @@ test('deleting a column asks first and takes its tasks with it', async ({ page }
   await expect(columnHeadings(page)).toHaveText(['To Do', 'In Progress', 'Done']);
   await expect(allCards(page)).toHaveCount(1);
   await expect(card(page, 'Stays')).toBeVisible();
+});
+
+test.fixme('a deleted column stays deleted after an immediate reload', async ({ page }) => {
+  // Bug: edits are saved fire-and-forget, so a reload right after the delete can lose it (#256).
+  await openBlankBoard(page);
+  await addColumn(page, 'Review');
+  await addTask(page, 'Review', 'Goes away');
+  await addTask(page, 'To Do', 'Stays');
+
+  await deleteColumn(page, 'Review');
+  await confirm(page, 'Delete Column', 'Delete');
+  await expect(columnHeadings(page)).toHaveText(['To Do', 'In Progress', 'Done']);
 
   await reloadBoard(page);
   await expect(columnHeadings(page)).toHaveText(['To Do', 'In Progress', 'Done']);

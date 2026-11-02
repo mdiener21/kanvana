@@ -158,14 +158,14 @@ test('the exported file records its metadata, UUID ids and the Done role', async
 });
 
 test.fixme('the export file is named {boardName}-YYYY-MM-DD.json', async ({ page }) => {
-  // Bug: the spec names it "Launch Plan-2026-11-12.json"; the app writes Launch_Plan_board_<ISO timestamp>.json.
+  // Bug: the spec names it "Launch Plan-2026-11-12.json"; the app writes Launch_Plan_board_<ISO timestamp>.json (#262).
   await openBlankBoard(page, BOARD);
   const { filename } = await exportBoardFile(page, BOARD);
   expect(filename).toBe(`${BOARD}-2026-11-12.json`);
 });
 
 test.fixme('a column WIP limit survives export and import', async ({ page }) => {
-  // Bug: normalizeImportedColumns drops wipLimit, so the limit is lost though columns must round-trip.
+  // Bug: normalizeImportedColumns drops wipLimit, so the limit is lost though columns must round-trip (#257).
   await openBlankBoard(page, BOARD);
   await column(page, 'To Do').getByRole('button', { name: 'To Do column menu' }).click();
   await column(page, 'To Do').getByRole('menuitem', { name: 'Edit', exact: true }).click();
@@ -183,7 +183,7 @@ test.fixme('a column WIP limit survives export and import', async ({ page }) => 
 });
 
 test.fixme('the countdown thresholds survive export and import', async ({ page }) => {
-  // Bug: the export and import settings normalizers drop both thresholds, though settings must round-trip.
+  // Bug: the export and import settings normalizers drop both thresholds, though settings must round-trip (#258).
   await openBlankBoard(page, BOARD);
   const settings = await openSettings(page);
   const urgent = settings.getByLabel('Days until due date to show countdown in red (urgent)');
