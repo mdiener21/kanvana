@@ -83,6 +83,16 @@ audit UI, all with no third-party CRDT dependency.
   board id, so they would hydrate a `__timetracking__` snapshot as a phantom board. Time-tracking
   data should only start syncing once every client of an account runs this version.
 
+## Amendment: replay seed for demo tasks (#263)
+
+- Demo tasks have stable ids and no `task.created`, so the log can name a demo task it never created. A fold with
+  no snapshot to start from therefore starts from the demo tasks this device holds, as seeded; it is the one fold
+  whose result is not a function of the events alone, and a device that holds none stays without.
+- A device's snapshots keep those tasks. Folding them out was rejected: the events a snapshot covers are collected,
+  so their changes would survive nowhere, and adoption removes a task those events mention that the snapshot lacks.
+- The cost is that snapshots spread them: a device without demo tasks gains them by adopting a snapshot that holds
+  them. `CONTEXT.md` §9 states both limits.
+
 ## References
 
 - Plan: `docs/plans/2026-05-25-event-driven.md`

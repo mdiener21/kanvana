@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { backfillEventLog, BACKFILL_FLAG_KEY } from '../../../src/modules/event-sourcing/backfill.js';
 import { openStore, EVENTS_STORE, KV_STORE, _resetIdbForTesting } from '../../../src/modules/idb-store.js';
 import { _flushDomainEventsForTesting } from '../../../src/modules/event-sourcing/emitter.js';
@@ -48,6 +48,16 @@ beforeEach(async () => {
 });
 
 describe('event log backfill', () => {
+  test('a failed write stores neither the events nor the flag, so the next launch backfills again', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await backfillEventLog({ ...ctx(), settingsFor: () => ({ notCloneable: () => {} }) });
+    await _flushDomainEventsForTesting();
+
+    expect(await storedEvents()).toEqual([]);
+    expect(await (await openStore()).get(KV_STORE, BACKFILL_FLAG_KEY)).toBeUndefined();
+    consoleError.mockRestore();
+  });
+
   test('emits a created event for every pre-existing entity', async () => {
     const result = await backfillEventLog(ctx());
     await _flushDomainEventsForTesting();

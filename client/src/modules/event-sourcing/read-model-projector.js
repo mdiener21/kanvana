@@ -16,7 +16,7 @@ export function createReadModelProjector(ctx) {
     loadGlobalSettings,
     safeParseArray,
     safeParseObject,
-    unemittedTasks,
+    demoTasksForReplay,
     schedulePersist,
     scheduleReadModelPersist,
     checkAndScheduleSnapshot,
@@ -200,7 +200,7 @@ export function createReadModelProjector(ctx) {
     }
     return applyEvents(createProjectionState({
       boards: (base?.boards || []).filter((board) => board.id === key),
-      tasks: base?.tasks ?? unemittedTasks(key, liveBoard(key).tasks),
+      tasks: base?.tasks ?? demoTasksForReplay(key, liveBoard(key).tasks),
       columns: base?.columns,
       labels: base?.labels,
       settings: { ...(live ? liveBoard(key).settings : {}), ...(base?.settings || {}) },

@@ -14,7 +14,7 @@ import {
   reloadBoard,
 } from './journey.helpers.js';
 
-// A journey reads IndexedDB only here: what reaches other devices does not show in this page's UI.
+// What reaches other devices does not show in this page's UI, so this check reads the event store.
 async function storedEventTypes(page: Page): Promise<string[]> {
   return page.evaluate(() => new Promise<string[]>((resolve, reject) => {
     const open = indexedDB.open('kanvana-db');
@@ -142,10 +142,10 @@ test('a deleted column stays deleted after an immediate reload', async ({ page }
   await expect(columnHeadings(page)).toHaveText(['To Do', 'In Progress', 'Done']);
 
   await reloadBoard(page);
-  await expect.soft(columnHeadings(page), 'reload check').toHaveText(['To Do', 'In Progress', 'Done']);
-  await expect.soft(allCards(page), 'reload check').toHaveCount(1);
+  await expect(columnHeadings(page)).toHaveText(['To Do', 'In Progress', 'Done']);
+  await expect(allCards(page)).toHaveCount(1);
   // Without its stored event the delete would look saved here but never reach other devices.
-  expect.soft(await storedEventTypes(page), 'stored event check').toContain('column.deleted');
+  expect(await storedEventTypes(page)).toContain('column.deleted');
 });
 
 test('the Done column cannot be deleted', async ({ page }) => {

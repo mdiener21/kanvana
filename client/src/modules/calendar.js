@@ -233,7 +233,7 @@ function renderDueDateCalendar({ tasks, monthDate, boardId }) {
     renderSelectedList();
   };
 
-  // Replace the previous render's handler: each one closes over its own month's tasks.
+  // Replace the previous render's handler: each one closes over its own month's tasks (#260).
   calendarEl.onclick = handleCalendarClick;
 
   renderGrid();

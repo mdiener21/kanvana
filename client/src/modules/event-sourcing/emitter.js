@@ -1,6 +1,7 @@
 import { generateUUID } from '../utils.js';
 import { emitLocalSync } from './hlc.js';
 import { EVENT_ORIGIN, ingestEvent } from './ingest.js';
+import { logWriteFailure } from '../idb-store.js';
 
 const DEFAULT_ACTOR = { type: 'human', id: null };
 const pendingDomainEvents = new Set();
@@ -21,7 +22,7 @@ function buildDomainEvent({ type, scope = 'board', boardId = null, entityId = ''
 
 export function scheduleDomainEvent(input) {
   const pending = ingestEvent(buildDomainEvent(input), { origin: EVENT_ORIGIN.LOCAL }).catch((err) => {
-    console.error('[Kanvana] Event persistence failed', err);
+    logWriteFailure('Event persistence failed', err);
   });
   pendingDomainEvents.add(pending);
   pending.finally(() => pendingDomainEvents.delete(pending));

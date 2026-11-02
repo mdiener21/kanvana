@@ -1,3 +1,5 @@
+import { isDoneColumn } from './constants.js';
+
 /**
  * Returns '#000000' or '#ffffff' for readable text on the given hex background.
  * Uses perceived luminance: (R*299 + G*587 + B*114) / 1000.
@@ -22,3 +24,6 @@ export function generateUUID() {
 }
 
 export const byOrder = (a, b) => (a.order ?? 0) - (b.order ?? 0);
+
+// Concurrent adds and reorders can tie on order; Done goes after its tie, on every device, without pinning it to the end (#259).
+export const byColumnOrder = (a, b) => byOrder(a, b) || Number(isDoneColumn(a)) - Number(isDoneColumn(b));

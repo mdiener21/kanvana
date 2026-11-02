@@ -22,6 +22,7 @@ let _pinnedGeneration = null;
 let _dataReplaced = false;
 let _writeBatch = null;
 let _onDataReplaced = null;
+const _loggedFailures = new WeakSet();
 
 // In-flight persist Promises — used by _flushPersistsForTesting().
 const _pendingPersists = new Set();
@@ -98,8 +99,18 @@ export async function writeIfDataCurrent(storeName, write) {
   return guardedWrite(await getDB(), storeName, write);
 }
 
+// Every write of a failed batch rejects with the same error, so it is logged once however many writers report it.
+export function logWriteFailure(message, err) {
+  if (err !== null && typeof err === 'object') {
+    if (_loggedFailures.has(err)) return;
+    _loggedFailures.add(err);
+  }
+  console.error(`[Kanvana] ${message}`, err);
+}
+
 // A batch commits before it could read the generation, so a wipe's marker fails it instead: add() is refused if the marker exists.
-async function settleWriteBatch(tx) {
+async function settleWriteBatch(batch) {
+  const { tx } = batch;
   const kv = tx.objectStore(KV_STORE);
   const marker = dataReplacedKey(_pinnedGeneration);
   const replaced = kv.add(true, marker).then(() => false, (err) => err?.name === 'ConstraintError');
@@ -108,7 +119,7 @@ async function settleWriteBatch(tx) {
     await tx.done;
     return true;
   } catch (err) {
-    if (!await replaced) throw err;
+    if (!await replaced) throw batch.cause ?? err;
     noteDataReplaced();
     return false;
   }
@@ -117,7 +128,8 @@ async function settleWriteBatch(tx) {
 // Commit in the task that made the writes: Chromium finishes a committed transaction through a reload, and the screen has not painted yet.
 function openWriteBatch() {
   const tx = _db.transaction(WRITE_BATCH_STORES, 'readwrite');
-  const batch = { tx, written: settleWriteBatch(tx) };
+  const batch = { tx, cause: null };
+  batch.written = settleWriteBatch(batch);
   queueMicrotask(() => {
     if (_writeBatch === batch) _writeBatch = null;
     try { tx.commit?.(); } catch { /* a failed write already aborted it */ }
@@ -130,15 +142,14 @@ function openWriteBatch() {
 async function batchedWrite(storeName, write) {
   if (_dataReplaced) return false;
   _writeBatch ??= openWriteBatch();
-  const { tx, written } = _writeBatch;
+  const batch = _writeBatch;
   try {
-    Promise.resolve(write(tx.objectStore(storeName))).catch(() => {}); // A failed request aborts the transaction, which written reports.
+    Promise.resolve(write(batch.tx.objectStore(storeName))).catch(() => {}); // A failed request aborts the transaction, which written reports.
   } catch (err) {
-    try { tx.abort(); } catch { /* an earlier write of this tick already aborted it */ }
-    await written.catch(() => {});
-    throw err;
+    batch.cause ??= err;
+    try { batch.tx.abort(); } catch { /* an earlier write of this tick already aborted it */ }
   }
-  return written;
+  return batch.written;
 }
 
 async function migrateReadModelFromKv(db) {
@@ -166,7 +177,7 @@ async function migrateReadModelFromKv(db) {
 export function schedulePersist(key, value) {
   if (!_db) return; // IDB not yet initialised (e.g. during testing without initStorage)
   const p = batchedWrite(KV_STORE, (store) => store.put(value, key)).catch((err) => {
-    console.error('[Kanvana] IDB persist failed for key', key, err);
+    logWriteFailure(`IDB persist failed for key ${key}`, err);
   });
   _pendingPersists.add(p);
   p.finally(() => _pendingPersists.delete(p));
@@ -175,7 +186,7 @@ export function schedulePersist(key, value) {
 export function scheduleDelete(key) {
   if (!_db) return;
   const p = batchedWrite(KV_STORE, (store) => store.delete(key)).catch((err) => {
-    console.error('[Kanvana] IDB delete failed for key', key, err);
+    logWriteFailure(`IDB delete failed for key ${key}`, err);
   });
   _pendingPersists.add(p);
   p.finally(() => _pendingPersists.delete(p));
@@ -184,7 +195,7 @@ export function scheduleDelete(key) {
 export function scheduleReadModelPersist(boardId, kind, value) {
   if (!_db) return;
   const p = batchedWrite(READ_MODEL_STORE, (store) => store.put(value, readModelKeyFor(boardId, kind))).catch((err) => {
-    console.error('[Kanvana] IDB read-model persist failed for key', readModelKeyFor(boardId, kind), err);
+    logWriteFailure(`IDB read-model persist failed for key ${readModelKeyFor(boardId, kind)}`, err);
   });
   _pendingPersists.add(p);
   p.finally(() => _pendingPersists.delete(p));
@@ -193,7 +204,7 @@ export function scheduleReadModelPersist(boardId, kind, value) {
 export function scheduleReadModelDelete(boardId, kind) {
   if (!_db) return;
   const p = batchedWrite(READ_MODEL_STORE, (store) => store.delete(readModelKeyFor(boardId, kind))).catch((err) => {
-    console.error('[Kanvana] IDB read-model delete failed for key', readModelKeyFor(boardId, kind), err);
+    logWriteFailure(`IDB read-model delete failed for key ${readModelKeyFor(boardId, kind)}`, err);
   });
   _pendingPersists.add(p);
   p.finally(() => _pendingPersists.delete(p));

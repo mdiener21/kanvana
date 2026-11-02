@@ -9,7 +9,7 @@
 // device builds each board before populating it. Projection is a no-op (the
 // reducer's create handlers dedup on entity id), so this only fills the log.
 
-import { openStore, writeIfDataCurrent, EVENTS_STORE, KV_STORE } from '../idb-store.js';
+import { openStore, schedulePersist, EVENTS_STORE, KV_STORE } from '../idb-store.js';
 import { scheduleDomainEvent } from './emitter.js';
 
 export const BACKFILL_FLAG_KEY = 'kanvana:migrations:eventBackfill:v1';
@@ -68,6 +68,7 @@ export async function backfillEventLog({ boards, columnsFor, labelsFor, tasksFor
     }
   }
 
-  await writeIfDataCurrent(KV_STORE, (store) => store.put({ at: new Date().toISOString(), emitted }, BACKFILL_FLAG_KEY));
+  // Same tick, so same write batch as the events: the flag can not land without them, and boot does not wait on a commit (#256).
+  schedulePersist(BACKFILL_FLAG_KEY, { at: new Date().toISOString(), emitted });
   return { skipped: false, emitted };
 }
