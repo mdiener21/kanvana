@@ -9,6 +9,7 @@ import { deleteDB } from 'idb';
 import { server } from '../../mocks/server.js';
 import { emit, EVENT_EMITTED } from '../../../src/modules/events.js';
 import {
+  claimDataOwner,
   persistEvent,
   getUnsyncedEvents,
   _resetIdbForTesting,
@@ -16,10 +17,12 @@ import {
 import { getPb } from '../../../src/modules/sync.js';
 import {
   initSyncQueue,
+  startSyncQueue,
+  stopSyncQueue,
+  drainSyncQueue,
   scheduleDrain,
   _resetSyncQueueForTesting,
   _setTimingForTesting,
-  _isPausedForTesting,
   _settleForTesting,
   getSyncStatus,
 } from '../../../src/modules/event-sourcing/sync-queue.js';
@@ -66,8 +69,73 @@ beforeEach(async () => {
   _resetSyncQueueForTesting();
   _resetIdbForTesting();
   await deleteDB('kanvana-db');
+  await claimDataOwner('user1');
   getPb().authStore.clear();
   _setTimingForTesting({ debounceMs: 1 });
+});
+
+describe('sync-queue and the Data Owner (#221 AC-014)', () => {
+  it('stamps pushed events with the Data Owner', async () => {
+    const owners = [];
+    server.use(http.post(EVENTS_URL, async ({ request }) => {
+      owners.push((await request.json()).owner);
+      return HttpResponse.json({ id: 'rec' });
+    }));
+    await persistEvent(makeEvent());
+
+    setAuth('user1');
+    startSyncQueue();
+    await drainSyncQueue();
+
+    expect(owners).toEqual(['user1']);
+    expect(await getUnsyncedEvents()).toHaveLength(0);
+  });
+
+  it('pushes nothing when the signed-in account is not the Data Owner', async () => {
+    let posts = 0;
+    server.use(http.post(EVENTS_URL, () => { posts += 1; return HttpResponse.json({ id: 'rec' }); }));
+    await persistEvent(makeEvent());
+
+    setAuth('someone-else');
+    startSyncQueue();
+    await drainSyncQueue();
+
+    expect(posts).toBe(0);
+    expect(await getUnsyncedEvents()).toHaveLength(1);
+  });
+
+  it('pushes nothing when local data has no Data Owner yet', async () => {
+    _resetIdbForTesting();
+    await deleteDB('kanvana-db');
+    let posts = 0;
+    server.use(http.post(EVENTS_URL, () => { posts += 1; return HttpResponse.json({ id: 'rec' }); }));
+    await persistEvent(makeEvent());
+
+    setAuth('user1');
+    startSyncQueue();
+    await drainSyncQueue();
+
+    expect(posts).toBe(0);
+  });
+
+  it('stops pushing once another account signs in during a drain', async () => {
+    const owners = [];
+    server.use(http.post(EVENTS_URL, async ({ request }) => {
+      owners.push((await request.json()).owner);
+      setAuth('someone-else');
+      return HttpResponse.json({ id: 'rec' });
+    }));
+    _setTimingForTesting({ debounceMs: 1, maxInFlight: 1 });
+    await persistEvent(makeEvent({ counter: 0 }));
+    await persistEvent(makeEvent({ counter: 1 }));
+    await persistEvent(makeEvent({ counter: 2 }));
+
+    setAuth('user1');
+    startSyncQueue();
+    await drainSyncQueue();
+
+    expect(owners).toEqual(['user1']);
+  });
 });
 
 describe('sync-queue across a local snapshot (#176)', () => {
@@ -84,7 +152,7 @@ describe('sync-queue across a local snapshot (#176)', () => {
     _setTimingForTesting({ debounceMs: 1, maxInFlight: 20 });
     _setJitterForTesting(() => 0);
 
-    initSyncQueue(); // signed out = offline: nothing drains
+    initSyncQueue(); // not started: nothing drains
     const ids = [];
     for (let counter = 0; counter < SNAPSHOT_EVENT_THRESHOLD; counter++) {
       const event = makeEvent({ counter });
@@ -98,19 +166,16 @@ describe('sync-queue across a local snapshot (#176)', () => {
     expect(received).toHaveLength(0);
 
     setAuth();
-    window.dispatchEvent(new Event('auth-changed'));
+    startSyncQueue();
+    drainSyncQueue();
 
     await waitFor(async () => expect((await getUnsyncedEvents()).length).toBe(0), { timeout: 10000 });
     expect(received.sort()).toEqual(ids.sort());
   }, 20000);
 });
 
-describe('sync-queue startup', () => {
-  // Events left unsynced when a tab closed have no emit/auth/online trigger to
-  // ride in on, so they sat in IDB until the user happened to make an edit —
-  // while the header read "Live ●", because queue depth is only counted, never
-  // acted on. initRealtime() already catches up on load; the outbound half must too.
-  it('drains events left over from a previous session, with no new activity', async () => {
+describe('sync-queue commands (#219)', () => {
+  it('drains on command, with no new activity', async () => {
     const received = [];
     server.use(http.post(EVENTS_URL, async ({ request }) => {
       received.push(await request.json());
@@ -121,22 +186,158 @@ describe('sync-queue startup', () => {
     await persistEvent(makeEvent({ counter: 0, id: 'evt-leftover' }));
 
     initSyncQueue();
+    startSyncQueue();
+    drainSyncQueue();
 
     await waitFor(async () => expect((await getUnsyncedEvents()).length).toBe(0));
     expect(received.map((r) => r.local_id)).toEqual(['evt-leftover']);
   });
 
-  it('does not push on startup when signed out', async () => {
+  it('does not push on a drain command when signed out', async () => {
     let posted = 0;
     server.use(http.post(EVENTS_URL, () => { posted += 1; return HttpResponse.json({ id: 'r' }); }));
 
     await persistEvent(makeEvent({ counter: 0, id: 'evt-offline' }));
 
     initSyncQueue();
+    startSyncQueue();
+    drainSyncQueue();
     await _settleForTesting();
 
     expect(posted).toBe(0);
     expect(await getUnsyncedEvents()).toHaveLength(1);
+  });
+
+  it('does not react to an emitted event, or a drain command, until started', async () => {
+    let posted = 0;
+    server.use(http.post(EVENTS_URL, () => { posted += 1; return HttpResponse.json({ id: 'r' }); }));
+    setAuth();
+    const event = makeEvent({ counter: 0 });
+    await persistEvent(event);
+
+    initSyncQueue();
+    emit(EVENT_EMITTED, event);
+    drainSyncQueue();
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(posted).toBe(0);
+  });
+
+  it('stop cancels a pending debounced drain', async () => {
+    let posted = 0;
+    server.use(http.post(EVENTS_URL, () => { posted += 1; return HttpResponse.json({ id: 'r' }); }));
+    _setTimingForTesting({ debounceMs: 10 });
+    setAuth();
+    const event = makeEvent({ counter: 0 });
+    await persistEvent(event);
+
+    initSyncQueue();
+    startSyncQueue();
+    emit(EVENT_EMITTED, event);
+    stopSyncQueue();
+    await new Promise((r) => setTimeout(r, 40));
+
+    expect(posted).toBe(0);
+  });
+
+  it('stop cancels a pending retry and clears the retrying status', async () => {
+    let attempts = 0;
+    server.use(http.post(EVENTS_URL, () => { attempts += 1; return HttpResponse.json({ message: 'down' }, { status: 503 }); }));
+    _setTimingForTesting({ debounceMs: 1, backoff: [5] });
+    setAuth();
+    await persistEvent(makeEvent({ counter: 0 }));
+
+    initSyncQueue();
+    startSyncQueue();
+    drainSyncQueue();
+    await waitFor(async () => expect((await getSyncStatus()).retrying).toBe(true));
+    stopSyncQueue();
+    const attemptsAtStop = attempts;
+    await new Promise((r) => setTimeout(r, 40));
+
+    expect(attempts).toBe(attemptsAtStop);
+    await expect(getSyncStatus()).resolves.toMatchObject({ depth: 1, retrying: false });
+  });
+
+  it('stop ends a drain in flight: no event starts pushing after it, and no retry is scheduled', async () => {
+    let release;
+    const held = new Promise((res) => { release = res; });
+    let attempts = 0;
+    server.use(http.post(EVENTS_URL, async () => {
+      attempts += 1;
+      await held;
+      return HttpResponse.json({ message: 'down' }, { status: 503 });
+    }));
+    const retries = [];
+    _setTimingForTesting({ debounceMs: 1, maxInFlight: 1, schedule: (ms) => { retries.push(ms); return 0; } });
+    setAuth();
+    for (let counter = 0; counter < 3; counter++) await persistEvent(makeEvent({ counter }));
+
+    initSyncQueue();
+    startSyncQueue();
+    drainSyncQueue();
+    await waitFor(() => expect(attempts).toBe(1));
+
+    stopSyncQueue();
+    release();
+    await _settleForTesting();
+
+    expect(attempts).toBe(1);
+    expect(retries).toEqual([]);
+    expect(await getUnsyncedEvents()).toHaveLength(3);
+  });
+
+  it('a start during a stopped drain still pushes, once that drain has ended', async () => {
+    let release;
+    const held = new Promise((res) => { release = res; });
+    const received = [];
+    server.use(http.post(EVENTS_URL, async ({ request }) => {
+      received.push((await request.json()).local_id);
+      await held;
+      return HttpResponse.json({ id: 'rec' });
+    }));
+    _setTimingForTesting({ debounceMs: 1, maxInFlight: 1 });
+    setAuth();
+    for (let counter = 0; counter < 2; counter++) await persistEvent(makeEvent({ counter }));
+
+    initSyncQueue();
+    startSyncQueue();
+    drainSyncQueue();
+    await waitFor(() => expect(received).toHaveLength(1));
+
+    stopSyncQueue();
+    startSyncQueue();
+    drainSyncQueue();
+    release();
+
+    await waitFor(async () => expect(await getUnsyncedEvents()).toHaveLength(0));
+  });
+
+  it('pushes an event emitted during a drain, which read its list before that event existed', async () => {
+    let release;
+    const held = new Promise((res) => { release = res; });
+    const received = [];
+    server.use(http.post(EVENTS_URL, async ({ request }) => {
+      received.push((await request.json()).local_id);
+      await held;
+      return HttpResponse.json({ id: 'rec' });
+    }));
+    setAuth();
+    await persistEvent(makeEvent({ counter: 0, id: 'evt-first' }));
+
+    initSyncQueue();
+    startSyncQueue();
+    drainSyncQueue();
+    await waitFor(() => expect(received).toEqual(['evt-first']));
+
+    const late = makeEvent({ counter: 1, id: 'evt-late' });
+    await persistEvent(late);
+    emit(EVENT_EMITTED, late);
+    await new Promise((r) => setTimeout(r, 10));
+    release();
+
+    await waitFor(async () => expect(await getUnsyncedEvents()).toHaveLength(0));
+    expect(received).toEqual(['evt-first', 'evt-late']);
   });
 });
 
@@ -153,6 +354,7 @@ describe('sync-queue push', () => {
     await persistEvent(event);
 
     initSyncQueue();
+    startSyncQueue();
     emit(EVENT_EMITTED, event);
 
     await waitFor(async () => expect((await getUnsyncedEvents()).length).toBe(0));
@@ -173,6 +375,7 @@ describe('sync-queue push', () => {
     await persistEvent(event);
 
     initSyncQueue();
+    startSyncQueue();
     emit(EVENT_EMITTED, event);
 
     await waitFor(async () => expect((await getUnsyncedEvents()).length).toBe(0));
@@ -198,6 +401,7 @@ describe('sync-queue push', () => {
     for (let i = 0; i < 50; i++) await persistEvent(makeEvent({ counter: i }));
 
     initSyncQueue();
+    startSyncQueue();
     emit(EVENT_EMITTED, makeEvent({ counter: 0 }));
 
     await waitFor(async () => expect((await getUnsyncedEvents()).length).toBe(0), { timeout: 4000 });
@@ -217,6 +421,7 @@ describe('sync-queue push', () => {
     for (const c of [3, 1, 4, 2, 0]) await persistEvent(makeEvent({ counter: c }));
 
     initSyncQueue();
+    startSyncQueue();
     emit(EVENT_EMITTED, makeEvent({ counter: 0 }));
 
     await waitFor(() => expect(received).toHaveLength(5));
@@ -236,6 +441,7 @@ describe('sync-queue push', () => {
     await persistEvent(event);
 
     initSyncQueue();
+    startSyncQueue();
     emit(EVENT_EMITTED, event);
 
     await waitFor(() => expect(attempts).toBe(1));
@@ -244,14 +450,14 @@ describe('sync-queue push', () => {
     expect(unsynced[0].id).toBe(event.id);
   });
 
-  it('AC-006: resumes on the online event without waiting for backoff', async () => {
+  it('AC-006: a drain command resumes without waiting for backoff', async () => {
     let attempts = 0;
     server.use(http.post(EVENTS_URL, async () => {
       attempts += 1;
       if (attempts === 1) return HttpResponse.error(); // simulate offline
       return HttpResponse.json({ id: 'rec-ok' });
     }));
-    // Capture the backoff callback but never fire it — only `online` may resume.
+    // Capture the backoff callback but never fire it — only the command may resume.
     _setTimingForTesting({ debounceMs: 1, schedule: () => 0 });
 
     setAuth();
@@ -259,41 +465,20 @@ describe('sync-queue push', () => {
     await persistEvent(event);
 
     initSyncQueue();
+    startSyncQueue();
     emit(EVENT_EMITTED, event);
 
     await waitFor(() => expect(attempts).toBe(1));
+    await _settleForTesting();
     expect(await getUnsyncedEvents()).toHaveLength(1);
 
-    window.dispatchEvent(new Event('online'));
+    drainSyncQueue();
 
     await waitFor(async () => expect((await getUnsyncedEvents()).length).toBe(0));
     expect(attempts).toBe(2);
   });
 
-  it('drains pre-existing unsynced events when auth changes after login', async () => {
-    let attempts = 0;
-    server.use(http.post(EVENTS_URL, async () => {
-      attempts += 1;
-      return HttpResponse.json({ id: 'rec-ok' });
-    }));
-    _setTimingForTesting({ debounceMs: 1 });
-
-    const event = makeEvent({ counter: 0 });
-    await persistEvent(event);
-
-    initSyncQueue();
-    await new Promise(r => setTimeout(r, 20));
-    expect(attempts).toBe(0);
-    expect(await getUnsyncedEvents()).toHaveLength(1);
-
-    setAuth();
-    window.dispatchEvent(new Event('auth-changed'));
-
-    await waitFor(async () => expect((await getUnsyncedEvents()).length).toBe(0));
-    expect(attempts).toBe(1);
-  });
-
-  it('AC-007: pauses on auth failure and resumes on auth-changed', async () => {
+  it('AC-007: stops and reports on auth failure; a restart resumes', async () => {
     let attempts = 0;
     server.use(http.post(EVENTS_URL, async () => {
       attempts += 1;
@@ -301,28 +486,30 @@ describe('sync-queue push', () => {
       return HttpResponse.json({ id: 'rec-ok' });
     }));
     _setTimingForTesting({ debounceMs: 1 });
+    let rejections = 0;
 
     setAuth();
     const event = makeEvent({ counter: 0 });
     await persistEvent(event);
 
     initSyncQueue();
+    startSyncQueue({ onAuthRejected: () => { rejections += 1; } });
     emit(EVENT_EMITTED, event);
 
-    await waitFor(() => expect(attempts).toBe(1));
-    expect(_isPausedForTesting()).toBe(true);
+    await waitFor(() => expect(rejections).toBe(1));
+    expect(attempts).toBe(1);
     expect(await getUnsyncedEvents()).toHaveLength(1);
 
-    // Further emissions are ignored while paused.
+    // Further emissions are ignored while stopped.
     emit(EVENT_EMITTED, event);
     await new Promise(r => setTimeout(r, 20));
     expect(attempts).toBe(1);
 
-    window.dispatchEvent(new Event('auth-changed'));
+    startSyncQueue();
+    drainSyncQueue();
 
     await waitFor(async () => expect((await getUnsyncedEvents()).length).toBe(0));
     expect(attempts).toBe(2);
-    expect(_isPausedForTesting()).toBe(false);
   });
 
   it('AC-011: network failures advance the backoff tiers, capped at 5min', async () => {
@@ -338,6 +525,7 @@ describe('sync-queue push', () => {
     setAuth();
     await persistEvent(makeEvent({ counter: 0 }));
     initSyncQueue();
+    startSyncQueue();
     emit(EVENT_EMITTED, makeEvent({ counter: 0 }));
 
     await waitFor(() => expect(calls).toEqual([5000]));
@@ -357,11 +545,12 @@ describe('sync-queue push', () => {
     setAuth();
     await persistEvent(makeEvent({ counter: 0 }));
     initSyncQueue();
+    startSyncQueue();
     emit(EVENT_EMITTED, makeEvent({ counter: 0 }));
 
     await waitFor(() => expect(calls).toEqual([60 * 60 * 1000]));
     expect(await getUnsyncedEvents()).toHaveLength(1);
-    await expect(getSyncStatus()).resolves.toMatchObject({ depth: 1, retrying: true, paused: false });
+    await expect(getSyncStatus()).resolves.toMatchObject({ depth: 1, retrying: true });
   });
 });
 
@@ -390,13 +579,14 @@ describe('sync-queue duplicate rejection (#217)', () => {
     setAuth();
     await persistEvent(makeEvent({ counter: 0, id: 'evt-already-on-server' }));
     initSyncQueue();
+    startSyncQueue();
     emit(EVENT_EMITTED, makeEvent({ counter: 0 }));
 
     await waitFor(async () => expect((await getUnsyncedEvents()).length).toBe(0));
     await _settleForTesting();
     expect(attempts).toBe(1);
     expect(calls).toEqual([]);
-    await expect(getSyncStatus()).resolves.toMatchObject({ depth: 0, retrying: false, paused: false });
+    await expect(getSyncStatus()).resolves.toMatchObject({ depth: 0, retrying: false });
   });
 
   it.each([
@@ -416,6 +606,7 @@ describe('sync-queue duplicate rejection (#217)', () => {
     setAuth();
     await persistEvent(makeEvent({ counter: 0 }));
     initSyncQueue();
+    startSyncQueue();
     emit(EVENT_EMITTED, makeEvent({ counter: 0 }));
 
     await waitFor(() => expect(calls).toEqual([60 * 60 * 1000]));

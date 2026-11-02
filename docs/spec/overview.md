@@ -126,8 +126,9 @@ All canonical specs live under `docs/spec/`. Start here when adding, changing, o
 
 - `hlc.js` - Hybrid Logical Clock: monotonic stamps with a persisted node id; `compareHlc` total ordering
 - `emitter.js` / `ingest.js` - emit domain events from feature modules; `ingestEvent()` is the single path (local and remote) into the reducer projection + IDB event store
+- `sync-session.js` - sync lifecycle state machine: owns the auth, `online` and `offline` triggers and starts and stops the queue, realtime and snapshot upload
 - `sync-queue.js` - outbound push queue: drains unsynced events to PocketBase in HLC order (in-flight cap, debounce, three-tier retry); `getSyncStatus()` for the indicator
-- `realtime.js` - inbound SSE subscription + launch/reconnect catch-up pull; `isRealtimeActive()`
+- `realtime.js` - inbound SSE subscription + catch-up pull, run by the session; `isRealtimeActive()`
 - `snapshot.js` / `snapshot-sync.js` - client-side board snapshots, upload to PocketBase, and event GC
 - `sync-indicator.js` - header sync-state indicator (`Live` / `Syncing… (N)` / `⚠ N unsynced` / `Offline`)
 

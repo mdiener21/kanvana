@@ -5,10 +5,12 @@ import { waitFor } from '@testing-library/dom';
 import { http, HttpResponse } from 'msw';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { server } from '../../mocks/server.js';
+import { deleteDB } from 'idb';
 import { getPb } from '../../../src/modules/sync.js';
+import { claimDataOwner, _resetIdbForTesting } from '../../../src/modules/idb-store.js';
 import { createProjectionState } from '../../../src/modules/reducer.js';
 import { GLOBAL_SNAPSHOT_KEY, GRACE_WINDOW_MS, TIMETRACKING_SNAPSHOT_KEY } from '../../../src/modules/event-sourcing/snapshot.js';
-import { SERVER_CLOCK_MARGIN_MS, uploadSnapshot, buildSnapshotForm } from '../../../src/modules/event-sourcing/snapshot-sync.js';
+import { SERVER_CLOCK_MARGIN_MS, uploadSnapshot, buildSnapshotForm, stopSnapshotSync } from '../../../src/modules/event-sourcing/snapshot-sync.js';
 
 const SNAP_LIST = '*/api/collections/snapshots/records';
 const SNAP_DELETE = '*/api/collections/snapshots/records/:id';
@@ -33,10 +35,64 @@ const state = createProjectionState({ boards: [{ id: 'board-1', name: 'B' }] });
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 afterAll(() => server.close());
-beforeEach(() => { getPb().authStore.clear(); });
+beforeEach(async () => {
+  getPb().authStore.clear();
+  _resetIdbForTesting();
+  await deleteDB('kanvana-db');
+  await claimDataOwner('user1');
+});
 afterEach(() => { server.resetHandlers(); getPb().authStore.clear(); });
 
 describe('snapshot upload', () => {
+  it('sends nothing when the signed-in account is not the Data Owner (#221)', async () => {
+    let requests = 0;
+    server.use(
+      http.get(SNAP_LIST, () => { requests += 1; return listResponse([]); }),
+      http.post(SNAP_LIST, () => { requests += 1; return HttpResponse.json({ id: 'snap-new' }); }),
+    );
+    setAuth('someone-else');
+
+    const res = await uploadSnapshot('board-1', state, hlc(10));
+
+    expect(res).toEqual({ skipped: 'not-owner' });
+    expect(requests).toBe(0);
+  });
+
+  it('runs no event cleanup once another account signs in during an upload (#221)', async () => {
+    let eventCleanups = 0;
+    server.use(
+      http.get(SNAP_LIST, () => listResponse([])),
+      http.post(SNAP_LIST, () => { setAuth('someone-else'); return HttpResponse.json({ id: 'snap-new' }); }),
+      http.get(EVT_LIST, () => { eventCleanups += 1; return listResponse([]); }),
+    );
+    setAuth('user1');
+
+    const res = await uploadSnapshot('board-1', state, hlc(10));
+
+    expect(res).toEqual({ uploaded: 'snap-new' });
+    expect(eventCleanups).toBe(0);
+  });
+
+  it('sends nothing more once stopped during an upload (#219)', async () => {
+    let release;
+    const held = new Promise((res) => { release = res; });
+    let listed = 0;
+    let created = 0;
+    server.use(
+      http.get(SNAP_LIST, async () => { listed += 1; await held; return listResponse([]); }),
+      http.post(SNAP_LIST, () => { created += 1; return HttpResponse.json({ id: 'snap-new' }); }),
+    );
+    setAuth();
+    const upload = uploadSnapshot('board-1', state, hlc(10));
+    await waitFor(() => expect(listed).toBe(1));
+
+    stopSnapshotSync();
+    release();
+
+    await expect(upload).resolves.toEqual({ skipped: 'stopped' });
+    expect(created).toBe(0);
+  });
+
   it('skips when unauthenticated', async () => {
     const res = await uploadSnapshot('board-1', state, hlc(10));
     expect(res.skipped).toBe('unauth');

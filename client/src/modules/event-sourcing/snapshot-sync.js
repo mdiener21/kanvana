@@ -6,10 +6,14 @@
 // snapshot HLC). Race-on-write: highest HLC wins, losers discarded (PRD #23).
 
 import { getPb, isAuthenticated, getUser } from '../sync.js';
+import { getDataOwner } from '../idb-store.js';
 import { compareHlc } from './hlc.js';
-import { serializeState, GLOBAL_SNAPSHOT_KEY, isOlderThanGraceWindow, scopeForSnapshotKey, setAfterSnapshotSaved } from './snapshot.js';
+import { serializeState, GLOBAL_SNAPSHOT_KEY, isOlderThanGraceWindow, loadSnapshot, scopeForSnapshotKey, setAfterSnapshotSaved } from './snapshot.js';
 import { createProjectionState } from '../reducer.js';
 import { EVENT_SCOPE } from '../constants.js';
+
+let _uploadGeneration = 0;
+let _uploading = false;
 
 // PB snapshots have no scope column: global keeps its legacy empty board_id,
 // every other key (board ids, the timetracking sentinel) is stored as-is.
@@ -63,30 +67,37 @@ export async function uploadSnapshot(key, state, hlc) {
   if (!isAuthenticated()) return { skipped: 'unauth' };
 
   const pb = getPb();
-  const ownerId = getUser()?.id;
+  const generation = _uploadGeneration;
+  // Another tab can change the auth store under a running upload; the cleanup below must not run as anyone else (ADR-0006).
+  const ownerId = await getDataOwner();
+  if (getUser()?.id !== ownerId) return { skipped: 'not-owner' };
   const boardId = boardIdFor(key);
+  const stopped = () => generation !== _uploadGeneration || getUser()?.id !== ownerId;
 
   const existing = await pb.collection('snapshots').getFullList({
     filter: snapshotFilter(ownerId, boardId),
     requestKey: null,
   });
+  if (stopped()) return { skipped: 'stopped' };
 
   // Pre-flight (AC-009): skip if the server already covers this HLC.
   const covered = existing.some(s => s.hlc && compareHlc(s.hlc, hlc) >= 0);
   if (covered) return { skipped: 'covered' };
 
   const payload = await gzipJson(serializeState(state));
+  if (stopped()) return { skipped: 'stopped' };
   const form = buildSnapshotForm(ownerId, boardId, hlc, payload);
   const created = await pb.collection('snapshots').create(form, { requestKey: null });
 
   // Arbitration (AC-009): drop every prior snapshot for this board — local HLC
   // is the new winner (none were >= it, checked above).
   for (const s of existing) {
+    if (stopped()) return { uploaded: created.id };
     await pb.collection('snapshots').delete(s.id, { requestKey: null });
   }
 
   // Server-side GC (AC-010): delete events covered by the snapshot HLC.
-  await gcServerEvents(pb, ownerId, key, hlc);
+  if (!stopped()) await gcServerEvents(pb, ownerId, key, hlc, stopped);
 
   return { uploaded: created.id };
 }
@@ -94,13 +105,14 @@ export async function uploadSnapshot(key, state, hlc) {
 export const SERVER_CLOCK_MARGIN_MS = 60 * 60 * 1000;
 
 // The server hook judges the grace window by its own clock: keep a margin, and skip a delete it still refuses.
-async function gcServerEvents(pb, ownerId, key, snapshotHlc) {
+async function gcServerEvents(pb, ownerId, key, snapshotHlc, stopped) {
   const events = await pb.collection('events').getFullList({
     filter: eventFilter(ownerId, key),
     requestKey: null,
   });
   const cutoff = Date.now() - SERVER_CLOCK_MARGIN_MS;
   for (const e of events) {
+    if (stopped()) return;
     if (!e.hlc || compareHlc(e.hlc, snapshotHlc) > 0 || !isOlderThanGraceWindow(e.hlc, cutoff)) continue;
     try {
       await pb.collection('events').delete(e.id, { requestKey: null });
@@ -152,6 +164,7 @@ export async function downloadAllSnapshots() {
 
   const out = [];
   for (const [key, record] of winners) {
+    if (!isAuthenticated()) break; // signed out mid-way: nothing more may reach the server
     const snapshot = await inflate(pb, record);
     if (snapshot) out.push({ key, ...snapshot });
   }
@@ -173,6 +186,21 @@ async function inflate(pb, record) {
   }) };
 }
 
-export function initSnapshotSync() {
+export function startSnapshotSync() {
+  _uploading = true;
   setAfterSnapshotSaved(uploadSnapshot);
+}
+
+// A snapshot another tab saved (#222), which only the leader may upload.
+export async function uploadStoredSnapshot(key) {
+  if (!_uploading) return;
+  const stored = await loadSnapshot(key);
+  if (stored) await uploadSnapshot(key, stored.state, stored.hlc);
+}
+
+// Snapshots keep being taken locally; only the upload stops, including one in flight.
+export function stopSnapshotSync() {
+  _uploading = false;
+  setAfterSnapshotSaved(null);
+  _uploadGeneration += 1;
 }

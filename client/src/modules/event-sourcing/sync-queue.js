@@ -3,9 +3,9 @@
 // parallel, and flips synced=true on success. Never rolls back local state:
 // a PB rejection leaves the event queued for a tiered retry.
 
-import { EVENT_EMITTED, on } from '../events.js';
+import { EVENT_EMITTED, off, on } from '../events.js';
 import { getPb, isAuthenticated, getUser } from '../sync.js';
-import { getUnsyncedEvents, markEventSynced } from '../idb-store.js';
+import { getDataOwner, getUnsyncedEvents, markEventSynced } from '../idb-store.js';
 import { compareHlc } from './hlc.js';
 
 const DEFAULT_DEBOUNCE_MS = 500;
@@ -22,12 +22,15 @@ let _schedule = (ms, fn) => setTimeout(fn, ms);
 let _debounceTimer = null;
 let _retryTimer = null;
 let _draining = false;
-let _paused = false;
+let _running = false;
+let _generation = 0; // bumped on stop, so a drain in flight can tell it was stopped
+let _drainRequested = false;
+let _onAuthRejected = null;
 let _retryIndex = 0;
-let _initialized = false;
-let _handlers = null;
+let _emittedHandler = null;
 let _inFlightDrain = null;
 let _retrying = false;
+let _peerRetrying = false; // the leader tab's, in a follower tab (#222)
 
 function notifySyncStatusChanged() {
   if (typeof window !== 'undefined') {
@@ -36,33 +39,37 @@ function notifySyncStatusChanged() {
 }
 
 export function initSyncQueue() {
-  if (_initialized || typeof window === 'undefined') return;
-  _initialized = true;
-  _handlers = {
-    emitted: () => scheduleDrain(),
-    online: () => drainNow(),
-    auth: () => {
-      if (_paused) _paused = false;
-      drainNow();
-    },
-  };
-  on(EVENT_EMITTED, _handlers.emitted);
-  window.addEventListener('online', _handlers.online);
-  window.addEventListener('auth-changed', _handlers.auth);
-  // Events left unsynced when the tab closed have no emit/auth/online trigger to
-  // ride in on; without this they sit until the user happens to make an edit.
-  if (isAuthenticated()) scheduleDrain();
+  if (_emittedHandler || typeof window === 'undefined') return;
+  _emittedHandler = () => scheduleDrain();
+  on(EVENT_EMITTED, _emittedHandler);
+}
+
+// The session decides when the queue runs; a 401/403 push stops the queue, then fires onAuthRejected.
+export function startSyncQueue({ onAuthRejected } = {}) {
+  _running = true;
+  _onAuthRejected = onAuthRejected ?? null;
+}
+
+export function stopSyncQueue() {
+  _running = false;
+  _generation += 1;
+  if (_debounceTimer) { clearTimeout(_debounceTimer); _debounceTimer = null; }
+  if (_retryTimer) { clearTimeout(_retryTimer); _retryTimer = null; }
+  _retryIndex = 0;
+  _retrying = false;
+  notifySyncStatusChanged();
 }
 
 export function scheduleDrain() {
+  if (!_running) return;
   if (_debounceTimer) clearTimeout(_debounceTimer);
   _debounceTimer = setTimeout(() => { _debounceTimer = null; drain(); }, _debounceMs);
 }
 
-function drainNow() {
+export function drainSyncQueue() {
   if (_debounceTimer) { clearTimeout(_debounceTimer); _debounceTimer = null; }
   if (_retryTimer) { clearTimeout(_retryTimer); _retryTimer = null; }
-  drain();
+  return drain();
 }
 
 // The server holds a unique index on (owner, local_id) (#217). PocketBase 0.40
@@ -118,20 +125,34 @@ function scheduleRetry(ms) {
 }
 
 function drain() {
-  if (_draining || _paused || !isAuthenticated()) return _inFlightDrain || Promise.resolve();
+  if (!_running || !isAuthenticated()) return _inFlightDrain || Promise.resolve();
+  if (_draining) {
+    // That drain read its list earlier, and may be one that was stopped.
+    _drainRequested = true;
+    return _inFlightDrain;
+  }
   _draining = true;
   notifySyncStatusChanged();
   _inFlightDrain = runDrain().finally(() => {
     _draining = false;
     notifySyncStatusChanged();
+    if (_drainRequested) {
+      _drainRequested = false;
+      drain();
+    }
   });
   return _inFlightDrain;
 }
 
 async function runDrain() {
+  const generation = _generation;
+  const stopped = () => generation !== _generation;
   const pb = getPb();
-  const ownerId = getUser()?.id;
-  const events = (await getUnsyncedEvents()).sort((a, b) => compareHlc(a.hlc, b.hlc));
+  // Events belong to the Data Owner, whoever is signed in by now; another tab can change the auth store mid-drain (ADR-0006).
+  const [ownerId, unsynced] = await Promise.all([getDataOwner(), getUnsyncedEvents()]);
+  const accountChanged = () => !ownerId || getUser()?.id !== ownerId;
+  const events = unsynced.sort((a, b) => compareHlc(a.hlc, b.hlc));
+  if (stopped() || accountChanged()) return;
   if (events.length === 0) { _retryIndex = 0; _retrying = false; return; }
   _retrying = false;
 
@@ -140,7 +161,7 @@ async function runDrain() {
   let failure = null; // 'network' | 'permanent'
 
   async function worker() {
-    while (cursor < events.length && !authFailure) {
+    while (cursor < events.length && !authFailure && !stopped() && !accountChanged()) {
       const event = events[cursor++];
       try {
         await pushEvent(pb, ownerId, event);
@@ -159,7 +180,12 @@ async function runDrain() {
   const workers = Math.min(_maxInFlight, events.length);
   await Promise.all(Array.from({ length: workers }, worker));
 
-  if (authFailure) { _paused = true; return; }
+  if (stopped()) return;
+  if (authFailure) {
+    stopSyncQueue();
+    _onAuthRejected?.();
+    return;
+  }
   if (failure === 'network') scheduleRetry(nextBackoff());
   else if (failure === 'permanent') scheduleRetry(PERMANENT_RETRY_MS);
   else { _retryIndex = 0; _retrying = false; }
@@ -168,18 +194,18 @@ async function runDrain() {
 export function _resetSyncQueueForTesting() {
   if (_debounceTimer) clearTimeout(_debounceTimer);
   if (_retryTimer) clearTimeout(_retryTimer);
-  if (_initialized && _handlers && typeof window !== 'undefined') {
-    window.removeEventListener('online', _handlers.online);
-    window.removeEventListener('auth-changed', _handlers.auth);
-  }
+  if (_emittedHandler) off(EVENT_EMITTED, _emittedHandler);
   _debounceTimer = null;
   _retryTimer = null;
   _draining = false;
-  _paused = false;
+  _running = false;
+  _generation += 1;
+  _drainRequested = false;
+  _onAuthRejected = null;
   _retryIndex = 0;
   _retrying = false;
-  _initialized = false;
-  _handlers = null;
+  _peerRetrying = false;
+  _emittedHandler = null;
   _debounceMs = DEFAULT_DEBOUNCE_MS;
   _maxInFlight = DEFAULT_MAX_IN_FLIGHT;
   _backoff = DEFAULT_BACKOFF_MS;
@@ -193,16 +219,19 @@ export function _setTimingForTesting({ debounceMs, maxInFlight, backoff, schedul
   if (typeof schedule === 'function') _schedule = schedule;
 }
 
-export function _isPausedForTesting() {
-  return _paused;
-}
-
 // Public snapshot of queue health for the header sync indicator (#115).
-// depth = events still unsynced; retrying = network/5xx backoff in progress;
-// paused = drain halted on auth failure.
+// depth = events still unsynced; retrying = network/5xx backoff in progress.
 export async function getSyncStatus() {
   const depth = (await getUnsyncedEvents()).length;
-  return { depth, retrying: _retrying, paused: _paused };
+  return { depth, retrying: _retrying || _peerRetrying };
+}
+
+export function isSyncQueueRetrying() {
+  return _retrying;
+}
+
+export function setPeerRetrying(retrying) {
+  _peerRetrying = retrying;
 }
 
 export async function _settleForTesting() {

@@ -3,11 +3,13 @@ import { initializeThemeToggle } from './theme.js';
 import { initAuthRefresh } from './sync.js';
 import { initializeAuthSyncUI } from './authsync.js';
 import { initSyncQueue } from './event-sourcing/sync-queue.js';
-import { initSnapshotSync } from './event-sourcing/snapshot-sync.js';
-import { initRealtime } from './event-sourcing/realtime.js';
+import { initSyncSession } from './event-sourcing/sync-session.js';
+import { checkDataOwner, createNetworkSettlingFirstPull, listenForDataOwnerWipe } from './event-sourcing/data-owner.js';
+import { initSyncLeader } from './event-sourcing/sync-leader.js';
 import { initSyncIndicator } from './event-sourcing/sync-indicator.js';
 
 export async function bootPage({ mountAuthUi = false } = {}) {
+  listenForDataOwnerWipe();
   try {
     await initStorage();
   } catch (err) {
@@ -18,7 +20,9 @@ export async function bootPage({ mountAuthUi = false } = {}) {
   initAuthRefresh();
   if (mountAuthUi) initializeAuthSyncUI();
   initSyncQueue();
-  initSnapshotSync();
-  initRealtime();
+  initSyncSession({
+    beforeSignIn: checkDataOwner,
+    network: await initSyncLeader({ network: createNetworkSettlingFirstPull() }),
+  });
   initSyncIndicator();
 }

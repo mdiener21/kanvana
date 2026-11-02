@@ -4,11 +4,11 @@ Generated from test source. Do not edit by hand; run `npm run test:overview` fro
 
 ## Fast Scan
 
-- Test files: 109
-- Test cases: 1005
-- Unit files: 47
-- DOM integration files: 35
-- E2E files: 25
+- Test files: 138
+- Test cases: 1253
+- Unit files: 48
+- DOM integration files: 43
+- E2E files: 45
 - Performance files: 1
 
 ## How To Use This
@@ -28,9 +28,7 @@ These lists compare source/spec filenames against test file names and test title
 - `src/modules/chart-theme.js`
 - `src/modules/column-element.js`
 - `src/modules/column-modal.js`
-- `src/modules/dialog.js`
 - `src/modules/event-sourcing/event-validation.js`
-- `src/modules/icons.js`
 - `src/modules/idb-store.js`
 - `src/modules/impressum.js`
 - `src/modules/labels-modal.js`
@@ -218,7 +216,7 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/unit/event-sourcing/durable-memory.test.js:69` the remote echo of an edit applied before a reload does not overwrite a newer edit
 - `tests/unit/event-sourcing/durable-memory.test.js:81` a delete record in an adopted snapshot makes later edits of that task a no-op, also after a reload
 - `tests/unit/event-sourcing/durable-memory.test.js:102` a snapshot holds the board memory and the live applied set is pruned of what it holds
-- `tests/unit/event-sourcing/durable-memory.test.js:133` a global-scope echo of an event stored before a reload is answered as applied from the event store
+- `tests/unit/event-sourcing/durable-memory.test.js:136` a global-scope echo of an event stored before a reload is answered as applied from the event store
 
 ### Emitter
 
@@ -293,7 +291,7 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/unit/event-sourcing/reducer.test.js:246` subtask and relationship events update embedded task collections
 - `tests/unit/event-sourcing/reducer.test.js:318` applying a list of events equals applying them one by one, duplicates and tombstones included
 - `tests/unit/event-sourcing/reducer.test.js:329` applying a list of events leaves the input state unchanged
-- `tests/unit/event-sourcing/reducer.test.js:343` applying a list of events copies the state once, not once per event
+- `tests/unit/event-sourcing/reducer.test.js:344` applying a list of events copies the state once, not once per event
 
 ### Snapshot
 
@@ -319,6 +317,14 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/unit/event-sourcing/snapshot.test.js:281` checkAndScheduleSnapshot schedules when snapshot age exceeds 14 days
 - `tests/unit/event-sourcing/snapshot.test.js:297` global snapshot stored under __global__ key does not interfere with board snapshot
 - `tests/unit/event-sourcing/snapshot.test.js:315` rehydration after GC produces the same projection as before GC
+
+### Sync Session
+
+- Path: `tests/unit/event-sourcing/sync-session.test.js`
+- Type: Unit
+- Test count: 0
+
+_No executable test cases detected._
 
 ### Events
 
@@ -519,19 +525,19 @@ These lists compare source/spec filenames against test file names and test title
 - Type: Unit
 - Test count: 13
 
-- `tests/unit/sync.test.js:48` isAuthenticated > returns false when authStore has no token
-- `tests/unit/sync.test.js:54` isAuthenticated > returns false when token present but no record
-- `tests/unit/sync.test.js:60` isAuthenticated > returns true when both token and record present
-- `tests/unit/sync.test.js:70` ensureAuthenticated > returns false when no token or record
-- `tests/unit/sync.test.js:76` ensureAuthenticated > returns true when token and record are valid
-- `tests/unit/sync.test.js:83` ensureAuthenticated > returns false when token present but refresh fails
-- `tests/unit/sync.test.js:91` ensureAuthenticated > returns true after successful refresh
-- `tests/unit/sync.test.js:108` loginUser > calls authWithPassword with email and password
-- `tests/unit/sync.test.js:116` loginUser > propagates errors from PocketBase
-- `tests/unit/sync.test.js:125` registerUser > creates user with passwordConfirm field
-- `tests/unit/sync.test.js:138` registerUser > does not call authStore.save — no auto-login
-- `tests/unit/sync.test.js:144` registerUser > defaults name to empty string when not provided
-- `tests/unit/sync.test.js:156` logoutUser > clears the auth store
+- `tests/unit/sync.test.js:50` isAuthenticated > returns false when authStore has no token
+- `tests/unit/sync.test.js:56` isAuthenticated > returns false when token present but no record
+- `tests/unit/sync.test.js:62` isAuthenticated > returns true when both token and record present
+- `tests/unit/sync.test.js:72` ensureAuthenticated > returns false when no token or record
+- `tests/unit/sync.test.js:78` ensureAuthenticated > returns true when token and record are valid
+- `tests/unit/sync.test.js:85` ensureAuthenticated > returns false when token present but refresh fails
+- `tests/unit/sync.test.js:93` ensureAuthenticated > returns true after successful refresh
+- `tests/unit/sync.test.js:106` loginUser > calls authWithPassword with email and password
+- `tests/unit/sync.test.js:114` loginUser > propagates errors from PocketBase
+- `tests/unit/sync.test.js:123` registerUser > creates user with passwordConfirm field
+- `tests/unit/sync.test.js:136` registerUser > does not call authStore.save — no auto-login
+- `tests/unit/sync.test.js:142` registerUser > defaults name to empty string when not provided
+- `tests/unit/sync.test.js:154` logoutUser > clears the auth store
 
 ### Tasks
 
@@ -744,7 +750,7 @@ These lists compare source/spec filenames against test file names and test title
 
 - Path: `tests/unit/time-tracking/reducer.test.js`
 - Type: Unit
-- Test count: 21
+- Test count: 22
 
 - `tests/unit/time-tracking/reducer.test.js:30` customer.created adds customer to timeTracking.customers
 - `tests/unit/time-tracking/reducer.test.js:41` customer.created is idempotent by entity_id
@@ -759,14 +765,15 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/unit/time-tracking/reducer.test.js:134` edits and deletes converge to the same projection regardless of arrival order
 - `tests/unit/time-tracking/reducer.test.js:152` time-tracking events do not affect board-level state
 - `tests/unit/time-tracking/reducer.test.js:168` customer.created respects event-level idempotency via appliedEventIds
-- `tests/unit/time-tracking/reducer.test.js:183` customer.archived / unarchived toggle the archived flag
-- `tests/unit/time-tracking/reducer.test.js:190` project.archived / unarchived toggle the archived flag and keep its entries
-- `tests/unit/time-tracking/reducer.test.js:201` project.deleted removes an unreferenced project
-- `tests/unit/time-tracking/reducer.test.js:206` customer.deleted removes an unreferenced customer
-- `tests/unit/time-tracking/reducer.test.js:211` replayed deletes of referenced items keep them, archived
-- `tests/unit/time-tracking/reducer.test.js:226` project.created after its customer was deleted restores the customer as archived
-- `tests/unit/time-tracking/reducer.test.js:235` time_entry.created after its project and customer were deleted restores both as archived
-- `tests/unit/time-tracking/reducer.test.js:246` a delete that raced a new reference converges to the item archived, whatever the arrival order
+- `tests/unit/time-tracking/reducer.test.js:183` renaming customers and projects preserves their relationships and entries on replay
+- `tests/unit/time-tracking/reducer.test.js:194` customer.archived / unarchived toggle the archived flag
+- `tests/unit/time-tracking/reducer.test.js:201` project.archived / unarchived toggle the archived flag and keep its entries
+- `tests/unit/time-tracking/reducer.test.js:212` project.deleted removes an unreferenced project
+- `tests/unit/time-tracking/reducer.test.js:217` customer.deleted removes an unreferenced customer
+- `tests/unit/time-tracking/reducer.test.js:222` replayed deletes of referenced items keep them, archived
+- `tests/unit/time-tracking/reducer.test.js:237` project.created after its customer was deleted restores the customer as archived
+- `tests/unit/time-tracking/reducer.test.js:246` time_entry.created after its project and customer were deleted restores both as archived
+- `tests/unit/time-tracking/reducer.test.js:257` a delete that raced a new reference converges to the item archived, whatever the arrival order
 
 ### Schema
 
@@ -968,6 +975,19 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/dom/boards-select-refresh.test.js:50` #board-select refresh on DATA_CHANGED > rebuilds the dropdown when a remote board.created adds a board
 - `tests/dom/boards-select-refresh.test.js:65` #board-select refresh on DATA_CHANGED > updates an option label when a board is renamed remotely
 
+### Dialog
+
+- Path: `tests/dom/dialog.test.js`
+- Type: DOM Integration
+- Test count: 6
+
+- `tests/dom/dialog.test.js:27` on a page with no dialog markup > builds the dialog itself, with its icon, and it answers
+- `tests/dom/dialog.test.js:42` dialog > focuses confirm on an ordinary dialog
+- `tests/dom/dialog.test.js:50` dialog > focuses Cancel and marks the confirm button as dangerous on a destructive prompt
+- `tests/dom/dialog.test.js:59` dialog > resolves false on a backdrop click, so it cannot discard anything
+- `tests/dom/dialog.test.js:65` dialog > keeps an open prompt answerable when an alert is opened over it
+- `tests/dom/dialog.test.js:80` dialog > cancelling one dialog does not also close the one waiting behind it
+
 ### Dragdrop
 
 - Path: `tests/dom/dragdrop.test.js`
@@ -979,6 +999,19 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/dom/dragdrop.test.js:143` collapsed non-done drops still pin the moved task through state
 - `tests/dom/dragdrop.test.js:167` reinitializing during an active task drag clears transient drag state
 - `tests/dom/dragdrop.test.js:187` reinitializing during an active column drag clears the column drag class
+
+### Auth Refresh Race
+
+- Path: `tests/dom/event-sourcing/auth-refresh-race.test.js`
+- Type: DOM Integration
+- Test count: 6
+
+- `tests/dom/event-sourcing/auth-refresh-race.test.js:46` auth refresh racing a sign-out or sign-in > saves the new token when nothing changed while the refresh was out
+- `tests/dom/event-sourcing/auth-refresh-race.test.js:55` auth refresh racing a sign-out or sign-in > keeps a sign-out made while the refresh was out
+- `tests/dom/event-sourcing/auth-refresh-race.test.js:66` auth refresh racing a sign-out or sign-in > keeps a different account signed in while the refresh was out
+- `tests/dom/event-sourcing/auth-refresh-race.test.js:77` auth refresh racing a sign-out or sign-in > does not sign out a different account when the old token\'s refresh is rejected
+- `tests/dom/event-sourcing/auth-refresh-race.test.js:87` auth refresh racing a sign-out or sign-in > still signs out when the token it sent is rejected
+- `tests/dom/event-sourcing/auth-refresh-race.test.js:96` auth refresh racing a sign-out or sign-in > applies the same rule to the refresh of an expired token
 
 ### Auth Refresh
 
@@ -1015,6 +1048,85 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/dom/event-sourcing/column-sort.test.js:93` a rebuild triggered by a late remote event keeps the sorted order
 - `tests/dom/event-sourcing/column-sort.test.js:136` a sort reaches a second device over SSE
 - `tests/dom/event-sourcing/column-sort.test.js:143` a sort reaches a second device through catch-up
+
+### Cross Tab Read Model
+
+- Path: `tests/dom/event-sourcing/cross-tab-read-model.test.js`
+- Type: DOM Integration
+- Test count: 15
+
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:126` a remote event the leader ingests > reaches the follower tab read model and re-renders it, with no reload
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:136` a remote event the leader ingests > is not stored again or queued by the follower
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:145` a remote event the leader ingests > moves the follower clock past it, so the next edit there wins everywhere
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:157` a remote event the leader ingests > renders a catch-up batch in the follower once
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:174` a follower edit right after a remote event > keeps both changes in every tab and in what a reload reads, when the edit beats the notice
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:193` a follower edit right after a remote event > orders the same field by clock, not by which tab heard first
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:209` a follower edit right after a remote event > does not bring back old data once the notice was applied
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:222` a local edit > is in the shared store before any tab hears of it
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:238` a local edit > shows in the other tab, with no reload, whichever tab made it
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:248` a local edit > stays queued for push after the other tab applied it
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:259` a board setting written without an event > survives the other tab writing out its copy of the board, and shows there
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:278` a snapshot the leader adopts > drops from the follower what it dropped itself
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:294` events a tab missed > a follower tab opening shows events stored before it could hear of them
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:308` events a tab missed > does not bring back a board deleted in this tab
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:323` events a tab missed > does not apply a time-tracking event twice after a reload
+
+### Data Owner Stale Tab
+
+- Path: `tests/dom/event-sourcing/data-owner-stale-tab.test.js`
+- Type: DOM Integration
+- Test count: 12
+
+- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:85` a write from a tab that missed a wipe > keeps a catch-up batch of the old owner out of the events store and the read model
+- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:95` a write from a tab that missed a wipe > keeps a local edit out of the queue, so it can not be pushed as the new owner
+- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:101` a write from a tab that missed a wipe > leaves nothing for a new owner\'s tab to fold in
+- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:110` a write from a tab that missed a wipe > reloads the page, which is what clears the old owner from its memory
+- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:138` a write from a tab that missed a wipe > stores nothing from a whole pull of the old owner, watermarks included
+- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:159` marking an event synced around a wipe > can not bring a wiped event back
+- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:173` writes that must keep working > lets a tab write after another tab claims unowned data, because a claim wipes nothing
+- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:184` writes that must keep working > lets a tab opened after the wipe write
+- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:196` writes that must keep working > still catches a tab opened before a second wipe back to the first owner
+- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:208` writes that must keep working > keeps the order of writes made in one tick
+- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:219` writes that must keep working > stores the value as it was when the write was asked for
+- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:232` with no BroadcastChannel to bring the notice > still reloads on the first dropped write
+
+### Data Owner
+
+- Path: `tests/dom/event-sourcing/data-owner.test.js`
+- Type: DOM Integration
+- Test count: 31
+
+- `tests/dom/event-sourcing/data-owner.test.js:215` switching accounts on one browser (ADR-0006) > AC-005: A signs out with unsynced events and B signs in: nothing of A is pushed under B
+- `tests/dom/event-sourcing/data-owner.test.js:234` switching accounts on one browser (ADR-0006) > AC-001, AC-009: the prompt names N and nothing syncs until the user chooses
+- `tests/dom/event-sourcing/data-owner.test.js:250` switching accounts on one browser (ADR-0006) > makes Cancel the default action of the prompt, not Discard
+- `tests/dom/event-sourcing/data-owner.test.js:258` switching accounts on one browser (ADR-0006) > AC-002, AC-008: with nothing unsynced, B replaces A without a prompt and sees only their own data
+- `tests/dom/event-sourcing/data-owner.test.js:274` switching accounts on one browser (ADR-0006) > AC-001, AC-010: Discard wipes, B becomes the Data Owner and catches up, and none of A\'s events reach the server
+- `tests/dom/event-sourcing/data-owner.test.js:292` switching accounts on one browser (ADR-0006) > AC-011: Cancel signs B out and leaves the data, queue and Data Owner of A as they were
+- `tests/dom/event-sourcing/data-owner.test.js:309` switching accounts on one browser (ADR-0006) > asks again when more events were queued than the user agreed to discard
+- `tests/dom/event-sourcing/data-owner.test.js:323` switching accounts on one browser (ADR-0006) > does nothing on a prompt answered after its account already left
+- `tests/dom/event-sourcing/data-owner.test.js:337` switching accounts on one browser (ADR-0006) > does not sign out the account now signed in when an older prompt is cancelled
+- `tests/dom/event-sourcing/data-owner.test.js:353` what a wipe keeps and removes > removes account data and derived state, and keeps what belongs to the browser
+- `tests/dom/event-sourcing/data-owner.test.js:390` the default board after a wipe > emits nothing for it when the new account already has that board, and shows no demo tasks
+- `tests/dom/event-sourcing/data-owner.test.js:404` the default board after a wipe > publishes it once when the new account has nothing yet
+- `tests/dom/event-sourcing/data-owner.test.js:426` an interrupted wipe > leaves the old data and owner whole, signs B out and uploads nothing
+- `tests/dom/event-sourcing/data-owner.test.js:451` an interrupted wipe > a boot with B\'s token and A still the owner runs the check again and uploads nothing
+- `tests/dom/event-sourcing/data-owner.test.js:467` first sign-in and the same account (ADR-0006) > AC-003, AC-006: offline data with no Data Owner goes to the first account, silently, and uploads under it
+- `tests/dom/event-sourcing/data-owner.test.js:482` first sign-in and the same account (ADR-0006) > AC-004, AC-007: the Data Owner signing back in gets no prompt, keeps everything, and the queue drains
+- `tests/dom/event-sourcing/data-owner.test.js:496` first sign-in and the same account (ADR-0006) > AC-012: after sign-out the data stays visible, offline edits stay queued, and they push under the same account
+- `tests/dom/event-sourcing/data-owner.test.js:519` first sign-in and the same account (ADR-0006) > AC-013: an install from before this change, signed in at launch, is claimed by that account and nothing is wiped
+- `tests/dom/event-sourcing/data-owner.test.js:530` first sign-in and the same account (ADR-0006) > AC-015: logging out clears the token locally and asks nothing of the server
+- `tests/dom/event-sourcing/data-owner.test.js:548` launching offline with a stored token > prompts when another account has unsynced data, with no network
+- `tests/dom/event-sourcing/data-owner.test.js:558` launching offline with a stored token > goes offline straight away for the Data Owner
+- `tests/dom/event-sourcing/data-owner.test.js:592` other tabs > a hidden tab leaves the prompt until it is looked at
+- `tests/dom/event-sourcing/data-owner.test.js:605` other tabs > a tab hidden during another tab\'s Cancel never prompts for the account that left
+- `tests/dom/event-sourcing/data-owner.test.js:619` other tabs > reloads when another tab announces a wipe
+- `tests/dom/event-sourcing/data-owner.test.js:631` other tabs > announces its own wipe to other tabs
+- `tests/dom/event-sourcing/data-owner.test.js:643` other tabs > keeps the new account signed in when the wipe notice reaches a tab in the middle of its own check
+- `tests/dom/event-sourcing/data-owner.test.js:696` other tabs > the first pull after a wipe > a follower going live is not a finished pull: it publishes nothing and leaves the pull pending
+- `tests/dom/event-sourcing/data-owner.test.js:709` other tabs > the first pull after a wipe > is finished by the tab that takes over as leader
+- `tests/dom/event-sourcing/data-owner.test.js:722` other tabs > the first pull after a wipe > a pull that failed leaves it pending and emits nothing for the default board
+- `tests/dom/event-sourcing/data-owner.test.js:733` other tabs > the first pull after a wipe > later launches find it finished and sync as usual
+- `tests/dom/event-sourcing/data-owner.test.js:741` other tabs > a tab that waited out another tab\'s wipe reloads instead of syncing the old data it still holds
 
 ### Feature Modules Emit Events
 
@@ -1074,37 +1186,42 @@ These lists compare source/spec filenames against test file names and test title
 - Type: DOM Integration
 - Test count: 1
 
-- `tests/dom/event-sourcing/page-boot-sync.test.js:142` time-tracking page boot (#218 AC-001, AC-005) > uploads a locally saved time-tracking snapshot to PocketBase under __timetracking__
+- `tests/dom/event-sourcing/page-boot-sync.test.js:146` time-tracking page boot (#218 AC-001, AC-005) > uploads a locally saved time-tracking snapshot to PocketBase under __timetracking__
 
 ### Realtime
 
 - Path: `tests/dom/event-sourcing/realtime.test.js`
 - Type: DOM Integration
-- Test count: 23
+- Test count: 28
 
-- `tests/dom/event-sourcing/realtime.test.js:96` realtime subscription > AC-001: opens exactly one owner-filtered subscription; second call is a no-op
-- `tests/dom/event-sourcing/realtime.test.js:105` realtime subscription > AC-002: stopRealtime closes the subscription
-- `tests/dom/event-sourcing/realtime.test.js:113` realtime subscription > does not subscribe when unauthenticated
-- `tests/dom/event-sourcing/realtime.test.js:121` applyRemoteEvent > AC-003/AC-007: projects, emits EVENT_EMITTED, advances HLC, stores as synced
-- `tests/dom/event-sourcing/realtime.test.js:140` applyRemoteEvent > a remote HLC far in the future is rejected and does not advance the local clock (#181)
-- `tests/dom/event-sourcing/realtime.test.js:148` applyRemoteEvent > AC-004: an echo of an already-applied event is a no-op in the projection
-- `tests/dom/event-sourcing/realtime.test.js:156` applyRemoteEvent > AC-004 after a reload: an SSE echo of an edit applied before the reload does not undo a newer edit (#178)
-- `tests/dom/event-sourcing/realtime.test.js:171` applyRemoteEvent > projects a live timetracking event into the time-tracking slot, never into a board
-- `tests/dom/event-sourcing/realtime.test.js:191` catch-up pull > discovers all account boards even while the realtime connection is pending
-- `tests/dom/event-sourcing/realtime.test.js:214` catch-up pull > downloads boards when realtime subscription fails
-- `tests/dom/event-sourcing/realtime.test.js:229` catch-up pull > fetches boards missed during an automatic SSE reconnect
-- `tests/dom/event-sourcing/realtime.test.js:242` catch-up pull > does not skip a delayed board creation older than the catch-up watermark
-- `tests/dom/event-sourcing/realtime.test.js:257` catch-up pull > AC-005: pulls events > lastSeenHlc, applies in order, advances lastSeenHlc atomically
-- `tests/dom/event-sourcing/realtime.test.js:278` catch-up pull > signals DATA_CHANGED once for the whole pulled batch
-- `tests/dom/event-sourcing/realtime.test.js:300` catch-up pull > saves each part of a caught-up board once per batch, not once per event
-- `tests/dom/event-sourcing/realtime.test.js:340` catch-up pull > saves a local edit made during a catch-up at once, not when the batch ends
-- `tests/dom/event-sourcing/realtime.test.js:374` catch-up pull > a local edit made during a catch-up applies on top of the events the batch already took in
-- `tests/dom/event-sourcing/realtime.test.js:402` catch-up pull > a reload after a catch-up shows the same board
-- `tests/dom/event-sourcing/realtime.test.js:448` catch-up pull > advances the catch-up watermark only after the board read model is stored
-- `tests/dom/event-sourcing/realtime.test.js:477` catch-up pull > signals no DATA_CHANGED when the pulled batch is already stored
-- `tests/dom/event-sourcing/realtime.test.js:493` catch-up pull > a poison event among good ones is skipped: good ones applied, poison not persisted, logged once (#181)
-- `tests/dom/event-sourcing/realtime.test.js:522` catch-up pull > ingests timetracking events under their own watermark without touching boards
-- `tests/dom/event-sourcing/realtime.test.js:551` catch-up pull > AC-005/AC-006: re-running catch-up applies nothing new (idempotent overlap)
+- `tests/dom/event-sourcing/realtime.test.js:103` realtime subscription > AC-001: opens exactly one owner-filtered subscription; second call is a no-op
+- `tests/dom/event-sourcing/realtime.test.js:112` realtime subscription > AC-002: stopRealtime closes the subscription
+- `tests/dom/event-sourcing/realtime.test.js:120` realtime subscription > does not subscribe when unauthenticated
+- `tests/dom/event-sourcing/realtime.test.js:128` applyRemoteEvent > AC-003/AC-007: projects, emits EVENT_EMITTED, advances HLC, stores as synced
+- `tests/dom/event-sourcing/realtime.test.js:147` applyRemoteEvent > a remote HLC far in the future is rejected and does not advance the local clock (#181)
+- `tests/dom/event-sourcing/realtime.test.js:155` applyRemoteEvent > AC-004: an echo of an already-applied event is a no-op in the projection
+- `tests/dom/event-sourcing/realtime.test.js:163` applyRemoteEvent > AC-004 after a reload: an SSE echo of an edit applied before the reload does not undo a newer edit (#178)
+- `tests/dom/event-sourcing/realtime.test.js:178` applyRemoteEvent > projects a live timetracking event into the time-tracking slot, never into a board
+- `tests/dom/event-sourcing/realtime.test.js:198` catch-up pull > discovers all account boards even while the realtime connection is pending
+- `tests/dom/event-sourcing/realtime.test.js:221` catch-up pull > downloads boards when realtime subscription fails
+- `tests/dom/event-sourcing/realtime.test.js:236` catch-up pull > sends no further request once realtime is stopped during a pull
+- `tests/dom/event-sourcing/realtime.test.js:257` catch-up pull > applies nothing from a pull that realtime was stopped during
+- `tests/dom/event-sourcing/realtime.test.js:278` catch-up pull > fetches boards missed during an automatic SSE reconnect
+- `tests/dom/event-sourcing/realtime.test.js:294` catch-up pull > does not skip a delayed board creation older than the catch-up watermark
+- `tests/dom/event-sourcing/realtime.test.js:309` catch-up pull > AC-005: pulls events > lastSeenHlc, applies in order, advances lastSeenHlc atomically
+- `tests/dom/event-sourcing/realtime.test.js:330` catch-up pull > signals DATA_CHANGED once for the whole pulled batch
+- `tests/dom/event-sourcing/realtime.test.js:352` catch-up pull > saves each part of a caught-up board once per batch, not once per event
+- `tests/dom/event-sourcing/realtime.test.js:392` catch-up pull > saves a local edit made during a catch-up at once, not when the batch ends
+- `tests/dom/event-sourcing/realtime.test.js:425` catch-up pull > saves the boards a catch-up has touched so far when the page is hidden
+- `tests/dom/event-sourcing/realtime.test.js:458` catch-up pull > a local edit made during a catch-up applies on top of the events the batch already took in
+- `tests/dom/event-sourcing/realtime.test.js:486` catch-up pull > a local command issued during a catch-up builds on the events the batch already took in
+- `tests/dom/event-sourcing/realtime.test.js:517` catch-up pull > a board deleted during a catch-up stays deleted when the batch ends
+- `tests/dom/event-sourcing/realtime.test.js:546` catch-up pull > a reload after a catch-up shows the same board
+- `tests/dom/event-sourcing/realtime.test.js:592` catch-up pull > advances the catch-up watermark only after the board read model is stored
+- `tests/dom/event-sourcing/realtime.test.js:621` catch-up pull > signals no DATA_CHANGED when the pulled batch is already stored
+- `tests/dom/event-sourcing/realtime.test.js:637` catch-up pull > a poison event among good ones is skipped: good ones applied, poison not persisted, logged once (#181)
+- `tests/dom/event-sourcing/realtime.test.js:666` catch-up pull > ingests timetracking events under their own watermark without touching boards
+- `tests/dom/event-sourcing/realtime.test.js:695` catch-up pull > AC-005/AC-006: re-running catch-up applies nothing new (idempotent overlap)
 
 ### Replay Fidelity
 
@@ -1154,57 +1271,180 @@ These lists compare source/spec filenames against test file names and test title
 
 - Path: `tests/dom/event-sourcing/snapshot-sync.test.js`
 - Type: DOM Integration
-- Test count: 11
+- Test count: 14
 
-- `tests/dom/event-sourcing/snapshot-sync.test.js:40` snapshot upload > skips when unauthenticated
-- `tests/dom/event-sourcing/snapshot-sync.test.js:45` snapshot upload > AC-009: skips upload when server snapshot HLC >= local
-- `tests/dom/event-sourcing/snapshot-sync.test.js:59` snapshot upload > creates a snapshot record when the server is behind
-- `tests/dom/event-sourcing/snapshot-sync.test.js:73` snapshot upload > buildSnapshotForm carries owner, board_id, hlc, and a gz payload file
-- `tests/dom/event-sourcing/snapshot-sync.test.js:84` snapshot upload > AC-009 arbitration: deletes losing server snapshots after upload
-- `tests/dom/event-sourcing/snapshot-sync.test.js:100` snapshot upload > AC-010: deletes PB events with hlc <= snapshot.hlc, keeps newer
-- `tests/dom/event-sourcing/snapshot-sync.test.js:117` snapshot upload > AC-010 (#179): keeps covered PB events that are younger than the grace window
-- `tests/dom/event-sourcing/snapshot-sync.test.js:137` snapshot upload > keeps covered PB events within a clock-skew margin of the grace window
-- `tests/dom/event-sourcing/snapshot-sync.test.js:153` snapshot upload > a delete the server refuses is skipped: the other events are still deleted and the upload succeeds
-- `tests/dom/event-sourcing/snapshot-sync.test.js:175` snapshot upload > global snapshot filters events by scope=global and uses empty board_id
-- `tests/dom/event-sourcing/snapshot-sync.test.js:190` snapshot upload > timetracking snapshot uses its own board_id key and GCs only timetracking events
+- `tests/dom/event-sourcing/snapshot-sync.test.js:47` snapshot upload > sends nothing when the signed-in account is not the Data Owner (#221)
+- `tests/dom/event-sourcing/snapshot-sync.test.js:61` snapshot upload > runs no event cleanup once another account signs in during an upload (#221)
+- `tests/dom/event-sourcing/snapshot-sync.test.js:76` snapshot upload > sends nothing more once stopped during an upload (#219)
+- `tests/dom/event-sourcing/snapshot-sync.test.js:96` snapshot upload > skips when unauthenticated
+- `tests/dom/event-sourcing/snapshot-sync.test.js:101` snapshot upload > AC-009: skips upload when server snapshot HLC >= local
+- `tests/dom/event-sourcing/snapshot-sync.test.js:115` snapshot upload > creates a snapshot record when the server is behind
+- `tests/dom/event-sourcing/snapshot-sync.test.js:129` snapshot upload > buildSnapshotForm carries owner, board_id, hlc, and a gz payload file
+- `tests/dom/event-sourcing/snapshot-sync.test.js:140` snapshot upload > AC-009 arbitration: deletes losing server snapshots after upload
+- `tests/dom/event-sourcing/snapshot-sync.test.js:156` snapshot upload > AC-010: deletes PB events with hlc <= snapshot.hlc, keeps newer
+- `tests/dom/event-sourcing/snapshot-sync.test.js:173` snapshot upload > AC-010 (#179): keeps covered PB events that are younger than the grace window
+- `tests/dom/event-sourcing/snapshot-sync.test.js:193` snapshot upload > keeps covered PB events within a clock-skew margin of the grace window
+- `tests/dom/event-sourcing/snapshot-sync.test.js:209` snapshot upload > a delete the server refuses is skipped: the other events are still deleted and the upload succeeds
+- `tests/dom/event-sourcing/snapshot-sync.test.js:231` snapshot upload > global snapshot filters events by scope=global and uses empty board_id
+- `tests/dom/event-sourcing/snapshot-sync.test.js:246` snapshot upload > timetracking snapshot uses its own board_id key and GCs only timetracking events
 
 ### Sync Indicator
 
 - Path: `tests/dom/event-sourcing/sync-indicator.test.js`
 - Type: DOM Integration
-- Test count: 10
+- Test count: 12
 
-- `tests/dom/event-sourcing/sync-indicator.test.js:50` sync state indicator > AC-001: logged in, online, empty queue -> Live (green)
-- `tests/dom/event-sourcing/sync-indicator.test.js:58` sync state indicator > AC-002: N events draining -> Syncing… (N) (yellow)
-- `tests/dom/event-sourcing/sync-indicator.test.js:68` sync state indicator > AC-003: events stuck retrying -> ⚠ N unsynced (orange)
-- `tests/dom/event-sourcing/sync-indicator.test.js:78` sync state indicator > AC-003b: paused (auth failure) tier also shows unsynced
-- `tests/dom/event-sourcing/sync-indicator.test.js:86` sync state indicator > AC-004: offline -> Offline (gray)
-- `tests/dom/event-sourcing/sync-indicator.test.js:95` sync state indicator > AC-004b: not logged in -> Offline (gray)
-- `tests/dom/event-sourcing/sync-indicator.test.js:104` sync state indicator > AC-005: updates live on DATA_CHANGED (queue drains) without reload
-- `tests/dom/event-sourcing/sync-indicator.test.js:117` sync state indicator > AC-005b: updates live on offline window event
-- `tests/dom/event-sourcing/sync-indicator.test.js:128` sync state indicator > AC-005c: updates live on auth-changed window event
-- `tests/dom/event-sourcing/sync-indicator.test.js:140` sync state indicator > updates live when the sync queue status changes
+- `tests/dom/event-sourcing/sync-indicator.test.js:45` sync state indicator > AC-001: logged in, online, empty queue -> Live (green)
+- `tests/dom/event-sourcing/sync-indicator.test.js:53` sync state indicator > AC-002: N events draining -> Syncing… (N) (yellow)
+- `tests/dom/event-sourcing/sync-indicator.test.js:63` sync state indicator > AC-003: events stuck retrying -> ⚠ N unsynced (orange)
+- `tests/dom/event-sourcing/sync-indicator.test.js:73` sync state indicator > AC-003b: paused (auth failure) tier also shows unsynced
+- `tests/dom/event-sourcing/sync-indicator.test.js:82` sync state indicator > catching up with an empty queue still reads Live (the labels do not change, #219)
+- `tests/dom/event-sourcing/sync-indicator.test.js:88` sync state indicator > catching up with queued events reads Syncing (N)
+- `tests/dom/event-sourcing/sync-indicator.test.js:95` sync state indicator > paused with no network reads Offline, even with queued events
+- `tests/dom/event-sourcing/sync-indicator.test.js:102` sync state indicator > AC-004: offline -> Offline (gray)
+- `tests/dom/event-sourcing/sync-indicator.test.js:111` sync state indicator > AC-004b: not logged in -> Offline (gray)
+- `tests/dom/event-sourcing/sync-indicator.test.js:120` sync state indicator > AC-005: updates live on DATA_CHANGED (queue drains) without reload
+- `tests/dom/event-sourcing/sync-indicator.test.js:133` sync state indicator > AC-005b: updates live when the session state changes
+- `tests/dom/event-sourcing/sync-indicator.test.js:144` sync state indicator > updates live when the sync queue status changes
+
+### Sync Leader
+
+- Path: `tests/dom/event-sourcing/sync-leader.test.js`
+- Type: DOM Integration
+- Test count: 26
+
+- `tests/dom/event-sourcing/sync-leader.test.js:200` election (AC-001) > lets one tab hold the subscription and pull, while the other does no network work
+- `tests/dom/event-sourcing/sync-leader.test.js:211` election (AC-001) > pushes each event exactly once, whichever tab made it, and only from the leader
+- `tests/dom/event-sourcing/sync-leader.test.js:228` election (AC-001) > drains a follower edit as soon as it is stored
+- `tests/dom/event-sourcing/sync-leader.test.js:240` handover (AC-003) > has the follower subscribe, pull once and drain within 5 seconds of the leader closing
+- `tests/dom/event-sourcing/sync-leader.test.js:261` handover (AC-003) > passes on through a chain of tabs, with only ever one subscription
+- `tests/dom/event-sourcing/sync-leader.test.js:278` handover (AC-003) > runs no network work when the new leader is signed out, then starts at sign-in
+- `tests/dom/event-sourcing/sync-leader.test.js:295` handover (AC-003) > stops the network side everywhere at sign-out, and starts again only in the leader
+- `tests/dom/event-sourcing/sync-leader.test.js:317` handover (AC-003) > waits for the network when the new leader is offline, then catches up and drains once
+- `tests/dom/event-sourcing/sync-leader.test.js:335` handover (AC-003) > stays paused when taking over from a paused leader, until fresh credentials
+- `tests/dom/event-sourcing/sync-leader.test.js:360` a frozen tab > gives up the lock when frozen, so another tab can lead, and follows on resuming
+- `tests/dom/event-sourcing/sync-leader.test.js:383` a frozen tab > leaves the lock queue when frozen, so it can not be granted the lock asleep
+- `tests/dom/event-sourcing/sync-leader.test.js:402` no Web Locks (AC-004) > has each tab sync on its own, with the server deduping the pushes
+- `tests/dom/event-sourcing/sync-leader.test.js:427` no Web Locks (AC-004) > still shows an edit in the other tab
+- `tests/dom/event-sourcing/sync-leader.test.js:437` no Web Locks (AC-004) > tells the other tab when the queue changes, so its indicator does not stay on an old count
+- `tests/dom/event-sourcing/sync-leader.test.js:453` no Web Locks (AC-004) > works with no BroadcastChannel either
+- `tests/dom/event-sourcing/sync-leader.test.js:461` no Web Locks (AC-004) > runs as its own leader when Web Locks exist but no channel does
+- `tests/dom/event-sourcing/sync-leader.test.js:476` the sync indicator of every tab > shows Live, then the queue depth, then Live again
+- `tests/dom/event-sourcing/sync-leader.test.js:496` the sync indicator of every tab > shows the leader retrying
+- `tests/dom/event-sourcing/sync-leader.test.js:509` the sync indicator of every tab > shows the leader paused
+- `tests/dom/event-sourcing/sync-leader.test.js:521` the sync indicator of every tab > shows a tab opened later what the others show
+- `tests/dom/event-sourcing/sync-leader.test.js:535` the sync indicator of every tab > shows Offline with the leader, and recovers
+- `tests/dom/event-sourcing/sync-leader.test.js:547` the sync indicator of every tab > shows Offline in a tab the browser reports offline, whatever the leader last said
+- `tests/dom/event-sourcing/sync-leader.test.js:563` the sync indicator of every tab > shows the new leader own state once the old leader has gone
+- `tests/dom/event-sourcing/sync-leader.test.js:601` snapshots (saved in a follower) > uploads from the leader, not from the follower that saved it
+- `tests/dom/event-sourcing/sync-leader.test.js:615` snapshots (saved in a follower) > still announces its snapshots after a freeze turned it from leader into follower
+- `tests/dom/event-sourcing/sync-leader.test.js:633` snapshots (saved in a follower) > uploads nothing while signed out
 
 ### Sync Queue
 
 - Path: `tests/dom/event-sourcing/sync-queue.test.js`
 - Type: DOM Integration
-- Test count: 14
+- Test count: 23
 
-- `tests/dom/event-sourcing/sync-queue.test.js:78` sync-queue across a local snapshot (#176) > pushes every event queued offline even after a snapshot covered them
-- `tests/dom/event-sourcing/sync-queue.test.js:113` sync-queue startup > drains events left over from a previous session, with no new activity
-- `tests/dom/event-sourcing/sync-queue.test.js:129` sync-queue startup > does not push on startup when signed out
-- `tests/dom/event-sourcing/sync-queue.test.js:144` sync-queue push > AC-004: pushes a queued event and flips synced after debounce
-- `tests/dom/event-sourcing/sync-queue.test.js:164` sync-queue push > pushes a timetracking event with its scope and no board
-- `tests/dom/event-sourcing/sync-queue.test.js:183` sync-queue push > AC-005: caps concurrent pushes at 5 and drains the whole queue
-- `tests/dom/event-sourcing/sync-queue.test.js:208` sync-queue push > AC-005: drains in HLC order (sequential)
-- `tests/dom/event-sourcing/sync-queue.test.js:226` sync-queue push > AC-008: a rejected event is left queued, never rolled back
-- `tests/dom/event-sourcing/sync-queue.test.js:247` sync-queue push > AC-006: resumes on the online event without waiting for backoff
-- `tests/dom/event-sourcing/sync-queue.test.js:273` sync-queue push > drains pre-existing unsynced events when auth changes after login
-- `tests/dom/event-sourcing/sync-queue.test.js:296` sync-queue push > AC-007: pauses on auth failure and resumes on auth-changed
-- `tests/dom/event-sourcing/sync-queue.test.js:328` sync-queue push > AC-011: network failures advance the backoff tiers, capped at 5min
-- `tests/dom/event-sourcing/sync-queue.test.js:352` sync-queue push > AC-011: a permanent 4xx schedules a ~1h retry
-- `tests/dom/event-sourcing/sync-queue.test.js:381` sync-queue duplicate rejection (#217) > AC-003/AC-005: a unique (owner, local_id) rejection marks the event synced with no retry
+- `tests/dom/event-sourcing/sync-queue.test.js:78` sync-queue and the Data Owner (#221 AC-014) > stamps pushed events with the Data Owner
+- `tests/dom/event-sourcing/sync-queue.test.js:94` sync-queue and the Data Owner (#221 AC-014) > pushes nothing when the signed-in account is not the Data Owner
+- `tests/dom/event-sourcing/sync-queue.test.js:107` sync-queue and the Data Owner (#221 AC-014) > pushes nothing when local data has no Data Owner yet
+- `tests/dom/event-sourcing/sync-queue.test.js:121` sync-queue and the Data Owner (#221 AC-014) > stops pushing once another account signs in during a drain
+- `tests/dom/event-sourcing/sync-queue.test.js:146` sync-queue across a local snapshot (#176) > pushes every event queued offline even after a snapshot covered them
+- `tests/dom/event-sourcing/sync-queue.test.js:178` sync-queue commands (#219) > drains on command, with no new activity
+- `tests/dom/event-sourcing/sync-queue.test.js:196` sync-queue commands (#219) > does not push on a drain command when signed out
+- `tests/dom/event-sourcing/sync-queue.test.js:211` sync-queue commands (#219) > does not react to an emitted event, or a drain command, until started
+- `tests/dom/event-sourcing/sync-queue.test.js:226` sync-queue commands (#219) > stop cancels a pending debounced drain
+- `tests/dom/event-sourcing/sync-queue.test.js:243` sync-queue commands (#219) > stop cancels a pending retry and clears the retrying status
+- `tests/dom/event-sourcing/sync-queue.test.js:262` sync-queue commands (#219) > stop ends a drain in flight: no event starts pushing after it, and no retry is scheduled
+- `tests/dom/event-sourcing/sync-queue.test.js:290` sync-queue commands (#219) > a start during a stopped drain still pushes, once that drain has ended
+- `tests/dom/event-sourcing/sync-queue.test.js:316` sync-queue commands (#219) > pushes an event emitted during a drain, which read its list before that event existed
+- `tests/dom/event-sourcing/sync-queue.test.js:345` sync-queue push > AC-004: pushes a queued event and flips synced after debounce
+- `tests/dom/event-sourcing/sync-queue.test.js:366` sync-queue push > pushes a timetracking event with its scope and no board
+- `tests/dom/event-sourcing/sync-queue.test.js:386` sync-queue push > AC-005: caps concurrent pushes at 5 and drains the whole queue
+- `tests/dom/event-sourcing/sync-queue.test.js:412` sync-queue push > AC-005: drains in HLC order (sequential)
+- `tests/dom/event-sourcing/sync-queue.test.js:431` sync-queue push > AC-008: a rejected event is left queued, never rolled back
+- `tests/dom/event-sourcing/sync-queue.test.js:453` sync-queue push > AC-006: a drain command resumes without waiting for backoff
+- `tests/dom/event-sourcing/sync-queue.test.js:481` sync-queue push > AC-007: stops and reports on auth failure; a restart resumes
+- `tests/dom/event-sourcing/sync-queue.test.js:515` sync-queue push > AC-011: network failures advance the backoff tiers, capped at 5min
+- `tests/dom/event-sourcing/sync-queue.test.js:540` sync-queue push > AC-011: a permanent 4xx schedules a ~1h retry
+- `tests/dom/event-sourcing/sync-queue.test.js:570` sync-queue duplicate rejection (#217) > AC-003/AC-005: a unique (owner, local_id) rejection marks the event synced with no retry
+
+### Sync Session Boot
+
+- Path: `tests/dom/event-sourcing/sync-session-boot.test.js`
+- Type: DOM Integration
+- Test count: 9
+
+- `tests/dom/event-sourcing/sync-session-boot.test.js:175` sign-in through the page boot (#219 AC-001) > goes signed-out -> catching-up -> live with exactly one pull, and realtime running
+- `tests/dom/event-sourcing/sync-session-boot.test.js:193` sign-in through the page boot (#219 AC-001) > runs one pull on a signed-in launch, and the token refresh during it adds none
+- `tests/dom/event-sourcing/sync-session-boot.test.js:205` sign-in through the page boot (#219 AC-001) > catches up once more, once, when SSE reconnects
+- `tests/dom/event-sourcing/sync-session-boot.test.js:225` offline and online through the page boot (#219 AC-002, AC-003) > offline closes SSE, fires no drain or retry, and shows Offline
+- `tests/dom/event-sourcing/sync-session-boot.test.js:255` offline and online through the page boot (#219 AC-002, AC-003) > online runs exactly one pull before going live, and queued events drain
+- `tests/dom/event-sourcing/sync-session-boot.test.js:285` offline and online through the page boot (#219 AC-002, AC-003) > a launch with no network stays offline and sends nothing
+- `tests/dom/event-sourcing/sync-session-boot.test.js:300` sign-out through the page boot (#219 AC-004) > stops realtime, the queue and snapshot upload, and PocketBase hears nothing until the next sign-in
+- `tests/dom/event-sourcing/sync-session-boot.test.js:332` snapshot upload is stopped with the session (#219) > saves the snapshot locally but does not upload it while offline
+- `tests/dom/event-sourcing/sync-session-boot.test.js:354` a rejected push through the page boot (#219 AC-005) > enters paused, shows unsynced, and resumes through catching-up on re-authentication
+
+### Sync Session
+
+- Path: `tests/dom/event-sourcing/sync-session.test.js`
+- Type: DOM Integration
+- Test count: 53
+
+- `tests/dom/event-sourcing/sync-session.test.js:83` sign-in > stays signed out with no network work until someone signs in
+- `tests/dom/event-sourcing/sync-session.test.js:94` sign-in > subscribes first, pulls once, and only then goes live and starts the queue
+- `tests/dom/event-sourcing/sync-session.test.js:109` sign-in > treats an already signed-in launch as a sign-in
+- `tests/dom/event-sourcing/sync-session.test.js:120` sign-in > goes straight to offline when signed in with no network
+- `tests/dom/event-sourcing/sync-session.test.js:132` sign-in > ignores the initial SSE connect that arrives while it is subscribing
+- `tests/dom/event-sourcing/sync-session.test.js:149` sign-in > ignores a token refresh for the same account
+- `tests/dom/event-sourcing/sync-session.test.js:164` sign-in > runs a fresh sign-in when the account changes with no sign-out between
+- `tests/dom/event-sourcing/sync-session.test.js:182` failures while catching up > still pulls when the SSE subscription fails, and goes live
+- `tests/dom/event-sourcing/sync-session.test.js:197` failures while catching up > does not wait forever for a slow SSE subscription, and pulls again once it is up
+- `tests/dom/event-sourcing/sync-session.test.js:227` failures while catching up > an SSE connection that takes longer than the wait (#219) > pulls once more and stays live when it connects after the pull finished
+- `tests/dom/event-sourcing/sync-session.test.js:243` failures while catching up > an SSE connection that takes longer than the wait (#219) > pulls once more when it connects during the pull
+- `tests/dom/event-sourcing/sync-session.test.js:263` failures while catching up > an SSE connection that takes longer than the wait (#219) > adds no pull when the subscription fails
+- `tests/dom/event-sourcing/sync-session.test.js:276` failures while catching up > an SSE connection that takes longer than the wait (#219) > pauses when the extra pull is rejected
+- `tests/dom/event-sourcing/sync-session.test.js:288` failures while catching up > an SSE connection that takes longer than the wait (#219) > still catches up once on a genuine reconnect afterwards
+- `tests/dom/event-sourcing/sync-session.test.js:307` failures while catching up > goes live after a failed pull so the queue and realtime keep working
+- `tests/dom/event-sourcing/sync-session.test.js:322` failures while catching up > pauses when the pull is rejected for auth
+- `tests/dom/event-sourcing/sync-session.test.js:337` SSE reconnect > runs one catch-up and returns to live, holding the queue meanwhile
+- `tests/dom/event-sourcing/sync-session.test.js:360` SSE reconnect > pulls once more when SSE reconnects during a pull, since that pull may have missed events
+- `tests/dom/event-sourcing/sync-session.test.js:393` offline and online > stops realtime, the queue and snapshot upload on offline
+- `tests/dom/event-sourcing/sync-session.test.js:404` offline and online > runs exactly one catch-up on online, then restarts the queue
+- `tests/dom/event-sourcing/sync-session.test.js:419` offline and online > does not restart realtime until the previous stop has finished
+- `tests/dom/event-sourcing/sync-session.test.js:438` offline and online > abandons a pull when the browser goes offline during it
+- `tests/dom/event-sourcing/sync-session.test.js:457` sign-out > stops realtime, the queue and snapshot upload
+- `tests/dom/event-sourcing/sync-session.test.js:472` sign-out > ignores online and offline while signed out
+- `tests/dom/event-sourcing/sync-session.test.js:484` sign-out > does not go live when sign-out lands during the pull
+- `tests/dom/event-sourcing/sync-session.test.js:513` paused > enters paused on a rejected push and stops the queue
+- `tests/dom/event-sourcing/sync-session.test.js:520` paused > resumes through catching-up on re-authentication, with one catch-up
+- `tests/dom/event-sourcing/sync-session.test.js:536` paused > stays paused through an online event
+- `tests/dom/event-sourcing/sync-session.test.js:547` paused > across a network blip (#219 AC-005) > stays paused through offline and online, and pushes nothing
+- `tests/dom/event-sourcing/sync-session.test.js:562` paused > across a network blip (#219 AC-005) > stops realtime while offline, and brings it back with one pull
+- `tests/dom/event-sourcing/sync-session.test.js:580` paused > across a network blip (#219 AC-005) > resumes on re-authentication after the blip
+- `tests/dom/event-sourcing/sync-session.test.js:596` paused > across a network blip (#219 AC-005) > waits for the network when re-authenticated while offline, then resumes
+- `tests/dom/event-sourcing/sync-session.test.js:612` paused > across a network blip (#219 AC-005) > signs out from paused-offline
+- `tests/dom/event-sourcing/sync-session.test.js:623` paused > across a network blip (#219 AC-005) > does nothing on a takeover while offline
+- `tests/dom/event-sourcing/sync-session.test.js:636` paused > across a network blip (#219 AC-005) > resumes when a leader that is live again tells a follower that is offline
+- `tests/dom/event-sourcing/sync-session.test.js:651` paused > across a network blip (#219 AC-005) > reports this tab offline, whatever the leader says
+- `tests/dom/event-sourcing/sync-session.test.js:673` beforeSignIn > holds the session in signed-out with no network work until it resolves
+- `tests/dom/event-sourcing/sync-session.test.js:690` beforeSignIn > stays signed out when it declines the sign-in
+- `tests/dom/event-sourcing/sync-session.test.js:702` beforeSignIn > stays signed out when it throws
+- `tests/dom/event-sourcing/sync-session.test.js:715` beforeSignIn > is passed the account that is signing in
+- `tests/dom/event-sourcing/sync-session.test.js:726` beforeSignIn > drops a held sign-in when the user signs out meanwhile
+- `tests/dom/event-sourcing/sync-session.test.js:741` beforeSignIn > does not run again on a token refresh while holding
+- `tests/dom/event-sourcing/sync-session.test.js:755` beforeSignIn > does not run when a paused session re-authenticates as the same account
+- `tests/dom/event-sourcing/sync-session.test.js:772` beforeSignIn > runs for a sign-in with no network, so offline launches are checked too
+- `tests/dom/event-sourcing/sync-session.test.js:787` dispose > stops listening to the window
+- `tests/dom/event-sourcing/sync-session.test.js:815` taking over as sync leader > from live: subscribes, pulls once, then goes live and starts the queue
+- `tests/dom/event-sourcing/sync-session.test.js:831` taking over as sync leader > while catching up: drops the pull in progress and runs one that counts
+- `tests/dom/event-sourcing/sync-session.test.js:852` taking over as sync leader > while signed out: does nothing until someone signs in
+- `tests/dom/event-sourcing/sync-session.test.js:871` taking over as sync leader > while the sign-in check is pending: leaves the sign-in to run once the check passes
+- `tests/dom/event-sourcing/sync-session.test.js:890` taking over as sync leader > while offline: stays offline with no network work, and catches up on the online event
+- `tests/dom/event-sourcing/sync-session.test.js:910` taking over as sync leader > while paused: holds realtime and pulls once, but pushes nothing until fresh credentials
+- `tests/dom/event-sourcing/sync-session.test.js:943` following the leader tab > pauses with the leader and leaves paused when the leader is live again
+- `tests/dom/event-sourcing/sync-session.test.js:956` following the leader tab > does not take auth or network state from the leader
 
 ### Task Moved Payloads
 
@@ -1231,11 +1471,12 @@ These lists compare source/spec filenames against test file names and test title
 
 - Path: `tests/dom/page-boot.test.js`
 - Type: DOM Integration
-- Test count: 3
+- Test count: 4
 
-- `tests/dom/page-boot.test.js:26` bootPage (#218) > sets up storage, theme, auth refresh, queue, snapshot upload, realtime and the indicator in that order
-- `tests/dom/page-boot.test.js:31` bootPage (#218) > mounts the auth UI after auth refresh only when the page asks for it
-- `tests/dom/page-boot.test.js:36` bootPage (#218) > still sets up theme and sync when storage fails to open
+- `tests/dom/page-boot.test.js:31` bootPage (#218) > sets up storage, theme, auth refresh, queue, the sync session and the indicator in that order
+- `tests/dom/page-boot.test.js:36` bootPage (#218) > gives the session the Data Owner check to run on every sign-in (#221)
+- `tests/dom/page-boot.test.js:43` bootPage (#218) > mounts the auth UI after auth refresh only when the page asks for it
+- `tests/dom/page-boot.test.js:48` bootPage (#218) > still sets up theme and sync when storage fails to open
 
 ### Page Entries
 
@@ -1333,25 +1574,31 @@ _No executable test cases detected._
 
 - Path: `tests/dom/time-tracking/projects.test.js`
 - Type: DOM Integration
-- Test count: 17
+- Test count: 23
 
-- `tests/dom/time-tracking/projects.test.js:63` Enter in the customer input creates the customer and lists it
-- `tests/dom/time-tracking/projects.test.js:75` clicking Add customer creates the customer and keeps focus in the customer input
-- `tests/dom/time-tracking/projects.test.js:85` a new customer becomes selectable for projects
-- `tests/dom/time-tracking/projects.test.js:93` empty customer name shows a toast and emits nothing
-- `tests/dom/time-tracking/projects.test.js:102` duplicate customer name shows a toast and emits nothing
-- `tests/dom/time-tracking/projects.test.js:111` Enter in the project input creates the project nested under its customer
-- `tests/dom/time-tracking/projects.test.js:125` after adding a project the customer stays selected and focus stays in the project input
-- `tests/dom/time-tracking/projects.test.js:140` project without a selected customer shows a toast and emits nothing
-- `tests/dom/time-tracking/projects.test.js:149` empty project name shows a toast and emits nothing
-- `tests/dom/time-tracking/projects.test.js:158` duplicate project within the customer shows a toast and emits nothing
-- `tests/dom/time-tracking/projects.test.js:171` text typed in the other input survives a data-change re-render
-- `tests/dom/time-tracking/projects.test.js:182` a remote data change refreshes the list without touching the forms
-- `tests/dom/time-tracking/projects.test.js:197` selection falls back to the placeholder when the selected customer disappears
-- `tests/dom/time-tracking/projects.test.js:215` archive and delete > archiving a customer emits customer.archived, mutes the row and offers Unarchive
-- `tests/dom/time-tracking/projects.test.js:228` archive and delete > archiving a project emits project.archived and mutes the row; unarchive restores it
-- `tests/dom/time-tracking/projects.test.js:241` archive and delete > delete of a referenced item is disabled and explains why
-- `tests/dom/time-tracking/projects.test.js:255` archive and delete > delete of an unreferenced project emits project.deleted and removes it; then its customer can go
+- `tests/dom/time-tracking/projects.test.js:66` Enter in the customer input creates the customer and lists it
+- `tests/dom/time-tracking/projects.test.js:78` clicking Add customer creates the customer and keeps focus in the customer input
+- `tests/dom/time-tracking/projects.test.js:88` a new customer becomes selectable for projects
+- `tests/dom/time-tracking/projects.test.js:96` empty customer name shows a toast and emits nothing
+- `tests/dom/time-tracking/projects.test.js:105` duplicate customer name shows a toast and emits nothing
+- `tests/dom/time-tracking/projects.test.js:114` Enter in the project input creates the project nested under its customer
+- `tests/dom/time-tracking/projects.test.js:128` after adding a project the customer stays selected and focus stays in the project input
+- `tests/dom/time-tracking/projects.test.js:143` project without a selected customer shows a toast and emits nothing
+- `tests/dom/time-tracking/projects.test.js:152` empty project name shows a toast and emits nothing
+- `tests/dom/time-tracking/projects.test.js:161` duplicate project within the customer shows a toast and emits nothing
+- `tests/dom/time-tracking/projects.test.js:174` text typed in the other input survives a data-change re-render
+- `tests/dom/time-tracking/projects.test.js:185` a remote data change refreshes the list without touching the forms
+- `tests/dom/time-tracking/projects.test.js:200` selection falls back to the placeholder when the selected customer disappears
+- `tests/dom/time-tracking/projects.test.js:210` a customer can be renamed from the projects list
+- `tests/dom/time-tracking/projects.test.js:220` a project can be renamed while keeping its customer
+- `tests/dom/time-tracking/projects.test.js:231` Enter saves an edited name and Escape cancels an edit
+- `tests/dom/time-tracking/projects.test.js:244` an unrelated data refresh preserves an in-progress project rename
+- `tests/dom/time-tracking/projects.test.js:259` saving one rename preserves another draft and its keyboard controls
+- `tests/dom/time-tracking/projects.test.js:275` renaming rejects duplicate names and keeps the edit open
+- `tests/dom/time-tracking/projects.test.js:296` archive and delete > archiving a customer emits customer.archived, mutes the row and offers Unarchive
+- `tests/dom/time-tracking/projects.test.js:309` archive and delete > archiving a project emits project.archived and mutes the row; unarchive restores it
+- `tests/dom/time-tracking/projects.test.js:322` archive and delete > delete of a referenced item is disabled and explains why
+- `tests/dom/time-tracking/projects.test.js:336` archive and delete > delete of an unreferenced project emits project.deleted and removes it; then its customer can go
 
 ### Reports
 
@@ -1554,6 +1801,24 @@ _No executable test cases detected._
 
 ## End-to-End Tests
 
+### Board Search
+
+- Path: `tests/e2e/board-search.spec.ts`
+- Type: End-to-End
+- Test count: 2
+
+- `tests/e2e/board-search.spec.ts:11` typing narrows the cards by title, description, priority, label and label group, and clearing restores them
+- `tests/e2e/board-search.spec.ts:42` the search is in memory only: it changes no data and is gone after a reload
+
+### Board Templates
+
+- Path: `tests/e2e/board-templates.spec.ts`
+- Type: End-to-End
+- Test count: 2
+
+- `tests/e2e/board-templates.spec.ts:44` a board created from the ${data.boardName} template has its columns, labels and starter tasks
+- `tests/e2e/board-templates.spec.ts:62` every template in the templates folder is offered when creating a board
+
 ### Boards
 
 - Path: `tests/e2e/boards.spec.js`
@@ -1563,6 +1828,30 @@ _No executable test cases detected._
 - `tests/e2e/boards.spec.js:34` Boards Management > should open a board when clicking the Open button in manage-boards modal
 - `tests/e2e/boards.spec.js:79` Boards Management > should display multiple boards in the manage-boards modal
 - `tests/e2e/boards.spec.js:118` Boards Management > should mark the active board in the boards list
+
+### Calendar
+
+- Path: `tests/e2e/calendar.spec.ts`
+- Type: End-to-End
+- Test count: 4
+
+- `tests/e2e/calendar.spec.ts:28` a task with a due date appears on its day and its link opens the task on the board
+- `tests/e2e/calendar.spec.ts:54` overdue tasks are red unless they are done
+- `tests/e2e/calendar.spec.ts:69` the month buttons show the due counts of the other months
+- `tests/e2e/calendar.spec.ts:83` clicking a day in another month lists its tasks
+
+### Columns
+
+- Path: `tests/e2e/columns.spec.ts`
+- Type: End-to-End
+- Test count: 6
+
+- `tests/e2e/columns.spec.ts:45` new columns go before the permanent Done column
+- `tests/e2e/columns.spec.ts:54` adding a column requires a name
+- `tests/e2e/columns.spec.ts:67` a column can be renamed, recoloured, reordered and collapsed, and all of it survives a reload
+- `tests/e2e/columns.spec.ts:99` deleting a column asks first and takes its tasks with it
+- `tests/e2e/columns.spec.ts:119` a deleted column stays deleted after an immediate reload
+- `tests/e2e/columns.spec.ts:135` the Done column cannot be deleted
 
 ### Create Task
 
@@ -1575,6 +1864,15 @@ _No executable test cases detected._
 - `tests/e2e/create-task.spec.ts:53` Task Creation > Create task with 2 existing labels and medium priority in In Progress column
 - `tests/e2e/create-task.spec.ts:80` Task Creation > Create task with due date, 2 labels, and medium priority
 - `tests/e2e/create-task.spec.ts:130` Task Creation > Create task with 2 new custom labels and medium priority
+
+### Data Owner Tabs
+
+- Path: `tests/e2e/data-owner-tabs.spec.ts`
+- Type: End-to-End
+- Test count: 2
+
+- `tests/e2e/data-owner-tabs.spec.ts:113` one prompt across two tabs; Discard replaces the data in both and nothing of A reaches B
+- `tests/e2e/data-owner-tabs.spec.ts:148` Cancel in one tab signs B out of both and leaves the data of A in both
 
 ### Dragdrop Done Crash
 
@@ -1606,6 +1904,74 @@ _No executable test cases detected._
 
 - `tests/e2e/event-sourcing/boards-locked-collection.spec.ts:70` boards created, renamed and deleted still sync with the boards collection locked
 
+### Sync Account Switch
+
+- Path: `tests/e2e/event-sourcing/sync-account-switch.spec.ts`
+- Type: End-to-End
+- Test count: 3
+
+- `tests/e2e/event-sourcing/sync-account-switch.spec.ts:86` Discard: none of the unsynced events reach either account, and B sees none of A\'s boards
+- `tests/e2e/event-sourcing/sync-account-switch.spec.ts:146` Cancel: B is signed out, A\'s data stays, and the events push under A when A signs back in
+- `tests/e2e/event-sourcing/sync-account-switch.spec.ts:192` two tabs: one prompt, and Discard switches both tabs with nothing of A on the server under B
+
+### Sync Board Settings
+
+- Path: `tests/e2e/event-sourcing/sync-board-settings.spec.ts`
+- Type: End-to-End
+- Test count: 1
+
+- `tests/e2e/event-sourcing/sync-board-settings.spec.ts:10` settings changed on A apply on B without a reload
+
+### Sync Columns Labels
+
+- Path: `tests/e2e/event-sourcing/sync-columns-labels.spec.ts`
+- Type: End-to-End
+- Test count: 2
+
+- `tests/e2e/event-sourcing/sync-columns-labels.spec.ts:34` a column added, renamed and deleted on A shows on B without a reload
+- `tests/e2e/event-sourcing/sync-columns-labels.spec.ts:77` a label added, renamed and deleted on A shows on B without a reload
+
+### Sync Import Board
+
+- Path: `tests/e2e/event-sourcing/sync-import-board.spec.ts`
+- Type: End-to-End
+- Test count: 2
+
+- `tests/e2e/event-sourcing/sync-import-board.spec.ts:138` a board imported on A shows on B with all its columns, tasks, labels and settings
+- `tests/e2e/event-sourcing/sync-import-board.spec.ts:153` a device that signs in after the import catches up to the whole board
+
+### Sync Leader
+
+- Path: `tests/e2e/event-sourcing/sync-leader.spec.ts`
+- Type: End-to-End
+- Test count: 5
+
+- `tests/e2e/event-sourcing/sync-leader.spec.ts:111` sync leader (live PocketBase) > AC-001: each edit is pushed once, and one tab alone holds the subscription
+- `tests/e2e/event-sourcing/sync-leader.spec.ts:136` sync leader (live PocketBase) > AC-002: a remote event shows in both tabs without a reload, and a follower edit right after it keeps both
+- `tests/e2e/event-sourcing/sync-leader.spec.ts:166` sync leader (live PocketBase) > AC-003: the follower takes over within 5 seconds: one subscription, one catch-up, draining
+- `tests/e2e/event-sourcing/sync-leader.spec.ts:194` sync leader (live PocketBase) > AC-003: the session carries over: signing out in the follower stops the leader; sign-in in a new leader runs
+- `tests/e2e/event-sourcing/sync-leader.spec.ts:215` sync leader (live PocketBase) > AC-004: without Web Locks each tab syncs alone, and the server keeps one copy of each event
+
+### Sync Offline Edits
+
+- Path: `tests/e2e/event-sourcing/sync-offline-edits.spec.ts`
+- Type: End-to-End
+- Test count: 3
+
+- `tests/e2e/event-sourcing/sync-offline-edits.spec.ts:25` changes made offline on A reach B on return, and the indicator goes from Offline to Live
+- `tests/e2e/event-sourcing/sync-offline-edits.spec.ts:101` when the server cannot be reached the indicator shows the unsynced count, then Live once it can
+- `tests/e2e/event-sourcing/sync-offline-edits.spec.ts:127` offline with two tabs: an edit in the follower is pushed once, even if the leader tab closes first
+
+### Sync Task Changes
+
+- Path: `tests/e2e/event-sourcing/sync-task-changes.spec.ts`
+- Type: End-to-End
+- Test count: 3
+
+- `tests/e2e/event-sourcing/sync-task-changes.spec.ts:10` a task created, edited, moved and deleted on A shows on B without a reload
+- `tests/e2e/event-sourcing/sync-task-changes.spec.ts:76` on the first-run board a new task lands in the same place on both devices
+- `tests/e2e/event-sourcing/sync-task-changes.spec.ts:86` on the first-run board a demo task deleted on A goes from B too
+
 ### Timetracking Convergence
 
 - Path: `tests/e2e/event-sourcing/timetracking-convergence.spec.ts`
@@ -1626,6 +1992,82 @@ _No executable test cases detected._
 - `tests/e2e/event-sourcing/two-context-convergence.spec.ts:74` AC-009 two-context realtime convergence (live PocketBase) > a task created and moved on device A appears on device B within ~3s
 - `tests/e2e/event-sourcing/two-context-convergence.spec.ts:117` AC-009 two-context realtime convergence (live PocketBase) > a template board created on device A shows its real columns on device B
 - `tests/e2e/event-sourcing/two-context-convergence.spec.ts:148` AC-009 two-context realtime convergence (live PocketBase) > normal work and a board delete only call the event-sourced endpoints
+
+### Import Export Invalid
+
+- Path: `tests/e2e/import-export-invalid.spec.ts`
+- Type: End-to-End
+- Test count: 4
+
+- `tests/e2e/import-export-invalid.spec.ts:70` importing ${name} shows the error and creates no board
+- `tests/e2e/import-export-invalid.spec.ts:84` cancelling the import review saves nothing
+- `tests/e2e/import-export-invalid.spec.ts:95` an unusually large but supported file shows a caution and can still be imported
+- `tests/e2e/import-export-invalid.spec.ts:111` a task label missing from the file is dropped with a warning in the review
+
+### Import Export Legacy
+
+- Path: `tests/e2e/import-export-legacy.spec.ts`
+- Type: End-to-End
+- Test count: 1
+
+- `tests/e2e/import-export-legacy.spec.ts:22` a legacy task-only file imports with default columns and shows the warning
+
+### Import Export Roundtrip
+
+- Path: `tests/e2e/import-export-roundtrip.spec.ts`
+- Type: End-to-End
+- Test count: 5
+
+- `tests/e2e/import-export-roundtrip.spec.ts:67` an exported board imports as a new board with the same columns, tasks, labels, settings and done state
+- `tests/e2e/import-export-roundtrip.spec.ts:143` the exported file records its metadata, UUID ids and the Done role
+- `tests/e2e/import-export-roundtrip.spec.ts:160` the export file is named {boardName}-YYYY-MM-DD.json
+- `tests/e2e/import-export-roundtrip.spec.ts:167` a column WIP limit survives export and import
+- `tests/e2e/import-export-roundtrip.spec.ts:185` the countdown thresholds survive export and import
+
+### Labels
+
+- Path: `tests/e2e/labels.spec.ts`
+- Type: End-to-End
+- Test count: 3
+
+- `tests/e2e/labels.spec.ts:24` a label can be created, recoloured, assigned, filtered by and deleted
+- `tests/e2e/labels.spec.ts:104` an invalid hex colour blocks saving a label
+- `tests/e2e/labels.spec.ts:120` a label created from the task editor is selected without leaving the task
+
+### Multi Tab
+
+- Path: `tests/e2e/multi-tab.spec.ts`
+- Type: End-to-End
+- Test count: 3
+
+- `tests/e2e/multi-tab.spec.ts:31` an edit in either tab shows in the other with no reload, and both survive a reload
+- `tests/e2e/multi-tab.spec.ts:56` one tab holds the leader lock, and the other takes it when that tab closes
+- `tests/e2e/multi-tab.spec.ts:69` a browser without Web Locks still opens, edits and shares edits between tabs
+
+### Notifications
+
+- Path: `tests/e2e/notifications.spec.ts`
+- Type: End-to-End
+- Test count: 8
+
+- `tests/e2e/notifications.spec.ts:43` nothing due: no banner and no count on either bell
+- `tests/e2e/notifications.spec.ts:55` the banner lists overdue and upcoming tasks with their status, leaving out Done and far-off tasks
+- `tests/e2e/notifications.spec.ts:78` the modal lists tasks most overdue first, with status and priority, from both bells
+- `tests/e2e/notifications.spec.ts:108` the upcoming window follows the board setting
+- `tests/e2e/notifications.spec.ts:124` dismissing the banner persists until the modal toggle brings it back
+- `tests/e2e/notifications.spec.ts:150` the banner hides by itself once no task qualifies
+- `tests/e2e/notifications.spec.ts:161` the banner shows at most 5 tasks and links to the full modal for the rest
+- `tests/e2e/notifications.spec.ts:177` on a wide screen > the banner still shows at most 5 tasks
+
+### Reports
+
+- Path: `tests/e2e/reports.spec.ts`
+- Type: End-to-End
+- Test count: 3
+
+- `tests/e2e/reports.spec.ts:14` the reports page loads and shows the tasks completed on the board
+- `tests/e2e/reports.spec.ts:52` average lead time runs from creation to done
+- `tests/e2e/reports.spec.ts:65` a board with nothing completed reports zero
 
 ### Subtasks
 
@@ -1749,6 +2191,14 @@ _No executable test cases detected._
 
 - `tests/e2e/timetracking-mobile.spec.ts:5` on a phone the sidebar collapses into a top bar and an entry can be logged by touch
 - `tests/e2e/timetracking-mobile.spec.ts:59` on a phone a time entry can be edited and deleted by tapping its always-visible row actions
+
+### Timetracking Rename
+
+- Path: `tests/e2e/timetracking-rename.spec.ts`
+- Type: End-to-End
+- Test count: 1
+
+- `tests/e2e/timetracking-rename.spec.ts:3` customer and project names can be saved and survive a reload
 
 ### Timetracking Reports
 

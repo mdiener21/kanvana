@@ -17,11 +17,17 @@ export function isAuthenticated() {
   return Boolean(pb.authStore.token && pb.authStore.record);
 }
 
+// The SDK's authRefresh saves any response, which could undo a sign-out or replace an account signed in meanwhile.
+async function sendAuthRefresh(sentToken) {
+  const { token, record } = await pb.send('/api/collections/users/auth-refresh', { method: 'POST', requestKey: null });
+  if (pb.authStore.token === sentToken) pb.authStore.save(token, record);
+}
+
 export async function ensureAuthenticated() {
   if (!pb.authStore.token || !pb.authStore.record) return false;
   if (pb.authStore.isValid) return true;
   try {
-    await pb.collection('users').authRefresh();
+    await sendAuthRefresh(pb.authStore.token);
     return Boolean(pb.authStore.token && pb.authStore.record);
   } catch {
     return false;
@@ -64,10 +70,11 @@ export async function refreshAuth() {
     pb.authStore.clear();
     return false;
   }
+  const sentToken = pb.authStore.token;
   try {
-    await pb.collection('users').authRefresh({ requestKey: null });
+    await sendAuthRefresh(sentToken);
   } catch (err) {
-    if (err?.status >= 400 && err?.status < 500) pb.authStore.clear();
+    if (err?.status >= 400 && err?.status < 500 && pb.authStore.token === sentToken) pb.authStore.clear();
   }
   return isAuthenticated();
 }

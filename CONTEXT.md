@@ -127,7 +127,7 @@ The storage layer is split into three modules:
 
 | Module | Responsibility |
 |---|---|
-| `idb-store.js` | IDB connection singleton, key helpers, fire-and-forget `schedulePersist()` / `scheduleReadModelPersist()` / `scheduleDelete()`, plus event helpers (`persistEvent`, `getUnsyncedEvents`, `markEventSynced`) |
+| `idb-store.js` | IDB connection singleton, key helpers, fire-and-forget `schedulePersist()` / `scheduleReadModelPersist()` / `scheduleDelete()`, event helpers (`persistEvent`, `getUnsyncedEvents`, `markEventSynced`), and the Data Owner record (`getDataOwner`, `claimDataOwner`, `replaceLocalData`) |
 | `board-serializer.js` | Board import normalizer — remaps non-UUID IDs, coerces fields on import or IDB migration |
 | `storage.js` | In-memory `state` + all public CRUD functions. Imports from both above. Owns `state`/schedulers; wires them into the read-model projector. |
 | `event-sourcing/read-model-projector.js` | `createReadModelProjector()` — the read-model projection host, extracted from `storage.js` ([#119](docs/adr/0005-reducer-sole-read-model-writer.md)). Connects to the ingest interface on `register()` and folds each ingested domain event into the injected `state` via the pure reducer (the sole writer). |
@@ -142,6 +142,8 @@ The storage layer is split into three modules:
 | `kanvana:hlc:node` | Persisted Hybrid Logical Clock node id |
 | `kanvana:timetracking` | Time-tracking projection (`customers` / `projects` / `timeEntries`, plus `tombstones` of deleted customers / projects) |
 | `kanvana:sync:lastSeenHlc:{scope}` | Per-scope catch-up watermark (`{boardId}`, `__global__` or `__timetracking__`) |
+| `kanvana:dataOwner` | Id of the account local data belongs to (§4 Data Owner); absent until the first sign-in |
+| `kanvana:sync:firstPullPending` | Set by a wipe, cleared when the leader tab's first pull finishes: the new owner's data has not been pulled yet |
 
 **Pattern:** `initStorage()` (async, called once at startup) → synchronous CRUD functions read/write
 in-memory `state` → fire-and-forget IDB writes via `scheduleReadModelPersist()` → `renderBoard()`.
@@ -169,6 +171,12 @@ so the projection reproduces the change from events alone. Deletes are hard remo
 
 `initStorage()` loads the board memory into `state` (`taskTombstones`, `appliedEventIds`, and the latest
 snapshot's ids as `snapshotAppliedIds`), so local projection stays synchronous (ADR-0005).
+
+**Several tabs** (#222): each tab holds its own in-memory `state` and writes its copy of a board out on
+every projection, so no tab may trust another's stored `read_model`. A tab that hears of events another tab
+stored re-reads those events from the `events` store and folds them through the projector by the usual
+rules (§9 Ordering), a rebuild for a late one included. An edit made on a stale copy therefore costs nothing:
+the event it missed arrives, every tab converges in HLC order and writes the complete board out. See §4 Sync leader.
 
 **Key public functions:**
 
@@ -204,19 +212,90 @@ manual push/pull); the header **sync-state indicator** shows `Live` / `Syncing�
 |---|---|
 | `sync.js` | PocketBase SDK instance (`getPb`) + auth only (`isAuthenticated`, `ensureAuthenticated`, `getUser`, `loginUser`, `registerUser`, `logoutUser`, `loginWithProvider`, `refreshAuth`, `initAuthRefresh`) |
 | `authsync.js` | Auth UI — login modal, OAuth2 (Google/Apple/Microsoft), logout, backend health probe |
-| `event-sourcing/sync-queue.js` | **Outbound** — drains unsynced events to the PB `events` collection in HLC order (debounce, in-flight cap, three-tier retry, no rollback); `getSyncStatus()` |
+| `event-sourcing/sync-session.js` | **Lifecycle** — the one state machine for sync (`signed-out` → `catching-up` → `live` ⇄ `offline`, plus `paused` ⇄ `paused-offline`). The only sync module that listens to `auth-changed`, `online` and `offline`; it starts and stops the queue, realtime and snapshot upload. `initSyncSession()`, `getSyncSessionState()`; `createSyncSession({ network, beforeSignIn })` takes the network side and a check run on each new sign-in |
+| `event-sourcing/data-owner.js` | **Account check** — `checkDataOwner(userId)`, the session's `beforeSignIn`: applies the Data Owner policy and coordinates tabs during a switch. `createNetworkSettlingFirstPull()` wraps the leader's network side to finish the first pull after a wipe |
+| `event-sourcing/sync-leader.js` | **Sync leader** (#222) — elects one tab with a Web Lock and links the tabs with a BroadcastChannel. `initSyncLeader()` resolves to the leader-gated network side the tab's session runs on |
+| `event-sourcing/sync-queue.js` | **Outbound** — drains unsynced events to the PB `events` collection in HLC order (debounce, in-flight cap, three-tier retry, no rollback), stamped with the Data Owner, and pushes nothing when the signed-in account is not the Data Owner. Runs only between `startSyncQueue({ onAuthRejected })` and `stopSyncQueue()`; `drainSyncQueue()`, `getSyncStatus()` |
 | `event-sourcing/ingest.js` | **Ingest interface** — `ingestEvent(event, { origin, receivedAt })`, the single entry point of the event log for local and remote events (catch-up uses `ingestRemoteBatch(items)`, which validates and sorts once, applies each board's in-order events to one copy of the board as one list (#238) and saves each touched board's read model once when the batch ends (#237), and returns the events not stored before): validate, observe the remote HLC (remote only), project, `DATA_CHANGED`, `EVENT_EMITTED`, persist (`synced` = origin is `remote`) |
-| `event-sourcing/realtime.js` | **Inbound** — SSE subscription + launch/reconnect catch-up pull; remote events go through `ingestEvent(…, { origin: 'remote' })` (deduped by id) |
+| `event-sourcing/realtime.js` | **Inbound** — SSE subscription (`startRealtime({ onConnect })`, `stopRealtime()`) + catch-up pull (`catchUp()`), run by the session; a stop also ends a pull in flight; remote events go through `ingestEvent(…, { origin: 'remote' })` (deduped by id) |
 | `event-sourcing/hlc.js` | Hybrid Logical Clock — `emitLocal()`, `observeRemote()`, `compareHlc()` |
-| `event-sourcing/snapshot.js`, `snapshot-sync.js` | Client snapshots + upload + event GC |
-| `event-sourcing/sync-indicator.js` | Header sync-state indicator (#115) |
+| `event-sourcing/snapshot.js`, `snapshot-sync.js` | Client snapshots + upload + event GC. Snapshots are always taken locally; upload runs only between `startSnapshotSync()` and `stopSnapshotSync()`, and only as the Data Owner |
+| `event-sourcing/sync-indicator.js` | Header sync-state indicator (#115), rendered from the session state and queue depth |
+
+**Sync leader** (#222) — of all tabs of an origin, the holder of the Web Lock `kanvana:sync-leader` runs the
+session's network side: queue, realtime, catch-up and snapshot upload. Every other tab is a **follower**: it runs
+its own session on a network side that does nothing, so it still follows auth (PocketBase's auth store reaches
+every tab) and `online` / `offline` itself and is ready to take over. Taking the lock depends on nothing about
+the user, so it runs apart from `beforeSignIn`.
+
+| Between tabs (BroadcastChannel `kanvana:sync`) | What happens |
+|---|---|
+| `events-stored` | Sent only once the event is in the `events` store. Every other tab folds it (§3 Several tabs) and, if local, the leader schedules a drain |
+| `snapshot-adopted` | Others rebuild the key, dropping the same entities; only the adopting tab knows what the snapshot replaced |
+| `board-settings-written` | Others re-read settings no event carries (swimlanes), which they would otherwise overwrite with their copy |
+| `snapshot-saved` | A snapshot saved in a follower is uploaded by the leader, never from the follower |
+| `status`, `status-request` | The leader's session state and retry status, which exist only in its memory, on every change and when a tab opens. `getSyncSessionState()` and `getSyncStatus()` report them in a follower, so every indicator shows the same text; a follower's own `signed-out`, `offline` or `paused-offline` wins. A paused leader pauses the followers' sessions too |
+
+**Handover.** The browser releases the lock when the tab dies; the next tab in the lock's queue folds any stored
+event it missed, then `takeOverSyncSession()` does what its state calls for: from `live` or `catching-up`, one
+catch-up and then draining; while `signed-out`, `offline` or `paused-offline`, nothing until that changes; while `paused`, realtime and
+one catch-up, with queue and upload stopped until fresh credentials. A tab being frozen or entering the
+back/forward cache stops its network side and leaves the lock or its queue, because a frozen holder would block every
+other tab; on resuming it claims the lock again and reads the events it missed. A tab opening as a follower reads
+missed events too, covering any stored while it loaded.
+
+With no Web Locks or no BroadcastChannel a tab is its own leader (each subscribes and pushes; the server dedupes,
+#217). With a BroadcastChannel alone, tabs still share edits. Known limit: if a tab dies between storing an event and
+announcing it, and another tab then writes its board out, a reload reads a read model without that event until a tab
+opening as follower, a takeover or a rebuild folds it; the event itself is safe in the store.
+
+**Data Owner** — the account the browser's local data belongs to. One browser holds one local database
+with at most one Data Owner. Data created offline has none until the first sign-in claims it. A different
+account signing in wipes local data, after a prompt if unsynced events would be lost, and becomes the Data
+Owner. Events are only ever pushed under the Data Owner. Sign-out keeps local data visible and usable
+offline, keeps the Data Owner, and clears the token locally without revoking it on the server
+([ADR-0006](docs/adr/0006-data-owner-account-policy.md)).
+
+How a switch works (`data-owner.js`, run on each new sign-in, with no network, also at an offline launch):
+
+- **Wipe.** `replaceLocalData()` clears every object store and writes the new owner in **one transaction**,
+  so an interruption leaves the old owner with all its data, or the new owner with none. A later boot with
+  the old owner still recorded runs the check again. The page then reloads, which is what resets the
+  in-memory state, caches and watermarks.
+- **What survives a wipe.** The HLC node id (it identifies the browser) and localStorage display
+  preferences: theme, the notification banner flag, the report period. Everything else goes, including
+  global settings, watermarks and the last-used time-tracking project.
+- **Prompt.** `confirmDialog` with `destructive: true`, so Cancel has focus. A wipe refuses when more events
+  are unsynced than the user agreed to lose, and the prompt asks again with the new number.
+- **Other tabs.** The auth store is in localStorage, so every tab's session sees the sign-in. A Web Lock lets
+  one tab settle the switch while the others wait, signed-out; a hidden tab does not prompt until it is
+  looked at. The tab that wiped tells the others to reload over a `BroadcastChannel`.
+- **Default board.** The page seeds the stable default board before it knows what the new account holds. That
+  seed has no demo tasks and emits no events, and its events go out only if the leader's first finished pull
+  shows the account has never had this board, so nothing newer than the account's own history lands on the
+  stable ids. `kanvana:sync:firstPullPending` marks that pull as still to come; a failed pull leaves it set.
+
+- **A tab that missed the wipe.** The notice takes time to arrive, so it is not what protects the new owner's
+  data. A wipe bumps `kanvana:dataGeneration` in its transaction, each tab pins the generation when it opens the
+  database, and every write of account data (`writeIfDataCurrent()` and the `schedule*` helpers in `idb-store.js`)
+  checks it inside its own transaction. On a mismatch the write is dropped and the page reloads, so nothing from a
+  tab still holding the old owner reaches the events store, the read model, snapshots or the queue.
+
+Known limits. Without Web Locks (plain http) the lock is skipped, so two visible tabs could each prompt. A tab that
+missed a wipe keeps showing the old owner's data from its own memory until the notice or its first dropped write
+reloads it, and an edit made there in that moment is lost without a prompt, since the prompt could not count it. Its
+tab-to-tab notices can still go out in that moment: they carry ids only, so a tab acting on one finds nothing to
+fold, though a `snapshot-adopted` can hide the entities it names from that tab's view until its next rebuild. Three
+writes skip the check because they hold no account data: the HLC node id, the first claim of unowned data (no wipe
+can have happened), and the boot migration from legacy localStorage (it runs before any wipe on that browser).
+localStorage preferences are outside IndexedDB and are not checked.
 
 **Auth:** Email/password or OAuth2. `isAuthenticated()` / `ensureAuthenticated()` guard all sync
-operations. The `auth-changed` window event fires on auth state change; the queue, realtime, and UI
-all subscribe.
+operations. The `auth-changed` window event fires on auth state change, including a token refresh; the
+sync session and the auth UI subscribe. The session treats only a different account as a sign-in.
 
 **Snapshot adoption = snapshot + replay (#180).** At launch and on every reconnect, catch-up
-(`realtime.js` `catchUp()`) first adopts each server snapshot newer than the key's last-seen HLC, for
+(`realtime.js` `catchUp()`, run by the sync session) first adopts each server snapshot newer than the key's last-seen HLC, for
 board, `__global__` and `__timetracking__` keys alike. `adoptSnapshot(key, state, hlc)` (`ingest.js`)
 saves it and rebuilds the key's view as the snapshot plus this device's stored events newer than it, in
 HLC order (`rebuildScope`, §9 Ordering); it never replaces the view wholesale. So an unsynced local edit
@@ -253,6 +332,10 @@ Development runs without a service worker. Production lifecycle tests run with `
 | `BOARD_CHANGED` | `'board:changed'` — board-level structure changed |
 | `DATA_CHANGED` | `'data:changed'` — projection changed (a domain event was applied); UI re-render trigger |
 | `EVENT_EMITTED` | `'event:emitted'` — a domain event was ingested (local or remote), after projection; wakes the outbound queue. Notification only: emitting it does not project anything |
+| `EVENTS_STORED` | `'events:stored'` — events reached the `events` store (`{ ids, local }`); the sync leader tells the other tabs (#222) |
+| `SNAPSHOT_ADOPTED` | `'snapshot:adopted'` — this tab adopted a server snapshot (`{ key, forgotten }`); the sync leader tells the other tabs which entities it replaced |
+| `PEER_SYNC_CHANGED` | `'sync:peer-changed'` — another tab's events or sync status changed what this tab shows; re-renders the sync indicator |
+| `BOARD_SETTINGS_WRITTEN` | `'settings:written'` — settings no event carries were written (`{ boardId }`); the sync leader tells the other tabs to re-read them once stored |
 
 ---
 
@@ -341,6 +424,22 @@ inspectImportPayload → buildImportConfirmationMessage → importTasks
 
 ### Sync Flow (event-sourced)
 ```
+[every tab, at boot]         → initSyncLeader(): Web Lock decides leader or follower; only the leader's network side does anything
+[leader tab closed]          → next tab: fold missed stored events → takeOverSyncSession() (§4 Sync leader)
+
+[sign-in, launch signed in]  → beforeSignIn: Data Owner check (§4), stays signed-out until settled
+                               → catching-up (or offline if there is no network)
+[online, re-auth, SSE reconnect] → catching-up
+
+catching-up (event-sourcing/sync-session.js), one pull per transition:
+   1. stop the queue, start snapshot upload
+   2. start the SSE subscription, waiting at most 3 s    (the initial PB_CONNECT is covered by the pull)
+   3. catchUp() once; once more if SSE reconnected during it → live: start the queue and drain
+      SSE up only after the wait: one extra pull if that pull had started, without leaving live
+offline, sign-out → stop the queue, snapshot upload and realtime; a push rejected with 401/403 → paused
+                    (queue and upload stopped, realtime stays up; offline → paused-offline, realtime stopped;
+                    online → paused, realtime and one pull; only re-authentication resumes)
+
 [local mutation] → scheduleDomainEvent() (stamp UUID + sync HLC) → ingestEvent(event, { origin: 'local' })
 [remote event]   → realtime.js SSE → ingestEvent(event, { origin: 'remote', receivedAt: record.created })
                    catchUp() → ingestRemoteBatch([{ event, receivedAt }]) → the same remote path per event
@@ -352,8 +451,8 @@ ingestEvent (event-sourcing/ingest.js) — one path, origin is a parameter:
    2. remote only: drop if it reached the server a grace window after its HLC; classify against the key's newest applied HLC (§9 Ordering)
    3. project: read-model-projector folds event into state (sole writer, deduped by id)
               → emit(DATA_CHANGED) → renderBoard()      [synchronous for local events; skipped for a late remote one]
-   4. emit(EVENT_EMITTED) → outbound sync-queue schedules a drain (HLC order, unsynced only)
-   5. persistEvent (synced = origin === 'remote')        [async; the returned promise settles here]
+   4. emit(EVENT_EMITTED) → outbound sync-queue schedules a drain if it is running (HLC order, unsynced only, as the Data Owner)
+   5. persistEvent (synced = origin === 'remote')        [async] → EVENTS_STORED → other tabs fold it, leader drains
    6. late event only: rebuildScope(key)                  [the promise settles after the rebuild]
 ```
 
@@ -492,4 +591,4 @@ event stream.
 Key coverage areas: storage CRUD, UUID migration, swimlane utilities, import/export preflight,
 due-date countdown, validation, normalization, subtasks, and the event-sourcing layer (HLC, reducer,
 outbound queue, realtime/catch-up, snapshots, sync indicator). Live multi-device convergence is covered
-by `tests/e2e/event-sourcing/` against a real PocketBase (`npm run test:e2e:live`; needs Docker up).
+by `tests/e2e/event-sourcing/` against a real PocketBase (`npm run test:e2e:live`; runs its own throwaway PocketBase container, so needs Docker).

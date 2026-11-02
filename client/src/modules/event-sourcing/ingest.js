@@ -1,6 +1,6 @@
 // The single entry point of the event log for local and remote events (#177); ordering rules: CONTEXT.md §9.
 
-import { DATA_CHANGED, EVENT_EMITTED, emit } from '../events.js';
+import { DATA_CHANGED, EVENT_EMITTED, EVENTS_STORED, SNAPSHOT_ADOPTED, emit } from '../events.js';
 import { flushPendingPersists, getDbRef, persistEvent, EVENTS_STORE } from '../idb-store.js';
 import { compareHlc, observeRemote } from './hlc.js';
 import { validateEvent } from './event-validation.js';
@@ -49,10 +49,7 @@ export async function ingestRemoteBatch(items) {
   const stored = await storedIds();
   const fresh = [];
   const writes = [];
-  // The projector can reconnect while the batch awaits; the one that began the batch must end it.
-  const batchProjector = projector;
-  batchProjector?.beginBatch();
-  batchDepth += 1;
+  const batchProjector = beginRemoteBatch();
   try {
     for (const { event, receivedAt } of valid) {
       if (await ingestRemote(event, receivedAt, stored, writes)) fresh.push(event);
@@ -60,16 +57,61 @@ export async function ingestRemoteBatch(items) {
     }
     await Promise.all(writes);
   } finally {
-    batchProjector?.endBatch();
-    batchDepth -= 1;
-    if (batchDepth === 0 && batchChanged) {
-      batchChanged = false;
-      emit(DATA_CHANGED, { batch: true });
-    }
+    endRemoteBatch(batchProjector);
   }
   // The read model the batch deferred is stored before the caller advances its watermark.
   await flushPendingPersists();
+  if (fresh.length) emit(EVENTS_STORED, { ids: fresh.map((event) => event.id), local: false });
   return fresh;
+}
+
+// The projector can reconnect while the batch awaits; the one that began the batch must end it.
+function beginRemoteBatch() {
+  const batchProjector = projector;
+  batchProjector?.beginBatch();
+  batchDepth += 1;
+  return batchProjector;
+}
+
+function endRemoteBatch(batchProjector) {
+  batchProjector?.endBatch();
+  batchDepth -= 1;
+  if (batchDepth === 0 && batchChanged) {
+    batchChanged = false;
+    emit(DATA_CHANGED, { batch: true });
+  }
+}
+
+// Another tab stored these (#222); its read model is not copied, since it may lack this tab's newest edit.
+export async function ingestStoredEvents(ids) {
+  const db = getDbRef();
+  if (!db || !projector) return;
+  const events = await Promise.all(ids.map((id) => db.get(EVENTS_STORE, id)));
+  await foldStoredEvents(events.filter(Boolean));
+}
+
+// For a tab that may have missed notices: one opening, waking up or taking over.
+export async function ingestMissedEvents() {
+  const db = getDbRef();
+  if (!db || !projector) return;
+  await foldStoredEvents(projector.missedEvents(await db.getAll(EVENTS_STORE)));
+}
+
+async function foldStoredEvents(events) {
+  const lateKeys = new Set();
+  const batchProjector = beginRemoteBatch();
+  try {
+    for (const event of [...events].sort((a, b) => compareHlc(a.hlc, b.hlc))) {
+      // Or the next local edit here could sort before an event this tab already shows.
+      await observeRemote(event.hlc);
+      const order = projector?.classify(event);
+      if (order === EVENT_ORDER.LATE) lateKeys.add(snapshotKeyForEvent(event));
+      else if (order === EVENT_ORDER.IN_ORDER && projector.project(event, { batched: true })) signalChanged({ event });
+    }
+  } finally {
+    endRemoteBatch(batchProjector);
+  }
+  for (const key of lateKeys) await rebuildScope(key);
 }
 
 function signalChanged(detail) {
@@ -147,6 +189,10 @@ function commit(event, origin, { batched = false } = {}) {
   unpersisted.set(event.id, event);
   const persisted = persistEvent({ ...event, synced: origin === EVENT_ORIGIN.REMOTE })
     .then(() => flushPendingPersists())
+    .then(() => {
+      // Other tabs and the queue read the store, so they may only hear of an event once it is there.
+      if (!batched) emit(EVENTS_STORED, { ids: [event.id], local: origin === EVENT_ORIGIN.LOCAL });
+    })
     .finally(() => unpersisted.delete(event.id));
   return order === EVENT_ORDER.LATE ? persisted.then(() => rebuildScope(key)) : persisted;
 }
@@ -159,6 +205,16 @@ export async function adoptSnapshot(key, state, hlc) {
   const entry = superseded.get(key) ?? createSuperseded();
   if (replaced) entry.snapshots.push(replaced);
   entry.events.push(...covered);
+  superseded.set(key, entry);
+  await rebuildScope(key);
+  const held = replaced ? [...replaced.state.tasks, ...replaced.state.columns, ...replaced.state.labels] : [];
+  emit(SNAPSHOT_ADOPTED, { key, forgotten: [...covered.map((event) => event.entity_id), ...held.map((item) => item?.id)] });
+}
+
+// Another tab adopted a snapshot (#222): only it knows what was replaced, and this rebuild must drop the same.
+export function rebuildAfterPeerAdoption(key, forgotten) {
+  const entry = superseded.get(key) ?? createSuperseded();
+  entry.events.push(...forgotten.map((entity_id) => ({ entity_id })));
   superseded.set(key, entry);
   return rebuildScope(key);
 }

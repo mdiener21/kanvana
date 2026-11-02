@@ -69,6 +69,26 @@ A toggle link switches between Login and Sign-up mode within the email pane. Sig
 - PocketBase auth token is persisted in `localStorage` by the PocketBase SDK.
 - On auth state change the `auth-changed` window event fires; `updateAuthUI` subscribes to it.
 - `ensureAuthenticated` attempts a token refresh before a push; on failure the login modal opens with a "Session expired" message.
+- Logging out clears the token locally and sends nothing to the server. Local data stays visible and usable, and edits made while signed out are sent at the same account's next sign-in.
+
+---
+
+## Account Switching
+
+The browser's local data belongs to one account, the Data Owner ([ADR-0006](../adr/0006-data-owner-account-policy.md)). It is checked on every new sign-in and at every launch with a stored token, online or offline, before anything syncs.
+
+| Situation | Behavior |
+|---|---|
+| Local data has no Data Owner | The account becomes the Data Owner and the data uploads under it. No prompt. |
+| The Data Owner signs in | Nothing changes, and the queue drains. No prompt. |
+| Another account signs in, nothing unsynced | Local data is replaced with that account's, and the page reloads. No prompt. |
+| Another account signs in, N changes unsynced | A prompt offers **Discard N unsynced changes and continue** or **Cancel**. Nothing syncs until the user chooses. |
+
+- **Discard** replaces the local data, makes the new account the Data Owner, and reloads the page, which then pulls that account's data.
+- **Cancel**, Escape, the close button and a backdrop click all sign the new account out and leave the data, queue and Data Owner untouched. Cancel has focus when the prompt opens.
+- If the local data cannot be replaced, the new account is signed out, a message says so, and nothing changes.
+- A switch keeps the theme and other display preferences. Boards, tasks, time tracking and global settings go, and come back from the server when the previous account signs in again.
+- With several tabs open there is one prompt, in a tab the user is looking at. After a replacement, the other tabs reload.
 
 ---
 
@@ -81,7 +101,7 @@ Once authenticated, sync runs without user action:
 
 | Direction | Mechanism |
 |---|---|
-| Outbound | The event queue (`event-sourcing/sync-queue.js`) drains unsynced domain events to PocketBase in HLC order. |
+| Outbound | The event queue (`event-sourcing/sync-queue.js`) drains unsynced domain events to PocketBase in HLC order, always under the Data Owner. |
 | Inbound | An SSE subscription (`event-sourcing/realtime.js`) applies remote events live, plus a catch-up pull on launch/reconnect. |
 
 The header **sync-state indicator** (`event-sourcing/sync-indicator.js`) reflects status: `Live ●`,
