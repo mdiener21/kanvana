@@ -183,7 +183,7 @@ const signIn = (user) => page.sync.getPb().authStore.save(jwt(user), user);
 const signOut = () => page.sync.getPb().authStore.clear();
 const settle = (ms = 250) => new Promise((r) => setTimeout(r, ms));
 const promptEl = () => document.getElementById('dialog-modal');
-const promptIsOpen = () => promptEl() && !promptEl().classList.contains('hidden');
+const promptIsOpen = () => Boolean(promptEl()) && !promptEl().classList.contains('hidden');
 const live = () => waitFor(() => expect(page.session.getSyncSessionState()).toBe('live'), { timeout: 20000 });
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
