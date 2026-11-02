@@ -157,11 +157,17 @@ test('the exported file records its metadata, UUID ids and the Done role', async
   for (const item of [...data.columns, ...data.tasks, ...data.labels]) expect(item.id).toMatch(UUID);
 });
 
-test.fixme('the export file is named {boardName}-YYYY-MM-DD.json', async ({ page }) => {
-  // Bug: the spec names it "Launch Plan-2026-11-12.json"; the app writes Launch_Plan_board_<ISO timestamp>.json (#262).
+test('the export file is named {boardName}-YYYY-MM-DD.json', async ({ page }) => {
   await openBlankBoard(page, BOARD);
   const { filename } = await exportBoardFile(page, BOARD);
   expect(filename).toBe(`${BOARD}-2026-11-12.json`);
+});
+
+test('the export filename uses the local date, not the UTC date', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-13T00:30:00+01:00')); // still Nov 12 in UTC
+  await openBlankBoard(page, BOARD);
+  const { filename } = await exportBoardFile(page, BOARD);
+  expect(filename).toBe(`${BOARD}-2026-11-13.json`);
 });
 
 test('a column WIP limit survives export and import', async ({ page }) => {

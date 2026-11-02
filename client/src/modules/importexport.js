@@ -50,6 +50,14 @@ function buildExportMeta() {
 }
 
 
+// {boardName}-YYYY-MM-DD.json, dated in the user's timezone (docs/spec/import-export.md).
+function exportFilename(boardName) {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${boardName}-${now.getFullYear()}-${month}-${day}.json`;
+}
+
 function refreshBoardsUI(activeBoardId) {
   const brandEl = document.getElementById('brand-text') || document.querySelector('.brand-text');
   if (brandEl) brandEl.textContent = getActiveBoardName();
@@ -563,7 +571,7 @@ export function exportTasks() {
   
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${boardName.replaceAll(' ', '_').replaceAll('.', '_')}_board_${new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-')}.json`;
+  a.download = exportFilename(boardName);
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -611,7 +619,7 @@ export function exportBoard(boardId) {
 
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${boardName.replaceAll(' ', '_').replaceAll('.', '_')}_board_${new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-')}.json`;
+  a.download = exportFilename(boardName);
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
