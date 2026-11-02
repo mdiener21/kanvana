@@ -212,7 +212,7 @@ manual push/pull); the header **sync-state indicator** shows `Live` / `Syncing�
 |---|---|
 | `sync.js` | PocketBase SDK instance (`getPb`) + auth only (`isAuthenticated`, `ensureAuthenticated`, `getUser`, `loginUser`, `registerUser`, `logoutUser`, `loginWithProvider`, `refreshAuth`, `initAuthRefresh`) |
 | `authsync.js` | Auth UI — login modal, OAuth2 (Google/Apple/Microsoft), logout, backend health probe |
-| `event-sourcing/sync-session.js` | **Lifecycle** — the one state machine for sync (`signed-out` → `catching-up` → `live` ⇄ `offline`, plus `paused`). The only sync module that listens to `auth-changed`, `online` and `offline`; it starts and stops the queue, realtime and snapshot upload. `initSyncSession()`, `getSyncSessionState()`; `createSyncSession({ network, beforeSignIn })` takes the network side and a check run on each new sign-in |
+| `event-sourcing/sync-session.js` | **Lifecycle** — the one state machine for sync (`signed-out` → `catching-up` → `live` ⇄ `offline`, plus `paused` ⇄ `paused-offline`). The only sync module that listens to `auth-changed`, `online` and `offline`; it starts and stops the queue, realtime and snapshot upload. `initSyncSession()`, `getSyncSessionState()`; `createSyncSession({ network, beforeSignIn })` takes the network side and a check run on each new sign-in |
 | `event-sourcing/data-owner.js` | **Account check** — `checkDataOwner(userId)`, the session's `beforeSignIn`: applies the Data Owner policy and coordinates tabs during a switch. `createNetworkSettlingFirstPull()` wraps the leader's network side to finish the first pull after a wipe |
 | `event-sourcing/sync-leader.js` | **Sync leader** (#222) — elects one tab with a Web Lock and links the tabs with a BroadcastChannel. `initSyncLeader()` resolves to the leader-gated network side the tab's session runs on |
 | `event-sourcing/sync-queue.js` | **Outbound** — drains unsynced events to the PB `events` collection in HLC order (debounce, in-flight cap, three-tier retry, no rollback), stamped with the Data Owner, and pushes nothing when the signed-in account is not the Data Owner. Runs only between `startSyncQueue({ onAuthRejected })` and `stopSyncQueue()`; `drainSyncQueue()`, `getSyncStatus()` |
@@ -234,11 +234,11 @@ the user, so it runs apart from `beforeSignIn`.
 | `snapshot-adopted` | Others rebuild the key, dropping the same entities; only the adopting tab knows what the snapshot replaced |
 | `board-settings-written` | Others re-read settings no event carries (swimlanes), which they would otherwise overwrite with their copy |
 | `snapshot-saved` | A snapshot saved in a follower is uploaded by the leader, never from the follower |
-| `status`, `status-request` | The leader's session state and retry status, which exist only in its memory, on every change and when a tab opens. `getSyncSessionState()` and `getSyncStatus()` report them in a follower, so every indicator shows the same text; a follower's own `signed-out` or `offline` wins. A paused leader pauses the followers' sessions too |
+| `status`, `status-request` | The leader's session state and retry status, which exist only in its memory, on every change and when a tab opens. `getSyncSessionState()` and `getSyncStatus()` report them in a follower, so every indicator shows the same text; a follower's own `signed-out`, `offline` or `paused-offline` wins. A paused leader pauses the followers' sessions too |
 
 **Handover.** The browser releases the lock when the tab dies; the next tab in the lock's queue folds any stored
 event it missed, then `takeOverSyncSession()` does what its state calls for: from `live` or `catching-up`, one
-catch-up and then draining; while `signed-out` or `offline`, nothing until that changes; while `paused`, realtime and
+catch-up and then draining; while `signed-out`, `offline` or `paused-offline`, nothing until that changes; while `paused`, realtime and
 one catch-up, with queue and upload stopped until fresh credentials. A tab being frozen or entering the
 back/forward cache stops its network side and leaves the lock or its queue, because a frozen holder would block every
 other tab; on resuming it claims the lock again and reads the events it missed. A tab opening as a follower reads

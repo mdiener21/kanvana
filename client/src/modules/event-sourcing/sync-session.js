@@ -12,6 +12,7 @@ export const SESSION_STATE = Object.freeze({
   LIVE: 'live',
   OFFLINE: 'offline',
   PAUSED: 'paused',
+  PAUSED_OFFLINE: 'paused-offline',
 });
 
 export const SESSION_EVENT = Object.freeze({
@@ -25,7 +26,7 @@ export const SESSION_EVENT = Object.freeze({
   AUTH_REJECTED: 'auth-rejected',
 });
 
-const { SIGNED_OUT, CATCHING_UP, LIVE, OFFLINE, PAUSED } = SESSION_STATE;
+const { SIGNED_OUT, CATCHING_UP, LIVE, OFFLINE, PAUSED, PAUSED_OFFLINE } = SESSION_STATE;
 const EVENT = SESSION_EVENT;
 
 const TRANSITIONS = {
@@ -53,7 +54,14 @@ const TRANSITIONS = {
     [EVENT.SIGNED_IN]: CATCHING_UP,
     [EVENT.SIGNED_IN_OFFLINE]: OFFLINE,
     [EVENT.SIGNED_OUT]: SIGNED_OUT,
-    [EVENT.WENT_OFFLINE]: OFFLINE,
+    [EVENT.WENT_OFFLINE]: PAUSED_OFFLINE,
+  },
+  // Only re-authentication ends a pause, so the network coming back returns it to paused (AC-005).
+  [PAUSED_OFFLINE]: {
+    [EVENT.SIGNED_IN]: CATCHING_UP,
+    [EVENT.SIGNED_IN_OFFLINE]: OFFLINE,
+    [EVENT.SIGNED_OUT]: SIGNED_OUT,
+    [EVENT.WENT_ONLINE]: PAUSED,
   },
 };
 
@@ -105,19 +113,22 @@ export function createSyncSession({
   let subscribing = false;
   let listeners = null;
 
+  const isPaused = () => state === PAUSED || state === PAUSED_OFFLINE;
+
   function dispatch(event) {
     const next = transitionSession(state, event);
     if (next !== state) enter(next);
   }
 
   function enter(next) {
+    const previous = state;
     state = next;
     entry += 1;
-    enterState(next);
+    enterState(next, previous);
     onStateChange(next);
   }
 
-  function enterState(next) {
+  function enterState(next, previous) {
     if (next === LIVE) {
       network.startQueue(() => dispatch(EVENT.AUTH_REJECTED));
     } else if (next === CATCHING_UP) {
@@ -127,6 +138,8 @@ export function createSyncSession({
     } else if (next === PAUSED) {
       network.stopQueue();
       network.stopSnapshots();
+      // Going offline stopped realtime; a paused session holds it, and one pull, as after a takeover.
+      if (previous === PAUSED_OFFLINE) runCatchUp(entry).catch((err) => console.error('[Kanvana] Sync catch-up failed', err));
     } else {
       network.stopQueue();
       network.stopSnapshots();
@@ -215,7 +228,7 @@ export function createSyncSession({
   function onAuthChanged() {
     const id = getUserId();
     if (id === userId) {
-      if (id && state === PAUSED) dispatch(isOnline() ? EVENT.SIGNED_IN : EVENT.SIGNED_IN_OFFLINE);
+      if (id && isPaused()) dispatch(isOnline() ? EVENT.SIGNED_IN : EVENT.SIGNED_IN_OFFLINE);
       return;
     }
     if (userId) {
@@ -237,8 +250,8 @@ export function createSyncSession({
   // Only the leader's pushes can be rejected, so a follower learns of it here, which a
   // later takeover needs. Auth and network state are this tab's own.
   function noteLeaderState(leaderState) {
-    if (leaderState === PAUSED) dispatch(EVENT.AUTH_REJECTED);
-    else if (leaderState === LIVE && state === PAUSED) dispatch(isOnline() ? EVENT.SIGNED_IN : EVENT.SIGNED_IN_OFFLINE);
+    if (leaderState === PAUSED || leaderState === PAUSED_OFFLINE) dispatch(EVENT.AUTH_REJECTED);
+    else if (leaderState === LIVE && isPaused()) dispatch(isOnline() ? EVENT.SIGNED_IN : EVENT.SIGNED_IN_OFFLINE);
   }
 
   function start() {
@@ -280,7 +293,7 @@ export function initSyncSession(options = {}) {
 
 export function getSyncSessionState() {
   const own = _session?.getState() ?? SESSION_STATE.SIGNED_OUT;
-  if (!_leaderState || own === SIGNED_OUT || own === OFFLINE) return own;
+  if (!_leaderState || own === SIGNED_OUT || own === OFFLINE || own === PAUSED_OFFLINE) return own;
   return _leaderState;
 }
 

@@ -1,7 +1,13 @@
 // #219: the session's lifecycle against a fake network side. It covers the orderings
 // and races a page boot can't stage on demand; sync-session-boot.test.js covers the real thing.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createSyncSession } from '../../../src/modules/event-sourcing/sync-session.js';
+import {
+  _resetSyncSessionForTesting,
+  createSyncSession,
+  getSyncSessionState,
+  initSyncSession,
+  setLeaderSessionState,
+} from '../../../src/modules/event-sourcing/sync-session.js';
 
 function deferred() {
   let resolvePromise;
@@ -535,6 +541,130 @@ describe('paused', () => {
 
     expect(session.getState()).toBe('paused');
     expect(network.catchUp).toHaveBeenCalledTimes(1);
+  });
+
+  describe('across a network blip (#219 AC-005)', () => {
+    it('stays paused through offline and online, and pushes nothing', async () => {
+      const network = await pausedSession();
+      const queueStarts = network.startQueue.mock.calls.length;
+
+      setOnline(false);
+      await flush();
+      expect(session.getState()).toBe('paused-offline');
+      setOnline(true);
+      await flush();
+      await flush();
+
+      expect(session.getState()).toBe('paused');
+      expect(network.startQueue).toHaveBeenCalledTimes(queueStarts);
+    });
+
+    it('stops realtime while offline, and brings it back with one pull', async () => {
+      const network = await pausedSession();
+      const pullsBefore = network.catchUp.mock.calls.length;
+      const startsBefore = network.startRealtime.mock.calls.length;
+
+      setOnline(false);
+      await flush();
+      expect(network.stopRealtime).toHaveBeenCalledTimes(1);
+      expect(network.catchUp).toHaveBeenCalledTimes(pullsBefore);
+
+      setOnline(true);
+      await flush();
+      await flush();
+      expect(network.startRealtime).toHaveBeenCalledTimes(startsBefore + 1);
+      expect(network.catchUp).toHaveBeenCalledTimes(pullsBefore + 1);
+      expect(session.getState()).toBe('paused');
+    });
+
+    it('resumes on re-authentication after the blip', async () => {
+      const network = await pausedSession();
+      setOnline(false);
+      await flush();
+      setOnline(true);
+      await flush();
+      await flush();
+
+      signIn();
+      await flush();
+      await flush();
+
+      expect(session.getState()).toBe('live');
+      expect(network.startQueue).toHaveBeenCalledTimes(2);
+    });
+
+    it('waits for the network when re-authenticated while offline, then resumes', async () => {
+      await pausedSession();
+      online = false;
+      window.dispatchEvent(new Event('offline'));
+      await flush();
+
+      signIn();
+      await flush();
+      expect(session.getState()).toBe('offline');
+
+      setOnline(true);
+      await flush();
+      await flush();
+      expect(session.getState()).toBe('live');
+    });
+
+    it('signs out from paused-offline', async () => {
+      await pausedSession();
+      setOnline(false);
+      await flush();
+
+      signOut();
+      await flush();
+
+      expect(session.getState()).toBe('signed-out');
+    });
+
+    it('does nothing on a takeover while offline', async () => {
+      const network = await pausedSession();
+      setOnline(false);
+      await flush();
+      const pullsBefore = network.catchUp.mock.calls.length;
+
+      session.takeOver();
+      await flush();
+
+      expect(session.getState()).toBe('paused-offline');
+      expect(network.catchUp).toHaveBeenCalledTimes(pullsBefore);
+    });
+
+    it('resumes when a leader that is live again tells a follower that is offline', async () => {
+      await pausedSession();
+      online = true;
+      session.noteLeaderState('paused');
+      window.dispatchEvent(new Event('offline'));
+      await flush();
+      expect(session.getState()).toBe('paused-offline');
+
+      session.noteLeaderState('live');
+      await flush();
+      await flush();
+
+      expect(session.getState()).toBe('live');
+    });
+
+    it('reports this tab offline, whatever the leader says', async () => {
+      await pausedSession();
+      session.dispose();
+      session = null;
+      initSyncSession({ network: fakeNetwork(), getUserId: () => auth, isOnline: () => online, connectWaitMs: 5 });
+      await flush();
+      await flush();
+      setLeaderSessionState('paused');
+      await flush();
+      expect(getSyncSessionState()).toBe('paused');
+
+      setOnline(false);
+      await flush();
+
+      expect(getSyncSessionState()).toBe('paused-offline');
+      _resetSyncSessionForTesting();
+    });
   });
 });
 
