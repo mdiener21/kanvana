@@ -50,7 +50,7 @@ function buildExportMeta() {
 }
 
 
-// {boardName}-YYYY-MM-DD.json, dated in the user's timezone (docs/spec/import-export.md).
+// {boardName}-YYYY-MM-DD.json, dated in the user's timezone (docs/spec/import-export.md, #262).
 function exportFilename(boardName) {
   const now = new Date();
   const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -270,7 +270,7 @@ export function buildImportConfirmationMessage(preview) {
 
 // normalizePriority, isHexColor imported from normalize.js
 
-// Same bounds as storage's normalizeSettings. A missing value stays unset so the board default applies.
+// A missing value stays unset so the board default applies (#258).
 function normalizeCountdownThresholds(settings) {
   const rawUrgent = Number.parseInt((settings.countdownUrgentThreshold ?? '').toString(), 10);
   const rawWarning = Number.parseInt((settings.countdownWarningThreshold ?? '').toString(), 10);

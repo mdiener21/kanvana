@@ -15,9 +15,7 @@ export function addColumn(name, color, wipLimit = 0) {
   const newColumn = { id, name: name.trim(), color: normalizeHexColor(color), order: doneIndex + 1, collapsed: false, wipLimit: normalizeWipLimit(wipLimit) };
   columns.splice(doneIndex, 0, newColumn);
 
-  // A default board's columns have no order, so no order for the new column alone can
-  // place it before Done: its siblings need numbering too. Reordered goes first so the
-  // board never shows the new column on the wrong side of Done (#259).
+  // Default boards' columns have no order, so siblings need numbers too, emitted first so the new one never shows after Done (#259).
   const siblingOrder = columns.flatMap((column, index) => (
     column.id !== id && column.order !== index + 1 ? [{ id: column.id, order: index + 1 }] : []
   ));

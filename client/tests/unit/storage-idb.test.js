@@ -11,7 +11,7 @@
  * Each test gets a completely fresh IDB and localStorage via beforeEach.
  */
 
-import { test, expect, beforeEach } from 'vitest';
+import { test, expect, beforeEach, vi } from 'vitest';
 import { deleteDB, openDB } from 'idb';
 import { resetLocalStorage } from './setup.js';
 import {
@@ -39,7 +39,8 @@ import {
   loadLabelsForBoard,
   loadSettingsForBoard,
 } from '../../src/modules/storage.js';
-import { openStore, READ_MODEL_STORE } from '../../src/modules/idb-store.js';
+import { logWriteFailure, openStore, schedulePersist, scheduleReadModelPersist, EVENTS_STORE, KV_STORE, READ_MODEL_STORE } from '../../src/modules/idb-store.js';
+import { ingestEvent } from '../../src/modules/event-sourcing/ingest.js';
 import { scheduleDomainEvent } from '../../src/modules/event-sourcing/emitter.js';
 
 const DB_NAME = 'kanvana-db';
@@ -545,4 +546,22 @@ test('loadSettingsForBoard reads settings for a non-active board', async () => {
 test('loadTasksForBoard returns empty array for unknown board id', async () => {
   await initStorage();
   expect(loadTasksForBoard('non-existent-board')).toEqual([]);
+});
+
+test('a failed write batch stores nothing and logs once, however many writes joined it', async () => {
+  const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+  await initStorage();
+  schedulePersist('kept-out', 1);
+  scheduleReadModelPersist('board', 'tasks', []);
+  const event = { id: 'e-1', type: 'board.updated', hlc: { wallTime: 1, counter: 0, nodeId: 'n' }, at: '2026-01-01T00:00:00.000Z', actor: { type: 'human', id: null }, scope: 'board', board_id: 'board', entity_id: 'board', payload: { fields: { name: 'x' } } };
+  const persisted = ingestEvent(event).catch((err) => logWriteFailure('Event persistence failed', err));
+  schedulePersist('not-cloneable', () => {});
+  await _flushPersistsForTesting();
+  await persisted;
+
+  const db = await openStore();
+  expect(await db.get(KV_STORE, 'kept-out')).toBeUndefined();
+  expect(await db.get(EVENTS_STORE, 'e-1')).toBeUndefined();
+  expect(consoleError).toHaveBeenCalledTimes(1);
+  consoleError.mockRestore();
 });

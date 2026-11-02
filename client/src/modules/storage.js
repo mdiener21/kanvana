@@ -333,9 +333,7 @@ function stableDemoTasks(created) {
     .map((task, index) => ({ ...task, id: STABLE_DEMO_TASK_IDS[index] }));
 }
 
-// Default board scaffold with stable ids. Demo tasks are never emitted: each device
-// makes its own, so an event on one names the same id on all, and a new device
-// joining an account with real data adds nothing to the others (#263).
+// Demo tasks are never emitted: each device seeds its own, with ids that let an event on one name them on all (#263).
 function stableDefaultBoardData() {
   return {
     columns: stableDefaultColumns(),
@@ -345,8 +343,7 @@ function stableDefaultBoardData() {
   };
 }
 
-// No event creates a demo task, so a replay starts from the ones this device holds; one it has
-// deleted, or never made (after an account switch), stays gone. Their dates are this device's.
+// No event creates a demo task, so a replay starts from the ones this device still holds (#263).
 function unemittedTasks(boardId, liveTasks) {
   if (boardId !== STABLE_DEFAULT_BOARD_ID) return [];
   const held = liveTasks.filter((task) => STABLE_DEMO_TASK_IDS.includes(task.id));
