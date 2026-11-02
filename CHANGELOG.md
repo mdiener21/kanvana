@@ -14,7 +14,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - With several tabs open, only one tab now talks to the server. When you close it, another tab takes over within a few seconds, and every tab shows the same sync status (#222).
-- Added browser tests for the journeys a user would notice breaking: board import and export, templates, labels, columns, search, calendar, reports, notifications and syncing between devices. Eight known bugs they found are marked `test.fixme` until fixed (#231).
 - Signing in, opening the app or coming back online now downloads your changes once instead of two or three times, so sync finishes sooner (#219).
 
 ### Fixed
@@ -22,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An edit in one tab can no longer be undone on reload by another tab that had not seen it yet (#222).
 - Going offline now stops all sync activity, including upload retries, until the connection returns. The app then catches up first and sends your queued changes after that (#219).
 - Signing out now stops all sync activity, so nothing is sent to the server until you sign in again. Your edits stay on this device and are sent at your next sign-in (#219).
+- A tab that had not yet heard about an account switch can no longer write the previous account's changes into the new account's data. It reloads instead (#221).
+- Signing out or signing in while the app was refreshing your login could sign you back in or replace the new account's login. It no longer can (#221).
+- Sync paused by a rejected login now stays paused through a network drop until you sign in again, instead of resuming on the rejected login (#219).
 - Signing in with a different account no longer uploads the previous account's changes to the new account or shows its boards. This browser's data now belongs to one account. Another account signing in replaces it, and if changes have not reached the server yet you are asked first: discard them and continue, or cancel and sign out with everything kept (#221).
 
 ## [3.4.7] - 2026-10-28

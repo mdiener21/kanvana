@@ -332,6 +332,10 @@ Development runs without a service worker. Production lifecycle tests run with `
 | `BOARD_CHANGED` | `'board:changed'` — board-level structure changed |
 | `DATA_CHANGED` | `'data:changed'` — projection changed (a domain event was applied); UI re-render trigger |
 | `EVENT_EMITTED` | `'event:emitted'` — a domain event was ingested (local or remote), after projection; wakes the outbound queue. Notification only: emitting it does not project anything |
+| `EVENTS_STORED` | `'events:stored'` — events reached the `events` store (`{ ids, local }`); the sync leader tells the other tabs (#222) |
+| `SNAPSHOT_ADOPTED` | `'snapshot:adopted'` — this tab adopted a server snapshot (`{ key, forgotten }`); the sync leader tells the other tabs which entities it replaced |
+| `PEER_SYNC_CHANGED` | `'sync:peer-changed'` — another tab's events or sync status changed what this tab shows; re-renders the sync indicator |
+| `BOARD_SETTINGS_WRITTEN` | `'settings:written'` — settings no event carries were written (`{ boardId }`); the sync leader tells the other tabs to re-read them once stored |
 
 ---
 
@@ -430,9 +434,11 @@ inspectImportPayload → buildImportConfirmationMessage → importTasks
 catching-up (event-sourcing/sync-session.js), one pull per transition:
    1. stop the queue, start snapshot upload
    2. start the SSE subscription, waiting at most 3 s    (the initial PB_CONNECT is covered by the pull)
-   3. catchUp() once; once more if SSE connected during it  → live: start the queue and drain
+   3. catchUp() once; once more if SSE reconnected during it → live: start the queue and drain
+      SSE up only after the wait: one extra pull if that pull had started, without leaving live
 offline, sign-out → stop the queue, snapshot upload and realtime; a push rejected with 401/403 → paused
-                    (queue and upload stopped, realtime stays up)
+                    (queue and upload stopped, realtime stays up; offline → paused-offline, realtime stopped;
+                    online → paused, realtime and one pull; only re-authentication resumes)
 
 [local mutation] → scheduleDomainEvent() (stamp UUID + sync HLC) → ingestEvent(event, { origin: 'local' })
 [remote event]   → realtime.js SSE → ingestEvent(event, { origin: 'remote', receivedAt: record.created })
