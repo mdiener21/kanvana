@@ -12,13 +12,15 @@ const READ_MODEL_STORE = 'read_model';
 const DATA_OWNER_KEY = 'kanvana:dataOwner';
 const FIRST_PULL_PENDING_KEY = 'kanvana:sync:firstPullPending';
 const DATA_GENERATION_KEY = 'kanvana:dataGeneration';
+const DATA_REPLACED_PREFIX = 'kanvana:dataReplaced:';
+const WRITE_BATCH_STORES = [KV_STORE, EVENTS_STORE, READ_MODEL_STORE];
 
 let _db = null;
 let _opening = null;
 let _needsV2DataMigration = false;
 let _pinnedGeneration = null;
 let _dataReplaced = false;
-let _eventBatch = null;
+let _writeBatch = null;
 let _onDataReplaced = null;
 
 // In-flight persist Promises — used by _flushPersistsForTesting().
@@ -61,16 +63,24 @@ export function onDataReplaced(handler) {
 export async function isDataCurrent(tx) {
   const generation = (await tx.objectStore(KV_STORE).get(DATA_GENERATION_KEY)) ?? null;
   if (generation === _pinnedGeneration) return true;
-  if (!_dataReplaced) {
-    _dataReplaced = true;
-    _onDataReplaced?.();
-  }
+  noteDataReplaced();
   return false;
+}
+
+function noteDataReplaced() {
+  if (_dataReplaced) return;
+  _dataReplaced = true;
+  _onDataReplaced?.();
+}
+
+function dataReplacedKey(generation) {
+  return `${DATA_REPLACED_PREFIX}${generation ?? 0}`;
 }
 
 // The request goes in at the call, as with db.put: writes keep their order and store the value as it is now.
 async function guardedWrite(db, storeName, write) {
   if (_dataReplaced) return false;
+  _writeBatch = null; // A later batched write must land after this one.
   const tx = db.transaction(storeName === KV_STORE ? KV_STORE : [KV_STORE, storeName], 'readwrite');
   const current = isDataCurrent(tx);
   const written = Promise.all([write(tx.objectStore(storeName)), tx.done]);
@@ -86,6 +96,49 @@ async function guardedWrite(db, storeName, write) {
 // Every write of account data goes through here. Resolves to false when it was dropped.
 export async function writeIfDataCurrent(storeName, write) {
   return guardedWrite(await getDB(), storeName, write);
+}
+
+// A batch commits before it could read the generation, so a wipe's marker fails it instead: add() is refused if the marker exists.
+async function settleWriteBatch(tx) {
+  const kv = tx.objectStore(KV_STORE);
+  const marker = dataReplacedKey(_pinnedGeneration);
+  const replaced = kv.add(true, marker).then(() => false, (err) => err?.name === 'ConstraintError');
+  kv.delete(marker).catch(() => {});
+  try {
+    await tx.done;
+    return true;
+  } catch (err) {
+    if (!await replaced) throw err;
+    noteDataReplaced();
+    return false;
+  }
+}
+
+// Commit in the task that made the writes: Chromium finishes a committed transaction through a reload, and the screen has not painted yet.
+function openWriteBatch() {
+  const tx = _db.transaction(WRITE_BATCH_STORES, 'readwrite');
+  const batch = { tx, written: settleWriteBatch(tx) };
+  queueMicrotask(() => {
+    if (_writeBatch === batch) _writeBatch = null;
+    try { tx.commit?.(); } catch { /* a failed write already aborted it */ }
+  });
+  return batch;
+}
+
+// Writes of one tick share a transaction, so an event and its read-model change land together or not at all (#256).
+// Requests go in at the call, so the writes keep their order and store each value as it is now.
+async function batchedWrite(storeName, write) {
+  if (_dataReplaced) return false;
+  _writeBatch ??= openWriteBatch();
+  const { tx, written } = _writeBatch;
+  try {
+    Promise.resolve(write(tx.objectStore(storeName))).catch(() => {}); // A failed request aborts the transaction, which written reports.
+  } catch (err) {
+    try { tx.abort(); } catch { /* an earlier write of this tick already aborted it */ }
+    await written.catch(() => {});
+    throw err;
+  }
+  return written;
 }
 
 async function migrateReadModelFromKv(db) {
@@ -112,7 +165,7 @@ async function migrateReadModelFromKv(db) {
 
 export function schedulePersist(key, value) {
   if (!_db) return; // IDB not yet initialised (e.g. during testing without initStorage)
-  const p = guardedWrite(_db, KV_STORE, (store) => store.put(value, key)).catch((err) => {
+  const p = batchedWrite(KV_STORE, (store) => store.put(value, key)).catch((err) => {
     console.error('[Kanvana] IDB persist failed for key', key, err);
   });
   _pendingPersists.add(p);
@@ -121,7 +174,7 @@ export function schedulePersist(key, value) {
 
 export function scheduleDelete(key) {
   if (!_db) return;
-  const p = guardedWrite(_db, KV_STORE, (store) => store.delete(key)).catch((err) => {
+  const p = batchedWrite(KV_STORE, (store) => store.delete(key)).catch((err) => {
     console.error('[Kanvana] IDB delete failed for key', key, err);
   });
   _pendingPersists.add(p);
@@ -130,7 +183,7 @@ export function scheduleDelete(key) {
 
 export function scheduleReadModelPersist(boardId, kind, value) {
   if (!_db) return;
-  const p = guardedWrite(_db, READ_MODEL_STORE, (store) => store.put(value, readModelKeyFor(boardId, kind))).catch((err) => {
+  const p = batchedWrite(READ_MODEL_STORE, (store) => store.put(value, readModelKeyFor(boardId, kind))).catch((err) => {
     console.error('[Kanvana] IDB read-model persist failed for key', readModelKeyFor(boardId, kind), err);
   });
   _pendingPersists.add(p);
@@ -139,25 +192,16 @@ export function scheduleReadModelPersist(boardId, kind, value) {
 
 export function scheduleReadModelDelete(boardId, kind) {
   if (!_db) return;
-  const p = guardedWrite(_db, READ_MODEL_STORE, (store) => store.delete(readModelKeyFor(boardId, kind))).catch((err) => {
+  const p = batchedWrite(READ_MODEL_STORE, (store) => store.delete(readModelKeyFor(boardId, kind))).catch((err) => {
     console.error('[Kanvana] IDB read-model delete failed for key', readModelKeyFor(boardId, kind), err);
   });
   _pendingPersists.add(p);
   p.finally(() => _pendingPersists.delete(p));
 }
 
-// Events of one tick share a transaction: each write also holds KV_STORE, so one each would queue every other write behind them.
-export function persistEvent(event) {
-  if (!_eventBatch) {
-    const batch = { events: [] };
-    batch.written = Promise.resolve().then(() => {
-      _eventBatch = null;
-      return writeIfDataCurrent(EVENTS_STORE, (store) => Promise.all(batch.events.map((queued) => store.put(queued))));
-    });
-    _eventBatch = batch;
-  }
-  _eventBatch.events.push({ ...event, synced: event.synced === true });
-  return _eventBatch.written;
+export async function persistEvent(event) {
+  if (!_db) await getDB();
+  return batchedWrite(EVENTS_STORE, (store) => store.put({ ...event, synced: event.synced === true }));
 }
 
 // Events not yet acknowledged by PocketBase. Unsorted — the sync queue orders
@@ -206,7 +250,8 @@ export async function replaceLocalData({ ownerId, maxUnsynced, keepKvKeys }) {
     const generation = (await kv.get(DATA_GENERATION_KEY)) ?? 0;
     const keep = new Set(keepKvKeys);
     for (const key of await kv.getAllKeys()) {
-      if (!keep.has(key)) await kv.delete(key);
+      // Earlier wipes' markers stay: a tab can sleep through several wipes.
+      if (!keep.has(key) && !String(key).startsWith(DATA_REPLACED_PREFIX)) await kv.delete(key);
     }
     await tx.objectStore(EVENTS_STORE).clear();
     await tx.objectStore(SNAPSHOTS_STORE).clear();
@@ -214,6 +259,7 @@ export async function replaceLocalData({ ownerId, maxUnsynced, keepKvKeys }) {
     await kv.put(ownerId, DATA_OWNER_KEY);
     await kv.put(true, FIRST_PULL_PENDING_KEY);
     await kv.put(generation + 1, DATA_GENERATION_KEY);
+    await kv.put(true, dataReplacedKey(generation));
     await tx.done;
   } catch (err) {
     // A transaction left to finish on its own would commit the part already done.
@@ -286,7 +332,7 @@ export function _resetIdbForTesting() {
   _needsV2DataMigration = false;
   _pinnedGeneration = null;
   _dataReplaced = false;
-  _eventBatch = null;
+  _writeBatch = null;
   _onDataReplaced = null;
   _pendingPersists.clear();
 }

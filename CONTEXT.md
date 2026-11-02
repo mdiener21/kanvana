@@ -277,8 +277,10 @@ How a switch works (`data-owner.js`, run on each new sign-in, with no network, a
 
 - **A tab that missed the wipe.** The notice takes time to arrive, so it is not what protects the new owner's
   data. A wipe bumps `kanvana:dataGeneration` in its transaction, each tab pins the generation when it opens the
-  database, and every write of account data (`writeIfDataCurrent()` and the `schedule*` helpers in `idb-store.js`)
-  checks it inside its own transaction. On a mismatch the write is dropped and the page reloads, so nothing from a
+  database, and every write of account data checks it inside its own transaction: `writeIfDataCurrent()` reads the
+  generation, and a write batch (§9 Durability), which commits before a read could return, adds the marker
+  `kanvana:dataReplaced:<pinned generation>`. A wipe leaves that marker behind, so the add is refused and the batch
+  aborts. Markers survive later wipes, since a tab can sleep through several. On a mismatch the write is dropped and the page reloads, so nothing from a
   tab still holding the old owner reaches the events store, the read model, snapshots or the queue.
 
 Known limits. Without Web Locks (plain http) the lock is skipped, so two visible tabs could each prompt. A tab that
@@ -452,7 +454,7 @@ ingestEvent (event-sourcing/ingest.js) — one path, origin is a parameter:
    3. project: read-model-projector folds event into state (sole writer, deduped by id)
               → emit(DATA_CHANGED) → renderBoard()      [synchronous for local events; skipped for a late remote one]
    4. emit(EVENT_EMITTED) → outbound sync-queue schedules a drain if it is running (HLC order, unsynced only, as the Data Owner)
-   5. persistEvent (synced = origin === 'remote')        [async] → EVENTS_STORED → other tabs fold it, leader drains
+   5. persistEvent (synced = origin === 'remote')        [same transaction as step 3's writes, §9 Durability] → EVENTS_STORED → other tabs fold it, leader drains
    6. late event only: rebuildScope(key)                  [the promise settles after the rebuild]
 ```
 
@@ -542,6 +544,31 @@ collection that catch-up pulls in full, to about a month of history.
 - The drop decision does not depend on local snapshots: only an event that reached the server more than
   a window after it was stamped is dropped, on every device. Its originating device keeps it, since local
   events are never dropped.
+
+### Durability of local edits
+
+The screen updates synchronously (ADR-0005), so an edit is on screen before IndexedDB has it. Every write
+made through `persistEvent()` and the `schedule*` helpers in one tick joins one **write batch**: a single
+transaction over kv, events and read_model (`batchedWrite`, `idb-store.js`). An event and its read-model change
+therefore land together or not at all, so a read model can not hold an edit whose event is lost and never syncs.
+A multi-event delete is one batch. The batch calls `commit()` in the same task as its writes (#256).
+
+The reason for committing there: Chromium finishes a transaction whose `commit()` was already sent, but aborts one
+still waiting to auto-commit. A probe that wrote 200 records and called `location.reload()` in the same task kept them
+in 40 of 40 runs with `commit()` and 29 of 40 without. Before #256 each event queued about 8 transactions, and its own
+event write came last, so the delete of a 20-task column took 258-508 ms to store its events; a reload in that time lost them.
+
+Remaining windows:
+
+- **Chromium, ordinary reload:** none observed; the delete-and-reload journey passed 140 of 140 runs. Writing still
+  finishes after the screen updates, 3-35 ms later in the same measurement, but a reload no longer interrupts it.
+- **Firefox and Safari:** not measured, and whether they finish a committed transaction through a reload is
+  unknown. If they do not, an edit can be lost in those milliseconds, event and read model together.
+- **Browsers without `commit()`** (Safari before 15) auto-commit, with the same all-or-nothing result.
+- **Browser, OS or power failure:** IndexedDB's default durability does not promise a flush to disk.
+- **A failed batch** (quota, say) is logged and stores nothing, while the screen keeps the edit until the next load.
+- **Catch-up** stores remote events as they arrive and saves the read model at the end of the batch, or at `pagehide`
+  (#237), so this pairing is for local edits; the event store still holds what the read model missed.
 
 ### Event Envelope
 
