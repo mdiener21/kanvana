@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Exported boards are now named `{boardName}-YYYY-MM-DD.json`, as the import/export spec says, instead of `{boardName}_board_{timestamp}.json`. A second export on the same day has the same name, so your browser adds its own suffix, such as ` (1)` (#262).
+
+### Fixed
+
+- An edit followed straight away by a page reload is no longer lost in Chromium browsers. An edit and its sync event are now saved together or not at all, so a reload can no longer keep a change that never syncs (#256).
+- A new column now goes just before Done on a default board instead of first. When two devices add columns offline, Done no longer ends up before one of them after they sync (#259).
+- The first-run demo tasks now have the same ids on every device, so an edit or move of one on a device reaches the same task on the others. On a device with no demo tasks, adopting a snapshot taken on a device with them still adds them (#263).
+- A column's WIP limit is no longer lost when a board is exported and imported (#257).
+- A board's countdown thresholds are no longer lost when a board is exported and imported (#258).
+- Clicking a day in the calendar after changing month now lists that day's tasks instead of none (#260).
+- The Personal Work Kanban template is now offered when creating a board (#261).
+
 ### Added
 
 - With several tabs open, an edit in one tab now shows in the others straight away, and swimlane changes do too (#222).
