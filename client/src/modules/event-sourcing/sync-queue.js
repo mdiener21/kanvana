@@ -151,9 +151,9 @@ async function runDrain() {
   const pb = getPb();
   // Events belong to the Data Owner, whoever is signed in by now (ADR-0006). The auth store
   // is shared across tabs, so it can change under a running drain.
-  const ownerId = await getDataOwner();
+  const [ownerId, unsynced] = await Promise.all([getDataOwner(), getUnsyncedEvents()]);
   const accountChanged = () => !ownerId || getUser()?.id !== ownerId;
-  const events = (await getUnsyncedEvents()).sort((a, b) => compareHlc(a.hlc, b.hlc));
+  const events = unsynced.sort((a, b) => compareHlc(a.hlc, b.hlc));
   if (stopped() || accountChanged()) return;
   if (events.length === 0) { _retryIndex = 0; _retrying = false; return; }
   _retrying = false;
