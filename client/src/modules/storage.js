@@ -70,6 +70,7 @@ const readModelProjector = createReadModelProjector({
   loadGlobalSettings,
   safeParseArray,
   safeParseObject,
+  unemittedTasks,
   schedulePersist,
   scheduleReadModelPersist,
   checkAndScheduleSnapshot,
@@ -196,8 +197,7 @@ function labelIdByName(labels, name) {
   return labels.find((label) => label.name === name)?.id || '';
 }
 
-function defaultTasks(columns = defaultColumns(), labels = defaultLabels()) {
-  const created = nowIso();
+function defaultTasks(columns = defaultColumns(), labels = defaultLabels(), created = nowIso()) {
   const todoColumnId = columnIdByName(columns, 'To Do');
   const inProgressColumnId = columnIdByName(columns, 'In Progress');
   const doneColumnId = columns.find((column) => column.role === DONE_COLUMN_ROLE)?.id || columnIdByName(columns, 'Done');
@@ -325,18 +325,34 @@ function stableDefaultLabels() {
   ];
 }
 
-// Default board scaffold with stable ids. Demo tasks keep random ids and are
-// intentionally local-only (not event-sourced): they are first-run flavour and
-// random ids would duplicate on merge across devices.
+// In defaultTasks() order. Only the default board has these; every other caller keeps random ids.
+const STABLE_DEMO_TASK_IDS = [30, 31, 32, 33, 34, 35, 36].map((n) => `00000000-0000-4000-8000-0000000000${n}`);
+
+function stableDemoTasks(created) {
+  return defaultTasks(stableDefaultColumns(), stableDefaultLabels(), created)
+    .map((task, index) => ({ ...task, id: STABLE_DEMO_TASK_IDS[index] }));
+}
+
+// Default board scaffold with stable ids. Demo tasks are never emitted: each device
+// makes its own, so an event on one names the same id on all, and a new device
+// joining an account with real data adds nothing to the others (#263).
 function stableDefaultBoardData() {
-  const columns = stableDefaultColumns();
-  const labels = stableDefaultLabels();
   return {
-    columns,
-    labels,
-    tasks: defaultTasks(columns, labels),
+    columns: stableDefaultColumns(),
+    labels: stableDefaultLabels(),
+    tasks: stableDemoTasks(nowIso()),
     settings: defaultSettings()
   };
+}
+
+// No event creates a demo task, so a replay starts from the ones this device holds; one it has
+// deleted, or never made (after an account switch), stays gone. Their dates are this device's.
+function unemittedTasks(boardId, liveTasks) {
+  if (boardId !== STABLE_DEFAULT_BOARD_ID) return [];
+  const held = liveTasks.filter((task) => STABLE_DEMO_TASK_IDS.includes(task.id));
+  if (!held.length) return [];
+  const heldIds = new Set(held.map((task) => task.id));
+  return stableDemoTasks(held[0].creationDate).filter((task) => heldIds.has(task.id));
 }
 
 function defaultSettings() {
@@ -644,7 +660,7 @@ export function ensureBoardsInitialized() {
 
   // Emit the scaffold to the event log so a second device reconstructs the
   // default board's columns/labels (and converges with this one via the stable
-  // ids above). Demo tasks are deliberately not emitted (local-only flavour).
+  // ids above). Demo tasks are not emitted (see stableDefaultBoardData).
   scheduleDomainEvent({
     type: 'board.created',
     boardId,
