@@ -71,7 +71,7 @@ jobs:
       - name: Create release pull request
         if: steps.check.outputs.release == 'true'
         id: release-pr
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ steps.app-token.outputs.token }}
           branch: release/automatic
