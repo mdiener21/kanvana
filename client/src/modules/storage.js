@@ -1,5 +1,5 @@
 import { generateUUID } from './utils.js';
-import { normalizePriority as sharedNormalizePriority, isHexColor, defaultColumnColor, normalizeStringKeys, normalizeRelationships, normalizeSubTasks } from './normalize.js';
+import { normalizePriority as sharedNormalizePriority, isHexColor, normalizeCountdownThreshold, defaultColumnColor, normalizeStringKeys, normalizeRelationships, normalizeSubTasks } from './normalize.js';
 import { DONE_COLUMN_ID, DONE_COLUMN_ROLE, isDoneColumn } from './constants.js';
 import { openStore, isDataCurrent, writeIfDataCurrent, KV_STORE, READ_MODEL_STORE, EVENTS_STORE, SNAPSHOTS_STORE, isFirstPullPending, schedulePersist, scheduleDelete, scheduleReadModelPersist, scheduleReadModelDelete, keyFor, readModelKeyFor, _flushPersistsForTesting as _flushIdbPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
 // Re-export IDB helpers that tests import from this module for backward compatibility.
@@ -70,6 +70,8 @@ const readModelProjector = createReadModelProjector({
   loadGlobalSettings,
   safeParseArray,
   safeParseObject,
+  demoTasksForReplay,
+  withoutUnheldDemoTasks,
   schedulePersist,
   scheduleReadModelPersist,
   checkAndScheduleSnapshot,
@@ -196,8 +198,7 @@ function labelIdByName(labels, name) {
   return labels.find((label) => label.name === name)?.id || '';
 }
 
-function defaultTasks(columns = defaultColumns(), labels = defaultLabels()) {
-  const created = nowIso();
+function defaultTasks(columns = defaultColumns(), labels = defaultLabels(), created = nowIso()) {
   const todoColumnId = columnIdByName(columns, 'To Do');
   const inProgressColumnId = columnIdByName(columns, 'In Progress');
   const doneColumnId = columns.find((column) => column.role === DONE_COLUMN_ROLE)?.id || columnIdByName(columns, 'Done');
@@ -325,18 +326,38 @@ function stableDefaultLabels() {
   ];
 }
 
-// Default board scaffold with stable ids. Demo tasks keep random ids and are
-// intentionally local-only (not event-sourced): they are first-run flavour and
-// random ids would duplicate on merge across devices.
+// Numbered in defaultTasks() order. Only the default board has these; every other caller keeps random ids.
+function stableDemoTasks(created = nowIso()) {
+  return defaultTasks(stableDefaultColumns(), stableDefaultLabels(), created)
+    .map((task, index) => ({ ...task, id: `00000000-0000-4000-8000-${String(30 + index).padStart(12, '0')}` }));
+}
+
+// Demo tasks are never emitted: each device seeds its own, with ids that let an event on one name them on all (#263).
 function stableDefaultBoardData() {
-  const columns = stableDefaultColumns();
-  const labels = stableDefaultLabels();
   return {
-    columns,
-    labels,
-    tasks: defaultTasks(columns, labels),
+    columns: stableDefaultColumns(),
+    labels: stableDefaultLabels(),
+    tasks: stableDemoTasks(),
     settings: defaultSettings()
   };
+}
+
+// No event creates a demo task, so a replay starts from the ones this device still holds (#263).
+function demoTasksForReplay(boardId, liveTasks) {
+  if (boardId !== STABLE_DEFAULT_BOARD_ID) return [];
+  const demoIds = new Set(stableDemoTasks().map((task) => task.id));
+  const held = liveTasks.filter((task) => demoIds.has(task.id));
+  if (!held.length) return [];
+  const heldIds = new Set(held.map((task) => task.id));
+  return stableDemoTasks(held[0].creationDate).filter((task) => heldIds.has(task.id));
+}
+
+// Seeding adds demo tasks to no other device, and neither does an adopted snapshot (#263).
+function withoutUnheldDemoTasks(boardId, snapshotTasks, liveTasks) {
+  if (boardId !== STABLE_DEFAULT_BOARD_ID) return snapshotTasks;
+  const demoIds = new Set(stableDemoTasks().map((task) => task.id));
+  const heldIds = new Set(liveTasks.map((task) => task.id));
+  return snapshotTasks.filter((task) => !demoIds.has(task.id) || heldIds.has(task.id));
 }
 
 function defaultSettings() {
@@ -644,7 +665,7 @@ export function ensureBoardsInitialized() {
 
   // Emit the scaffold to the event log so a second device reconstructs the
   // default board's columns/labels (and converges with this one via the stable
-  // ids above). Demo tasks are deliberately not emitted (local-only flavour).
+  // ids above). Demo tasks are not emitted (see stableDefaultBoardData).
   scheduleDomainEvent({
     type: 'board.created',
     boardId,
@@ -1021,15 +1042,8 @@ function normalizeSettings(raw) {
     ? Math.min(365, Math.max(0, rawNotificationDays))
     : 3;
 
-  const rawUrgentThreshold = Number.parseInt((obj.countdownUrgentThreshold ?? '').toString(), 10);
-  const countdownUrgentThreshold = Number.isFinite(rawUrgentThreshold)
-    ? Math.min(365, Math.max(1, rawUrgentThreshold))
-    : 3;
-
-  const rawWarningThreshold = Number.parseInt((obj.countdownWarningThreshold ?? '').toString(), 10);
-  const countdownWarningThreshold = Number.isFinite(rawWarningThreshold)
-    ? Math.min(365, Math.max(countdownUrgentThreshold, rawWarningThreshold))
-    : 10;
+  const countdownUrgentThreshold = normalizeCountdownThreshold(obj.countdownUrgentThreshold) ?? 3;
+  const countdownWarningThreshold = normalizeCountdownThreshold(obj.countdownWarningThreshold, countdownUrgentThreshold) ?? 10;
 
   const swimLanesEnabled = obj.swimLanesEnabled === true;
   const swimLaneGroupBy = normalizeSwimLaneGroupBy(obj.swimLaneGroupBy);

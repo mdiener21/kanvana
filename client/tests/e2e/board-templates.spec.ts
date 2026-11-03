@@ -59,8 +59,7 @@ for (const { file, data } of templates.filter(({ data }) => data.boardName)) {
   });
 }
 
-test.fixme('every template in the templates folder is offered when creating a board', async ({ page }) => {
-  // Bug: Personal-Work-Kanban-Template.json has no boardName, so getBuiltInBoardTemplates silently leaves it out (#261).
+test('every template in the templates folder is offered when creating a board', async ({ page }) => {
   await openApp(page);
   const boards = await openManageBoards(page);
   await boards.getByRole('button', { name: 'Create Board', exact: true }).click();

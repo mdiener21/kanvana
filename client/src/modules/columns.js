@@ -1,6 +1,8 @@
-import { generateUUID } from './utils.js';
+import { byColumnOrder, generateUUID } from './utils.js';
+import { isDoneColumn } from './constants.js';
 import { getActiveBoardId, isDoneColumnId, loadColumns, loadTasks } from './storage.js';
 import { normalizeHexColor } from './normalize.js';
+import { createColumn } from './schema.js';
 import { normalizeWipLimit } from './wip-limit.js';
 import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 
@@ -8,11 +10,24 @@ import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 export function addColumn(name, color, wipLimit = 0) {
   if (!name || name.trim() === '') return;
   
-  const columns = loadColumns();
-  const maxOrder = columns.reduce((max, c) => Math.max(max, c.order ?? 0), 0);
+  const columns = [...loadColumns()].sort(byColumnOrder);
+  const doneIndex = columns.findIndex(isDoneColumn);
   const id = generateUUID();
-  const newColumn = { id, name: name.trim(), color: normalizeHexColor(color), order: maxOrder - 1, collapsed: false, wipLimit: normalizeWipLimit(wipLimit) };
-  columns.push(newColumn);
+  const newColumn = createColumn({ id, name: name.trim(), color: normalizeHexColor(color), order: doneIndex + 1, wipLimit: normalizeWipLimit(wipLimit) });
+  columns.splice(doneIndex, 0, newColumn);
+
+  // Default boards' columns have no order, so siblings need numbers too, emitted first so the new one never shows after Done (#259).
+  const siblingOrder = columns.flatMap((column, index) => (
+    column.id !== id && column.order !== index + 1 ? [{ id: column.id, order: index + 1 }] : []
+  ));
+  if (siblingOrder.length > 0) {
+    scheduleDomainEvent({
+      type: 'column.reordered',
+      boardId: getActiveBoardId(),
+      entityId: '',
+      payload: { order: siblingOrder }
+    });
+  }
   scheduleDomainEvent({
     type: 'column.created',
     boardId: getActiveBoardId(),

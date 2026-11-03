@@ -16,6 +16,8 @@ export function createReadModelProjector(ctx) {
     loadGlobalSettings,
     safeParseArray,
     safeParseObject,
+    demoTasksForReplay,
+    withoutUnheldDemoTasks,
     schedulePersist,
     scheduleReadModelPersist,
     checkAndScheduleSnapshot,
@@ -199,13 +201,18 @@ export function createReadModelProjector(ctx) {
     }
     return applyEvents(createProjectionState({
       boards: (base?.boards || []).filter((board) => board.id === key),
-      tasks: base?.tasks,
+      tasks: base?.tasks ?? demoTasksForReplay(key, liveBoard(key).tasks),
       columns: base?.columns,
       labels: base?.labels,
       settings: { ...(live ? liveBoard(key).settings : {}), ...(base?.settings || {}) },
       appliedEventIds: base?.appliedEventIds,
       taskTombstones: base?.taskTombstones
     }), events);
+  }
+
+  function snapshotToAdopt(key, snapshotState) {
+    if (boardlessSlots.has(scopeForSnapshotKey(key))) return snapshotState;
+    return { ...snapshotState, tasks: withoutUnheldDemoTasks(key, snapshotState.tasks, liveBoard(key).tasks) };
   }
 
   // Entities nothing in the event log knows of come from writes that emit no event yet (import), so they stay.
@@ -314,7 +321,7 @@ export function createReadModelProjector(ctx) {
 
   function register() {
     if (disconnect) return;
-    disconnect = connectProjector({ classify, project, rebuild, foldOntoSnapshot, beginBatch, endBatch, missedEvents });
+    disconnect = connectProjector({ classify, project, rebuild, snapshotToAdopt, foldOntoSnapshot, beginBatch, endBatch, missedEvents });
     window.addEventListener('pagehide', persistBatchOnPageHide);
   }
 

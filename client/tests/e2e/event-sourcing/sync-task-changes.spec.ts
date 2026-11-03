@@ -3,7 +3,7 @@
 import { test, expect } from '@playwright/test';
 import { dragByMouse } from '../dragdrop.helpers.js';
 import { addTask, allCards, card, columnTasks, confirm, dialog, moveTaskWithEditor, taskTitle } from '../journey.helpers.js';
-import { boardView, expectSameBoard, expectSameBoardAfterReload, registerAccount, requirePocketBase, SYNC_TIMEOUT, twoDevices, twoDevicesOnNewBoard } from './live.helpers.js';
+import { boardView, expectLive, expectSameBoard, expectSameBoardAfterReload, registerAccount, requirePocketBase, serverEvents, signedInDevice, SYNC_TIMEOUT, twoDevices, twoDevicesOnNewBoard } from './live.helpers.js';
 
 requirePocketBase();
 
@@ -73,8 +73,7 @@ test('a task created, edited, moved and deleted on A shows on B without a reload
   await close();
 });
 
-test.fixme('on the first-run board a new task lands in the same place on both devices', async ({ browser }) => {
-  // Bug: each device makes its own demo tasks with random ids, so A's renumbering misses B's and B keeps them above the new task (#263).
+test('on the first-run board a new task lands in the same place on both devices', async ({ browser }) => {
   test.slow();
   const { a, b, close } = await twoDevices(browser, await registerAccount('demo-order'));
   await addTask(a, 'To Do', 'First real task');
@@ -83,8 +82,7 @@ test.fixme('on the first-run board a new task lands in the same place on both de
   await close();
 });
 
-test.fixme('on the first-run board a demo task deleted on A goes from B too', async ({ browser }) => {
-  // Bug: demo tasks are local-only with random ids, so a delete on A names an id B has never had and the card stays (#263).
+test('on the first-run board a demo task deleted on A goes from B too', async ({ browser }) => {
   test.slow();
   const { a, b, close } = await twoDevices(browser, await registerAccount('demo-delete'));
   const demo = 'Find out where the Soul Stone is';
@@ -96,4 +94,25 @@ test.fixme('on the first-run board a demo task deleted on A goes from B too', as
   await expect(card(b, demo)).toHaveCount(0, { timeout: SYNC_TIMEOUT });
   await expect(allCards(b)).toHaveCount(before - 1);
   await close();
+});
+
+test('a device that first signs in after A changed the demo tasks shows them as A does', async ({ browser }) => {
+  test.slow();
+  const email = await registerAccount('demo-late-device');
+  const a = await signedInDevice(browser, email);
+  await addTask(a, 'In Progress', 'First real task');
+  await moveTaskWithEditor(a, 'Steal the Time Stone', 'Done');
+  await card(a, 'Find out where the Soul Stone is').getByRole('button', { name: 'Delete task', exact: true }).click();
+  await confirm(a, 'Delete task?', 'Delete');
+  await expectLive(a);
+  await expect.poll(async () => (await serverEvents(email)).filter((event) => event.event_type === 'task.deleted').length, { timeout: SYNC_TIMEOUT }).toBe(1);
+
+  const b = await signedInDevice(browser, email);
+  await expect(card(b, 'First real task')).toBeVisible({ timeout: SYNC_TIMEOUT });
+  await expectSameBoard(a, b);
+  await expect(card(b, 'Steal the Time Stone')).toBeVisible();
+  await expect(card(b, 'Find out where the Soul Stone is')).toHaveCount(0);
+  await expectSameBoardAfterReload(a, b);
+  await a.context().close();
+  await b.context().close();
 });

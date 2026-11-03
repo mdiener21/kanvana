@@ -8,9 +8,10 @@ import {
 import { createBoard, getActiveBoardName, listBoards, setActiveBoardId, loadTasksForBoard, loadColumnsForBoard, loadLabelsForBoard, loadSettingsForBoard } from './storage.js';
 import { normalizeBoardModelIds } from './board-serializer.js';
 import { emit, DATA_CHANGED } from './events.js';
-import { normalizePriority, isHexColor, boardDisplayName, normalizeDueDate, normalizeSubTasks } from './normalize.js';
+import { normalizePriority, isHexColor, boardDisplayName, normalizeCountdownThreshold, normalizeDueDate, normalizeSubTasks } from './normalize.js';
 import { DONE_COLUMN_ID } from './constants.js';
 import { formatBytes } from './security.js';
+import { normalizeWipLimit } from './wip-limit.js';
 
 export const IMPORT_LIMITS = {
   maxFileSizeBytes: 2 * 1024 * 1024,
@@ -48,6 +49,14 @@ function buildExportMeta() {
   };
 }
 
+
+// {boardName}-YYYY-MM-DD.json, dated in the user's timezone (docs/spec/import-export.md, #262).
+function exportFilename(boardName) {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${boardName}-${now.getFullYear()}-${month}-${day}.json`;
+}
 
 function refreshBoardsUI(activeBoardId) {
   const brandEl = document.getElementById('brand-text') || document.querySelector('.brand-text');
@@ -261,6 +270,16 @@ export function buildImportConfirmationMessage(preview) {
 
 // normalizePriority, isHexColor imported from normalize.js
 
+// A missing value stays unset so the board default applies (#258).
+function normalizeCountdownThresholds(settings) {
+  const urgent = normalizeCountdownThreshold(settings.countdownUrgentThreshold);
+  const warning = normalizeCountdownThreshold(settings.countdownWarningThreshold, urgent);
+  return {
+    ...(urgent !== undefined ? { countdownUrgentThreshold: urgent } : {}),
+    ...(warning !== undefined ? { countdownWarningThreshold: warning } : {})
+  };
+}
+
 function normalizeSettingsForExport(settings) {
   const obj = settings && typeof settings === 'object' && !Array.isArray(settings) ? settings : {};
   const showPriority = obj.showPriority !== false;
@@ -303,6 +322,7 @@ function normalizeSettingsForExport(settings) {
     locale,
     defaultPriority,
     notificationDays,
+    ...normalizeCountdownThresholds(obj),
     swimLanesEnabled,
     swimLaneGroupBy,
     swimLaneLabelGroup,
@@ -436,6 +456,7 @@ function normalizeImportedColumns(columns) {
       name: name.trim(),
       color,
       collapsed,
+      wipLimit: normalizeWipLimit(c?.wipLimit),
       ...(id.trim() === DONE_COLUMN_ID || c?.role === 'done' ? { role: 'done' } : {}),
       ...(order !== undefined ? { order } : {})
     };
@@ -508,6 +529,7 @@ function normalizeImportedSettings(settings) {
     ...(locale ? { locale } : {})
     ,...(defaultPriority ? { defaultPriority } : {})
     ,...(notificationDays !== undefined ? { notificationDays } : {})
+    ,...normalizeCountdownThresholds(settings)
     ,swimLanesEnabled
     ,swimLaneGroupBy
     ,swimLaneLabelGroup
@@ -547,7 +569,7 @@ export function exportTasks() {
   
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${boardName.replaceAll(' ', '_').replaceAll('.', '_')}_board_${new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-')}.json`;
+  a.download = exportFilename(boardName);
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -595,7 +617,7 @@ export function exportBoard(boardId) {
 
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${boardName.replaceAll(' ', '_').replaceAll('.', '_')}_board_${new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-')}.json`;
+  a.download = exportFilename(boardName);
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

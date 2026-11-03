@@ -14,6 +14,22 @@ import {
   reloadBoard,
 } from './journey.helpers.js';
 
+// What reaches other devices does not show in this page's UI, so this check reads the event store.
+async function storedEventTypes(page: Page): Promise<string[]> {
+  return page.evaluate(() => new Promise<string[]>((resolve, reject) => {
+    const open = indexedDB.open('kanvana-db');
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const all = open.result.transaction('events').objectStore('events').getAll();
+      all.onerror = () => reject(all.error);
+      all.onsuccess = () => {
+        open.result.close();
+        resolve(all.result.map((event: { type: string }) => event.type));
+      };
+    };
+  }));
+}
+
 async function addColumn(page: Page, name: string): Promise<void> {
   await clickMenuButton(page, 'Add Column');
   const form = dialog(page, 'Add New Column');
@@ -42,8 +58,7 @@ async function deleteColumn(page: Page, name: string): Promise<void> {
   await column(page, name).getByRole('menuitem', { name: 'Delete', exact: true }).click();
 }
 
-test.fixme('new columns go before the permanent Done column', async ({ page }) => {
-  // Bug: addColumn sets order to maxOrder - 1, so on a board whose columns have no order (every default board) it lands first (#259).
+test('new columns go before the permanent Done column', async ({ page }) => {
   await openBlankBoard(page);
   await addColumn(page, 'Review');
   await expect(columnHeadings(page)).toHaveText(['To Do', 'In Progress', 'Review', 'Done']);
@@ -116,8 +131,7 @@ test('deleting a column asks first and takes its tasks with it', async ({ page }
   await expect(card(page, 'Stays')).toBeVisible();
 });
 
-test.fixme('a deleted column stays deleted after an immediate reload', async ({ page }) => {
-  // Bug: edits are saved fire-and-forget, so a reload right after the delete can lose it (#256).
+test('a deleted column stays deleted after an immediate reload', async ({ page }) => {
   await openBlankBoard(page);
   await addColumn(page, 'Review');
   await addTask(page, 'Review', 'Goes away');
@@ -130,6 +144,8 @@ test.fixme('a deleted column stays deleted after an immediate reload', async ({ 
   await reloadBoard(page);
   await expect(columnHeadings(page)).toHaveText(['To Do', 'In Progress', 'Done']);
   await expect(allCards(page)).toHaveCount(1);
+  // Without its stored event the delete would look saved here but never reach other devices.
+  expect(await storedEventTypes(page)).toContain('column.deleted');
 });
 
 test('the Done column cannot be deleted', async ({ page }) => {

@@ -4,11 +4,11 @@ Generated from test source. Do not edit by hand; run `npm run test:overview` fro
 
 ## Fast Scan
 
-- Test files: 138
-- Test cases: 1253
-- Unit files: 48
+- Test files: 140
+- Test cases: 1285
+- Unit files: 49
 - DOM integration files: 43
-- E2E files: 45
+- E2E files: 46
 - Performance files: 1
 
 ## How To Use This
@@ -85,27 +85,33 @@ These lists compare source/spec filenames against test file names and test title
 
 - Path: `tests/unit/columns.test.js`
 - Type: Unit
-- Test count: 19
+- Test count: 25
 
-- `tests/unit/columns.test.js:15` addColumn creates a new column
-- `tests/unit/columns.test.js:25` addColumn does nothing for empty name
-- `tests/unit/columns.test.js:31` addColumn normalizes color
-- `tests/unit/columns.test.js:39` toggleColumnCollapsed toggles from false to true
-- `tests/unit/columns.test.js:51` toggleColumnCollapsed toggles from true to false
-- `tests/unit/columns.test.js:61` toggleColumnCollapsed returns false for non-existent column
-- `tests/unit/columns.test.js:65` toggleColumnCollapsed returns false for empty ID
-- `tests/unit/columns.test.js:71` updateColumn updates name and color
-- `tests/unit/columns.test.js:81` updateColumn does nothing for empty name
-- `tests/unit/columns.test.js:93` deleteColumn returns false for Done column
-- `tests/unit/columns.test.js:97` deleteColumn returns false for missing column
-- `tests/unit/columns.test.js:101` deleteColumn deletes column and its tasks
-- `tests/unit/columns.test.js:122` deleteColumn hides the column from loadColumns
-- `tests/unit/columns.test.js:131` deleteColumn deletes tasks in the column
-- `tests/unit/columns.test.js:143` addColumn defaults to an unlimited WIP limit
-- `tests/unit/columns.test.js:149` addColumn stores and normalizes a WIP limit
-- `tests/unit/columns.test.js:157` updateColumn persists a WIP limit change
-- `tests/unit/columns.test.js:165` updateColumn accepts a limit below the current task count
-- `tests/unit/columns.test.js:179` omitting the WIP limit on updateColumn preserves the existing one
+- `tests/unit/columns.test.js:17` addColumn creates a new column
+- `tests/unit/columns.test.js:29` addColumn places new columns before Done on a default board, whose columns have no order
+- `tests/unit/columns.test.js:36` addColumn places a new column directly before Done when Done is not last
+- `tests/unit/columns.test.js:49` columns that tie on order > two offline devices adding columns leave Done last on both, whichever event came first
+- `tests/unit/columns.test.js:70` columns that tie on order > Done sorts after its tie in any starting order
+- `tests/unit/columns.test.js:75` columns that tie on order > Done dragged elsewhere stays there, and only yields on a tie
+- `tests/unit/columns.test.js:80` columns that tie on order > a default board without orders keeps Done last
+- `tests/unit/columns.test.js:85` addColumn does nothing for empty name
+- `tests/unit/columns.test.js:91` addColumn normalizes color
+- `tests/unit/columns.test.js:99` toggleColumnCollapsed toggles from false to true
+- `tests/unit/columns.test.js:111` toggleColumnCollapsed toggles from true to false
+- `tests/unit/columns.test.js:121` toggleColumnCollapsed returns false for non-existent column
+- `tests/unit/columns.test.js:125` toggleColumnCollapsed returns false for empty ID
+- `tests/unit/columns.test.js:131` updateColumn updates name and color
+- `tests/unit/columns.test.js:141` updateColumn does nothing for empty name
+- `tests/unit/columns.test.js:153` deleteColumn returns false for Done column
+- `tests/unit/columns.test.js:157` deleteColumn returns false for missing column
+- `tests/unit/columns.test.js:161` deleteColumn deletes column and its tasks
+- `tests/unit/columns.test.js:182` deleteColumn hides the column from loadColumns
+- `tests/unit/columns.test.js:191` deleteColumn deletes tasks in the column
+- `tests/unit/columns.test.js:203` addColumn defaults to an unlimited WIP limit
+- `tests/unit/columns.test.js:209` addColumn stores and normalizes a WIP limit
+- `tests/unit/columns.test.js:217` updateColumn persists a WIP limit change
+- `tests/unit/columns.test.js:225` updateColumn accepts a limit below the current task count
+- `tests/unit/columns.test.js:239` omitting the WIP limit on updateColumn preserves the existing one
 
 ### Constants
 
@@ -152,13 +158,14 @@ These lists compare source/spec filenames against test file names and test title
 
 - Path: `tests/unit/event-sourcing/backfill.test.js`
 - Type: Unit
-- Test count: 5
+- Test count: 6
 
-- `tests/unit/event-sourcing/backfill.test.js:51` event log backfill > emits a created event for every pre-existing entity
-- `tests/unit/event-sourcing/backfill.test.js:65` event log backfill > a replaying device reconstructs each board and its tasks
-- `tests/unit/event-sourcing/backfill.test.js:90` event log backfill > runs once and is a no-op on the next startup
-- `tests/unit/event-sourcing/backfill.test.js:102` event log backfill > skips entities that already have a created event
-- `tests/unit/event-sourcing/backfill.test.js:116` event log backfill > records the flag so a later run is skipped
+- `tests/unit/event-sourcing/backfill.test.js:51` event log backfill > a failed write stores neither the events nor the flag, so the next launch backfills again
+- `tests/unit/event-sourcing/backfill.test.js:61` event log backfill > emits a created event for every pre-existing entity
+- `tests/unit/event-sourcing/backfill.test.js:75` event log backfill > a replaying device reconstructs each board and its tasks
+- `tests/unit/event-sourcing/backfill.test.js:100` event log backfill > runs once and is a no-op on the next startup
+- `tests/unit/event-sourcing/backfill.test.js:112` event log backfill > skips entities that already have a created event
+- `tests/unit/event-sourcing/backfill.test.js:126` event log backfill > records the flag so a later run is skipped
 
 ### Board Delete Replay
 
@@ -205,6 +212,27 @@ These lists compare source/spec filenames against test file names and test title
 - Test count: 1
 
 - `tests/unit/event-sourcing/delete-vs-edit.test.js:18` later task edit is dropped after task delete tombstone
+
+### Demo Task Convergence
+
+- Path: `tests/unit/event-sourcing/demo-task-convergence.test.js`
+- Type: Unit
+- Test count: 14
+
+- `tests/unit/event-sourcing/demo-task-convergence.test.js:54` every device seeds the same demo task ids, in the same order
+- `tests/unit/event-sourcing/demo-task-convergence.test.js:61` seeding the first-run board emits no task events
+- `tests/unit/event-sourcing/demo-task-convergence.test.js:71` a second board does not get the demo tasks
+- `tests/unit/event-sourcing/demo-task-convergence.test.js:76` edits and moves that arrive late apply to the demo task instead of removing it
+- `tests/unit/event-sourcing/demo-task-convergence.test.js:84` a task.moved that only renumbers a demo task reaches it when it arrives late
+- `tests/unit/event-sourcing/demo-task-convergence.test.js:90` replaying does not repeat what events already added to a demo task
+- `tests/unit/event-sourcing/demo-task-convergence.test.js:98` a demo task keeps its creation date through a replay
+- `tests/unit/event-sourcing/demo-task-convergence.test.js:105` a demo task deleted late is gone and later replays do not bring it back
+- `tests/unit/event-sourcing/demo-task-convergence.test.js:114` a device without demo tasks after an account switch does not gain them in a replay
+- `tests/unit/event-sourcing/demo-task-convergence.test.js:127` a local edit during catch-up stores its read model with its event, before the batch ends
+- `tests/unit/event-sourcing/demo-task-convergence.test.js:155` adopting a snapshot > that holds demo tasks does not give them to a device without any
+- `tests/unit/event-sourcing/demo-task-convergence.test.js:170` adopting a snapshot > that holds a demo task this device also holds applies its edits
+- `tests/unit/event-sourcing/demo-task-convergence.test.js:176` adopting a snapshot > that lacks them leaves untouched demo tasks, and removes one its covered events edited
+- `tests/unit/event-sourcing/demo-task-convergence.test.js:186` a snapshot holds the demo tasks with the changes it covers
 
 ### Durable Memory
 
@@ -343,16 +371,20 @@ _No executable test cases detected._
 
 - Path: `tests/unit/importexport.test.js`
 - Type: Unit
-- Test count: 8
+- Test count: 12
 
 - `tests/unit/importexport.test.js:44` inspectImportPayload accepts valid board export objects
-- `tests/unit/importexport.test.js:69` inspectImportPayload remaps legacy model ids to UUIDs while preserving references
-- `tests/unit/importexport.test.js:103` inspectImportPayload rejects files above the size limit
-- `tests/unit/importexport.test.js:109` inspectImportPayload warns for legacy task-only imports
-- `tests/unit/importexport.test.js:123` inspectImportPayload preserves and remaps task relationships
-- `tests/unit/importexport.test.js:145` inspectImportPayload remaps swimlane settings that reference labels and columns
-- `tests/unit/importexport.test.js:172` inspectImportPayload removes unknown label references and warns
-- `tests/unit/importexport.test.js:192` buildImportConfirmationMessage includes summary details
+- `tests/unit/importexport.test.js:69` inspectImportPayload keeps a column WIP limit and defaults it to no limit when absent
+- `tests/unit/importexport.test.js:85` exportBoard writes the board countdown thresholds
+- `tests/unit/importexport.test.js:94` inspectImportPayload keeps countdown thresholds and clamps out-of-range values
+- `tests/unit/importexport.test.js:108` inspectImportPayload leaves countdown thresholds unset when the file omits them
+- `tests/unit/importexport.test.js:120` inspectImportPayload remaps legacy model ids to UUIDs while preserving references
+- `tests/unit/importexport.test.js:154` inspectImportPayload rejects files above the size limit
+- `tests/unit/importexport.test.js:160` inspectImportPayload warns for legacy task-only imports
+- `tests/unit/importexport.test.js:174` inspectImportPayload preserves and remaps task relationships
+- `tests/unit/importexport.test.js:196` inspectImportPayload remaps swimlane settings that reference labels and columns
+- `tests/unit/importexport.test.js:223` inspectImportPayload removes unknown label references and warns
+- `tests/unit/importexport.test.js:243` buildImportConfirmationMessage includes summary details
 
 ### Labels
 
@@ -434,38 +466,39 @@ _No executable test cases detected._
 
 - Path: `tests/unit/storage-idb.test.js`
 - Type: Unit
-- Test count: 30
+- Test count: 31
 
-- `tests/unit/storage-idb.test.js:57` initStorage on empty IDB leaves boards list empty
-- `tests/unit/storage-idb.test.js:62` initStorage creates a stable HLC node id on boot
-- `tests/unit/storage-idb.test.js:68` initStorage is safe to call twice in the same session
-- `tests/unit/storage-idb.test.js:77` initStorage removes the stale legacy-sync localStorage keys from older versions
-- `tests/unit/storage-idb.test.js:89` saveTasks persists to IDB and survives a session reset
-- `tests/unit/storage-idb.test.js:106` emitted task.updated events project into task read model
-- `tests/unit/storage-idb.test.js:126` saveColumns persists to IDB and survives a session reset
-- `tests/unit/storage-idb.test.js:145` saveLabels persists to IDB and survives a session reset
-- `tests/unit/storage-idb.test.js:161` saveSettings persists to IDB and survives a session reset
-- `tests/unit/storage-idb.test.js:177` initStorage loads global settings from IDB
-- `tests/unit/storage-idb.test.js:187` saveGlobalSettings persists to IDB and survives a session reset
-- `tests/unit/storage-idb.test.js:198` createBoard persists board list and per-board defaults across sessions
-- `tests/unit/storage-idb.test.js:213` active board id persists across sessions
-- `tests/unit/storage-idb.test.js:228` deleteBoard removes per-board data from IDB
-- `tests/unit/storage-idb.test.js:250` deleteBoard leaves no read-model record of the board, delete records and applied ids included (#178)
-- `tests/unit/storage-idb.test.js:270` v2 migration rehomes board read models and removes legacy kv keys
-- `tests/unit/storage-idb.test.js:292` v2 migration deletes legacy board event logs
-- `tests/unit/storage-idb.test.js:303` v2 schema creates event sourcing stores and event indexes
-- `tests/unit/storage-idb.test.js:315` migrates multi-board localStorage data on first initStorage
-- `tests/unit/storage-idb.test.js:342` migrates legacy done id to a UUID done role and rewrites task references
-- `tests/unit/storage-idb.test.js:379` migration cleans up localStorage after completing
-- `tests/unit/storage-idb.test.js:399` migrates legacy single-board localStorage keys (pre-multi-board format)
-- `tests/unit/storage-idb.test.js:421` migrates legacy single-board tasks without columns using UUID default column mappings
-- `tests/unit/storage-idb.test.js:443` migration does not run again on a subsequent initStorage call (same IDB)
-- `tests/unit/storage-idb.test.js:463` initStorage with corrupt kanbanBoards in IDB yields empty boards list
-- `tests/unit/storage-idb.test.js:477` loadTasksForBoard reads tasks for a non-active board without changing active board
-- `tests/unit/storage-idb.test.js:494` loadColumnsForBoard reads columns for a non-active board
-- `tests/unit/storage-idb.test.js:513` loadLabelsForBoard reads labels for a non-active board
-- `tests/unit/storage-idb.test.js:529` loadSettingsForBoard reads settings for a non-active board
-- `tests/unit/storage-idb.test.js:545` loadTasksForBoard returns empty array for unknown board id
+- `tests/unit/storage-idb.test.js:58` initStorage on empty IDB leaves boards list empty
+- `tests/unit/storage-idb.test.js:63` initStorage creates a stable HLC node id on boot
+- `tests/unit/storage-idb.test.js:69` initStorage is safe to call twice in the same session
+- `tests/unit/storage-idb.test.js:78` initStorage removes the stale legacy-sync localStorage keys from older versions
+- `tests/unit/storage-idb.test.js:90` saveTasks persists to IDB and survives a session reset
+- `tests/unit/storage-idb.test.js:107` emitted task.updated events project into task read model
+- `tests/unit/storage-idb.test.js:127` saveColumns persists to IDB and survives a session reset
+- `tests/unit/storage-idb.test.js:146` saveLabels persists to IDB and survives a session reset
+- `tests/unit/storage-idb.test.js:162` saveSettings persists to IDB and survives a session reset
+- `tests/unit/storage-idb.test.js:178` initStorage loads global settings from IDB
+- `tests/unit/storage-idb.test.js:188` saveGlobalSettings persists to IDB and survives a session reset
+- `tests/unit/storage-idb.test.js:199` createBoard persists board list and per-board defaults across sessions
+- `tests/unit/storage-idb.test.js:214` active board id persists across sessions
+- `tests/unit/storage-idb.test.js:229` deleteBoard removes per-board data from IDB
+- `tests/unit/storage-idb.test.js:251` deleteBoard leaves no read-model record of the board, delete records and applied ids included (#178)
+- `tests/unit/storage-idb.test.js:271` v2 migration rehomes board read models and removes legacy kv keys
+- `tests/unit/storage-idb.test.js:293` v2 migration deletes legacy board event logs
+- `tests/unit/storage-idb.test.js:304` v2 schema creates event sourcing stores and event indexes
+- `tests/unit/storage-idb.test.js:316` migrates multi-board localStorage data on first initStorage
+- `tests/unit/storage-idb.test.js:343` migrates legacy done id to a UUID done role and rewrites task references
+- `tests/unit/storage-idb.test.js:380` migration cleans up localStorage after completing
+- `tests/unit/storage-idb.test.js:400` migrates legacy single-board localStorage keys (pre-multi-board format)
+- `tests/unit/storage-idb.test.js:422` migrates legacy single-board tasks without columns using UUID default column mappings
+- `tests/unit/storage-idb.test.js:444` migration does not run again on a subsequent initStorage call (same IDB)
+- `tests/unit/storage-idb.test.js:464` initStorage with corrupt kanbanBoards in IDB yields empty boards list
+- `tests/unit/storage-idb.test.js:478` loadTasksForBoard reads tasks for a non-active board without changing active board
+- `tests/unit/storage-idb.test.js:495` loadColumnsForBoard reads columns for a non-active board
+- `tests/unit/storage-idb.test.js:514` loadLabelsForBoard reads labels for a non-active board
+- `tests/unit/storage-idb.test.js:530` loadSettingsForBoard reads settings for a non-active board
+- `tests/unit/storage-idb.test.js:546` loadTasksForBoard returns empty array for unknown board id
+- `tests/unit/storage-idb.test.js:551` a failed write batch stores nothing and logs once, however many writes joined it
 
 ### Storage
 
@@ -1075,20 +1108,21 @@ _No executable test cases detected._
 
 - Path: `tests/dom/event-sourcing/data-owner-stale-tab.test.js`
 - Type: DOM Integration
-- Test count: 12
+- Test count: 13
 
 - `tests/dom/event-sourcing/data-owner-stale-tab.test.js:85` a write from a tab that missed a wipe > keeps a catch-up batch of the old owner out of the events store and the read model
 - `tests/dom/event-sourcing/data-owner-stale-tab.test.js:95` a write from a tab that missed a wipe > keeps a local edit out of the queue, so it can not be pushed as the new owner
 - `tests/dom/event-sourcing/data-owner-stale-tab.test.js:101` a write from a tab that missed a wipe > leaves nothing for a new owner\'s tab to fold in
 - `tests/dom/event-sourcing/data-owner-stale-tab.test.js:110` a write from a tab that missed a wipe > reloads the page, which is what clears the old owner from its memory
 - `tests/dom/event-sourcing/data-owner-stale-tab.test.js:138` a write from a tab that missed a wipe > stores nothing from a whole pull of the old owner, watermarks included
-- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:159` marking an event synced around a wipe > can not bring a wiped event back
-- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:173` writes that must keep working > lets a tab write after another tab claims unowned data, because a claim wipes nothing
-- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:184` writes that must keep working > lets a tab opened after the wipe write
-- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:196` writes that must keep working > still catches a tab opened before a second wipe back to the first owner
-- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:208` writes that must keep working > keeps the order of writes made in one tick
-- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:219` writes that must keep working > stores the value as it was when the write was asked for
-- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:232` with no BroadcastChannel to bring the notice > still reloads on the first dropped write
+- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:159` a tab that slept through more than one wipe > still has its writes dropped
+- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:173` marking an event synced around a wipe > can not bring a wiped event back
+- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:187` writes that must keep working > lets a tab write after another tab claims unowned data, because a claim wipes nothing
+- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:198` writes that must keep working > lets a tab opened after the wipe write
+- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:210` writes that must keep working > still catches a tab opened before a second wipe back to the first owner
+- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:222` writes that must keep working > keeps the order of writes made in one tick
+- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:233` writes that must keep working > stores the value as it was when the write was asked for
+- `tests/dom/event-sourcing/data-owner-stale-tab.test.js:246` with no BroadcastChannel to bring the notice > still reloads on the first dropped write
 
 ### Data Owner
 
@@ -1158,27 +1192,29 @@ _No executable test cases detected._
 
 - Path: `tests/dom/event-sourcing/ingest.test.js`
 - Type: DOM Integration
-- Test count: 19
+- Test count: 21
 
 - `tests/dom/event-sourcing/ingest.test.js:70` local events > update the in-memory read model before scheduleDomainEvent() returns (ADR-0005 instant UI)
 - `tests/dom/event-sourcing/ingest.test.js:77` local events > ingested with origin local are persisted unsynced for the outbound queue
-- `tests/dom/event-sourcing/ingest.test.js:88` remote events > are projected, announced with DATA_CHANGED and persisted as synced
-- `tests/dom/event-sourcing/ingest.test.js:100` single path > an event announced on the bus without ingest never reaches the read model
-- `tests/dom/event-sourcing/ingest.test.js:105` single path > an echo of an already-ingested event changes nothing and announces nothing
-- `tests/dom/event-sourcing/ingest.test.js:160` rejected events > an hlc more than the drift limit ahead of this device
-- `tests/dom/event-sourcing/ingest.test.js:165` rejected events > an hlc ahead of this device within the drift limit is accepted
-- `tests/dom/event-sourcing/ingest.test.js:171` rejected events > a malformed local event is rejected too
-- `tests/dom/event-sourcing/ingest.test.js:192` rejected events > types that carry no payload data still accept an empty payload
-- `tests/dom/event-sourcing/ingest.test.js:203` payload entity fields > unknown task keys are dropped from task.created and task.updated
-- `tests/dom/event-sourcing/ingest.test.js:219` payload entity fields > known task keys that are not factory defaults survive (doneDate, swimlaneLabelGroup)
-- `tests/dom/event-sourcing/ingest.test.js:227` payload entity fields > unknown customer, project and time entry keys are dropped
-- `tests/dom/event-sourcing/ingest.test.js:240` payload entity fields > a payload id cannot resurrect a deleted task: the id comes from entity_id
-- `tests/dom/event-sourcing/ingest.test.js:250` payload entity fields > a task.updated field cannot change the task id
-- `tests/dom/event-sourcing/ingest.test.js:268` payload entity fields > board.created takes its id from entity_id, not the payload
-- `tests/dom/event-sourcing/ingest.test.js:276` payload entity fields > the persisted event carries the sanitised payload
-- `tests/dom/event-sourcing/ingest.test.js:294` entity colours > a non-hex customer or project colour is normalised to a hex colour
-- `tests/dom/event-sourcing/ingest.test.js:303` entity colours > a valid colour is kept (trimmed)
-- `tests/dom/event-sourcing/ingest.test.js:308` entity colours > a non-hex label colour is normalised on create and ignored on update
+- `tests/dom/event-sourcing/ingest.test.js:86` local events > do not save the read model when the event can not be stored (#256)
+- `tests/dom/event-sourcing/ingest.test.js:100` local events > of one tick land in a single write transaction with their read-model changes (#256)
+- `tests/dom/event-sourcing/ingest.test.js:119` remote events > are projected, announced with DATA_CHANGED and persisted as synced
+- `tests/dom/event-sourcing/ingest.test.js:131` single path > an event announced on the bus without ingest never reaches the read model
+- `tests/dom/event-sourcing/ingest.test.js:136` single path > an echo of an already-ingested event changes nothing and announces nothing
+- `tests/dom/event-sourcing/ingest.test.js:191` rejected events > an hlc more than the drift limit ahead of this device
+- `tests/dom/event-sourcing/ingest.test.js:196` rejected events > an hlc ahead of this device within the drift limit is accepted
+- `tests/dom/event-sourcing/ingest.test.js:202` rejected events > a malformed local event is rejected too
+- `tests/dom/event-sourcing/ingest.test.js:223` rejected events > types that carry no payload data still accept an empty payload
+- `tests/dom/event-sourcing/ingest.test.js:234` payload entity fields > unknown task keys are dropped from task.created and task.updated
+- `tests/dom/event-sourcing/ingest.test.js:250` payload entity fields > known task keys that are not factory defaults survive (doneDate, swimlaneLabelGroup)
+- `tests/dom/event-sourcing/ingest.test.js:258` payload entity fields > unknown customer, project and time entry keys are dropped
+- `tests/dom/event-sourcing/ingest.test.js:271` payload entity fields > a payload id cannot resurrect a deleted task: the id comes from entity_id
+- `tests/dom/event-sourcing/ingest.test.js:281` payload entity fields > a task.updated field cannot change the task id
+- `tests/dom/event-sourcing/ingest.test.js:299` payload entity fields > board.created takes its id from entity_id, not the payload
+- `tests/dom/event-sourcing/ingest.test.js:307` payload entity fields > the persisted event carries the sanitised payload
+- `tests/dom/event-sourcing/ingest.test.js:325` entity colours > a non-hex customer or project colour is normalised to a hex colour
+- `tests/dom/event-sourcing/ingest.test.js:334` entity colours > a valid colour is kept (trimmed)
+- `tests/dom/event-sourcing/ingest.test.js:339` entity colours > a non-hex label colour is normalised on create and ignored on update
 
 ### Page Boot Sync
 
@@ -1846,12 +1882,12 @@ _No executable test cases detected._
 - Type: End-to-End
 - Test count: 6
 
-- `tests/e2e/columns.spec.ts:45` new columns go before the permanent Done column
-- `tests/e2e/columns.spec.ts:54` adding a column requires a name
-- `tests/e2e/columns.spec.ts:67` a column can be renamed, recoloured, reordered and collapsed, and all of it survives a reload
-- `tests/e2e/columns.spec.ts:99` deleting a column asks first and takes its tasks with it
-- `tests/e2e/columns.spec.ts:119` a deleted column stays deleted after an immediate reload
-- `tests/e2e/columns.spec.ts:135` the Done column cannot be deleted
+- `tests/e2e/columns.spec.ts:61` new columns go before the permanent Done column
+- `tests/e2e/columns.spec.ts:69` adding a column requires a name
+- `tests/e2e/columns.spec.ts:82` a column can be renamed, recoloured, reordered and collapsed, and all of it survives a reload
+- `tests/e2e/columns.spec.ts:114` deleting a column asks first and takes its tasks with it
+- `tests/e2e/columns.spec.ts:134` a deleted column stays deleted after an immediate reload
+- `tests/e2e/columns.spec.ts:151` the Done column cannot be deleted
 
 ### Create Task
 
@@ -1966,11 +2002,12 @@ _No executable test cases detected._
 
 - Path: `tests/e2e/event-sourcing/sync-task-changes.spec.ts`
 - Type: End-to-End
-- Test count: 3
+- Test count: 4
 
 - `tests/e2e/event-sourcing/sync-task-changes.spec.ts:10` a task created, edited, moved and deleted on A shows on B without a reload
 - `tests/e2e/event-sourcing/sync-task-changes.spec.ts:76` on the first-run board a new task lands in the same place on both devices
-- `tests/e2e/event-sourcing/sync-task-changes.spec.ts:86` on the first-run board a demo task deleted on A goes from B too
+- `tests/e2e/event-sourcing/sync-task-changes.spec.ts:85` on the first-run board a demo task deleted on A goes from B too
+- `tests/e2e/event-sourcing/sync-task-changes.spec.ts:99` a device that first signs in after A changed the demo tasks shows them as A does
 
 ### Timetracking Convergence
 
@@ -2016,13 +2053,14 @@ _No executable test cases detected._
 
 - Path: `tests/e2e/import-export-roundtrip.spec.ts`
 - Type: End-to-End
-- Test count: 5
+- Test count: 6
 
 - `tests/e2e/import-export-roundtrip.spec.ts:67` an exported board imports as a new board with the same columns, tasks, labels, settings and done state
 - `tests/e2e/import-export-roundtrip.spec.ts:143` the exported file records its metadata, UUID ids and the Done role
 - `tests/e2e/import-export-roundtrip.spec.ts:160` the export file is named {boardName}-YYYY-MM-DD.json
-- `tests/e2e/import-export-roundtrip.spec.ts:167` a column WIP limit survives export and import
-- `tests/e2e/import-export-roundtrip.spec.ts:185` the countdown thresholds survive export and import
+- `tests/e2e/import-export-roundtrip.spec.ts:166` the export filename uses the local date, not the UTC date
+- `tests/e2e/import-export-roundtrip.spec.ts:173` a column WIP limit survives export and import
+- `tests/e2e/import-export-roundtrip.spec.ts:190` the countdown thresholds survive export and import
 
 ### Labels
 
@@ -2068,6 +2106,14 @@ _No executable test cases detected._
 - `tests/e2e/reports.spec.ts:14` the reports page loads and shows the tasks completed on the board
 - `tests/e2e/reports.spec.ts:52` average lead time runs from creation to done
 - `tests/e2e/reports.spec.ts:65` a board with nothing completed reports zero
+
+### Stale Tab Refusal
+
+- Path: `tests/e2e/stale-tab-refusal.spec.ts`
+- Type: End-to-End
+- Test count: 1
+
+- `tests/e2e/stale-tab-refusal.spec.ts:32` an edit in a tab that missed a wipe stores nothing and reloads that tab
 
 ### Subtasks
 

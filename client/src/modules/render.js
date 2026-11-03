@@ -11,7 +11,7 @@ import { createTaskElement, formatDisplayDate } from './task-card.js';
 import { createColumnElement, closeAllColumnMenus, initColumnMenuCloseHandler } from './column-element.js';
 import { renderSwimlaneBoard } from './swimlane-renderer.js';
 import { formatWipCount, syncColumnWip } from './wip-limit.js';
-import { byOrder } from './utils.js';
+import { byColumnOrder, byOrder } from './utils.js';
 
 // Depth of the current drag-reconcile window. While open (> 0), a projected
 // DATA_CHANGED patches the board in place via reconcileBoard() instead of the
@@ -260,7 +260,7 @@ export function reconcileBoard() {
   });
 
   const usedIds = new Set();
-  const sortedColumns = [...columns].sort(byOrder);
+  const sortedColumns = [...columns].sort(byColumnOrder);
 
   sortedColumns.forEach((column) => {
     const columnEl = container.querySelector(`.task-column[data-column="${column.id}"]`);
@@ -333,7 +333,7 @@ export function renderBoard() {
   container.dataset.swimlaneLabelGroup = settings.swimLaneLabelGroup || '';
   container.classList.toggle('board-container-swimlanes', settings.swimLanesEnabled === true);
 
-  const sortedColumns = [...columns].sort(byOrder);
+  const sortedColumns = [...columns].sort(byColumnOrder);
 
   if (settings.swimLanesEnabled === true) {
     renderSwimlaneBoard(container, sortedColumns, visibleTasks, labels, settings, labelsMap, today);

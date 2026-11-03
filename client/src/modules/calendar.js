@@ -233,10 +233,8 @@ function renderDueDateCalendar({ tasks, monthDate, boardId }) {
     renderSelectedList();
   };
 
-  if (!calendarEl.dataset.bound) {
-    calendarEl.addEventListener('click', handleCalendarClick);
-    calendarEl.dataset.bound = 'true';
-  }
+  // Replace the previous render's handler: each one closes over its own month's tasks (#260).
+  calendarEl.onclick = handleCalendarClick;
 
   renderGrid();
   renderSelectedList();

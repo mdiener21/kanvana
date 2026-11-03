@@ -1,7 +1,9 @@
-import { test, expect, beforeEach } from 'vitest';
+import { describe, test, expect, beforeEach } from 'vitest';
 import { resetLocalStorage } from './setup.js';
 import { createBoard, loadColumns, saveColumns, loadTasks, saveTasks } from '../../src/modules/storage.js';
 import { addColumn, toggleColumnCollapsed, updateColumn, deleteColumn, updateColumnPositions } from '../../src/modules/columns.js';
+import { byColumnOrder, byOrder } from '../../src/modules/utils.js';
+import { applyEvents, createProjectionState } from '../../src/modules/reducer.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -20,6 +22,64 @@ test('addColumn creates a new column', () => {
   const review = after.find(c => c.name === 'Review');
   expect(review).toBeTruthy();
   expect(review.id).toMatch(UUID_RE);
+});
+
+const boardOrder = () => [...loadColumns()].sort(byOrder).map((c) => c.name);
+
+test('addColumn places new columns before Done on a default board, whose columns have no order', () => {
+  addColumn('Review', '#ff0000');
+  expect(boardOrder()).toEqual(['To Do', 'In Progress', 'Review', 'Done']);
+  addColumn('QA', '#ff0000');
+  expect(boardOrder()).toEqual(['To Do', 'In Progress', 'Review', 'QA', 'Done']);
+});
+
+test('addColumn places a new column directly before Done when Done is not last', () => {
+  addColumn('Review', '#ff0000');
+  const orderByName = { Review: 1, Done: 2, 'To Do': 3, 'In Progress': 4 };
+  saveColumns(loadColumns().map((c) => ({ ...c, order: orderByName[c.name] })));
+  addColumn('QA', '#ff0000');
+  expect(boardOrder()).toEqual(['Review', 'QA', 'Done', 'To Do', 'In Progress']);
+});
+
+describe('columns that tie on order', () => {
+  const column = (name, order, extra = {}) => ({ id: name, name, order, ...extra });
+  const done = (order) => column('Done', order, { role: 'done' });
+  const sortedNames = (columns) => [...columns].sort(byColumnOrder).map((c) => c.name);
+
+  test('two offline devices adding columns leave Done last on both, whichever event came first', () => {
+    const event = (id, wallTime, type, entityId, payload) => ({ id, type, hlc: { wallTime, counter: 0, nodeId: 'n' }, scope: 'board', board_id: 'b', entity_id: entityId, payload });
+    const base = createProjectionState({ boards: [{ id: 'b' }], columns: [column('To Do', 1), column('In Progress', 2), done(3)] });
+    // Device A adds X and X2, leaving X=3, X2=4, Done=5; device B adds Y, leaving Y=3, Done=4, with the later HLC.
+    const fromA = [
+      event('a1', 1, 'column.reordered', '', { order: [{ id: 'Done', order: 4 }] }),
+      event('a2', 2, 'column.created', 'X', { column: column('X', 3) }),
+      event('a3', 3, 'column.reordered', '', { order: [{ id: 'Done', order: 5 }] }),
+      event('a4', 4, 'column.created', 'X2', { column: column('X2', 4) }),
+    ];
+    const fromB = [
+      event('b1', 5, 'column.reordered', '', { order: [{ id: 'Done', order: 4 }] }),
+      event('b2', 6, 'column.created', 'Y', { column: column('Y', 3) }),
+    ];
+    const merged = applyEvents(base, [...fromA, ...fromB]);
+
+    expect(merged.columns.find((c) => c.name === 'Done').order).toBe(4);
+    expect(merged.columns.find((c) => c.name === 'X2').order).toBe(4);
+    expect(sortedNames(merged.columns).at(-1)).toBe('Done');
+  });
+
+  test('Done sorts after its tie in any starting order', () => {
+    expect(sortedNames([done(4), column('X2', 4)])).toEqual(['X2', 'Done']);
+    expect(sortedNames([column('X2', 4), done(4)])).toEqual(['X2', 'Done']);
+  });
+
+  test('Done dragged elsewhere stays there, and only yields on a tie', () => {
+    expect(sortedNames([column('To Do', 2), done(1), column('X', 3)])).toEqual(['Done', 'To Do', 'X']);
+    expect(sortedNames([done(2), column('To Do', 2), column('X', 3)])).toEqual(['To Do', 'Done', 'X']);
+  });
+
+  test('a default board without orders keeps Done last', () => {
+    expect(sortedNames([done(undefined), column('To Do', undefined)])).toEqual(['To Do', 'Done']);
+  });
 });
 
 test('addColumn does nothing for empty name', () => {

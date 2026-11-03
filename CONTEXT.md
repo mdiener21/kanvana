@@ -277,8 +277,10 @@ How a switch works (`data-owner.js`, run on each new sign-in, with no network, a
 
 - **A tab that missed the wipe.** The notice takes time to arrive, so it is not what protects the new owner's
   data. A wipe bumps `kanvana:dataGeneration` in its transaction, each tab pins the generation when it opens the
-  database, and every write of account data (`writeIfDataCurrent()` and the `schedule*` helpers in `idb-store.js`)
-  checks it inside its own transaction. On a mismatch the write is dropped and the page reloads, so nothing from a
+  database, and every write of account data checks it inside its own transaction: `writeIfDataCurrent()` reads the
+  generation, and a write batch (§9 Durability), which commits before a read could return, adds the marker
+  `kanvana:dataReplaced:<pinned generation>`. A wipe leaves that marker behind, so the add is refused and the batch
+  aborts. Markers survive later wipes, since a tab can sleep through several. On a mismatch the write is dropped and the page reloads, so nothing from a
   tab still holding the old owner reaches the events store, the read model, snapshots or the queue.
 
 Known limits. Without Web Locks (plain http) the lock is skipped, so two visible tabs could each prompt. A tab that
@@ -452,7 +454,7 @@ ingestEvent (event-sourcing/ingest.js) — one path, origin is a parameter:
    3. project: read-model-projector folds event into state (sole writer, deduped by id)
               → emit(DATA_CHANGED) → renderBoard()      [synchronous for local events; skipped for a late remote one]
    4. emit(EVENT_EMITTED) → outbound sync-queue schedules a drain if it is running (HLC order, unsynced only, as the Data Owner)
-   5. persistEvent (synced = origin === 'remote')        [async] → EVENTS_STORED → other tabs fold it, leader drains
+   5. persistEvent (synced = origin === 'remote')        [same transaction as step 3's writes, §9 Durability] → EVENTS_STORED → other tabs fold it, leader drains
    6. late event only: rebuildScope(key)                  [the promise settles after the rebuild]
 ```
 
@@ -509,13 +511,26 @@ whose snapshot covers it can order it differently from one that never snapshotte
 Rebuilds of one key run one at a time; requests made while one waits share it, and events committed
 during a rebuild are folded into it.
 
-A rebuild is the reducer's fold, with three exceptions so it does not lose state no event carries yet:
+A rebuild is the reducer's fold, with four exceptions so it does not lose state no event carries yet:
 board and global settings start from the live value under the snapshot's (they merge field by field);
-task delete records are kept (deletes are permanent); and tasks, columns and labels that no snapshot,
-replayed event or (on adoption) replaced snapshot or covered stored event knows of (written by import, which emits no event yet) are kept as they are.
-A snapshot is folded from events alone. Known limit until those writes emit events: a setting written
+task delete records are kept (deletes are permanent); tasks, columns and labels that no snapshot,
+replayed event or (on adoption) replaced snapshot or covered stored event knows of (written by import, which emits no event yet) are kept as they are;
+and with no snapshot to start from, the fold starts from the demo tasks this device holds.
+A snapshot is folded from events alone, except for that same start from the demo tasks. Known limit until those writes emit events: a setting written
 without an event (swimlane grouping) is reset by a rebuild to the last replayed `settings.updated` that
 carries it.
+
+**Demo tasks** on the default board have stable ids and no `task.created`: each device seeds its own, and seeding
+adds nothing to the others. Events on one device still name the same tasks on all. A device's first snapshot folds
+onto the demo tasks it holds, as they were seeded, so its snapshots carry them with the changes they cover, since
+those events are then collected. A device without them, after an account switch, stays without through a replay,
+and adopting a snapshot drops any demo task the device doesn't hold, so work done in a demo task doesn't reach a
+device that has none. Known limit, because snapshots sync:
+
+- A device holding them that adopts a snapshot without them (taken on a device that had none) keeps the untouched
+  ones and **loses each one an event covered by that snapshot changed**.
+
+Folding them out of snapshots would make this the rule (ADR-0004, Amendment: demo tasks).
 
 **Grace window.** `GRACE_WINDOW_MS` (`snapshot.js`) is **30 days**. It must exceed a realistic offline
 period: a laptop left closed over a two- to three-week holiday, plus a week of margin for a late return
@@ -537,6 +552,32 @@ collection that catch-up pulls in full, to about a month of history.
 - The drop decision does not depend on local snapshots: only an event that reached the server more than
   a window after it was stamped is dropped, on every device. Its originating device keeps it, since local
   events are never dropped.
+
+### Durability of local edits
+
+The screen updates synchronously (ADR-0005), so an edit is on screen before IndexedDB has it. Every write
+made through `persistEvent()` and the `schedule*` helpers in one tick joins one **write batch**: a single
+transaction over kv, events and read_model (`batchedWrite`, `idb-store.js`). An event and its read-model change
+therefore land together or not at all, so a read model can not hold an edit whose event is lost and never syncs.
+A multi-event delete is one batch. The batch calls `commit()` in the same task as its writes (#256).
+
+The reason for committing there: Chromium finishes a transaction whose `commit()` was already sent, but aborts one
+still waiting to auto-commit. A probe that wrote 200 records and called `location.reload()` in the same task kept them
+in 40 of 40 runs with `commit()` and 29 of 40 without. Before #256 each event queued about 8 transactions, and its own
+event write came last, so the delete of a 20-task column took 258-508 ms to store its events; a reload in that time lost them.
+
+Remaining windows:
+
+- **Chromium, ordinary reload:** none observed; the delete-and-reload journey passed 140 of 140 runs. Writing still
+  finishes after the screen updates, 3-35 ms later in the same measurement, but a reload no longer interrupts it.
+- **Firefox and Safari:** not measured, and whether they finish a committed transaction through a reload is
+  unknown. If they do not, an edit can be lost in those milliseconds, event and read model together.
+- **Browsers without `commit()`** (Safari before 15) auto-commit, with the same all-or-nothing result.
+- **Browser, OS or power failure:** IndexedDB's default durability does not promise a flush to disk.
+- **A failed batch** (quota, say) is logged and stores nothing, while the screen keeps the edit until the next load.
+- **Catch-up** stores remote events as they arrive and saves their read model at the end of the batch, or at `pagehide`
+  (#237), so this pairing is for local edits; the event store still holds what the read model missed. A local edit made
+  during catch-up is not deferred: the board, with the events queued so far, is saved in the edit's own batch.
 
 ### Event Envelope
 
