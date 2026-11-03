@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - An edit followed straight away by a page reload is no longer lost in Chromium browsers. An edit and its sync event are now saved together or not at all, so a reload can no longer keep a change that never syncs (#256).
 - A new column now goes just before Done on a default board instead of first. When two devices add columns offline, Done no longer ends up before one of them after they sync (#259).
-- The first-run demo tasks now have the same ids on every device, so an edit or move of one on a device reaches the same task on the others. On a device with no demo tasks, adopting a snapshot taken on a device with them still adds them (#263).
+- The first-run demo tasks now have the same ids on every device, so an edit or move of one on a device reaches the same task on the others. A device with no demo tasks doesn't gain them from a snapshot, so work done in a demo task doesn't reach it (#263).
 - A column's WIP limit is no longer lost when a board is exported and imported (#257).
 - A board's countdown thresholds are no longer lost when a board is exported and imported (#258).
 - Clicking a day in the calendar after changing month now lists that day's tasks instead of none (#260).

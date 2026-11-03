@@ -90,8 +90,8 @@ audit UI, all with no third-party CRDT dependency.
   whose result is not a function of the events alone, and a device that holds none stays without.
 - A device's snapshots keep those tasks. Folding them out was rejected: the events a snapshot covers are collected,
   so their changes would survive nowhere, and adoption removes a task those events mention that the snapshot lacks.
-- The cost is that snapshots spread them: a device without demo tasks gains them by adopting a snapshot that holds
-  them. `CONTEXT.md` §9 states both limits.
+- Adoption drops any demo task the adopting device doesn't hold, so snapshots don't spread them. The cost is that
+  work done in a demo task doesn't reach a device that has none. `CONTEXT.md` §9 states the limits.
 
 ## References
 

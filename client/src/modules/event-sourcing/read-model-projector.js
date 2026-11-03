@@ -17,6 +17,7 @@ export function createReadModelProjector(ctx) {
     safeParseArray,
     safeParseObject,
     demoTasksForReplay,
+    withoutUnheldDemoTasks,
     schedulePersist,
     scheduleReadModelPersist,
     checkAndScheduleSnapshot,
@@ -209,6 +210,11 @@ export function createReadModelProjector(ctx) {
     }), events);
   }
 
+  function snapshotToAdopt(key, snapshotState) {
+    if (boardlessSlots.has(scopeForSnapshotKey(key))) return snapshotState;
+    return { ...snapshotState, tasks: withoutUnheldDemoTasks(key, snapshotState.tasks, liveBoard(key).tasks) };
+  }
+
   // Entities nothing in the event log knows of come from writes that emit no event yet (import), so they stay.
   function rebuild(key, snapshot, events, superseded = createSuperseded()) {
     applyPending(key);
@@ -315,7 +321,7 @@ export function createReadModelProjector(ctx) {
 
   function register() {
     if (disconnect) return;
-    disconnect = connectProjector({ classify, project, rebuild, foldOntoSnapshot, beginBatch, endBatch, missedEvents });
+    disconnect = connectProjector({ classify, project, rebuild, snapshotToAdopt, foldOntoSnapshot, beginBatch, endBatch, missedEvents });
     window.addEventListener('pagehide', persistBatchOnPageHide);
   }
 

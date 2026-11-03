@@ -201,7 +201,7 @@ function commit(event, origin, { batched = false } = {}) {
 export async function adoptSnapshot(key, state, hlc) {
   const replaced = await loadSnapshot(key);
   const covered = (await loadEventsAfter(key, replaced?.hlc ?? null)).filter((event) => compareHlc(event.hlc, hlc) <= 0);
-  await saveSnapshot(key, state, hlc);
+  await saveSnapshot(key, projector?.snapshotToAdopt(key, state) ?? state, hlc);
   const entry = superseded.get(key) ?? createSuperseded();
   if (replaced) entry.snapshots.push(replaced);
   entry.events.push(...covered);

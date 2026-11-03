@@ -5,7 +5,7 @@ Generated from test source. Do not edit by hand; run `npm run test:overview` fro
 ## Fast Scan
 
 - Test files: 140
-- Test cases: 1284
+- Test cases: 1285
 - Unit files: 49
 - DOM integration files: 43
 - E2E files: 46
@@ -217,7 +217,7 @@ These lists compare source/spec filenames against test file names and test title
 
 - Path: `tests/unit/event-sourcing/demo-task-convergence.test.js`
 - Type: Unit
-- Test count: 13
+- Test count: 14
 
 - `tests/unit/event-sourcing/demo-task-convergence.test.js:54` every device seeds the same demo task ids, in the same order
 - `tests/unit/event-sourcing/demo-task-convergence.test.js:61` seeding the first-run board emits no task events
@@ -229,9 +229,10 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/unit/event-sourcing/demo-task-convergence.test.js:105` a demo task deleted late is gone and later replays do not bring it back
 - `tests/unit/event-sourcing/demo-task-convergence.test.js:114` a device without demo tasks after an account switch does not gain them in a replay
 - `tests/unit/event-sourcing/demo-task-convergence.test.js:127` a local edit during catch-up stores its read model with its event, before the batch ends
-- `tests/unit/event-sourcing/demo-task-convergence.test.js:155` adopting a snapshot > that holds demo tasks gives them to a device without any
-- `tests/unit/event-sourcing/demo-task-convergence.test.js:168` adopting a snapshot > that lacks them leaves untouched demo tasks, and removes one its covered events edited
-- `tests/unit/event-sourcing/demo-task-convergence.test.js:178` a snapshot holds the demo tasks with the changes it covers
+- `tests/unit/event-sourcing/demo-task-convergence.test.js:155` adopting a snapshot > that holds demo tasks does not give them to a device without any
+- `tests/unit/event-sourcing/demo-task-convergence.test.js:170` adopting a snapshot > that holds a demo task this device also holds applies its edits
+- `tests/unit/event-sourcing/demo-task-convergence.test.js:176` adopting a snapshot > that lacks them leaves untouched demo tasks, and removes one its covered events edited
+- `tests/unit/event-sourcing/demo-task-convergence.test.js:186` a snapshot holds the demo tasks with the changes it covers
 
 ### Durable Memory
 

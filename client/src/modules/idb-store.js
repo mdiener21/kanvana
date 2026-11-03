@@ -105,7 +105,7 @@ export function logWriteFailure(message, err) {
     if (_loggedFailures.has(err)) return;
     _loggedFailures.add(err);
   }
-  console.error(`[Kanvana] ${message}`, err);
+  console.error('[Kanvana]', message, err);
 }
 
 // A batch commits before it could read the generation, so a wipe's marker fails it instead: add() is refused if the marker exists.

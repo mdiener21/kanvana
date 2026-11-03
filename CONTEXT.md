@@ -523,15 +523,14 @@ carries it.
 **Demo tasks** on the default board have stable ids and no `task.created`: each device seeds its own, and seeding
 adds nothing to the others. Events on one device still name the same tasks on all. A device's first snapshot folds
 onto the demo tasks it holds, as they were seeded, so its snapshots carry them with the changes they cover, since
-those events are then collected. A device without them, after an account switch, stays without through a replay.
-Known limits, because snapshots sync:
+those events are then collected. A device without them, after an account switch, stays without through a replay,
+and adopting a snapshot drops any demo task the device doesn't hold, so work done in a demo task doesn't reach a
+device that has none. Known limit, because snapshots sync:
 
-- A device without demo tasks **gains them** by adopting a snapshot that holds them, so a new device joining an
-  account whose history was snapshotted on a device holding them does receive them.
 - A device holding them that adopts a snapshot without them (taken on a device that had none) keeps the untouched
   ones and **loses each one an event covered by that snapshot changed**.
 
-Folding them out of snapshots would make the second case the rule (ADR-0004, Amendment: demo tasks).
+Folding them out of snapshots would make this the rule (ADR-0004, Amendment: demo tasks).
 
 **Grace window.** `GRACE_WINDOW_MS` (`snapshot.js`) is **30 days**. It must exceed a realistic offline
 period: a laptop left closed over a two- to three-week holiday, plus a week of margin for a late return

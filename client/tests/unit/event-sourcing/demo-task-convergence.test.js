@@ -147,12 +147,12 @@ test('a local edit during catch-up stores its read model with its event, before 
   expect(tasks.find((task) => task.id === TIME_STONE).title).toBe('Local edit');
 });
 
-// CONTEXT.md §9, Demo tasks: the known limits of carrying them in snapshots.
+// CONTEXT.md §9, Demo tasks: what adopting a snapshot does to them.
 describe('adopting a snapshot', () => {
   const stateWithTasks = (tasks) => ({ boards: [{ id: BOARD, name: 'Default Board' }], tasks, columns: [], labels: [], settings: {} });
   const snapshotHlc = { wallTime: LONG_AGO + 100, counter: 0, nodeId: 'device-a' };
 
-  test('that holds demo tasks gives them to a device without any', async () => {
+  test('that holds demo tasks does not give them to a device without any', async () => {
     const carried = demoTask(TIME_STONE);
     await replaceLocalData({ ownerId: 'user-b', maxUnsynced: Infinity, keepKvKeys: [] });
     _resetStorageForTesting();
@@ -160,7 +160,15 @@ describe('adopting a snapshot', () => {
     ensureBoardsInitialized();
     expect(loadTasksForBoard(BOARD)).toEqual([]);
 
-    await adoptSnapshot(BOARD, stateWithTasks([{ ...carried, title: 'Edited on A' }]), snapshotHlc);
+    const realTask = { ...carried, id: NEW_TASK, title: 'Real task' };
+    await adoptSnapshot(BOARD, stateWithTasks([{ ...carried, title: 'Edited on A' }, realTask]), snapshotHlc);
+
+    expect(loadTasksForBoard(BOARD).map((task) => task.id)).toEqual([NEW_TASK]);
+    expect((await loadSnapshot(BOARD)).state.tasks.map((task) => task.id)).toEqual([NEW_TASK]);
+  });
+
+  test('that holds a demo task this device also holds applies its edits', async () => {
+    await adoptSnapshot(BOARD, stateWithTasks([{ ...demoTask(TIME_STONE), title: 'Edited on A' }]), snapshotHlc);
 
     expect(demoTask(TIME_STONE).title).toBe('Edited on A');
   });

@@ -71,6 +71,7 @@ const readModelProjector = createReadModelProjector({
   safeParseArray,
   safeParseObject,
   demoTasksForReplay,
+  withoutUnheldDemoTasks,
   schedulePersist,
   scheduleReadModelPersist,
   checkAndScheduleSnapshot,
@@ -349,6 +350,14 @@ function demoTasksForReplay(boardId, liveTasks) {
   if (!held.length) return [];
   const heldIds = new Set(held.map((task) => task.id));
   return stableDemoTasks(held[0].creationDate).filter((task) => heldIds.has(task.id));
+}
+
+// Seeding adds demo tasks to no other device, and neither does an adopted snapshot (#263).
+function withoutUnheldDemoTasks(boardId, snapshotTasks, liveTasks) {
+  if (boardId !== STABLE_DEFAULT_BOARD_ID) return snapshotTasks;
+  const demoIds = new Set(stableDemoTasks().map((task) => task.id));
+  const heldIds = new Set(liveTasks.map((task) => task.id));
+  return snapshotTasks.filter((task) => !demoIds.has(task.id) || heldIds.has(task.id));
 }
 
 function defaultSettings() {
