@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.9] - 2026-11-03
+
 ### Changed
 
 - Exported boards are now named `{boardName}-YYYY-MM-DD.json`, as the import/export spec says, instead of `{boardName}_board_{timestamp}.json`. A second export on the same day has the same name, so your browser adds its own suffix, such as ` (1)` (#262).
