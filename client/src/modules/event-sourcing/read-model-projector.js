@@ -57,6 +57,8 @@ export function createReadModelProjector(ctx) {
   // What changed in memory since it was last stored. A save writes these and nothing else.
   const unsavedSlices = new Map();
   let boardsUnsaved = false;
+  // A local commit scope (#142) projects each event at once and saves what they changed once, when it closes.
+  let commit = null;
 
   function classify(event) {
     if (hasApplied(event)) return EVENT_ORDER.APPLIED;
@@ -88,7 +90,22 @@ export function createReadModelProjector(ctx) {
     if (!newest || newest === state.newestAppliedHlc[key]) return;
     state.newestAppliedHlc[key] = newest;
     if (batched) batch.newestApplied = true;
+    else if (commit) commit.newestApplied = true;
     else schedulePersist(newestAppliedKey, { ...state.newestAppliedHlc });
+  }
+
+  function beginCommit() {
+    commit = { boards: new Set(), boardless: new Set(), newestApplied: false };
+  }
+
+  function endCommit() {
+    if (!commit) return;
+    const { boards, boardless, newestApplied } = commit;
+    commit = null;
+    boardless.forEach((slot) => schedulePersist(slot.persistKey, state[slot.field]));
+    if (newestApplied) schedulePersist(newestAppliedKey, { ...state.newestAppliedHlc });
+    persistBoards();
+    boards.forEach(persistBoard);
   }
 
   function beginBatch() {
@@ -154,7 +171,8 @@ export function createReadModelProjector(ctx) {
 
     applyPending(boardId);
     const changed = writeBoard(boardId, applyEvent(boardProjection(boardId), event));
-    saveBoard(boardId);
+    if (commit) commit.boards.add(boardId);
+    else saveBoard(boardId);
     noteApplied(boardId, event.hlc);
     scheduleBoardSnapshot(boardId);
     return changed;
@@ -301,7 +319,8 @@ export function createReadModelProjector(ctx) {
 
   function writeBoardless(slot, value) {
     state[slot.field] = value;
-    schedulePersist(slot.persistKey, value);
+    if (commit) commit.boardless.add(slot);
+    else schedulePersist(slot.persistKey, value);
   }
 
   function markUnsaved(boardId, slice) {
@@ -361,13 +380,14 @@ export function createReadModelProjector(ctx) {
 
   function register() {
     if (disconnect) return;
-    disconnect = connectProjector({ classify, project, rebuild, snapshotToAdopt, foldOntoSnapshot, beginBatch, endBatch, missedEvents });
+    disconnect = connectProjector({ classify, project, rebuild, snapshotToAdopt, foldOntoSnapshot, beginBatch, endBatch, beginCommit, endCommit, missedEvents });
     window.addEventListener('pagehide', persistBatchOnPageHide);
   }
 
   function reset() {
     appliedBoardlessIds.clear();
     batch = null;
+    commit = null;
     unsavedSlices.clear();
     boardsUnsaved = false;
     window.removeEventListener('pagehide', persistBatchOnPageHide);

@@ -4,11 +4,11 @@ Generated from test source. Do not edit by hand; run `npm run test:overview` fro
 
 ## Fast Scan
 
-- Test files: 145
-- Test cases: 1344
+- Test files: 147
+- Test cases: 1361
 - Unit files: 50
-- DOM integration files: 44
-- E2E files: 49
+- DOM integration files: 45
+- E2E files: 50
 - Performance files: 1
 
 ## How To Use This
@@ -1061,11 +1061,11 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 5
 
-- `tests/dom/dragdrop.test.js:90` task drop mutates state inside the reconcile window
-- `tests/dom/dragdrop.test.js:110` task drop wraps its state mutation in a reconcile window
-- `tests/dom/dragdrop.test.js:134` collapsed non-done drops still pin the moved task through state
-- `tests/dom/dragdrop.test.js:158` reinitializing during an active task drag clears transient drag state
-- `tests/dom/dragdrop.test.js:178` reinitializing during an active column drag clears the column drag class
+- `tests/dom/dragdrop.test.js:94` task drop mutates state inside the reconcile window
+- `tests/dom/dragdrop.test.js:114` task drop wraps its state mutation in a reconcile window
+- `tests/dom/dragdrop.test.js:138` collapsed non-done drops still pin the moved task through state
+- `tests/dom/dragdrop.test.js:162` reinitializing during an active task drag clears transient drag state
+- `tests/dom/dragdrop.test.js:182` reinitializing during an active column drag clears the column drag class
 
 ### Auth Refresh Race
 
@@ -1115,6 +1115,28 @@ _No executable test cases detected._
 - `tests/dom/event-sourcing/column-sort.test.js:93` a rebuild triggered by a late remote event keeps the sorted order
 - `tests/dom/event-sourcing/column-sort.test.js:136` a sort reaches a second device over SSE
 - `tests/dom/event-sourcing/column-sort.test.js:143` a sort reaches a second device through catch-up
+
+### Commit Scope
+
+- Path: `tests/dom/event-sourcing/commit-scope.test.js`
+- Type: DOM Integration
+- Test count: 15
+
+- `tests/dom/event-sourcing/commit-scope.test.js:113` a task edit that emits several events > every event is projected in order before the caller gets control back
+- `tests/dom/event-sourcing/commit-scope.test.js:124` a task edit that emits several events > is one board commit, signalled before the caller gets control back
+- `tests/dom/event-sourcing/commit-scope.test.js:129` a task edit that emits several events > writes each changed slice once, holding the final projection
+- `tests/dom/event-sourcing/commit-scope.test.js:142` a task edit that emits several events > is one notice to other tabs, naming every event once it is stored
+- `tests/dom/event-sourcing/commit-scope.test.js:157` a task edit that emits several events > a new task placed above others is one commit too
+- `tests/dom/event-sourcing/commit-scope.test.js:165` the task form > saving labels, a relationship, a sub-task and a column move renders the board once
+- `tests/dom/event-sourcing/commit-scope.test.js:197` failure inside a commit > changes to different slices stay separate writes, each with its final value
+- `tests/dom/event-sourcing/commit-scope.test.js:215` failure inside a commit > a mutation that throws part-way still shows and stores what it projected
+- `tests/dom/event-sourcing/commit-scope.test.js:234` failure inside a commit > a write that fails stores nothing of the commit, the screen keeps the edit, and later edits still store
+- `tests/dom/event-sourcing/commit-scope.test.js:301` a drop > on a standard board reconciles once, inside its window
+- `tests/dom/event-sourcing/commit-scope.test.js:308` a drop > into a collapsed column is one reconcile for its two moves
+- `tests/dom/event-sourcing/commit-scope.test.js:317` a drop > across swimlanes reconciles once for its move and its field change
+- `tests/dom/event-sourcing/commit-scope.test.js:349` a burst of remote events > does not redraw for each event and ends on the newest edit
+- `tests/dom/event-sourcing/commit-scope.test.js:359` a burst of remote events > applies by HLC whatever order it arrives in
+- `tests/dom/event-sourcing/commit-scope.test.js:368` a burst of remote events > an event that repeats in the burst applies once
 
 ### Cross Tab Read Model
 
@@ -2229,8 +2251,8 @@ _No executable test cases detected._
 
 - `tests/e2e/swimlanes-drop-reconcile.spec.js:165` Swimlane drop reconciliation on a 400-task board > consecutive native mouse drags into Done do not crash, freeze or lose tasks
 - `tests/e2e/swimlanes-drop-reconcile.spec.js:217` Swimlane drop reconciliation > a cross-lane, cross-column drop reuses the dragged node and updates the moved task
-- `tests/e2e/swimlanes-drop-reconcile.spec.js:258` Swimlane drop reconciliation > a drag still works after a lane has lost its last task
-- `tests/e2e/swimlanes-drop-reconcile.spec.js:279` Swimlane drop reconciliation > a drop into Done clears the task from the due-soon notifications
+- `tests/e2e/swimlanes-drop-reconcile.spec.js:260` Swimlane drop reconciliation > a drag still works after a lane has lost its last task
+- `tests/e2e/swimlanes-drop-reconcile.spec.js:281` Swimlane drop reconciliation > a drop into Done clears the task from the due-soon notifications
 
 ### Swimlanes Persistence
 
@@ -2262,6 +2284,14 @@ _No executable test cases detected._
 
 - `tests/e2e/task-delete.spec.ts:37` Task Deletion > permanent delete — confirm removes task and decrements counter
 - `tests/e2e/task-delete.spec.ts:55` Task Deletion > cancel delete — task survives and counter is unchanged
+
+### Task Edit Commit
+
+- Path: `tests/e2e/task-edit-commit.spec.ts`
+- Type: End-to-End
+- Test count: 1
+
+- `tests/e2e/task-edit-commit.spec.ts:27` a save with labels, a relationship, a sub-task and a column move draws the board once and survives a reload
 
 ### Task Move Convergence
 
@@ -2399,13 +2429,14 @@ _No executable test cases detected._
 
 - Path: `tests/performance/large-board.spec.js`
 - Type: Performance
-- Test count: 5
+- Test count: 6
 
-- `tests/performance/large-board.spec.js:329` smoke: 400-task standard board renders within startup budget
-- `tests/performance/large-board.spec.js:377` ${scenario.taskCount} tasks in ${scenario.view} view stay within performance budgets
-- `tests/performance/large-board.spec.js:461` ${taskCount} tasks complete event-log backfill within budget
-- `tests/performance/large-board.spec.js:568` moves stay within budget beside ${unrelatedTasks} unrelated tasks
-- `tests/performance/large-board.spec.js:758` ${taskCount} tasks (${taskCount * 2} events) catch up on a fresh signed-in device within budget
+- `tests/performance/large-board.spec.js:330` smoke: 400-task standard board renders within startup budget
+- `tests/performance/large-board.spec.js:378` ${scenario.taskCount} tasks in ${scenario.view} view stay within performance budgets
+- `tests/performance/large-board.spec.js:462` ${taskCount} tasks complete event-log backfill within budget
+- `tests/performance/large-board.spec.js:569` moves stay within budget beside ${unrelatedTasks} unrelated tasks
+- `tests/performance/large-board.spec.js:665` a multi-event task edit on ${taskCount} tasks stays within budget
+- `tests/performance/large-board.spec.js:861` ${taskCount} tasks (${taskCount * 2} events) catch up on a fresh signed-in device within budget
 
 ## Other Tests
 

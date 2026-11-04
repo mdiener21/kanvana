@@ -198,3 +198,16 @@ export const PERFORMANCE_MOVE_SCENARIOS = [
     localBudget: { taskDropLatencyMs: 1300 },
   },
 ];
+
+// One save of the task form that changes the title, a label, a relationship, a sub-task and the
+// column (#142): six events, one render, and the tasks, applied ids and newest-applied HLC stored once.
+// Renders, writes and events reproduce exactly. Baseline recorded locally on 2026-11-04; the CI save
+// limit is about 2x that, pending a CI run, and the heap limit is the 1,000-task steady-state one.
+export const PERFORMANCE_EDIT_SCENARIOS = [
+  {
+    taskCount: 1000,
+    baseline: { taskSaveLatencyMs: 176.4, jsHeapUsedMb: 7.86, boardRendersPerSave: 1, readModelWritesPerSave: 3, eventsPerSave: 6 },
+    budget: { taskSaveLatencyMs: 350, jsHeapUsedMb: 12, boardRendersPerSave: 1, readModelWritesPerSave: 3, eventsPerSave: 6 },
+    localBudget: { taskSaveLatencyMs: 1300 },
+  },
+];

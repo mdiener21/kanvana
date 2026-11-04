@@ -104,7 +104,8 @@ with `page.route`, the realtime stream is replaced in-page, and every request th
 localhost is aborted (the production build loads an analytics script). The pulled events are stamped
 when the device first pulls, so they are newer than the default board it seeded at boot and project
 in order. A move scenario drops tasks beside 1,000 tasks in a column the moves do not touch and
-measures the stored event's size. Each scenario prints one `KANVANA_PERFORMANCE` JSON record and attaches the
+measures the stored event's size. An edit scenario saves a task form change that makes six events.
+Each scenario prints one `KANVANA_PERFORMANCE` JSON record and attaches the
 same JSON to the Playwright result. The smoke check holds an image request open to prove that
 startup timing stops at the board-render mark, before browser `load` finishes.
 CI uploads `client/test-results/performance-report.json` for review after each run.
@@ -231,6 +232,19 @@ calibrates it, and local runs use 1,300 ms.
 | Move scenario | Drop baseline / budget (ms) | Event size baseline / budget (bytes) | Unrelated entries baseline / budget |
 |---|---:|---:|---:|
 | 1,000 unrelated tasks | 249.7 / 500 | 1,523 / 2,500 | 0 / 0 |
+
+The edit scenario (#142) saves the real task form five times per start on the 1,000-task board. Each
+save changes the title, a label, a relationship, a sub-task and the column, which is six events.
+`taskSaveLatencyMs` runs in-page from just before the click to the last board render; renders and
+read-model writes are counted per save, with 100 ms allowed for a late one, and the writes are the
+tasks, the applied event ids and the newest-applied HLC. The scenario fails if a save makes fewer
+than six events. The same scenario measured 7 renders, 18 writes and 485 ms per save before the commit
+scope, on the same machine. The baseline was recorded locally on 2026-11-04; the 350 ms save budget is
+about 2x that until a CI run calibrates it, and local runs use 1,300 ms.
+
+| Edit scenario | Save baseline / budget (ms) | Heap baseline / budget (MB) | Renders per save | Read-model writes per save | Events per save |
+|---|---:|---:|---:|---:|---:|
+| 1,000 tasks | 176.4 / 350 | 7.86 / 12 | 1 | 3 | 6 |
 
 ### Known limits
 

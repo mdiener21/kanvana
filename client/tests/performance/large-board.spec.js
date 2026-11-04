@@ -7,6 +7,7 @@ import {
   PERFORMANCE_CALIBRATION,
   PERFORMANCE_CATCHUP_SCENARIOS,
   PERFORMANCE_CI_BUDGETS,
+  PERFORMANCE_EDIT_SCENARIOS,
   PERFORMANCE_MOVE_SCENARIOS,
   PERFORMANCE_REPETITIONS,
   PERFORMANCE_SCENARIOS,
@@ -603,6 +604,108 @@ for (const scenario of PERFORMANCE_MOVE_SCENARIOS) {
     if (!PERFORMANCE_CALIBRATION) {
       for (const [metric, limit] of Object.entries(budget)) {
         expect(metrics[metric], `${metric} exceeded its ${unrelatedTasks}-unrelated-tasks budget`).toBeLessThanOrEqual(limit);
+      }
+    }
+  });
+}
+
+function storedEventCount(page) {
+  return page.evaluate(() => new Promise((resolve, reject) => {
+    const request = indexedDB.open('kanvana-db');
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const read = db.transaction('events').objectStore('events').count();
+      read.onerror = () => { reject(read.error); db.close(); };
+      read.onsuccess = () => { db.close(); resolve(read.result); };
+    };
+  }));
+}
+
+// One save of the real form. Timed in-page, like a drop, from just before the click to the last render.
+async function saveMultiEventEdit(page, fixture, index) {
+  const taskIndex = Math.floor(fixture.tasks.length * 0.9) + index;
+  const edited = fixture.tasks[taskIndex];
+  const linked = fixture.tasks[fixture.tasks.length - 1 - index];
+  const label = fixture.labels[(taskIndex + 1) % fixture.labels.length];
+  const inProgress = fixture.columns[1].id;
+  const form = page.locator('#task-modal');
+
+  await page.locator(`.task[data-task-id="${edited.id}"] .task-title`).click();
+  await expect(form).toBeVisible();
+  await form.locator('#task-title').fill(`${edited.title} edited`);
+  await form.getByLabel('Filter available labels').fill(label.name);
+  await form.getByRole('checkbox', { name: label.name, exact: true }).check();
+  await form.locator('#task-relationship-search').fill(linked.title);
+  await form.locator('.relationship-result-item').first().click();
+  await form.locator('#task-subtask-input').fill('First step');
+  await form.locator('#task-subtask-input').press('Enter');
+  await form.locator('#task-column').selectOption(inProgress);
+
+  const rendersBefore = renderCount(await readRenderCounts(page));
+  const writesBefore = await readModelWriteCount(page);
+  const eventsBefore = await storedEventCount(page);
+  const savedAt = await page.evaluate(() => performance.now());
+  await form.getByRole('button', { name: 'Save Changes', exact: true }).click();
+  await expect(page.locator(`.task-column[data-column="${inProgress}"] .task[data-task-id="${edited.id}"]`)).toContainText('edited');
+  await expect.poll(async () => (await storedEventCount(page)) - eventsBefore, { timeout: 10_000 }).toBeGreaterThan(0);
+  // A second render or write would come from a later task; give one room to show up.
+  await page.waitForTimeout(100);
+
+  return {
+    latency: await renderLatencySince(page, savedAt),
+    boardRenders: renderCount(await readRenderCounts(page)) - rendersBefore,
+    readModelWrites: await readModelWriteCount(page) - writesBefore,
+    events: await storedEventCount(page) - eventsBefore,
+  };
+}
+
+for (const scenario of PERFORMANCE_EDIT_SCENARIOS) {
+  const { taskCount } = scenario;
+  test(`a multi-event task edit on ${taskCount} tasks stays within budget`, async ({ browser }, testInfo) => {
+    test.setTimeout(120_000 * PERFORMANCE_REPETITIONS);
+    const fixture = createSyntheticBoard(taskCount, 'standard');
+    const samples = [];
+
+    for (let repetition = 0; repetition < PERFORMANCE_REPETITIONS; repetition += 1) {
+      const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+      try {
+        const page = await context.newPage();
+        const cdp = await context.newCDPSession(page);
+        await cdp.send('Performance.enable');
+        await seedSyntheticBoard(page, fixture);
+        await page.addInitScript(installReadModelWriteCounter);
+        await page.addInitScript(() => { globalThis.__kanvanaPerfMarks = true; });
+        await page.goto('/', { waitUntil: 'domcontentloaded' });
+        await expect(page.locator('.task')).toHaveCount(Math.floor(taskCount * 0.4) + 50, { timeout: 30_000 });
+        await expect.poll(async () => renderCount(await readRenderCounts(page))).toBeGreaterThan(0);
+
+        const saves = [];
+        for (let index = 0; index < MOVES_PER_REPETITION; index += 1) saves.push(await saveMultiEventEdit(page, fixture, index));
+        const { jsHeapUsedMb } = await collectMemoryMetrics(page, cdp);
+        samples.push({ saves, jsHeapUsedMb });
+      } finally {
+        await context.close();
+      }
+    }
+
+    const saves = samples.flatMap((sample) => sample.saves);
+    const metrics = {
+      taskSaveLatencyMs: median(saves.map((save) => save.latency)),
+      jsHeapUsedMb: median(samples.map((sample) => sample.jsHeapUsedMb)),
+      boardRendersPerSave: Math.max(...saves.map((save) => save.boardRenders)),
+      readModelWritesPerSave: Math.max(...saves.map((save) => save.readModelWrites)),
+      eventsPerSave: Math.max(...saves.map((save) => save.events)),
+    };
+    const budget = { ...scenario.budget, ...(PERFORMANCE_CI_BUDGETS ? {} : scenario.localBudget) };
+    const result = { scenario: { taskCount, mode: 'multi-event edit' }, repetitions: PERFORMANCE_REPETITIONS, savesPerRepetition: MOVES_PER_REPETITION, metrics: rounded(metrics), baseline: scenario.baseline, budget };
+    console.log(`KANVANA_PERFORMANCE ${JSON.stringify(result)}`);
+    await testInfo.attach('performance-result', { body: JSON.stringify(result, null, 2), contentType: 'application/json' });
+    // A save that made fewer events would pass the render and write limits without testing them.
+    expect(Math.min(...saves.map((save) => save.events)), 'a save made fewer events than the scenario needs').toBe(scenario.baseline.eventsPerSave);
+    if (!PERFORMANCE_CALIBRATION) {
+      for (const [metric, limit] of Object.entries(budget)) {
+        expect(metrics[metric], `${metric} exceeded its ${taskCount}-task edit budget`).toBeLessThanOrEqual(limit);
       }
     }
   });

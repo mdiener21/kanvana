@@ -2,7 +2,7 @@ import { byOrder, generateUUID } from './utils.js';
 import { getActiveBoardId, isDoneColumnId, loadColumns, loadLabels, loadSettings, loadTasks } from './storage.js';
 import { applySwimLaneAssignment } from './swimlanes.js';
 import { normalizePriority, normalizeRelationships, normalizeSubTasks } from './normalize.js';
-import { scheduleDomainEvent } from './event-sourcing/emitter.js';
+import { commitTogether, scheduleDomainEvent } from './event-sourcing/emitter.js';
 import { PRIORITY_ORDER } from './constants.js';
 
 const RELATIONSHIP_INVERSE = { prerequisite: 'dependent', dependent: 'prerequisite', related: 'related' };
@@ -115,7 +115,11 @@ function syncRelationshipInverses(tasks, taskId, oldRelationships, newRelationsh
 }
 
 // Add a new task
-export function addTask(title, description, priority, dueDate, columnName, labels = [], relationships = [], subTasks = []) {
+export function addTask(...fields) {
+  commitTogether(() => emitNewTask(...fields));
+}
+
+function emitNewTask(title, description, priority, dueDate, columnName, labels = [], relationships = [], subTasks = []) {
   if (!title || title.trim() === '') return;
 
   const tasks = loadTasks();
@@ -173,7 +177,11 @@ export function addTask(title, description, priority, dueDate, columnName, label
 }
 
 // Update an existing task
-export function updateTask(taskId, title, description, priority, dueDate, columnName, labels = [], relationships = [], subTasks = []) {
+export function updateTask(...fields) {
+  commitTogether(() => emitTaskEdit(...fields));
+}
+
+function emitTaskEdit(taskId, title, description, priority, dueDate, columnName, labels = [], relationships = [], subTasks = []) {
   if (!title || title.trim() === '') return;
   
   const tasks = loadTasks();
