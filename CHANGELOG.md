@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Dropping a task on a swimlane board, including into Done, now updates the board in place instead of rebuilding it, closing the last path to the renderer crash seen on large boards (#139).
+
 ## [3.4.9] - 2026-11-03
 
 ### Changed

@@ -1,7 +1,7 @@
 import Sortable from 'sortablejs';
 import { moveTaskToTopInColumn, updateTaskPositionsFromDrop } from './tasks.js';
 import { updateColumnPositions } from './columns.js';
-import { emit, DATA_CHANGED, DRAG_RECONCILE_BEGIN, DRAG_RECONCILE_END } from './events.js';
+import { emit, DRAG_RECONCILE_BEGIN, DRAG_RECONCILE_END } from './events.js';
 import { isDoneColumnId } from './storage.js';
 
 // Store Sortable instances for cleanup
@@ -27,6 +27,16 @@ export function initDragDrop() {
   destroySortables();
   initTaskSortables();
   initColumnSortable();
+}
+
+// Drop only the instances whose list left the board, such as a lane that lost its last task. The
+// others keep running: a drop reconciles in place and never reinitializes drag and drop.
+export function pruneDetachedTaskSortables() {
+  taskSortables = taskSortables.filter((sortable) => {
+    if (sortable.el?.isConnected) return true;
+    sortable.destroy();
+    return false;
+  });
 }
 
 // Clean up existing sortable instances
@@ -261,17 +271,9 @@ function initTaskSortables() {
         }
       },
       
-      onEnd: async function(evt) {
-        const restoreCollapsedDropZones = !isSwimlaneViewEnabled();
-        cleanupTaskDragState({ restoreCollapsedDropZones });
-
+      onEnd: function(evt) {
         const isSwimlaneView = isSwimlaneViewEnabled();
-
-        // Let Sortable finish its drop cleanup before a swimlane rebuild
-        // destroys its instances. Standard boards reconcile in place.
-        if (isSwimlaneView) {
-          await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
-        }
+        cleanupTaskDragState({ restoreCollapsedDropZones: !isSwimlaneView });
 
         // Open a reconcile window for the whole mutation. Every DATA_CHANGED that
         // updateTaskPositionsFromDrop()/moveTaskToTopInColumn() emit synchronously
@@ -279,9 +281,7 @@ function initTaskSortables() {
         // renderBoard() (full teardown), so the just-dragged node is never
         // detached. Counters, collapsed titles, due dates, and notifications are
         // reconcile's responsibility now — no manual sync pass here.
-        const renderModule = isSwimlaneView ? await import('./render.js') : null;
-        if (renderModule) renderModule.beginDragReconcile();
-        else emit(DRAG_RECONCILE_BEGIN);
+        emit(DRAG_RECONCILE_BEGIN, evt.item);
         try {
           const dropResult = updateTaskPositionsFromDrop(evt);
           if (!dropResult) return;
@@ -293,19 +293,12 @@ function initTaskSortables() {
             // never re-parented here; reconcile repaints from state.
             moveTaskToTopInColumn(dropResult.movedTaskId, dropResult.toColumn);
           }
-
-          if (isSwimlaneView && (dropResult.didChangeColumn || dropResult.didChangeLane)) {
-            // Swimlane boards fall outside reconcile's scope; the emitted
-            // DATA_CHANGED falls back to a full renderBoard() rebuild.
-            emit(DATA_CHANGED);
-          }
         } finally {
-          if (renderModule) renderModule.endDragReconcile();
-          else emit(DRAG_RECONCILE_END);
+          emit(DRAG_RECONCILE_END);
         }
       }
     });
-    
+
     taskSortables.push(sortable);
   });
 }

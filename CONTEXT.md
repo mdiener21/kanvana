@@ -358,7 +358,7 @@ Development runs without a service worker. Production lifecycle tests run with `
 | `labels-modal.js` | Label management modal |
 | `render.js` | Two render adapters behind one read model: `renderBoard()` (full rebuild — `innerHTML` reset + `initDragDrop()`) and `reconcileBoard()` (in-place patch — moves cards by id, reorders, counters, collapsed titles, due dates, Done virtualization). Plus the **drag-reconcile window** (`beginDragReconcile()`/`endDragReconcile()`) that routes a drop's `DATA_CHANGED` through reconcile so the just-dragged node is never detached. See §7 "Board Render Flow". |
 | `swimlanes.js` | Swimlane grouping logic (`groupTasksBySwimLane`, etc.) |
-| `swimlane-renderer.js` | Swimlane board DOM builder |
+| `swimlane-renderer.js` | Swimlane board DOM builder and its in-place patch (`reconcileSwimlaneBoard()`) |
 | `dragdrop.js` | SortableJS initialization/teardown; swimlane-aware drop handling |
 | `importexport.js` | Board JSON export/import with preflight validation |
 | `reports.js` | ECharts: lead time, daily completions, cumulative flow diagram |
@@ -398,8 +398,13 @@ A projected `DATA_CHANGED` normally drives a full `renderBoard()` rebuild. A
 **drag-drop** opens the drag-reconcile window first (`dragdrop.js` `onEnd`), so the
 same `DATA_CHANGED` is routed through `reconcileBoard()` — a keyed in-place patch —
 instead of the `innerHTML` teardown. This is why a drag-to-Done no longer detaches
-the node Chrome's DnD engine still holds. `reconcileBoard()` returns `false` (→ full
-rebuild) for swimlane mode or a structural column-set change.
+the node Chrome's DnD engine still holds. Swimlane boards go through
+`reconcileSwimlaneBoard()`, keyed by lane, column and task. A card state no longer shows
+(a drop into a hidden Done cell) stays attached and hidden until Sortable's `onEnd` has
+returned, then leaves in the next task; a lane that lost its last task leaves in place and
+only its Sortables are destroyed, also after `onEnd`. `reconcileBoard()` returns `false`
+(→ full rebuild) for a structural column-set change, a lane the board doesn't have yet, or
+a changed lane grouping.
 ```
 drop onEnd → beginDragReconcile() → updateTaskPositionsFromDrop() → …DATA_CHANGED…
            → reconcileBoard() [patch in place]  → endDragReconcile()

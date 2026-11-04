@@ -294,3 +294,18 @@ export function createTaskElement(task, settings, labelsMap = null, today = null
 
   return li;
 }
+
+// The parts of a card a move can change. Replaced from a freshly built card so a moved card shows
+// exactly what a rebuild would, while the card's own node stays attached.
+const MOVE_SENSITIVE_PARTS = ['.task-labels', '.task-priority', '.task-footer'];
+
+export function syncTaskElement(card, task, settings, labelsMap = null, today = null) {
+  const fresh = createTaskElement(task, settings, labelsMap, today);
+  MOVE_SENSITIVE_PARTS.forEach((selector) => {
+    const current = card.querySelector(selector);
+    const next = fresh.querySelector(selector);
+    if (current && next) current.replaceWith(next);
+    else if (current) current.remove();
+    else if (next) card.appendChild(next);
+  });
+}

@@ -189,8 +189,8 @@ Drop and heap budgets carry measured headroom because they move with runner load
 |---|---:|---:|---:|---:|---:|---:|---:|
 | 400 standard | 205 / 210 | 5,513 / 5,800 | 11,832 / 12,500 | 17,345 / 18,300 | 1 | 5 | 0 |
 | 1,000 standard | 445 / 450 | 10,073 / 10,600 | 22,632 / 23,800 | 32,705 / 34,400 | 1 | 5 | 0 |
-| 400 swimlane | 160 / 165 | 4,726 / 5,000 | 10,069 / 10,600 | 14,795 / 15,600 | 1 | 10 | 0 |
-| 1,000 swimlane | 400 / 405 | 9,286 / 9,800 | 20,869 / 22,000 | 30,155 / 31,700 | 1 | 10 | 0 |
+| 400 swimlane | 160 / 165 | 4,726 / 5,000 | 10,069 / 10,600 | 14,795 / 15,600 | 1 | 5 | 0 |
+| 1,000 swimlane | 400 / 405 | 9,286 / 9,800 | 20,869 / 22,000 | 30,155 / 31,700 | 1 | 5 | 0 |
 
 The catch-up baseline was recorded locally on 2026-10-27, after #238, from six runs of three cold
 starts (medians 1,588.9, 1,597.5, 2,522.2, 2,529.8, 2,969.1 and 4,295.2 ms; renders and writes
