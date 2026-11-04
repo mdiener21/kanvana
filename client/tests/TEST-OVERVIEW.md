@@ -4,11 +4,11 @@ Generated from test source. Do not edit by hand; run `npm run test:overview` fro
 
 ## Fast Scan
 
-- Test files: 143
-- Test cases: 1318
-- Unit files: 49
+- Test files: 145
+- Test cases: 1344
+- Unit files: 50
 - DOM integration files: 44
-- E2E files: 48
+- E2E files: 49
 - Performance files: 1
 
 ## How To Use This
@@ -289,15 +289,28 @@ These lists compare source/spec filenames against test file names and test title
 
 - Path: `tests/unit/event-sourcing/read-model-projector.test.js`
 - Type: Unit
-- Test count: 7
+- Test count: 20
 
-- `tests/unit/event-sourcing/read-model-projector.test.js:78` createReadModelProjector > an ingested board event projects into state and schedules read-model persist
-- `tests/unit/event-sourcing/read-model-projector.test.js:88` createReadModelProjector > an event emitted on the bus without ingest is not projected
-- `tests/unit/event-sourcing/read-model-projector.test.js:93` createReadModelProjector > ingest is idempotent by event id (dedup) and announces DATA_CHANGED once
-- `tests/unit/event-sourcing/read-model-projector.test.js:106` createReadModelProjector > global-scope event projects globalSettings and persists the global key only
-- `tests/unit/event-sourcing/read-model-projector.test.js:123` createReadModelProjector > timetracking-scope event is never routed into a board projection and lands in the time-tracking slot
-- `tests/unit/event-sourcing/read-model-projector.test.js:149` createReadModelProjector > register() is idempotent — a single ingest projects once
-- `tests/unit/event-sourcing/read-model-projector.test.js:156` createReadModelProjector > reset() disconnects the projector from ingest; applied ids live in state, not the projector
+- `tests/unit/event-sourcing/read-model-projector.test.js:109` createReadModelProjector > an ingested board event projects into state and schedules read-model persist
+- `tests/unit/event-sourcing/read-model-projector.test.js:117` createReadModelProjector > an event emitted on the bus without ingest is not projected
+- `tests/unit/event-sourcing/read-model-projector.test.js:122` createReadModelProjector > ingest is idempotent by event id (dedup) and announces DATA_CHANGED once
+- `tests/unit/event-sourcing/read-model-projector.test.js:135` createReadModelProjector > global-scope event projects globalSettings and persists the global key only
+- `tests/unit/event-sourcing/read-model-projector.test.js:152` createReadModelProjector > timetracking-scope event is never routed into a board projection and lands in the time-tracking slot
+- `tests/unit/event-sourcing/read-model-projector.test.js:178` createReadModelProjector > register() is idempotent — a single ingest projects once
+- `tests/unit/event-sourcing/read-model-projector.test.js:185` createReadModelProjector > reset() disconnects the projector from ingest; applied ids live in state, not the projector
+- `tests/unit/event-sourcing/read-model-projector.test.js:223` createReadModelProjector > persists only the slices an event changed > a label event writes the labels only
+- `tests/unit/event-sourcing/read-model-projector.test.js:233` createReadModelProjector > persists only the slices an event changed > the slices an event leaves alone keep their references
+- `tests/unit/event-sourcing/read-model-projector.test.js:244` createReadModelProjector > persists only the slices an event changed > a slice the board has never stored is written, so a reload does not bring defaults back
+- `tests/unit/event-sourcing/read-model-projector.test.js:252` createReadModelProjector > persists only the slices an event changed > a local event is fully projected in memory before ingest returns
+- `tests/unit/event-sourcing/read-model-projector.test.js:259` createReadModelProjector > persists only the slices an event changed > a remote event takes the same selective path as a local one
+- `tests/unit/event-sourcing/read-model-projector.test.js:266` createReadModelProjector > persists only the slices an event changed > a catch-up batch writes each changed slice once, however many events it holds
+- `tests/unit/event-sourcing/read-model-projector.test.js:276` createReadModelProjector > persists only the slices an event changed > a catch-up batch covering two kinds of slice writes both
+- `tests/unit/event-sourcing/read-model-projector.test.js:294` createReadModelProjector > a reducer no-op > writes only the applied-event memory and emits no DATA_CHANGED
+- `tests/unit/event-sourcing/read-model-projector.test.js:305` createReadModelProjector > a reducer no-op > is remembered, so its next delivery writes nothing
+- `tests/unit/event-sourcing/read-model-projector.test.js:327` createReadModelProjector > a reducer no-op > adding a label or relationship a task already has changes nothing
+- `tests/unit/event-sourcing/read-model-projector.test.js:338` createReadModelProjector > a reducer no-op > a catch-up batch of nothing but no-ops writes the memory and emits no DATA_CHANGED
+- `tests/unit/event-sourcing/read-model-projector.test.js:349` createReadModelProjector > a reducer no-op > a board-less no-op writes nothing but its newest HLC and still counts towards the next snapshot
+- `tests/unit/event-sourcing/read-model-projector.test.js:372` createReadModelProjector > a reducer no-op > still asks for a snapshot, since the stored event counts towards the next one
 
 ### Reducer
 
@@ -323,7 +336,24 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/unit/event-sourcing/reducer.test.js:346` subtask and relationship events update embedded task collections
 - `tests/unit/event-sourcing/reducer.test.js:418` applying a list of events equals applying them one by one, duplicates and tombstones included
 - `tests/unit/event-sourcing/reducer.test.js:429` applying a list of events leaves the input state unchanged
-- `tests/unit/event-sourcing/reducer.test.js:444` applying a list of events copies the state once, not once per event
+- `tests/unit/event-sourcing/reducer.test.js:444` applying a list of events never copies a slice none of them changes
+
+### Selective Persist
+
+- Path: `tests/unit/event-sourcing/selective-persist.test.js`
+- Type: Unit
+- Test count: 10
+
+- `tests/unit/event-sourcing/selective-persist.test.js:98` writes that reach IndexedDB > a task move stores the tasks and the event memory, and no other slice
+- `tests/unit/event-sourcing/selective-persist.test.js:105` writes that reach IndexedDB > a column, a label, a settings and a board event each store their own slice
+- `tests/unit/event-sourcing/selective-persist.test.js:120` writes that reach IndexedDB > a duplicate create stores the event memory only, and renders nothing
+- `tests/unit/event-sourcing/selective-persist.test.js:148` hydration and replay > a board saved slice by slice hydrates to what was in memory
+- `tests/unit/event-sourcing/selective-persist.test.js:159` hydration and replay > a board saved slice by slice matches a replay of the same events from its start
+- `tests/unit/event-sourcing/selective-persist.test.js:174` hydration and replay > a reload still remembers a task deletion and every applied id, so neither replays
+- `tests/unit/event-sourcing/selective-persist.test.js:216` snapshots > a run of no-ops takes one snapshot, not one per event
+- `tests/unit/event-sourcing/selective-persist.test.js:233` snapshots > a snapshot holds the whole board though each event stored only its slice
+- `tests/unit/event-sourcing/selective-persist.test.js:260` backfill at boot (#138) > fills the log with valid syncable events, without projecting or announcing them
+- `tests/unit/event-sourcing/selective-persist.test.js:286` backfill at boot (#138) > a reopen with the flag set adds no events and shows the same board
 
 ### Snapshot
 
@@ -1251,17 +1281,17 @@ _No executable test cases detected._
 - `tests/dom/event-sourcing/realtime.test.js:309` catch-up pull > AC-005: pulls events > lastSeenHlc, applies in order, advances lastSeenHlc atomically
 - `tests/dom/event-sourcing/realtime.test.js:330` catch-up pull > signals DATA_CHANGED once for the whole pulled batch
 - `tests/dom/event-sourcing/realtime.test.js:352` catch-up pull > saves each part of a caught-up board once per batch, not once per event
-- `tests/dom/event-sourcing/realtime.test.js:392` catch-up pull > saves a local edit made during a catch-up at once, not when the batch ends
-- `tests/dom/event-sourcing/realtime.test.js:425` catch-up pull > saves the boards a catch-up has touched so far when the page is hidden
-- `tests/dom/event-sourcing/realtime.test.js:458` catch-up pull > a local edit made during a catch-up applies on top of the events the batch already took in
-- `tests/dom/event-sourcing/realtime.test.js:486` catch-up pull > a local command issued during a catch-up builds on the events the batch already took in
-- `tests/dom/event-sourcing/realtime.test.js:517` catch-up pull > a board deleted during a catch-up stays deleted when the batch ends
-- `tests/dom/event-sourcing/realtime.test.js:546` catch-up pull > a reload after a catch-up shows the same board
-- `tests/dom/event-sourcing/realtime.test.js:592` catch-up pull > advances the catch-up watermark only after the board read model is stored
-- `tests/dom/event-sourcing/realtime.test.js:621` catch-up pull > signals no DATA_CHANGED when the pulled batch is already stored
-- `tests/dom/event-sourcing/realtime.test.js:637` catch-up pull > a poison event among good ones is skipped: good ones applied, poison not persisted, logged once (#181)
-- `tests/dom/event-sourcing/realtime.test.js:666` catch-up pull > ingests timetracking events under their own watermark without touching boards
-- `tests/dom/event-sourcing/realtime.test.js:695` catch-up pull > AC-005/AC-006: re-running catch-up applies nothing new (idempotent overlap)
+- `tests/dom/event-sourcing/realtime.test.js:391` catch-up pull > saves a local edit made during a catch-up at once, not when the batch ends
+- `tests/dom/event-sourcing/realtime.test.js:424` catch-up pull > saves the boards a catch-up has touched so far when the page is hidden
+- `tests/dom/event-sourcing/realtime.test.js:457` catch-up pull > a local edit made during a catch-up applies on top of the events the batch already took in
+- `tests/dom/event-sourcing/realtime.test.js:485` catch-up pull > a local command issued during a catch-up builds on the events the batch already took in
+- `tests/dom/event-sourcing/realtime.test.js:516` catch-up pull > a board deleted during a catch-up stays deleted when the batch ends
+- `tests/dom/event-sourcing/realtime.test.js:545` catch-up pull > a reload after a catch-up shows the same board
+- `tests/dom/event-sourcing/realtime.test.js:591` catch-up pull > advances the catch-up watermark only after the board read model is stored
+- `tests/dom/event-sourcing/realtime.test.js:620` catch-up pull > signals no DATA_CHANGED when the pulled batch is already stored
+- `tests/dom/event-sourcing/realtime.test.js:636` catch-up pull > a poison event among good ones is skipped: good ones applied, poison not persisted, logged once (#181)
+- `tests/dom/event-sourcing/realtime.test.js:665` catch-up pull > ingests timetracking events under their own watermark without touching boards
+- `tests/dom/event-sourcing/realtime.test.js:694` catch-up pull > AC-005/AC-006: re-running catch-up applies nothing new (idempotent overlap)
 
 ### Replay Fidelity
 
@@ -2141,6 +2171,16 @@ _No executable test cases detected._
 - `tests/e2e/reports.spec.ts:52` average lead time runs from creation to done
 - `tests/e2e/reports.spec.ts:65` a board with nothing completed reports zero
 
+### Selective Persist Convergence
+
+- Path: `tests/e2e/selective-persist-convergence.spec.ts`
+- Type: End-to-End
+- Test count: 3
+
+- `tests/e2e/selective-persist-convergence.spec.ts:80` two devices that exchange their events show the same board, and still do after a reload
+- `tests/e2e/selective-persist-convergence.spec.ts:106` a remote task edit stores the tasks and applied ids on the receiving device, and no other slice
+- `tests/e2e/selective-persist-convergence.spec.ts:135` a board without the migration flag backfills once, and a reopen shows the same board with no new events
+
 ### Stale Tab Refusal
 
 - Path: `tests/e2e/stale-tab-refusal.spec.ts`
@@ -2361,11 +2401,11 @@ _No executable test cases detected._
 - Type: Performance
 - Test count: 5
 
-- `tests/performance/large-board.spec.js:299` smoke: 400-task standard board renders within startup budget
-- `tests/performance/large-board.spec.js:347` ${scenario.taskCount} tasks in ${scenario.view} view stay within performance budgets
-- `tests/performance/large-board.spec.js:429` ${taskCount} tasks complete event-log backfill within budget
-- `tests/performance/large-board.spec.js:532` moves stay within budget beside ${unrelatedTasks} unrelated tasks
-- `tests/performance/large-board.spec.js:741` ${taskCount} tasks (${taskCount * 2} events) catch up on a fresh signed-in device within budget
+- `tests/performance/large-board.spec.js:329` smoke: 400-task standard board renders within startup budget
+- `tests/performance/large-board.spec.js:377` ${scenario.taskCount} tasks in ${scenario.view} view stay within performance budgets
+- `tests/performance/large-board.spec.js:461` ${taskCount} tasks complete event-log backfill within budget
+- `tests/performance/large-board.spec.js:568` moves stay within budget beside ${unrelatedTasks} unrelated tasks
+- `tests/performance/large-board.spec.js:758` ${taskCount} tasks (${taskCount * 2} events) catch up on a fresh signed-in device within budget
 
 ## Other Tests
 

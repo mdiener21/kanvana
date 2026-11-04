@@ -439,9 +439,9 @@ test('applying a list of events leaves the input state unchanged', () => {
   expect(next.appliedEventIds).not.toBe(input.appliedEventIds);
 });
 
-// Copying the state once per event made a list cost tasks x events copies (#238); one copy keeps it linear.
+// Copying the state per event made a list cost tasks x events copies (#238), and a slice no event touched is shared (#141).
 // Copying the task list means walking it; this list counts its walks, and its copies (via Symbol.species) keep counting.
-test('applying a list of events copies the state once, not once per event', () => {
+test('applying a list of events never copies a slice none of them changes', () => {
   let walks = 0;
   class CountingTasks extends Array {
     map(...args) {
@@ -457,5 +457,6 @@ test('applying a list of events copies the state once, not once per event', () =
   const next = applyEvents(createProjectionState({ tasks }), events);
 
   expect(next.settings).toEqual({ n: 49 });
-  expect(walks).toBe(1);
+  expect(next.tasks).toBe(tasks);
+  expect(walks).toBe(0);
 });

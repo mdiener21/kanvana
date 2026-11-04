@@ -159,6 +159,13 @@ push are async. Each mutation's events are self-complete — they encode every r
 (relationship inverses on target tasks, sibling reordering, derived `doneDate`, swimlane reassignment)
 so the projection reproduces the change from events alone. Deletes are hard removals via `task.deleted`.
 
+**Selective persistence** (#141): the reducer shares every slice an event leaves alone, so the same reference
+means nothing to store. The projector writes only the slices whose reference changed (`tasks`, `columns`, `labels`,
+`settings`, `taskTombstones`, the board list), plus the event memory: `appliedEventIds` and the newest applied HLC stay
+durable for every event (#178). An event that changes no slice (a reducer no-op, such as a duplicate `*.created`)
+stores that memory only, emits no `DATA_CHANGED` and still counts towards the next snapshot. A catch-up batch tracks
+the same slices and writes each once when it ends. A rebuild replaces every list, so it stores the whole board.
+
 **Delete records and applied ids** (#178): the event log's memory of "deleted" and
 "already applied" is durable, so it survives a reload and a snapshot adoption.
 
