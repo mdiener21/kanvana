@@ -45,25 +45,16 @@ function cloneTimeTracking(timeTracking) {
   };
 }
 
-function cloneState(state) {
-  return {
-    ...state,
-    boards: [...state.boards],
-    tasks: state.tasks.map((task) => ({
-      ...task,
-      ...(Array.isArray(task.labels) ? { labels: [...task.labels] } : {}),
-      ...(Array.isArray(task.subTasks) ? { subTasks: task.subTasks.map((subtask) => ({ ...subtask })) } : {}),
-      ...(Array.isArray(task.relationships) ? { relationships: task.relationships.map((relationship) => ({ ...relationship })) } : {}),
-      ...(Array.isArray(task.columnHistory) ? { columnHistory: [...task.columnHistory] } : {})
-    })),
-    columns: state.columns.map((column) => ({ ...column })),
-    labels: state.labels.map((label) => ({ ...label })),
-    settings: { ...state.settings },
-    globalSettings: { ...state.globalSettings },
-    timeTracking: cloneTimeTracking(state.timeTracking),
-    appliedEventIds: new Set(state.appliedEventIds),
-    taskTombstones: new Set(state.taskTombstones)
-  };
+// Handlers never mutate what they get, so a slice an event leaves alone stays the same reference; the projector
+// reads that as "nothing to store". appliedEventIds is the one field a run adds to in place, so it gets a copy.
+function withOwnAppliedIds(state) {
+  return { ...state, appliedEventIds: new Set(state.appliedEventIds) };
+}
+
+// Keeps the list itself when no item changed, so an event for an absent entity leaves its slice untouched.
+function mapChanged(items, update) {
+  const next = items.map(update);
+  return next.some((item, index) => item !== items[index]) ? next : items;
 }
 
 function applyTaskCreated(state, event) {
@@ -79,7 +70,7 @@ function applyTaskUpdated(state, event) {
   const fields = event.payload?.fields && typeof event.payload.fields === 'object' ? event.payload.fields : {};
   return {
     ...state,
-    tasks: state.tasks.map((task) => (
+    tasks: mapChanged(state.tasks, (task) => (
       task.id === event.entity_id ? { ...task, ...fields, id: task.id } : task
     ))
   };
@@ -92,7 +83,7 @@ function applyTaskMoved(state, event) {
 
   return {
     ...state,
-    tasks: state.tasks.map((task) => {
+    tasks: mapChanged(state.tasks, (task) => {
       const entry = orderByTaskId.get(task.id);
       if (!entry) return task;
 
@@ -139,7 +130,7 @@ function updateTaskById(state, taskId, updater) {
   if (state.taskTombstones.has(taskId)) return state;
   return {
     ...state,
-    tasks: state.tasks.map((task) => (task.id === taskId ? updater(task) : task))
+    tasks: mapChanged(state.tasks, (task) => (task.id === taskId ? updater(task) : task))
   };
 }
 
@@ -231,14 +222,14 @@ function applyLabelUpdated(state, event) {
   const fields = event.payload?.fields && typeof event.payload.fields === 'object' ? event.payload.fields : {};
   return {
     ...state,
-    labels: state.labels.map((label) => (label.id === event.entity_id ? { ...label, ...fields, id: label.id } : label))
+    labels: mapChanged(state.labels, (label) => (label.id === event.entity_id ? { ...label, ...fields, id: label.id } : label))
   };
 }
 
 function applyLabelDeleted(state, event) {
   return {
     ...state,
-    labels: state.labels.map((label) => (label.id === event.entity_id ? { ...label, deleted: true } : label))
+    labels: mapChanged(state.labels, (label) => (label.id === event.entity_id ? { ...label, deleted: true } : label))
   };
 }
 
@@ -254,14 +245,14 @@ function applyColumnUpdated(state, event) {
   const fields = event.payload?.fields && typeof event.payload.fields === 'object' ? event.payload.fields : {};
   return {
     ...state,
-    columns: state.columns.map((column) => (column.id === event.entity_id ? { ...column, ...fields, id: column.id } : column))
+    columns: mapChanged(state.columns, (column) => (column.id === event.entity_id ? { ...column, ...fields, id: column.id } : column))
   };
 }
 
 function applyColumnDeleted(state, event) {
   return {
     ...state,
-    columns: state.columns.map((column) => (column.id === event.entity_id ? { ...column, deleted: true } : column))
+    columns: mapChanged(state.columns, (column) => (column.id === event.entity_id ? { ...column, deleted: true } : column))
   };
 }
 
@@ -270,7 +261,7 @@ function applyColumnReordered(state, event) {
   const orderByColumnId = new Map(order.map((entry) => [entry.id, entry.order]));
   return {
     ...state,
-    columns: state.columns.map((column) => (
+    columns: mapChanged(state.columns, (column) => (
       orderByColumnId.has(column.id) ? { ...column, order: orderByColumnId.get(column.id) } : column
     ))
   };
@@ -288,14 +279,14 @@ function applyBoardUpdated(state, event) {
   const fields = event.payload?.fields && typeof event.payload.fields === 'object' ? event.payload.fields : {};
   return {
     ...state,
-    boards: state.boards.map((board) => (board.id === event.entity_id ? { ...board, ...fields, id: board.id } : board))
+    boards: mapChanged(state.boards, (board) => (board.id === event.entity_id ? { ...board, ...fields, id: board.id } : board))
   };
 }
 
 function applyBoardDeleted(state, event) {
   return {
     ...state,
-    boards: state.boards.map((board) => (board.id === event.entity_id ? { ...board, deleted: true } : board))
+    boards: mapChanged(state.boards, (board) => (board.id === event.entity_id ? { ...board, deleted: true } : board))
   };
 }
 
@@ -433,7 +424,7 @@ const handlers = {
   'time_entry.deleted': applyTimeEntryDeleted
 };
 
-// Handlers never mutate the state they get, so a private working copy (`copy` = identity) can take many events in turn.
+// A run's working state (`copy` = identity) already has its own applied ids, so it can take many events in turn.
 function applyOne(state, event, copy) {
   if (state.appliedEventIds.has(event.id)) return state;
 
@@ -449,7 +440,7 @@ function applyOne(state, event, copy) {
 }
 
 export function applyEvent(state, event) {
-  return applyOne(state, event, cloneState);
+  return applyOne(state, event, withOwnAppliedIds);
 }
 
 export function applyEvents(state, events) {
@@ -457,5 +448,5 @@ export function applyEvents(state, events) {
     if (a.hlc.wallTime !== b.hlc.wallTime) return a.hlc.wallTime - b.hlc.wallTime;
     if (a.hlc.counter !== b.hlc.counter) return a.hlc.counter - b.hlc.counter;
     return a.hlc.nodeId < b.hlc.nodeId ? -1 : a.hlc.nodeId > b.hlc.nodeId ? 1 : 0;
-  }).reduce((working, event) => applyOne(working, event, (same) => same), cloneState(state));
+  }).reduce((working, event) => applyOne(working, event, (same) => same), withOwnAppliedIds(state));
 }

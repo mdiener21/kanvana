@@ -178,12 +178,12 @@ describe('applyRemoteEvent', () => {
   it('projects a live timetracking event into the time-tracking slot, never into a board', async () => {
     const boardsBefore = listBoards();
     // A board-shaped payload proves the scope, not the type, decides the projection.
-    await applyRemoteEvent(record({ local_id: 'tt1', h: hlc(1), board: '', scope: 'timetracking', payload: { board: { name: 'Leak' } } }));
+    await applyRemoteEvent(record({ local_id: 'tt1', h: hlc(1), board: '', scope: 'timetracking', type: 'customer.created', payload: { board: { name: 'Leak' }, customer: { name: 'Acme' } } }));
     await _flushPersistsForTesting();
 
     expect(listBoards()).toEqual(boardsBefore);
     const db = await openStore();
-    expect(await db.get(KV_STORE, 'kanvana:timetracking')).toEqual({ customers: [], projects: [], timeEntries: [], tombstones: { customers: {}, projects: {} } });
+    expect((await db.get(KV_STORE, 'kanvana:timetracking')).customers.map((customer) => customer.name)).toEqual(['Acme']);
     expect(await getUnsyncedEvents()).toHaveLength(0);
   });
 });
@@ -381,7 +381,6 @@ describe('catch-up pull', () => {
       'board-1:tasks': 1,
       'board-1:columns': 1,
       'board-1:labels': 1,
-      'board-1:taskTombstones': 1,
       'board-1:appliedEventIds': 1,
       kanbanBoards: 1,
       'kanbanBoard:board-1:settings': 1,

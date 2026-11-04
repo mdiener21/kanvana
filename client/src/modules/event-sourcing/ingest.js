@@ -74,7 +74,7 @@ function beginRemoteBatch() {
 }
 
 function endRemoteBatch(batchProjector) {
-  batchProjector?.endBatch();
+  if (batchProjector?.endBatch()) batchChanged = true;
   batchDepth -= 1;
   if (batchDepth === 0 && batchChanged) {
     batchChanged = false;

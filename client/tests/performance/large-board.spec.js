@@ -143,6 +143,32 @@ async function readRenderCounts(page) {
   }), { full: FULL_RENDER_MARK, reconcile: RECONCILE_RENDER_MARK });
 }
 
+// Runs before the app and counts read-model writes at the IndexedDB boundary, so the count survives
+// changes to how the projector schedules them. A read-model write is one put() or delete() on the
+// read_model store, or on the kv keys the projector also owns: the board list, a board's settings
+// and the newest-applied HLC map.
+function installReadModelWriteCounter() {
+  const writes = [];
+  globalThis.__kanvanaReadModelWrites = writes;
+  const kvReadModelKey = (key) => key === 'kanbanBoards'
+    || key === 'kanvana:ingest:newestAppliedHlc'
+    || (typeof key === 'string' && /^kanbanBoard:.+:settings$/.test(key));
+  for (const method of ['put', 'delete']) {
+    const original = IDBObjectStore.prototype[method];
+    IDBObjectStore.prototype[method] = function countReadModelWrite(...args) {
+      const key = method === 'put' ? args[1] : args[0];
+      if (this.name === 'read_model' || (this.name === 'kv' && kvReadModelKey(key))) {
+        writes.push({ at: performance.now(), key: `${this.name}:${String(key)}` });
+      }
+      return original.apply(this, args);
+    };
+  }
+}
+
+function readModelWriteCount(page) {
+  return page.evaluate(() => globalThis.__kanvanaReadModelWrites.length);
+}
+
 async function dragWithPointer(page, source, destination) {
   await source.scrollIntoViewIfNeeded();
   await destination.scrollIntoViewIfNeeded();
@@ -187,6 +213,7 @@ async function performMeasuredMoves(page, fixture, view) {
   const laneId = fixture.labels[0].id;
   const latencies = [];
   const beforeRenders = await readRenderCounts(page);
+  const writesBefore = await readModelWriteCount(page);
 
   for (let index = 0; index < MOVES_PER_REPETITION; index += 1) {
     let source;
@@ -221,6 +248,7 @@ async function performMeasuredMoves(page, fixture, view) {
   return {
     latencies,
     boardRenders: renderCount(afterRenders) - renderCount(beforeRenders),
+    readModelWrites: await readModelWriteCount(page) - writesBefore,
   };
 }
 
@@ -271,6 +299,7 @@ function summarize(samples) {
     liveTaskCards: Math.max(...samples.map((sample) => sample.liveTaskCards)),
     startupBoardRenders: Math.max(...samples.map((sample) => sample.startupBoardRenders)),
     steadyStateBoardRenders: Math.max(...samples.map((sample) => sample.steadyStateBoardRenders)),
+    steadyStateReadModelWrites: Math.max(...samples.map((sample) => sample.steadyStateReadModelWrites)),
     browserCrashEvents: samples.reduce((total, sample) => total + sample.browserCrashEvents, 0),
   };
 }
@@ -287,6 +316,7 @@ function crashedSample(browserCrashEvents) {
     liveTaskCards: 0,
     startupBoardRenders: 0,
     steadyStateBoardRenders: 0,
+    steadyStateReadModelWrites: 0,
     browserCrashEvents,
   };
 }
@@ -358,6 +388,7 @@ for (const scenario of PERFORMANCE_SCENARIOS) {
         page.on('crash', () => { browserCrashEvents += 1; });
 
         const fixtureSeedMs = await seedSyntheticBoard(page, fixture);
+        await page.addInitScript(installReadModelWriteCounter);
         await page.addInitScript(() => {
           globalThis.__kanvanaPerfMarks = true;
           globalThis.__kanvanaStartupStartedAt = performance.now();
@@ -384,6 +415,7 @@ for (const scenario of PERFORMANCE_SCENARIOS) {
           taskDropLatencies: moveMetrics.latencies,
           startupBoardRenders,
           steadyStateBoardRenders: moveMetrics.boardRenders,
+          steadyStateReadModelWrites: moveMetrics.readModelWrites,
           browserCrashEvents,
           ...memoryMetrics,
         });
@@ -434,6 +466,8 @@ for (const scenario of PERFORMANCE_BACKFILL_SCENARIOS) {
       const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
       try {
         const page = await context.newPage();
+        const cdp = await context.newCDPSession(page);
+        await cdp.send('Performance.enable');
         await seedSyntheticBoard(page, fixture, false);
         await page.addInitScript(() => {
           globalThis.__kanvanaPerfMarks = true;
@@ -458,7 +492,8 @@ for (const scenario of PERFORMANCE_BACKFILL_SCENARIOS) {
         }), BACKFILL_FLAG_KEY);
         expect(sample.backfillMs, 'backfill did not run').toBeGreaterThan(0);
         expect(sample.backfillEvents).toBe(taskCount + fixture.columns.length + fixture.labels.length + 2);
-        samples.push(sample);
+        const { retainedDomNodes } = await collectMemoryMetrics(page, cdp);
+        samples.push({ ...sample, retainedDomNodes });
       } finally {
         await context.close();
       }
@@ -468,6 +503,7 @@ for (const scenario of PERFORMANCE_BACKFILL_SCENARIOS) {
       startupMs: median(samples.map((sample) => sample.startupMs)),
       backfillMs: median(samples.map((sample) => sample.backfillMs)),
       boardRenders: Math.max(...samples.map((sample) => sample.boardRenders)),
+      retainedDomNodes: median(samples.map((sample) => sample.retainedDomNodes)),
     };
     const result = { scenario: { taskCount, mode: 'backfill' }, repetitions: PERFORMANCE_REPETITIONS, metrics: rounded(metrics), baseline: scenario.baseline, budget: scenario.budget };
     console.log(`KANVANA_PERFORMANCE ${JSON.stringify(result)}`);
@@ -577,30 +613,10 @@ async function mockPocketBase(context, taskCount) {
   return unmocked;
 }
 
-// Runs before the app: signs the device in, stands in for the realtime stream, and counts
-// read-model writes at the IndexedDB boundary so the count survives changes to how the
-// projector schedules them. A read-model write is one put() or delete() on the read_model
-// store, or on the kv keys the projector also owns: the board list, a board's settings and
-// the newest-applied HLC map.
+// Runs before the app: signs the device in and stands in for the realtime stream.
 function installCatchUpInstrumentation({ token, user }) {
   globalThis.__kanvanaPerfMarks = true;
   localStorage.setItem('pocketbase_auth', JSON.stringify({ token, record: user }));
-
-  const writes = [];
-  globalThis.__kanvanaReadModelWrites = writes;
-  const kvReadModelKey = (key) => key === 'kanbanBoards'
-    || key === 'kanvana:ingest:newestAppliedHlc'
-    || (typeof key === 'string' && /^kanbanBoard:.+:settings$/.test(key));
-  for (const method of ['put', 'delete']) {
-    const original = IDBObjectStore.prototype[method];
-    IDBObjectStore.prototype[method] = function countReadModelWrite(...args) {
-      const key = method === 'put' ? args[1] : args[0];
-      if (this.name === 'read_model' || (this.name === 'kv' && kvReadModelKey(key))) {
-        writes.push({ at: performance.now(), key: `${this.name}:${String(key)}` });
-      }
-      return original.apply(this, args);
-    };
-  }
 
   globalThis.EventSource = class FakeEventSource extends EventTarget {
     constructor(url) {
@@ -656,6 +672,7 @@ for (const scenario of PERFORMANCE_CATCHUP_SCENARIOS) {
       const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 1440, height: 900 } });
       try {
         const unmocked = await mockPocketBase(context, taskCount);
+        await context.addInitScript(installReadModelWriteCounter);
         await context.addInitScript(installCatchUpInstrumentation, { token: PB_TOKEN, user: PB_USER });
         const page = await context.newPage();
 

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Large boards save faster: moving a task now stores the board's tasks, not its columns, labels, settings and board list as well. The same goes for changes arriving from another device (#141).
+
+### Fixed
+
+- A change that alters nothing, such as a repeat of a task's creation arriving from another device, no longer redraws the board or saves it again (#138).
+
 ## [3.4.9] - 2026-11-03
 
 ### Changed
