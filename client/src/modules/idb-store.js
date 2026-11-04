@@ -174,10 +174,11 @@ async function migrateReadModelFromKv(db) {
   await tx.done;
 }
 
-export function schedulePersist(key, value) {
+export function schedulePersist(key, value, onFailed) {
   if (!_db) return; // IDB not yet initialised (e.g. during testing without initStorage)
   const p = batchedWrite(KV_STORE, (store) => store.put(value, key)).catch((err) => {
     logWriteFailure(`IDB persist failed for key ${key}`, err);
+    onFailed?.();
   });
   _pendingPersists.add(p);
   p.finally(() => _pendingPersists.delete(p));
@@ -192,10 +193,11 @@ export function scheduleDelete(key) {
   p.finally(() => _pendingPersists.delete(p));
 }
 
-export function scheduleReadModelPersist(boardId, kind, value) {
+export function scheduleReadModelPersist(boardId, kind, value, onFailed) {
   if (!_db) return;
   const p = batchedWrite(READ_MODEL_STORE, (store) => store.put(value, readModelKeyFor(boardId, kind))).catch((err) => {
     logWriteFailure(`IDB read-model persist failed for key ${readModelKeyFor(boardId, kind)}`, err);
+    onFailed?.();
   });
   _pendingPersists.add(p);
   p.finally(() => _pendingPersists.delete(p));

@@ -4,7 +4,7 @@ import { getActiveBoardId, isDoneColumnId, loadColumns, loadTasks } from './stor
 import { normalizeHexColor } from './normalize.js';
 import { createColumn } from './schema.js';
 import { normalizeWipLimit } from './wip-limit.js';
-import { scheduleDomainEvent } from './event-sourcing/emitter.js';
+import { commitTogether, scheduleDomainEvent } from './event-sourcing/emitter.js';
 
 // Add a new column
 export function addColumn(name, color, wipLimit = 0) {
@@ -105,20 +105,22 @@ export function deleteColumn(columnId) {
 
   // task.deleted removes each task and column.deleted soft-deletes the column;
   // the projection is the sole writer of the read model (ADR-0005).
-  tasksInColumn.forEach((task) => {
-    scheduleDomainEvent({
-      type: 'task.deleted',
-      boardId,
-      entityId: task.id,
-      payload: { column: task.column }
+  commitTogether(() => {
+    tasksInColumn.forEach((task) => {
+      scheduleDomainEvent({
+        type: 'task.deleted',
+        boardId,
+        entityId: task.id,
+        payload: { column: task.column }
+      });
     });
-  });
 
-  scheduleDomainEvent({
-    type: 'column.deleted',
-    boardId,
-    entityId: columnId,
-    payload: { tasksDestroyed: tasksInColumn.length }
+    scheduleDomainEvent({
+      type: 'column.deleted',
+      boardId,
+      entityId: columnId,
+      payload: { tasksDestroyed: tasksInColumn.length }
+    });
   });
   return true;
 }

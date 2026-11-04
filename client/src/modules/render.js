@@ -7,7 +7,7 @@ import { refreshNotifications } from './notifications.js';
 import { calculateDaysUntilDue, formatCountdown, getCountdownClassName } from './dateutils.js';
 import { syncSwimLaneControls } from './swimlanes.js';
 import { on, DATA_CHANGED, DRAG_RECONCILE_BEGIN, DRAG_RECONCILE_END } from './events.js';
-import { createTaskElement, formatDisplayDate } from './task-card.js';
+import { createTaskElement, formatDisplayDate, syncTaskElement } from './task-card.js';
 import { createColumnElement, closeAllColumnMenus, initColumnMenuCloseHandler } from './column-element.js';
 import { reconcileSwimlaneBoard, renderSwimlaneBoard } from './swimlane-renderer.js';
 import { formatWipCount, syncColumnWip } from './wip-limit.js';
@@ -19,10 +19,11 @@ import { byColumnOrder, byOrder } from './utils.js';
 // still references is never detached. A counter (not a boolean) survives the
 // several DATA_CHANGED events one drop can emit.
 let dragReconcileDepth = 0;
-// The node Sortable is finishing with during the current drop, on swimlane boards.
+// The node Sortable is finishing with during the current drop.
 let droppedCard = null;
 let droppedCardShown = true;
 let dropRemovedLanes = false;
+let dropNeedsRebuild = false;
 
 export function beginDragReconcile(card = null) {
   dragReconcileDepth += 1;
@@ -34,15 +35,17 @@ export function endDragReconcile() {
   if (dragReconcileDepth > 0) return;
   const card = droppedCardShown ? null : droppedCard;
   const removedLanes = dropRemovedLanes;
+  const needsRebuild = dropNeedsRebuild;
   droppedCard = null;
   droppedCardShown = true;
   dropRemovedLanes = false;
-  if (!card && !removedLanes) return;
-  // Sortable still holds the dropped node and the source list until its onEnd returns, so what
-  // the board no longer shows goes in the next task, once Sortable has let go.
+  dropNeedsRebuild = false;
+  if (!card && !removedLanes && !needsRebuild) return;
+  // Sortable holds the dropped node and source list until its onEnd returns, so removals and a rebuild wait for the next task.
   setTimeout(() => {
     card?.remove();
-    if (removedLanes) pruneDetachedTaskSortables();
+    if (needsRebuild) renderBoard();
+    else if (removedLanes) pruneDetachedTaskSortables();
   }, 0);
 }
 
@@ -52,8 +55,8 @@ on(DRAG_RECONCILE_END, endDragReconcile);
 // Subscribe to the event bus so any module can trigger a re-render
 // without importing render.js directly (eliminates circular deps).
 on(DATA_CHANGED, () => {
-  if (dragReconcileDepth > 0 && reconcileBoard()) return;
-  renderBoard();
+  if (dragReconcileDepth === 0) renderBoard();
+  else if (!reconcileBoard()) dropNeedsRebuild = true;
 });
 
 let columnMenuCloseHandlerAttached = false;
@@ -309,7 +312,8 @@ export function reconcileBoard() {
       // A reused card keeps its old due-date markup; patch it in place so a
       // move across the Done boundary updates the countdown without recreating
       // (and detaching) the node. Freshly created cards are already correct.
-      if (reused) syncMovedTaskDueDate(task.id, column.id, tasks);
+      if (card === droppedCard) syncTaskElement(card, task, settings, labelsMap, today);
+      else if (reused) syncMovedTaskDueDate(task.id, column.id, tasks);
       usedIds.add(task.id);
     });
 

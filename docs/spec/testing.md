@@ -223,7 +223,7 @@ after #237 it took 4,529.2 ms.
 The move scenario (#140) makes five real drops from In Progress (6 tasks) to Done (4 tasks) beside
 1,000 tasks in a column the moves do not touch. `moveEventBytes` is the largest stored `task.moved`
 event as UTF-8 JSON, and `unrelatedEntries` counts its order entries for those 1,000 tasks across all
-moves. Both reproduce exactly between runs, so their limits are tight. The same scenario on the old
+moves. Both reproduce exactly between runs, so their limits are tight (the bytes allow for a longer HLC counter). The same scenario on the old
 full-board payload measured 107,445 bytes and 5,000 unrelated entries for one repetition, with a
 274 ms drop on the same machine: the size follows the board, and most of the drop time does not. The
 baseline was recorded locally on 2026-11-04; the 500 ms drop budget is about 2x that until a CI run
@@ -231,7 +231,7 @@ calibrates it, and local runs use 1,300 ms.
 
 | Move scenario | Drop baseline / budget (ms) | Event size baseline / budget (bytes) | Unrelated entries baseline / budget |
 |---|---:|---:|---:|
-| 1,000 unrelated tasks | 249.7 / 500 | 1,523 / 2,500 | 0 / 0 |
+| 1,000 unrelated tasks | 249.7 / 500 | 1,523 / 1,550 | 0 / 0 |
 
 The edit scenario (#142) saves the real task form five times per start on the 1,000-task board. Each
 save changes the title, a label, a relationship, a sub-task and the column, which is six events.

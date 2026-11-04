@@ -40,9 +40,7 @@ export function ingestEvent(input, { origin = EVENT_ORIGIN.LOCAL, receivedAt } =
   return commit(event, origin);
 }
 
-// One user mutation (#142). Its events project at once and in order; when it returns, the board redraws once and each
-// changed slice is stored once. It must stay synchronous: that puts everything in the write batch of this tick (#256),
-// and a drop's redraw inside its reconcile window.
+// One redraw and one write per slice for a user mutation (#142); synchronous, to stay in this tick's write batch (#256) and a drop's reconcile window.
 export function commitTogether(mutation) {
   if (commitScope) return mutation();
   const scopeProjector = projector;
@@ -56,7 +54,7 @@ export function commitTogether(mutation) {
     try {
       scopeProjector?.endCommit();
     } finally {
-      if (scope.changed) emit(DATA_CHANGED, { commit: true });
+      if (scope.changed) emit(DATA_CHANGED);
       announceStored(scope.stored);
     }
   }

@@ -18,8 +18,10 @@ import {
 } from '../../../src/modules/storage.js';
 import { commitTogether, flushDomainEvents, scheduleDomainEvent } from '../../../src/modules/event-sourcing/emitter.js';
 import { applyRemoteEvent } from '../../../src/modules/event-sourcing/realtime.js';
-import { EVENTS_STORE, READ_MODEL_STORE, openStore } from '../../../src/modules/idb-store.js';
+import { EVENTS_STORE, KV_STORE, READ_MODEL_STORE, keyFor, openStore } from '../../../src/modules/idb-store.js';
 import { addTask, updateTask } from '../../../src/modules/tasks.js';
+import { deleteColumn } from '../../../src/modules/columns.js';
+import { deleteLabel } from '../../../src/modules/labels.js';
 import { initializeTaskModalHandlers, showEditModal } from '../../../src/modules/task-modal.js';
 import { renderBoard } from '../../../src/modules/render.js';
 
@@ -80,7 +82,9 @@ function seedTask(item) {
 }
 
 beforeEach(async () => {
-  document.documentElement.innerHTML = appMarkup.replace(/<script[\s\S]*?<\/script>/g, '');
+  const page = new DOMParser().parseFromString(appMarkup, 'text/html');
+  page.querySelectorAll('script').forEach((script) => script.remove());
+  document.documentElement.innerHTML = page.documentElement.innerHTML;
   _resetStorageForTesting();
   await deleteDB('kanvana-db');
   await initStorage();
@@ -158,6 +162,50 @@ describe('a task edit that emits several events', () => {
     addTask('New', '', 'none', '', 'todo');
     expect(emitted.map((event) => event.type)).toEqual(['task.created', 'task.moved']);
     expect(dataChanged).toBe(1);
+  });
+});
+
+describe('a commit around other multi-event mutations', () => {
+  test('a nested commit joins the outer one, which alone redraws and stores', async () => {
+    let redrawsInside = null;
+    const result = commitTogether(() => {
+      const inner = commitTogether(() => {
+        updateTask('a', 'Inner', '', 'none', '', 'todo');
+        return 'inner result';
+      });
+      updateTask('a', 'Outer', '', 'none', '', 'todo');
+      redrawsInside = dataChanged;
+      expect(puts).toEqual([]);
+      return inner;
+    });
+
+    expect(result).toBe('inner result');
+    expect(redrawsInside).toBe(0);
+    expect(dataChanged).toBe(1);
+    await flushDomainEvents();
+    await _flushPersistsForTesting();
+    expect(puts.filter((key) => key === `${getActiveBoardId()}:tasks`)).toHaveLength(1);
+  });
+
+  test('deleting a label on several tasks is one commit', () => {
+    updateTask('a', 'a', '', 'none', '', 'todo', ['label-1']);
+    updateTask('b', 'b', '', 'none', '', 'doing', ['label-1']);
+    dataChanged = 0;
+    emitted.length = 0;
+
+    deleteLabel('label-1');
+
+    expect(emitted.map((event) => event.type)).toEqual(['label.removed_from_task', 'label.removed_from_task', 'label.deleted']);
+    expect(dataChanged).toBe(1);
+    expect(stored('a').labels).toEqual([]);
+  });
+
+  test('deleting a column with tasks is one commit', () => {
+    expect(deleteColumn('todo')).toBe(true);
+
+    expect(emitted.map((event) => event.type)).toEqual(['task.deleted', 'task.deleted', 'column.deleted']);
+    expect(dataChanged).toBe(1);
+    expect(stored('a')).toBeUndefined();
   });
 });
 
@@ -262,6 +310,58 @@ describe('failure inside a commit', () => {
 
     logged.mockRestore();
   });
+
+  const nonTaskSlices = [
+    {
+      slice: 'columns',
+      storedAt: (boardId) => [READ_MODEL_STORE, `${boardId}:columns`],
+      change: (boardId) => scheduleDomainEvent({ type: 'column.updated', boardId, entityId: 'todo', payload: { fields: { name: 'Renamed column' } } }),
+      holdsChange: (value) => value.find((column) => column.id === 'todo').name === 'Renamed column',
+    },
+    {
+      slice: 'labels',
+      storedAt: (boardId) => [READ_MODEL_STORE, `${boardId}:labels`],
+      change: (boardId) => scheduleDomainEvent({ type: 'label.created', boardId, entityId: 'label-9', payload: { label: { name: 'Nine', color: '#123456' } } }),
+      holdsChange: (value) => value.some((label) => label.id === 'label-9'),
+    },
+    {
+      slice: 'settings',
+      storedAt: (boardId) => [KV_STORE, keyFor(boardId, 'settings')],
+      change: (boardId) => scheduleDomainEvent({ type: 'settings.updated', boardId, entityId: boardId, payload: { fields: { locale: 'fr-FR' } } }),
+      holdsChange: (value) => value.locale === 'fr-FR',
+    },
+    {
+      slice: 'the board list',
+      storedAt: () => [KV_STORE, 'kanbanBoards'],
+      change: (boardId) => scheduleDomainEvent({ type: 'board.updated', boardId, entityId: boardId, payload: { fields: { name: 'Renamed board' } } }),
+      holdsChange: (value, boardId) => value.find((board) => board.id === boardId).name === 'Renamed board',
+    },
+  ];
+
+  test.each(nonTaskSlices)('$slice lost to a failed write is stored by the next task edit', async ({ storedAt, change, holdsChange }) => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const boardId = getActiveBoardId();
+    const db = await openStore();
+    const [storeName, key] = storedAt(boardId);
+    let failing = true;
+    spy.mockImplementation(function (value, putKey) {
+      if (failing && putKey === key) throw new DOMException('Too large', 'DataCloneError');
+      return realPut.call(this, value, putKey);
+    });
+
+    change(boardId);
+    await flushDomainEvents();
+    await _flushPersistsForTesting();
+    failing = false;
+    expect(holdsChange(await db.get(storeName, key), boardId)).toBe(false);
+
+    updateTask('a', 'Later edit', '', 'none', '', 'todo');
+    await flushDomainEvents();
+    await _flushPersistsForTesting();
+
+    expect(holdsChange(await db.get(storeName, key), boardId)).toBe(true);
+    logged.mockRestore();
+  });
 });
 
 describe('a drop', () => {
@@ -327,6 +427,44 @@ describe('a drop', () => {
     await expectOneReconcileInsideTheWindow(() => drop('a', to));
     expect(emitted.map((event) => event.type)).toEqual(['task.moved', 'task.updated']);
     expect(stored('a')).toMatchObject({ column: 'doing', priority: 'low' });
+  });
+
+  test('to another column stamps the updated date from its event, on the card as well', () => {
+    saveSettings({ ...loadSettings(), showChangeDate: true });
+    renderBoard();
+    const to = document.querySelector('.task-column[data-column="doing"] .tasks');
+    const item = drop('a', to);
+
+    const moved = emitted.find((event) => event.type === 'task.moved');
+    expect(stored('a').changeDate).toBe(moved.at);
+    expect(stored('a').changeDate).not.toBe(SEEDED_AT);
+    const shown = item.querySelector('.task-change-date').textContent;
+    renderBoard();
+    expect(document.querySelector('.task[data-task-id="a"] .task-change-date').textContent).toBe(shown);
+  });
+
+  test('within a column leaves the updated date alone', () => {
+    renderBoard();
+    drop('a', document.querySelector('.task-column[data-column="todo"] .tasks'));
+    expect(emitted.map((event) => event.type)).toEqual(['task.moved']);
+    expect(stored('a').changeDate).toBe(SEEDED_AT);
+  });
+
+  test('to another lane of the same column carries the updated date in its event', async () => {
+    saveSettings({ ...loadSettings(), swimLanesEnabled: true, swimLaneGroupBy: 'priority' });
+    for (const [id, priority] of [['a', 'high'], ['other', 'high'], ['b', 'low']]) {
+      scheduleDomainEvent({ type: 'task.updated', boardId: getActiveBoardId(), entityId: id, payload: { fields: { priority } } });
+    }
+    await flushDomainEvents();
+    await _flushPersistsForTesting();
+    emitted.length = 0;
+    renderBoard();
+    drop('a', document.querySelector('.swimlane-cell[data-column="todo"][data-lane-key="low"] .tasks'));
+
+    const updated = emitted.find((event) => event.type === 'task.updated');
+    expect(updated.payload.fields).toMatchObject({ priority: 'low', changeDate: expect.any(String) });
+    expect(updated.payload.fields.changeDate).not.toBe(SEEDED_AT);
+    expect(stored('a').changeDate).toBe(updated.payload.fields.changeDate);
   });
 });
 
