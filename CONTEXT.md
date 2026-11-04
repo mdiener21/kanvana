@@ -413,9 +413,16 @@ only its Sortables are destroyed, also after `onEnd`. `reconcileBoard()` returns
 (→ full rebuild) for a structural column-set change, a lane the board doesn't have yet, or
 a changed lane grouping.
 ```
-drop onEnd → beginDragReconcile() → updateTaskPositionsFromDrop() → …DATA_CHANGED…
+drop onEnd → beginDragReconcile() → commitTogether(updateTaskPositionsFromDrop() …) → DATA_CHANGED
            → reconcileBoard() [patch in place]  → endDragReconcile()
 ```
+
+A **commit scope** (`commitTogether()`, `event-sourcing/emitter.js`) wraps one synchronous user
+mutation that makes several events: adding or editing a task, or a drop. Each event still projects at
+once and in order, so the code after it reads its result. When the mutation returns, the board gets one
+`DATA_CHANGED`, each changed read-model slice is stored once, and other tabs get one `EVENTS_STORED`
+naming every event. The scope closes before control returns, so its writes share the tick's write batch
+(§9) and a drop's redraw falls inside its reconcile window. It must never wrap anything asynchronous.
 
 ### Task Due Date Rendering
 ```
@@ -571,7 +578,8 @@ The screen updates synchronously (ADR-0005), so an edit is on screen before Inde
 made through `persistEvent()` and the `schedule*` helpers in one tick joins one **write batch**: a single
 transaction over kv, events and read_model (`batchedWrite`, `idb-store.js`). An event and its read-model change
 therefore land together or not at all, so a read model can not hold an edit whose event is lost and never syncs.
-A multi-event delete is one batch. The batch calls `commit()` in the same task as its writes (#256).
+A multi-event delete is one batch, and so is a commit scope (§7), which also stores each slice once. Slices
+stay separate writes, but one failed write fails the whole batch. The batch calls `commit()` in the same task as its writes (#256).
 
 The reason for committing there: Chromium finishes a transaction whose `commit()` was already sent, but aborts one
 still waiting to auto-commit. A probe that wrote 200 records and called `location.reload()` in the same task kept them

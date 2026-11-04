@@ -3,6 +3,8 @@ import { emitLocalSync } from './hlc.js';
 import { EVENT_ORIGIN, ingestEvent } from './ingest.js';
 import { logWriteFailure } from '../idb-store.js';
 
+export { commitTogether } from './ingest.js';
+
 const DEFAULT_ACTOR = { type: 'human', id: null };
 const pendingDomainEvents = new Set();
 

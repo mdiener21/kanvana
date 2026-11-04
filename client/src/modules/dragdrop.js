@@ -3,6 +3,7 @@ import { moveTaskToTopInColumn, updateTaskPositionsFromDrop } from './tasks.js';
 import { updateColumnPositions } from './columns.js';
 import { emit, DRAG_RECONCILE_BEGIN, DRAG_RECONCILE_END } from './events.js';
 import { isDoneColumnId } from './storage.js';
+import { commitTogether } from './event-sourcing/emitter.js';
 
 // Store Sortable instances for cleanup
 let taskSortables = [];
@@ -275,24 +276,26 @@ function initTaskSortables() {
         const isSwimlaneView = isSwimlaneViewEnabled();
         cleanupTaskDragState({ restoreCollapsedDropZones: !isSwimlaneView });
 
-        // Open a reconcile window for the whole mutation. Every DATA_CHANGED that
-        // updateTaskPositionsFromDrop()/moveTaskToTopInColumn() emit synchronously
-        // is routed through reconcileBoard() (patch in place) instead of
-        // renderBoard() (full teardown), so the just-dragged node is never
-        // detached. Counters, collapsed titles, due dates, and notifications are
-        // reconcile's responsibility now — no manual sync pass here.
+        // Open a reconcile window for the whole mutation. The one DATA_CHANGED its
+        // commit scope emits on closing, whatever events the drop made, is routed
+        // through reconcileBoard() (patch in place) instead of renderBoard() (full
+        // teardown), so the just-dragged node is never detached. Counters, collapsed
+        // titles, due dates, and notifications are reconcile's responsibility now —
+        // no manual sync pass here.
         emit(DRAG_RECONCILE_BEGIN, evt.item);
         try {
-          const dropResult = updateTaskPositionsFromDrop(evt);
-          if (!dropResult) return;
+          commitTogether(() => {
+            const dropResult = updateTaskPositionsFromDrop(evt);
+            if (!dropResult) return;
 
-          const toColumnEl = getTaskContainerElement(evt.to);
+            const toColumnEl = getTaskContainerElement(evt.to);
 
-          if (!isSwimlaneView && toColumnEl?.classList.contains('is-collapsed')) {
-            // Keep collapsed drops state-only so Sortable's detached drag node is
-            // never re-parented here; reconcile repaints from state.
-            moveTaskToTopInColumn(dropResult.movedTaskId, dropResult.toColumn);
-          }
+            if (!isSwimlaneView && toColumnEl?.classList.contains('is-collapsed')) {
+              // Keep collapsed drops state-only so Sortable's detached drag node is
+              // never re-parented here; reconcile repaints from state.
+              moveTaskToTopInColumn(dropResult.movedTaskId, dropResult.toColumn);
+            }
+          });
         } finally {
           emit(DRAG_RECONCILE_END);
         }

@@ -243,6 +243,8 @@ test.describe('Swimlane drop reconciliation', () => {
     await expect(headerCounter(page, TODO_ID)).toHaveText('1');
     await expect(headerCounter(page, DOING_ID)).toHaveText('2');
     await expectBoardNeverRebuilt(page);
+    // The move and the lane's field change are two events and one pass over the board (#142).
+    expect(await page.evaluate((mark) => performance.getEntriesByName(mark).length, RECONCILE_RENDER_MARK)).toBe(1);
 
     await expect.poll(async () => (await readTasks(page)).find((t) => t.id === id).column).toBe(DOING_ID);
     await expect.poll(async () => (await readTasks(page)).find((t) => t.id === id).swimlaneLabelId).toBe(LANE_B_ID);

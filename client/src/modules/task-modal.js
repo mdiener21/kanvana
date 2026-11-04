@@ -4,7 +4,6 @@ import { isDoneColumnId, loadLabels, loadColumns, loadSettings, loadTasks } from
 import { addTask, updateTask } from './tasks.js';
 import { renderIcons } from './icons.js';
 import { validateAndShowTaskTitleError, clearFieldError } from './validation.js';
-import { emit, DATA_CHANGED } from './events.js';
 import { createAccordionSection } from './accordion.js';
 import { generateUUID, labelTextColor } from './utils.js';
 import Sortable from 'sortablejs';
@@ -724,7 +723,6 @@ export function initializeTaskModalHandlers(setupModalCloseHandlers) {
       addTask(title, description, priority, dueDate, column, selectedTaskLabels, selectedTaskRelationships, selectedTaskSubTasks);
     }
     hideModal();
-    emit(DATA_CHANGED);
   });
 
   setupModalCloseHandlers('task-modal', hideModal);

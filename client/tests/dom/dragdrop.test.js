@@ -32,6 +32,10 @@ vi.mock('../../src/modules/events.js', () => ({
   emit: vi.fn(),
 }));
 
+vi.mock('../../src/modules/event-sourcing/emitter.js', () => ({
+  commitTogether: (mutation) => mutation(),
+}));
+
 vi.mock('../../src/modules/storage.js', () => ({
   isDoneColumnId: mocks.isDoneColumnId,
   loadTasks: mocks.loadTasks,
