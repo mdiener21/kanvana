@@ -167,7 +167,7 @@ test('reconcileBoard respects the active board filter, like a full render', asyn
   }
 });
 
-test('reconcileBoard defers to a full rebuild when swimlane mode is on', async () => {
+test('reconcileBoard defers to a full rebuild when swimlane mode is on but the board on screen is not a swimlane board', async () => {
   mocks.settings = { swimLanesEnabled: true };
   mocks.tasks = [{ id: 't1', column: 'done', order: 1, title: 'Ship it' }];
   mountStandardBoard();

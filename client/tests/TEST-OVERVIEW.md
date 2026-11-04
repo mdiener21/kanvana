@@ -4,11 +4,11 @@ Generated from test source. Do not edit by hand; run `npm run test:overview` fro
 
 ## Fast Scan
 
-- Test files: 141
-- Test cases: 1300
+- Test files: 143
+- Test cases: 1318
 - Unit files: 49
-- DOM integration files: 43
-- E2E files: 47
+- DOM integration files: 44
+- E2E files: 48
 - Performance files: 1
 
 ## How To Use This
@@ -1031,11 +1031,11 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 5
 
-- `tests/dom/dragdrop.test.js:99` task drop mutates state inside the reconcile window
-- `tests/dom/dragdrop.test.js:119` task drop wraps its state mutation in a reconcile window
-- `tests/dom/dragdrop.test.js:143` collapsed non-done drops still pin the moved task through state
-- `tests/dom/dragdrop.test.js:167` reinitializing during an active task drag clears transient drag state
-- `tests/dom/dragdrop.test.js:187` reinitializing during an active column drag clears the column drag class
+- `tests/dom/dragdrop.test.js:90` task drop mutates state inside the reconcile window
+- `tests/dom/dragdrop.test.js:110` task drop wraps its state mutation in a reconcile window
+- `tests/dom/dragdrop.test.js:134` collapsed non-done drops still pin the moved task through state
+- `tests/dom/dragdrop.test.js:158` reinitializing during an active task drag clears transient drag state
+- `tests/dom/dragdrop.test.js:178` reinitializing during an active column drag clears the column drag class
 
 ### Auth Refresh Race
 
@@ -1559,7 +1559,7 @@ _No executable test cases detected._
 - `tests/dom/reconcile.test.js:121` a data change inside a drag-reconcile window patches in place instead of rebuilding
 - `tests/dom/reconcile.test.js:138` reconcileBoard refreshes notifications, matching a full render
 - `tests/dom/reconcile.test.js:148` reconcileBoard respects the active board filter, like a full render
-- `tests/dom/reconcile.test.js:170` reconcileBoard defers to a full rebuild when swimlane mode is on
+- `tests/dom/reconcile.test.js:170` reconcileBoard defers to a full rebuild when swimlane mode is on but the board on screen is not a swimlane board
 - `tests/dom/reconcile.test.js:183` reconcileBoard defers to a full rebuild when the column set changed
 - `tests/dom/reconcile.test.js:196` reconcileBoard virtualizes an overfull Done column instead of rendering every card
 - `tests/dom/reconcile.test.js:213` reconcileBoard patches a card due-date in place when it lands in Done
@@ -1572,6 +1572,27 @@ _No executable test cases detected._
 
 - `tests/dom/settings-ui.test.js:44` settings modal opens with board settings controls
 - `tests/dom/settings-ui.test.js:57` settings changes persist through board settings
+
+### Swimlane Reconcile
+
+- Path: `tests/dom/swimlane-reconcile.test.js`
+- Type: DOM Integration
+- Test count: 14
+
+- `tests/dom/swimlane-reconcile.test.js:167` a cross-column drop keeps the dragged node attached and rebuilds nothing
+- `tests/dom/swimlane-reconcile.test.js:200` a reconcile never removes a card that is already in its right place
+- `tests/dom/swimlane-reconcile.test.js:216` reorders the cards of a cell to match state, keeping every node
+- `tests/dom/swimlane-reconcile.test.js:227` a drop into Done keeps the node attached until Sortable lets go, then hides it from the row
+- `tests/dom/swimlane-reconcile.test.js:257` consecutive drops into Done each land, with every Done cell still a drop target
+- `tests/dom/swimlane-reconcile.test.js:273` a cross-lane drop refreshes the fields the lane defines on the same node
+- `tests/dom/swimlane-reconcile.test.js:297` a lane that loses its last task leaves in place, and only its Sortables are destroyed, after the drop
+- `tests/dom/swimlane-reconcile.test.js:324` updates a collapsed cell summary and a collapsed column summary
+- `tests/dom/swimlane-reconcile.test.js:343` a drop into a collapsed Done column shows the due date with no countdown
+- `tests/dom/swimlane-reconcile.test.js:358` updates the WIP state and counter of a column header
+- `tests/dom/swimlane-reconcile.test.js:375` counts and shows the same tasks as a full render under a board filter
+- `tests/dom/swimlane-reconcile.test.js:396` a lane the board does not have yet defers to a full rebuild, changing nothing
+- `tests/dom/swimlane-reconcile.test.js:406` a changed column set defers to a full rebuild
+- `tests/dom/swimlane-reconcile.test.js:413` a changed lane grouping defers to a full rebuild
 
 ### Task Card Delete
 
@@ -2159,6 +2180,17 @@ _No executable test cases detected._
 - `tests/e2e/swimlanes-dnd.spec.js:54` Swim lane drag and drop > moves a task into Done while done cards remain hidden
 - `tests/e2e/swimlanes-dnd.spec.js:64` Swim lane drag and drop > moves a task between priority swim lanes and updates task priority
 - `tests/e2e/swimlanes-dnd.spec.js:85` Swim lane drag and drop > moves a task between rows from the selected label group
+
+### Swimlanes Drop Reconcile
+
+- Path: `tests/e2e/swimlanes-drop-reconcile.spec.js`
+- Type: End-to-End
+- Test count: 4
+
+- `tests/e2e/swimlanes-drop-reconcile.spec.js:165` Swimlane drop reconciliation on a 400-task board > consecutive native mouse drags into Done do not crash, freeze or lose tasks
+- `tests/e2e/swimlanes-drop-reconcile.spec.js:217` Swimlane drop reconciliation > a cross-lane, cross-column drop reuses the dragged node and updates the moved task
+- `tests/e2e/swimlanes-drop-reconcile.spec.js:258` Swimlane drop reconciliation > a drag still works after a lane has lost its last task
+- `tests/e2e/swimlanes-drop-reconcile.spec.js:279` Swimlane drop reconciliation > a drop into Done clears the task from the due-soon notifications
 
 ### Swimlanes Persistence
 

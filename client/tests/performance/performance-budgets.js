@@ -102,7 +102,7 @@ export const PERFORMANCE_SCENARIOS = [
       detachedDomNodes: 10069,
       liveTaskCards: 160,
       startupBoardRenders: 1,
-      steadyStateBoardRenders: 10,
+      steadyStateBoardRenders: 5,
       browserCrashEvents: 0,
     },
     budget: {
@@ -115,7 +115,7 @@ export const PERFORMANCE_SCENARIOS = [
       detachedDomNodes: 10600,
       liveTaskCards: 165,
       startupBoardRenders: 1,
-      steadyStateBoardRenders: 10,
+      steadyStateBoardRenders: 5,
       browserCrashEvents: 0,
     },
     localBudget: {
@@ -135,7 +135,7 @@ export const PERFORMANCE_SCENARIOS = [
       detachedDomNodes: 20869,
       liveTaskCards: 400,
       startupBoardRenders: 1,
-      steadyStateBoardRenders: 10,
+      steadyStateBoardRenders: 5,
       browserCrashEvents: 0,
     },
     budget: {
@@ -148,7 +148,7 @@ export const PERFORMANCE_SCENARIOS = [
       detachedDomNodes: 22000,
       liveTaskCards: 405,
       startupBoardRenders: 1,
-      steadyStateBoardRenders: 10,
+      steadyStateBoardRenders: 5,
       browserCrashEvents: 0,
     },
     localBudget: {

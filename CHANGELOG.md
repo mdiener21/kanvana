@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Dragging a task no longer gives cards that aren't on screen (Done past "Show more", filtered-out or collapsed cards) the same position as a visible card. They now keep their place behind the card they followed (#140).
+- Dropping a task on a swimlane board, including into Done, now updates the board in place instead of rebuilding it, closing the last path to the renderer crash seen on large boards (#139).
 
 ## [3.4.9] - 2026-11-03
 
