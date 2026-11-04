@@ -7,6 +7,7 @@ import {
   PERFORMANCE_CALIBRATION,
   PERFORMANCE_CATCHUP_SCENARIOS,
   PERFORMANCE_CI_BUDGETS,
+  PERFORMANCE_MOVE_SCENARIOS,
   PERFORMANCE_REPETITIONS,
   PERFORMANCE_SCENARIOS,
 } from './performance-budgets.js';
@@ -476,6 +477,95 @@ for (const scenario of PERFORMANCE_BACKFILL_SCENARIOS) {
     if (!PERFORMANCE_CALIBRATION) {
       for (const [metric, limit] of Object.entries(scenario.budget)) {
         expect(metrics[metric], `${metric} exceeded its ${taskCount}/backfill budget`).toBeLessThanOrEqual(limit);
+      }
+    }
+  });
+}
+
+// #140: a few tasks in the columns a move touches, and everything else in a column it does not.
+function createUnrelatedTasksBoard(unrelatedTasks, movingTasks, doneTasks) {
+  const base = createSyntheticBoard(unrelatedTasks + movingTasks + doneTasks, 'standard');
+  const [, inProgress, done] = base.columns;
+  const parked = createColumn({ id: deterministicUuid(0xc01, 4), name: 'Parked', color: '#94a3b8', order: 4 });
+  const columnOf = (index) => {
+    if (index < movingTasks) return inProgress.id;
+    return index < movingTasks + doneTasks ? done.id : parked.id;
+  };
+  return {
+    ...base,
+    columns: [...base.columns, parked],
+    tasks: base.tasks.map((task, index) => {
+      const { doneDate, ...rest } = task;
+      const column = columnOf(index);
+      return {
+        ...rest,
+        column,
+        order: index + 1,
+        columnHistory: [{ column, at: FIXED_AT }],
+        ...(column === done.id ? { doneDate: FIXED_AT } : {}),
+      };
+    }),
+  };
+}
+
+// As stored and pushed to the server, so this is the size a device syncs.
+async function readMoveEvents(page) {
+  return page.evaluate(() => new Promise((resolve, reject) => {
+    const request = indexedDB.open('kanvana-db');
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const read = db.transaction('events').objectStore('events').getAll();
+      read.onerror = () => { reject(read.error); db.close(); };
+      read.onsuccess = () => {
+        db.close();
+        resolve(read.result
+          .filter((event) => event.type === 'task.moved')
+          .map((event) => ({ bytes: new TextEncoder().encode(JSON.stringify(event)).length, ids: event.payload.order.map((entry) => entry.id) })));
+      };
+    };
+  }));
+}
+
+for (const scenario of PERFORMANCE_MOVE_SCENARIOS) {
+  const { unrelatedTasks, movingTasks, doneTasks } = scenario;
+  test(`moves stay within budget beside ${unrelatedTasks} unrelated tasks`, async ({ browser }, testInfo) => {
+    test.setTimeout(120_000 * PERFORMANCE_REPETITIONS);
+    const fixture = createUnrelatedTasksBoard(unrelatedTasks, movingTasks, doneTasks);
+    const unrelatedIds = new Set(fixture.tasks.slice(movingTasks + doneTasks).map((task) => task.id));
+    const samples = [];
+
+    for (let repetition = 0; repetition < PERFORMANCE_REPETITIONS; repetition += 1) {
+      const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+      try {
+        const page = await context.newPage();
+        await seedSyntheticBoard(page, fixture);
+        await page.addInitScript(() => { globalThis.__kanvanaPerfMarks = true; });
+        await page.goto('/', { waitUntil: 'domcontentloaded' });
+        await expect(page.locator('.task')).toHaveCount(fixture.tasks.length, { timeout: 30_000 });
+        await expect.poll(async () => renderCount(await readRenderCounts(page))).toBeGreaterThan(0);
+
+        const { latencies } = await performMeasuredMoves(page, fixture, 'standard');
+        await expect.poll(async () => (await readMoveEvents(page)).length, { timeout: 10_000 }).toBe(MOVES_PER_REPETITION);
+        samples.push({ latencies, events: await readMoveEvents(page) });
+      } finally {
+        await context.close();
+      }
+    }
+
+    const events = samples.flatMap((sample) => sample.events);
+    const metrics = {
+      taskDropLatencyMs: median(samples.flatMap((sample) => sample.latencies)),
+      moveEventBytes: Math.max(...events.map((event) => event.bytes)),
+      unrelatedEntries: events.reduce((total, event) => total + event.ids.filter((id) => unrelatedIds.has(id)).length, 0),
+    };
+    const budget = { ...scenario.budget, ...(PERFORMANCE_CI_BUDGETS ? {} : scenario.localBudget) };
+    const result = { scenario: { unrelatedTasks, movingTasks, doneTasks, mode: 'move' }, repetitions: PERFORMANCE_REPETITIONS, movesPerRepetition: MOVES_PER_REPETITION, metrics: rounded(metrics), baseline: scenario.baseline, budget };
+    console.log(`KANVANA_PERFORMANCE ${JSON.stringify(result)}`);
+    await testInfo.attach('performance-result', { body: JSON.stringify(result, null, 2), contentType: 'application/json' });
+    if (!PERFORMANCE_CALIBRATION) {
+      for (const [metric, limit] of Object.entries(budget)) {
+        expect(metrics[metric], `${metric} exceeded its ${unrelatedTasks}-unrelated-tasks budget`).toBeLessThanOrEqual(limit);
       }
     }
   });
