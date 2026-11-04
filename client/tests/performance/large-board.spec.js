@@ -576,6 +576,7 @@ for (const scenario of PERFORMANCE_MOVE_SCENARIOS) {
       try {
         const page = await context.newPage();
         await seedSyntheticBoard(page, fixture);
+        await page.addInitScript(installReadModelWriteCounter);
         await page.addInitScript(() => { globalThis.__kanvanaPerfMarks = true; });
         await page.goto('/', { waitUntil: 'domcontentloaded' });
         await expect(page.locator('.task')).toHaveCount(fixture.tasks.length, { timeout: 30_000 });
