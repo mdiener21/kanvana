@@ -173,3 +173,17 @@ export const PERFORMANCE_CATCHUP_SCENARIOS = [
     budget: { allCardsShownMs: 5000, boardRenders: 2, readModelWrites: 16 },
   },
 ];
+
+// A move beside tasks it does not touch (#140): its event names the two affected columns only, so
+// its size follows them and not the board. Size and entry counts reproduce exactly run to run.
+// Baseline recorded locally on 2026-11-04; the CI drop limit is about 2x that, pending a CI run.
+export const PERFORMANCE_MOVE_SCENARIOS = [
+  {
+    unrelatedTasks: 1000,
+    movingTasks: 6,
+    doneTasks: 4,
+    baseline: { taskDropLatencyMs: 249.7, moveEventBytes: 1523, unrelatedEntries: 0 },
+    budget: { taskDropLatencyMs: 500, moveEventBytes: 2500, unrelatedEntries: 0 },
+    localBudget: { taskDropLatencyMs: 1300 },
+  },
+];
