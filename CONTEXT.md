@@ -605,6 +605,12 @@ Remaining windows:
 A column-wide `task.moved` from a column sort carries the column id as `entity_id`, so the reducer's
 per-task handling (delete-record check, `columnHistory`) does not fire for it.
 
+A `task.moved` payload's `order` lists every task in each affected column, including cards the DOM
+does not show (Done past its cut-off, Done in swimlanes, filtered-out and collapsed cards), and no
+other tasks. Applying one overwrites the column and order of the tasks it names. Events from before
+#140 list the whole board; they stay in logs and old devices still emit them, and the same reducer
+handler replays both shapes.
+
 `payload` (formerly `details`) carries the event data; for field changes, before/after values. Locally,
 events are persisted to the `events` IDB store with a `synced` flag; on PocketBase they live in the
 `events` collection (`payload`/`board`-text/`hlc`/`scope`/`entity_id`). `scope` is `board`, `global` or

@@ -103,7 +103,8 @@ event-log backfill. A catch-up scenario signs a fresh device in and pulls 400 ta
 with `page.route`, the realtime stream is replaced in-page, and every request that would leave
 localhost is aborted (the production build loads an analytics script). The pulled events are stamped
 when the device first pulls, so they are newer than the default board it seeded at boot and project
-in order. Each scenario prints one `KANVANA_PERFORMANCE` JSON record and attaches the
+in order. A move scenario drops tasks beside 1,000 tasks in a column the moves do not touch and
+measures the stored event's size. Each scenario prints one `KANVANA_PERFORMANCE` JSON record and attaches the
 same JSON to the Playwright result. The smoke check holds an image request open to prove that
 startup timing stops at the board-render mark, before browser `load` finishes.
 CI uploads `client/test-results/performance-report.json` for review after each run.
@@ -217,6 +218,19 @@ after #237 it took 4,529.2 ms.
 | Catch-up scenario | All cards shown baseline / budget (ms) | Renders baseline / budget | Read-model writes baseline / budget |
 |---|---:|---:|---:|
 | 400 tasks / 800 events | 2,526 / 5,000 | 1 / 2 | 3 / 6 |
+
+The move scenario (#140) makes five real drops from In Progress (6 tasks) to Done (4 tasks) beside
+1,000 tasks in a column the moves do not touch. `moveEventBytes` is the largest stored `task.moved`
+event as UTF-8 JSON, and `unrelatedEntries` counts its order entries for those 1,000 tasks across all
+moves. Both reproduce exactly between runs, so their limits are tight. The same scenario on the old
+full-board payload measured 107,445 bytes and 5,000 unrelated entries for one repetition, with a
+274 ms drop on the same machine: the size follows the board, and most of the drop time does not. The
+baseline was recorded locally on 2026-11-04; the 500 ms drop budget is about 2x that until a CI run
+calibrates it, and local runs use 1,300 ms.
+
+| Move scenario | Drop baseline / budget (ms) | Event size baseline / budget (bytes) | Unrelated entries baseline / budget |
+|---|---:|---:|---:|
+| 1,000 unrelated tasks | 249.7 / 500 | 1,523 / 2,500 | 0 / 0 |
 
 ### Known limits
 
