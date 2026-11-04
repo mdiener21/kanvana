@@ -4,11 +4,11 @@ Generated from test source. Do not edit by hand; run `npm run test:overview` fro
 
 ## Fast Scan
 
-- Test files: 140
-- Test cases: 1285
+- Test files: 143
+- Test cases: 1318
 - Unit files: 49
-- DOM integration files: 43
-- E2E files: 46
+- DOM integration files: 44
+- E2E files: 48
 - Performance files: 1
 
 ## How To Use This
@@ -303,23 +303,27 @@ These lists compare source/spec filenames against test file names and test title
 
 - Path: `tests/unit/event-sourcing/reducer.test.js`
 - Type: Unit
-- Test count: 15
+- Test count: 19
 
 - `tests/unit/event-sourcing/reducer.test.js:18` applyEvent is idempotent by event id
 - `tests/unit/event-sourcing/reducer.test.js:35` task.deleted tombstones prevent later task updates from resurrecting the task
 - `tests/unit/event-sourcing/reducer.test.js:51` task.updated merges different field events on the same task
 - `tests/unit/event-sourcing/reducer.test.js:74` task.moved updates column order and columnHistory
-- `tests/unit/event-sourcing/reducer.test.js:106` unknown event types warn and leave projection unchanged
-- `tests/unit/event-sourcing/reducer.test.js:131` label events create update and tombstone labels
-- `tests/unit/event-sourcing/reducer.test.js:155` label task membership events update task label refs
-- `tests/unit/event-sourcing/reducer.test.js:177` column events create update delete and reorder columns
-- `tests/unit/event-sourcing/reducer.test.js:206` settings.updated handles board and global settings
-- `tests/unit/event-sourcing/reducer.test.js:224` settings.updated in the timetracking scope touches neither board nor global settings
-- `tests/unit/event-sourcing/reducer.test.js:238` projection state carries an empty time-tracking slot that survives events
-- `tests/unit/event-sourcing/reducer.test.js:246` subtask and relationship events update embedded task collections
-- `tests/unit/event-sourcing/reducer.test.js:318` applying a list of events equals applying them one by one, duplicates and tombstones included
-- `tests/unit/event-sourcing/reducer.test.js:329` applying a list of events leaves the input state unchanged
-- `tests/unit/event-sourcing/reducer.test.js:344` applying a list of events copies the state once, not once per event
+- `tests/unit/event-sourcing/reducer.test.js:166` task.moved payload shapes > an affected-column move replays to the expected task fields
+- `tests/unit/event-sourcing/reducer.test.js:188` task.moved payload shapes > a move into Done stamps doneDate whichever shape it has
+- `tests/unit/event-sourcing/reducer.test.js:195` task.moved payload shapes > the old full-board shape and the affected-column shape replay to the same tasks
+- `tests/unit/event-sourcing/reducer.test.js:199` task.moved payload shapes > a log mixing both shapes replays to the same tasks
+- `tests/unit/event-sourcing/reducer.test.js:206` unknown event types warn and leave projection unchanged
+- `tests/unit/event-sourcing/reducer.test.js:231` label events create update and tombstone labels
+- `tests/unit/event-sourcing/reducer.test.js:255` label task membership events update task label refs
+- `tests/unit/event-sourcing/reducer.test.js:277` column events create update delete and reorder columns
+- `tests/unit/event-sourcing/reducer.test.js:306` settings.updated handles board and global settings
+- `tests/unit/event-sourcing/reducer.test.js:324` settings.updated in the timetracking scope touches neither board nor global settings
+- `tests/unit/event-sourcing/reducer.test.js:338` projection state carries an empty time-tracking slot that survives events
+- `tests/unit/event-sourcing/reducer.test.js:346` subtask and relationship events update embedded task collections
+- `tests/unit/event-sourcing/reducer.test.js:418` applying a list of events equals applying them one by one, duplicates and tombstones included
+- `tests/unit/event-sourcing/reducer.test.js:429` applying a list of events leaves the input state unchanged
+- `tests/unit/event-sourcing/reducer.test.js:444` applying a list of events copies the state once, not once per event
 
 ### Snapshot
 
@@ -1027,11 +1031,11 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 5
 
-- `tests/dom/dragdrop.test.js:99` task drop mutates state inside the reconcile window
-- `tests/dom/dragdrop.test.js:119` task drop wraps its state mutation in a reconcile window
-- `tests/dom/dragdrop.test.js:143` collapsed non-done drops still pin the moved task through state
-- `tests/dom/dragdrop.test.js:167` reinitializing during an active task drag clears transient drag state
-- `tests/dom/dragdrop.test.js:187` reinitializing during an active column drag clears the column drag class
+- `tests/dom/dragdrop.test.js:90` task drop mutates state inside the reconcile window
+- `tests/dom/dragdrop.test.js:110` task drop wraps its state mutation in a reconcile window
+- `tests/dom/dragdrop.test.js:134` collapsed non-done drops still pin the moved task through state
+- `tests/dom/dragdrop.test.js:158` reinitializing during an active task drag clears transient drag state
+- `tests/dom/dragdrop.test.js:178` reinitializing during an active column drag clears the column drag class
 
 ### Auth Refresh Race
 
@@ -1486,13 +1490,22 @@ _No executable test cases detected._
 
 - Path: `tests/dom/event-sourcing/task-moved-payloads.test.js`
 - Type: DOM Integration
-- Test count: 5
+- Test count: 14
 
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:54` addTask emits the renumbered column with the new task first
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:72` updateTask to another column emits every task on the board
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:89` a drop to another column emits every task on the board
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:117` moveTaskToTopInColumn emits every task on the board
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:134` sortColumnTasks emits the sorted column with the column id as entity id
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:95` addTask emits the renumbered column with the new task first
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:113` updateTask to another column emits both columns and leaves an unrelated one out
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:122` moveTaskToTopInColumn emits only that column, complete
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:139` a drop > to another column emits both columns, complete, and no unrelated column
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:159` a drop > within a column emits that one column, complete
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:179` a drop > reads only the affected task lists from the DOM
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:192` a drop > in swimlanes reads only the affected columns, lane by lane
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:216` a drop > keeps cards not on screen after the card they followed, with no colliding order
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:226` a drop > keeps a card not on screen first in its column when it was first
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:235` a drop > keeps cards that followed the dragged card in the column it left
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:249` a drop > into a column showing none of its cards goes first
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:263` a drop > into Done pins the card above the Done cards past the cut-off
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:277` a drop > in swimlanes still applies the destination lane to the moved card
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:291` sortColumnTasks emits the sorted column with the column id as entity id
 
 ### Msw Example
 
@@ -1546,7 +1559,7 @@ _No executable test cases detected._
 - `tests/dom/reconcile.test.js:121` a data change inside a drag-reconcile window patches in place instead of rebuilding
 - `tests/dom/reconcile.test.js:138` reconcileBoard refreshes notifications, matching a full render
 - `tests/dom/reconcile.test.js:148` reconcileBoard respects the active board filter, like a full render
-- `tests/dom/reconcile.test.js:170` reconcileBoard defers to a full rebuild when swimlane mode is on
+- `tests/dom/reconcile.test.js:170` reconcileBoard defers to a full rebuild when swimlane mode is on but the board on screen is not a swimlane board
 - `tests/dom/reconcile.test.js:183` reconcileBoard defers to a full rebuild when the column set changed
 - `tests/dom/reconcile.test.js:196` reconcileBoard virtualizes an overfull Done column instead of rendering every card
 - `tests/dom/reconcile.test.js:213` reconcileBoard patches a card due-date in place when it lands in Done
@@ -1559,6 +1572,27 @@ _No executable test cases detected._
 
 - `tests/dom/settings-ui.test.js:44` settings modal opens with board settings controls
 - `tests/dom/settings-ui.test.js:57` settings changes persist through board settings
+
+### Swimlane Reconcile
+
+- Path: `tests/dom/swimlane-reconcile.test.js`
+- Type: DOM Integration
+- Test count: 14
+
+- `tests/dom/swimlane-reconcile.test.js:167` a cross-column drop keeps the dragged node attached and rebuilds nothing
+- `tests/dom/swimlane-reconcile.test.js:200` a reconcile never removes a card that is already in its right place
+- `tests/dom/swimlane-reconcile.test.js:216` reorders the cards of a cell to match state, keeping every node
+- `tests/dom/swimlane-reconcile.test.js:227` a drop into Done keeps the node attached until Sortable lets go, then hides it from the row
+- `tests/dom/swimlane-reconcile.test.js:257` consecutive drops into Done each land, with every Done cell still a drop target
+- `tests/dom/swimlane-reconcile.test.js:273` a cross-lane drop refreshes the fields the lane defines on the same node
+- `tests/dom/swimlane-reconcile.test.js:297` a lane that loses its last task leaves in place, and only its Sortables are destroyed, after the drop
+- `tests/dom/swimlane-reconcile.test.js:324` updates a collapsed cell summary and a collapsed column summary
+- `tests/dom/swimlane-reconcile.test.js:343` a drop into a collapsed Done column shows the due date with no countdown
+- `tests/dom/swimlane-reconcile.test.js:358` updates the WIP state and counter of a column header
+- `tests/dom/swimlane-reconcile.test.js:375` counts and shows the same tasks as a full render under a board filter
+- `tests/dom/swimlane-reconcile.test.js:396` a lane the board does not have yet defers to a full rebuild, changing nothing
+- `tests/dom/swimlane-reconcile.test.js:406` a changed column set defers to a full rebuild
+- `tests/dom/swimlane-reconcile.test.js:413` a changed lane grouping defers to a full rebuild
 
 ### Task Card Delete
 
@@ -2147,6 +2181,17 @@ _No executable test cases detected._
 - `tests/e2e/swimlanes-dnd.spec.js:64` Swim lane drag and drop > moves a task between priority swim lanes and updates task priority
 - `tests/e2e/swimlanes-dnd.spec.js:85` Swim lane drag and drop > moves a task between rows from the selected label group
 
+### Swimlanes Drop Reconcile
+
+- Path: `tests/e2e/swimlanes-drop-reconcile.spec.js`
+- Type: End-to-End
+- Test count: 4
+
+- `tests/e2e/swimlanes-drop-reconcile.spec.js:165` Swimlane drop reconciliation on a 400-task board > consecutive native mouse drags into Done do not crash, freeze or lose tasks
+- `tests/e2e/swimlanes-drop-reconcile.spec.js:217` Swimlane drop reconciliation > a cross-lane, cross-column drop reuses the dragged node and updates the moved task
+- `tests/e2e/swimlanes-drop-reconcile.spec.js:258` Swimlane drop reconciliation > a drag still works after a lane has lost its last task
+- `tests/e2e/swimlanes-drop-reconcile.spec.js:279` Swimlane drop reconciliation > a drop into Done clears the task from the due-soon notifications
+
 ### Swimlanes Persistence
 
 - Path: `tests/e2e/swimlanes-persistence.spec.js`
@@ -2177,6 +2222,14 @@ _No executable test cases detected._
 
 - `tests/e2e/task-delete.spec.ts:37` Task Deletion > permanent delete — confirm removes task and decrements counter
 - `tests/e2e/task-delete.spec.ts:55` Task Deletion > cancel delete — task survives and counter is unchanged
+
+### Task Move Convergence
+
+- Path: `tests/e2e/task-move-convergence.spec.ts`
+- Type: End-to-End
+- Test count: 1
+
+- `tests/e2e/task-move-convergence.spec.ts:95` old full-board and new affected-column moves converge in either arrival order
 
 ### Timetracking Archive
 
@@ -2306,12 +2359,13 @@ _No executable test cases detected._
 
 - Path: `tests/performance/large-board.spec.js`
 - Type: Performance
-- Test count: 4
+- Test count: 5
 
-- `tests/performance/large-board.spec.js:298` smoke: 400-task standard board renders within startup budget
-- `tests/performance/large-board.spec.js:346` ${scenario.taskCount} tasks in ${scenario.view} view stay within performance budgets
-- `tests/performance/large-board.spec.js:428` ${taskCount} tasks complete event-log backfill within budget
-- `tests/performance/large-board.spec.js:651` ${taskCount} tasks (${taskCount * 2} events) catch up on a fresh signed-in device within budget
+- `tests/performance/large-board.spec.js:299` smoke: 400-task standard board renders within startup budget
+- `tests/performance/large-board.spec.js:347` ${scenario.taskCount} tasks in ${scenario.view} view stay within performance budgets
+- `tests/performance/large-board.spec.js:429` ${taskCount} tasks complete event-log backfill within budget
+- `tests/performance/large-board.spec.js:532` moves stay within budget beside ${unrelatedTasks} unrelated tasks
+- `tests/performance/large-board.spec.js:741` ${taskCount} tasks (${taskCount * 2} events) catch up on a fresh signed-in device within budget
 
 ## Other Tests
 
