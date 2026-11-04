@@ -45,8 +45,7 @@ function cloneTimeTracking(timeTracking) {
   };
 }
 
-// Handlers never mutate what they get, so a slice an event leaves alone stays the same reference; the projector
-// reads that as "nothing to store". appliedEventIds is the one field a run adds to in place, so it gets a copy.
+// A slice an event leaves alone keeps its reference, which the projector reads as "nothing to store"; only applied ids mutate in a run.
 function withOwnAppliedIds(state) {
   return { ...state, appliedEventIds: new Set(state.appliedEventIds) };
 }
@@ -99,6 +98,7 @@ function applyTaskMoved(state, event) {
           : [{ column: task.column, at: task.creationDate || task.changeDate || event.at }];
         history.push({ column: nextTask.column, at: event.at });
         nextTask.columnHistory = history;
+        nextTask.changeDate = event.at;
 
         // Derive doneDate from the move so it replays from events alone (ADR-0005):
         // entering the done column stamps it, leaving clears it.

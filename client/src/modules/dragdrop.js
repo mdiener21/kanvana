@@ -30,8 +30,7 @@ export function initDragDrop() {
   initColumnSortable();
 }
 
-// Drop only the instances whose list left the board, such as a lane that lost its last task. The
-// others keep running: a drop reconciles in place and never reinitializes drag and drop.
+// Only instances whose list left the board: a drop reconciles in place and never reinitializes drag and drop.
 export function pruneDetachedTaskSortables() {
   taskSortables = taskSortables.filter((sortable) => {
     if (sortable.el?.isConnected) return true;
@@ -276,12 +275,7 @@ function initTaskSortables() {
         const isSwimlaneView = isSwimlaneViewEnabled();
         cleanupTaskDragState({ restoreCollapsedDropZones: !isSwimlaneView });
 
-        // Open a reconcile window for the whole mutation. The one DATA_CHANGED its
-        // commit scope emits on closing, whatever events the drop made, is routed
-        // through reconcileBoard() (patch in place) instead of renderBoard() (full
-        // teardown), so the just-dragged node is never detached. Counters, collapsed
-        // titles, due dates, and notifications are reconcile's responsibility now —
-        // no manual sync pass here.
+        // The commit's one DATA_CHANGED reconciles in this window, so the dragged node is never detached.
         emit(DRAG_RECONCILE_BEGIN, evt.item);
         try {
           commitTogether(() => {

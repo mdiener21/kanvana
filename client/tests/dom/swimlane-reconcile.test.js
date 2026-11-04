@@ -403,6 +403,50 @@ test('a lane the board does not have yet defers to a full rebuild, changing noth
   expect(document.getElementById('board-container').innerHTML).toBe(before);
 });
 
+test('a swimlane drop that needs a rebuild waits until Sortable has let go', async () => {
+  const render = await renderBoard();
+  const board = document.querySelector('.swimlane-board');
+  const targetList = list('lane-a', 'doing');
+  const sortableCount = mocks.sortables.length;
+  mocks.labels = [...mocks.labels, { id: 'lane-c', name: 'Project C', color: '#000000', group: 'Projects' }];
+
+  const { item } = await drop('t1', targetList, [
+    (tasks) => [...tasks, task('t5', 'todo', 9, 'lane-c')],
+  ]);
+
+  expect(document.querySelector('.swimlane-board')).toBe(board);
+  expect(item.parentElement).toBe(targetList);
+  expect(mocks.sortables.length).toBe(sortableCount);
+  expect(mocks.sortables.every((s) => s.destroy.mock.calls.length === 0)).toBe(true);
+
+  vi.runAllTimers();
+
+  expect(document.querySelector('.swimlane-board')).not.toBe(board);
+  expect(card('t5')).not.toBeNull();
+  await expectSameAsFullRender(render);
+});
+
+test('a standard-board drop that needs a rebuild waits until Sortable has let go', async () => {
+  mocks.settings = { ...mocks.settings, swimLanesEnabled: false };
+  const render = await renderBoard();
+  const targetList = document.querySelector('.task-column[data-column="doing"] .tasks');
+  const sortableCount = mocks.sortables.length;
+
+  const { item } = await drop('t1', targetList, (tasks) => {
+    mocks.columns = [...mocks.columns, { id: 'review', name: 'Review', order: 4 }];
+    return moveTask('t1', { column: 'doing', order: 2 })(tasks);
+  });
+
+  expect(document.querySelector('.task-column[data-column="review"]')).toBeNull();
+  expect(item.parentElement).toBe(targetList);
+  expect(mocks.sortables.length).toBe(sortableCount);
+
+  vi.runAllTimers();
+
+  expect(document.querySelector('.task-column[data-column="review"]')).not.toBeNull();
+  await expectSameAsFullRender(render);
+});
+
 test('a changed column set defers to a full rebuild', async () => {
   const render = await renderBoard();
   mocks.columns = [...mocks.columns, { id: 'review', name: 'Review', order: 4 }];

@@ -194,7 +194,7 @@ export const PERFORMANCE_MOVE_SCENARIOS = [
     movingTasks: 6,
     doneTasks: 4,
     baseline: { taskDropLatencyMs: 249.7, moveEventBytes: 1523, unrelatedEntries: 0 },
-    budget: { taskDropLatencyMs: 500, moveEventBytes: 2500, unrelatedEntries: 0 },
+    budget: { taskDropLatencyMs: 500, moveEventBytes: 1550, unrelatedEntries: 0 },
     localBudget: { taskDropLatencyMs: 1300 },
   },
 ];

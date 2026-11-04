@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dragging a task no longer gives cards that aren't on screen (Done past "Show more", filtered-out or collapsed cards) the same position as a visible card. They now keep their place behind the card they followed (#140).
 - Dropping a task on a swimlane board, including into Done, now updates the board in place instead of rebuilding it, closing the last path to the renderer crash seen on large boards (#139). A drop across lanes now updates the board once instead of twice (#142).
 - A change that alters nothing, such as a repeat of a task's creation arriving from another device, no longer redraws the board or saves it again (#138).
+- A column, label, settings or board-name change whose save failed is now saved again by the next edit on that board, instead of reverting on reload (#141).
+- A task's "Updated" date now changes when you drag it to another column or swimlane, and that date reaches your other devices (#142).
+- Moving a task to another column from the task form now puts it at the top of that column, as dragging into Done and new tasks do, instead of sharing a position with a card already there (#140).
+- Deleting a label or a column now redraws the board and saves once, however many tasks it touches (#142).
+- A drop that needs the board rebuilt now rebuilds it once the drag has finished, not during it (#139).
 
 ## [3.4.9] - 2026-11-03
 

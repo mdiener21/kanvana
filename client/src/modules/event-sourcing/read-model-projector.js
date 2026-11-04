@@ -100,12 +100,16 @@ export function createReadModelProjector(ctx) {
 
   function endCommit() {
     if (!commit) return;
-    const { boards, boardless, newestApplied } = commit;
+    const closing = commit;
     commit = null;
-    boardless.forEach((slot) => schedulePersist(slot.persistKey, state[slot.field]));
+    closing.boardless.forEach((slot) => schedulePersist(slot.persistKey, state[slot.field]));
+    persistTouched(closing);
+  }
+
+  function persistTouched({ boards, newestApplied }) {
     if (newestApplied) schedulePersist(newestAppliedKey, { ...state.newestAppliedHlc });
     persistBoards();
-    boards.forEach(persistBoard);
+    boards.forEach((boardId) => persistBoard(boardId));
   }
 
   function beginBatch() {
@@ -114,9 +118,7 @@ export function createReadModelProjector(ctx) {
 
   function persistBatch() {
     applyAllPending();
-    if (batch.newestApplied) schedulePersist(newestAppliedKey, { ...state.newestAppliedHlc });
-    persistBoards();
-    batch.boards.forEach(persistBoard);
+    persistTouched(batch);
     batch.boards.forEach((boardId) => batch.saved.add(boardId));
     batch.boards.clear();
     batch.newestApplied = false;
@@ -359,16 +361,18 @@ export function createReadModelProjector(ctx) {
   function persistBoards() {
     if (!boardsUnsaved) return;
     boardsUnsaved = false;
-    schedulePersist(boardsKey, state.boards);
+    schedulePersist(boardsKey, state.boards, () => { boardsUnsaved = true; });
   }
 
+  // A failed write stored nothing (#256) and a later save only writes what is marked, so it marks the slice again.
   function persistBoard(boardId) {
     const slices = unsavedSlices.get(boardId);
     if (!slices) return;
     unsavedSlices.delete(boardId);
     for (const slice of slices) {
-      if (slice === 'settings') schedulePersist(keyFor(boardId, 'settings'), state.settings[boardId]);
-      else scheduleReadModelPersist(boardId, slice, state[slice][boardId]);
+      const onFailed = () => markUnsaved(boardId, slice);
+      if (slice === 'settings') schedulePersist(keyFor(boardId, 'settings'), state.settings[boardId], onFailed);
+      else scheduleReadModelPersist(boardId, slice, state[slice][boardId], onFailed);
     }
   }
 

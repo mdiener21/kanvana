@@ -47,8 +47,7 @@ async function setLastSeen(key, hlc) {
   await writeIfDataCurrent(KV_STORE, (store) => store.put(hlc, LAST_SEEN_PREFIX + key));
 }
 
-// A device's edit arrives as one SSE message per event. Those landing while earlier ones are being stored
-// join one batch, so a burst redraws the board a couple of times and not once per event (#142).
+// Messages landing while earlier ones are being stored join one batch, so a burst does not redraw per event (#142).
 export function applyRemoteEvent(record) {
   return new Promise((resolve, reject) => {
     _arrivals.push({ record, resolve, reject });

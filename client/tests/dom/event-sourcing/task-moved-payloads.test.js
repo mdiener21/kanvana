@@ -119,6 +119,19 @@ test('updateTask to another column emits both columns and leaves an unrelated on
   expect(entryIds(event)).toEqual(['a', 'b', 'c']);
 });
 
+test('updateTask to another column puts the task on top there, with no colliding order', async () => {
+  await seedColumns({ todo: ['a', 'b'], doing: ['c', 'd'] });
+
+  const [event] = await movedEvents(() => updateTask('b', 'b', '', 'none', '', 'doing', []));
+
+  const entry = (id) => event.payload.order.find((item) => item.id === id);
+  expect(entry('b')).toEqual({ id: 'b', column: 'doing', order: 1 });
+  expect(entry('c')).toEqual({ id: 'c', column: 'doing', order: 2 });
+  expect(entry('d')).toEqual({ id: 'd', column: 'doing', order: 3 });
+  expect(entry('a')).toEqual({ id: 'a', column: 'todo', order: 1 });
+  expect(loadTasks().filter((t) => t.column === 'doing').sort((x, y) => x.order - y.order).map((t) => t.id)).toEqual(['b', 'c', 'd']);
+});
+
 test('moveTaskToTopInColumn emits only that column, complete', async () => {
   const events = await movedEvents(() => moveTaskToTopInColumn('b', 'todo'));
 

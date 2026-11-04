@@ -103,6 +103,25 @@ test('task.moved updates column order and columnHistory', () => {
   expect(moved.tasks.find((task) => task.id === 'task-b')).toMatchObject({ column: 'doing', order: 2 });
 });
 
+test('task.moved stamps changeDate on the moved task only when its column changes', () => {
+  const OLD = '2026-05-20T00:00:00.000Z';
+  const AT = '2026-05-26T00:00:00.000Z';
+  const state = createProjectionState({
+    tasks: [
+      { id: 'task-a', column: 'todo', order: 1, changeDate: OLD },
+      { id: 'task-b', column: 'doing', order: 1, changeDate: OLD }
+    ]
+  });
+  const across = { from_column: 'todo', to_column: 'doing', order: [{ id: 'task-a', column: 'doing', order: 1 }, { id: 'task-b', column: 'doing', order: 2 }] };
+  const moved = applyEvent(state, event({ id: 'across', type: 'task.moved', at: AT, payload: across }));
+  expect(moved.tasks.find((task) => task.id === 'task-a').changeDate).toBe(AT);
+  expect(moved.tasks.find((task) => task.id === 'task-b').changeDate).toBe(OLD);
+
+  const within = { from_column: 'todo', to_column: 'todo', order: [{ id: 'task-a', column: 'todo', order: 5 }] };
+  const reordered = applyEvent(state, event({ id: 'within', type: 'task.moved', at: AT, payload: within }));
+  expect(reordered.tasks.find((task) => task.id === 'task-a').changeDate).toBe(OLD);
+});
+
 describe('task.moved payload shapes', () => {
   const DONE = { id: 'done', name: 'Done', order: 3, role: 'done' };
   const SEED = {
@@ -172,6 +191,7 @@ describe('task.moved payload shapes', () => {
         column: 'doing',
         order: 1,
         swimlaneLabelId: 'lane-1',
+        changeDate: '2026-05-11T00:00:00.000Z',
         columnHistory: [
           { column: 'todo', at: '2026-05-01T00:00:00.000Z' },
           { column: 'done', at: '2026-05-10T00:00:00.000Z' },

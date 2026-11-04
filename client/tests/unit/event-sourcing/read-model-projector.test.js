@@ -110,7 +110,7 @@ describe('createReadModelProjector', () => {
     ingest(boardEvent());
 
     expect(h.state.tasks[BOARD_ID][0].title).toBe('After');
-    expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledWith(BOARD_ID, 'tasks', h.state.tasks[BOARD_ID]);
+    expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledWith(BOARD_ID, 'tasks', h.state.tasks[BOARD_ID], expect.any(Function));
     expect(h.ctx.taskCacheByBoard.get(BOARD_ID)).toBe(h.state.tasks[BOARD_ID]);
   });
 

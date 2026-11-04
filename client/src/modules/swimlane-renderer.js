@@ -15,7 +15,7 @@ import {
 import { createTaskElement, syncTaskElement } from './task-card.js';
 import { emit, DATA_CHANGED } from './events.js';
 import { isDoneColumn as isPermanentDoneColumn } from './constants.js';
-import { h, cx } from './dom.js';
+import { h, cx, $, $$ } from './dom.js';
 import { applyWipCounter, getWipState, syncColumnWip } from './wip-limit.js';
 import { byOrder } from './utils.js';
 
@@ -88,8 +88,7 @@ function taskCountText(count) {
   return count > 0 ? `${count} task${count === 1 ? '' : 's'}` : 'Empty';
 }
 
-// The one summary a cell shows, or null when it shows none. Shared by the full rebuild and the
-// reconcile adapter so a drop updates it to exactly what a rebuild would show.
+// Shared by the full rebuild and the reconcile adapter, so a drop shows what a rebuild would; null when a cell shows none.
 function getCellSummaryText(column, tasksInCell, cellCollapsed) {
   if (column?.collapsed === true) return taskCountText(tasksInCell.length);
   if (isPermanentDoneColumn(column)) {
@@ -234,16 +233,19 @@ export function renderSwimlaneBoard(container, sortedColumns, visibleTasks, labe
 // Index a board's lanes and their cells by key, so ids are never spliced into a selector.
 function indexBoardRows(container) {
   const rows = new Map();
-  container.querySelectorAll('.swimlane-row').forEach((rowEl) => {
+  $$('.swimlane-row', container).forEach((rowEl) => {
     const cells = new Map();
-    rowEl.querySelectorAll('.swimlane-cell').forEach((cellEl) => cells.set(cellEl.dataset.column, cellEl));
+    $$('.swimlane-cell', rowEl).forEach((cellEl) => cells.set(cellEl.dataset.column, cellEl));
     rows.set(rowEl.dataset.laneKey, { rowEl, cells });
   });
   return rows;
 }
 
-// A drop never adds a lane or a column, so anything else needs a real rebuild. Lanes that lost
-// their last task are fine: they are removed in place.
+function laneKeySet(grid) {
+  return new Set(grid.map((lane) => lane.key));
+}
+
+// A drop never adds a lane or a column, so anything else needs a rebuild; a lane that lost its last task leaves in place.
 function boardMatchesGrid(container, rows, headers, grid, sortedColumns, settings) {
   if (container.dataset.viewMode !== 'swimlanes') return false;
   if (container.dataset.swimlaneGroupBy !== (settings.swimLaneGroupBy || '')) return false;
@@ -253,20 +255,21 @@ function boardMatchesGrid(container, rows, headers, grid, sortedColumns, setting
   if (headerIds.length !== sortedColumns.length) return false;
   if (sortedColumns.some((column, index) => column.id !== headerIds[index])) return false;
 
-  const laneKeys = grid.map((lane) => lane.key);
-  const stateKeys = new Set(laneKeys);
+  const stateKeys = laneKeySet(grid);
   const keptDomKeys = [...rows.keys()].filter((key) => stateKeys.has(key));
-  if (keptDomKeys.length !== laneKeys.length) return false;
-  if (laneKeys.some((key, index) => key !== keptDomKeys[index])) return false;
+  if (keptDomKeys.length !== grid.length) return false;
+  if (grid.some((lane, index) => lane.key !== keptDomKeys[index])) return false;
 
   return grid.every((lane) => {
     const { cells } = rows.get(lane.key);
-    return sortedColumns.every((column) => cells.get(column.id)?.querySelector('.tasks'));
+    return sortedColumns.every((column) => {
+      const cellEl = cells.get(column.id);
+      return cellEl && $('.tasks', cellEl);
+    });
   });
 }
 
-// Put the cards in list order, touching only those out of place: a card already where it belongs
-// (usually the one just dropped) is never detached and re-inserted.
+// Touches only cards out of place: one already where it belongs (usually the one dropped) is never detached.
 function placeCards(listEl, cards) {
   let cursor = listEl.firstElementChild;
   cards.forEach((card) => {
@@ -275,41 +278,31 @@ function placeCards(listEl, cards) {
   });
 }
 
-/**
- * Patch a swimlane board in place to match the read model, reusing its rows, cells, lists and
- * cards so the drop that triggered this never tears down what SortableJS still holds.
- *
- * `droppedCard` is the node Sortable is finishing with. It is refreshed from state, and it stays
- * attached even when state says it is not shown (a hidden Done cell): the caller removes it once
- * Sortable has let go.
- *
- * @returns {{ droppedCardShown: boolean, removedLanes: boolean, createdCards: boolean } | null}
- *   null, with nothing changed, when the board needs a full rebuild instead.
- */
+// Null, with nothing changed, when the board needs a full rebuild. `droppedCard` stays attached even if no longer shown: Sortable still holds it.
 export function reconcileSwimlaneBoard(container, sortedColumns, visibleTasks, labels, settings, labelsMap, today, droppedCard = null) {
   const grid = buildLanes(sortedColumns, visibleTasks, labels, settings);
   const rows = indexBoardRows(container);
   const headers = new Map(
-    [...container.querySelectorAll('.swimlane-column-header')].map((el) => [el.dataset.column, el])
+    [...$$('.swimlane-column-header', container)].map((el) => [el.dataset.column, el])
   );
   if (!boardMatchesGrid(container, rows, headers, grid, sortedColumns, settings)) return null;
 
   const existingCards = new Map();
-  container.querySelectorAll('.task[data-task-id]').forEach((el) => existingCards.set(el.dataset.taskId, el));
+  $$('.task[data-task-id]', container).forEach((el) => existingCards.set(el.dataset.taskId, el));
   const shownIds = new Set();
   let createdCards = false;
 
   grid.forEach((lane) => {
     const { activeTaskCount, hiddenDoneCount, cells } = describeLane(lane, sortedColumns, settings);
     const { rowEl, cells: cellEls } = rows.get(lane.key);
-    rowEl.querySelector('.swimlane-row-meta')?.replaceChildren(...buildLaneBadges(activeTaskCount, hiddenDoneCount));
+    $('.swimlane-row-meta', rowEl)?.replaceChildren(...buildLaneBadges(activeTaskCount, hiddenDoneCount));
 
     cells.forEach(({ column, tasksInCell, cellCollapsed, visibleTasksInCell }) => {
       const cellEl = cellEls.get(column.id);
-      const summaryEl = cellEl.querySelector('.swimlane-cell-summary');
+      const summaryEl = $('.swimlane-cell-summary', cellEl);
       if (summaryEl) summaryEl.textContent = getCellSummaryText(column, tasksInCell, cellCollapsed);
 
-      placeCards(cellEl.querySelector('.tasks'), visibleTasksInCell.map((task) => {
+      placeCards($('.tasks', cellEl), visibleTasksInCell.map((task) => {
         shownIds.add(task.id);
         const card = existingCards.get(task.id);
         if (card) {
@@ -331,7 +324,7 @@ export function reconcileSwimlaneBoard(container, sortedColumns, visibleTasks, l
     if (!shownIds.has(id) && el !== droppedCard) el.remove();
   });
 
-  const stateKeys = new Set(grid.map((lane) => lane.key));
+  const stateKeys = laneKeySet(grid);
   let removedLanes = false;
   rows.forEach(({ rowEl }, key) => {
     if (stateKeys.has(key)) return;
