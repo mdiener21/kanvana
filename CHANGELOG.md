@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A time-tracking project no longer shows `? / Project` on one device after its customer was created on another. A browser tab that missed a sync update could save its outdated copy of the time-tracking data over the correct one, and nothing repaired it. Each device now records which changes its time-tracking data and global settings hold, and on opening it applies any it is missing. The first start after updating rebuilds both from this device's change history once.
+
 ## [3.4.9] - 2026-11-03
 
 ### Changed

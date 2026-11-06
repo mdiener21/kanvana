@@ -6,7 +6,9 @@ import { openStore, isDataCurrent, writeIfDataCurrent, KV_STORE, READ_MODEL_STOR
 import { normalizeBoardModelIds } from './board-serializer.js';
 import { initHlc, laterHlc } from './event-sourcing/hlc.js';
 import { _flushDomainEventsForTesting, scheduleDomainEvent } from './event-sourcing/emitter.js';
-import { checkAndScheduleSnapshot, loadSnapshot, snapshotKeyForEvent, _resetSnapshotSchedulerForTesting } from './event-sourcing/snapshot.js';
+import {
+  GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY, checkAndScheduleSnapshot, loadSnapshot, snapshotKeyForEvent, _resetSnapshotSchedulerForTesting
+} from './event-sourcing/snapshot.js';
 import { createReadModelProjector } from './event-sourcing/read-model-projector.js';
 import { backfillEventLog } from './event-sourcing/backfill.js';
 import { createTimeTrackingState } from './reducer.js';
@@ -509,8 +511,10 @@ export async function initStorage() {
     state.labels[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'labels'))) ?? null;
     state.settings[board.id] = (await db.get(KV_STORE, keyFor(board.id, 'settings'))) ?? null;
     state.taskTombstones[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'taskTombstones'))) ?? [];
-    state.appliedEventIds[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'appliedEventIds'))) ?? [];
-    state.snapshotAppliedIds[board.id] = (await loadSnapshot(board.id))?.state.appliedEventIds ?? new Set();
+  }
+  for (const key of [...state.boards.map((board) => board.id), GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY]) {
+    state.appliedEventIds[key] = (await db.get(READ_MODEL_STORE, readModelKeyFor(key, 'appliedEventIds'))) ?? [];
+    state.snapshotAppliedIds[key] = (await loadSnapshot(key))?.state.appliedEventIds ?? new Set();
   }
   state.newestAppliedHlc = await loadNewestAppliedHlc(db);
   defaultBoardDeferred = await isFirstPullPending();

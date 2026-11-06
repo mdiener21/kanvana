@@ -45,8 +45,6 @@ export function createReadModelProjector(ctx) {
     }]
   ]);
 
-  // Board scopes answer "already applied" from durable memory instead (#178, CONTEXT.md §3).
-  const appliedBoardlessIds = new Set();
   let disconnect = null;
   // A remote catch-up batch keeps projecting in memory but saves each board it touched once, at its end (#237).
   let batch = null;
@@ -57,23 +55,18 @@ export function createReadModelProjector(ctx) {
     return newest && event.hlc && compareHlc(event.hlc, newest) < 0 ? EVENT_ORDER.LATE : EVENT_ORDER.IN_ORDER;
   }
 
+  // Every scope answers "already applied" from durable memory, so a stale tab's write can not hide a gap (#178, CONTEXT.md §3).
   function hasApplied(event) {
-    if (boardlessSlots.has(event.scope)) return appliedBoardlessIds.has(event.id);
-    const boardId = event.board_id;
-    if (typeof boardId !== 'string' || !boardId) return false;
-    return Boolean(batch?.pending.get(boardId)?.ids.has(event.id)) || boardMemory(boardId).appliedEventIds.has(event.id);
+    const key = boardlessSlots.has(event.scope) ? snapshotKeyForEvent(event) : event.board_id;
+    if (typeof key !== 'string' || !key) return false;
+    return Boolean(batch?.pending.get(key)?.ids.has(event.id)) || boardMemory(key).appliedEventIds.has(event.id);
   }
 
-  // Board-less scopes remember ids per session, so newer-than-newest counts as missed; a deleted board's events must not revive it.
+  // A deleted board's events must not revive it.
   function missedEvents(events) {
     const deleted = new Set(events.filter((event) => event.type === 'board.deleted').map((event) => event.board_id));
     const removedHere = (boardId) => deleted.has(boardId) && !state.boards.some((board) => board.id === boardId);
-    return events.filter((event) => {
-      if (hasApplied(event)) return false;
-      if (!boardlessSlots.has(event.scope)) return !removedHere(event.board_id);
-      const newest = state.newestAppliedHlc[snapshotKeyForEvent(event)];
-      return !newest || compareHlc(event.hlc, newest) > 0;
-    });
+    return events.filter((event) => !hasApplied(event) && (boardlessSlots.has(event.scope) || !removedHere(event.board_id)));
   }
 
   function noteApplied(key, hlc, { batched = false } = {}) {
@@ -116,12 +109,11 @@ export function createReadModelProjector(ctx) {
 
     const slot = boardlessSlots.get(event.scope);
     if (slot) {
-      appliedBoardlessIds.add(event.id);
-      const projected = applyEvent(createProjectionState({ [slot.field]: slot.seed() }), event);
-      writeBoardless(slot, projected[slot.field]);
       const key = snapshotKeyForEvent(event);
+      const projected = applyEvent(createProjectionState({ [slot.field]: slot.seed() }), event);
+      writeBoardless(slot, key, projected[slot.field], [...(safeParseArray(state.appliedEventIds[key]) || []), event.id]);
       noteApplied(key, event.hlc);
-      checkAndScheduleSnapshot(key, { fold: (snapshot, events) => fold(key, snapshot, events) });
+      checkAndScheduleSnapshot(key, { fold: (snapshot, events) => fold(key, snapshot, events), onSaved: onSnapshotSaved });
       return true;
     }
 
@@ -176,7 +168,7 @@ export function createReadModelProjector(ctx) {
   function scheduleBoardSnapshot(boardId) {
     checkAndScheduleSnapshot(boardId, {
       fold: (snapshot, events) => fold(boardId, snapshot, events),
-      onSaved: onBoardSnapshotSaved
+      onSaved: onSnapshotSaved
     });
   }
 
@@ -223,8 +215,8 @@ export function createReadModelProjector(ctx) {
 
     const slot = boardlessSlots.get(scopeForSnapshotKey(key));
     if (slot) {
-      for (const id of projected.appliedEventIds) appliedBoardlessIds.add(id);
-      writeBoardless(slot, slot.normalize(projected[slot.field]));
+      if (snapshot) state.snapshotAppliedIds[key] = new Set(snapshot.state.appliedEventIds);
+      writeBoardless(slot, key, slot.normalize(projected[slot.field]), projected.appliedEventIds);
       noteApplied(key, newest);
       return true;
     }
@@ -271,11 +263,11 @@ export function createReadModelProjector(ctx) {
     return state.snapshotAppliedIds[boardId] instanceof Set ? state.snapshotAppliedIds[boardId] : new Set();
   }
 
-  // Once a snapshot holds a board's applied ids, prune them from the live set.
-  function onBoardSnapshotSaved(boardId, snapshotState) {
-    state.snapshotAppliedIds[boardId] = new Set(snapshotState.appliedEventIds);
-    setAppliedIds(boardId, safeParseArray(state.appliedEventIds[boardId]) || []);
-    scheduleReadModelPersist(boardId, 'appliedEventIds', state.appliedEventIds[boardId]);
+  // Once a snapshot holds a key's applied ids, prune them from the live set.
+  function onSnapshotSaved(key, snapshotState) {
+    state.snapshotAppliedIds[key] = new Set(snapshotState.appliedEventIds);
+    setAppliedIds(key, safeParseArray(state.appliedEventIds[key]) || []);
+    scheduleReadModelPersist(key, 'appliedEventIds', state.appliedEventIds[key]);
   }
 
   function setAppliedIds(boardId, appliedIds) {
@@ -283,9 +275,12 @@ export function createReadModelProjector(ctx) {
     state.appliedEventIds[boardId] = [...appliedIds].filter((id) => !covered.has(id));
   }
 
-  function writeBoardless(slot, value) {
+  // The view and its applied ids are written together, so a stale tab's copy leaves its gap detectable.
+  function writeBoardless(slot, key, value, appliedIds) {
     state[slot.field] = value;
+    setAppliedIds(key, appliedIds);
     schedulePersist(slot.persistKey, value);
+    scheduleReadModelPersist(key, 'appliedEventIds', state.appliedEventIds[key]);
   }
 
   function writeBoard(boardId, projected) {
@@ -326,7 +321,6 @@ export function createReadModelProjector(ctx) {
   }
 
   function reset() {
-    appliedBoardlessIds.clear();
     batch = null;
     window.removeEventListener('pagehide', persistBatchOnPageHide);
     disconnect?.();

@@ -84,6 +84,15 @@ function remoteUpdate(tab, fields, options) {
   return tab.ingest.ingestEvent(remoteEvent(fields, options), { origin: 'remote' });
 }
 
+function timeTrackingEvent(type, entityId, payload, { id, nodeId, wallTime = Date.now() }) {
+  return {
+    id, type, hlc: { wallTime, counter: 0, nodeId }, at: new Date().toISOString(), actor: { type: 'human', id: null },
+    scope: 'timetracking', board_id: null, entity_id: entityId, payload,
+  };
+}
+
+const customerNames = (tab) => tab.storage.loadTimeTracking().customers.map((customer) => customer.name).sort();
+
 const taskIn = (tab) => tab.storage.loadTasksForBoard(BOARD).find((task) => task.id === TASK);
 
 // A fresh tab reads only IndexedDB, so it shows what survives a reload.
@@ -318,6 +327,51 @@ describe('events a tab missed', () => {
 
     expect(follower.storage.getBoardById(BOARD)).toBeNull();
     expect(follower.storage.loadTasksForBoard(BOARD)).toEqual([]);
+  });
+
+  it('a tab that opens alone repairs a time-tracking view a stale tab wrote over', async () => {
+    const leader = await openTab();
+    const follower = await openTab();
+    FakeBroadcastChannel.hold();
+    await leader.ingest.ingestEvent(timeTrackingEvent('customer.created', 'acme', { customer: { name: 'Acme', color: '#03a9f4', archived: false } },
+      { id: 'remote-acme', nodeId: 'other-device', wallTime: Date.now() - 5000 }), { origin: 'remote' });
+    await leader.idb.flushPendingPersists();
+    // The follower never hears of it (a frozen tab), and its own edit writes out its stale copy.
+    follower.emitter.scheduleDomainEvent({
+      type: 'customer.created', scope: 'timetracking', entityId: 'other', payload: { customer: { name: 'Other', color: '#03a9f4', archived: false } },
+    });
+    await follower.emitter.flushDomainEvents();
+    await follower.idb.flushPendingPersists();
+    const db = await leader.idb.openStore();
+    expect((await db.get('kv', 'kanvana:timetracking')).customers.map((c) => c.name)).toEqual(['Other']);
+    await closeTab(follower);
+    await closeTab(leader);
+    FakeBroadcastChannel.reset();
+
+    const fresh = await openTab();
+
+    await waitFor(() => expect(customerNames(fresh)).toEqual(['Acme', 'Other']));
+  });
+
+  it('a tab that opens alone replays a view with no applied ids in clock order', async () => {
+    const leader = await openTab();
+    for (const name of ['First name', 'Second name']) {
+      leader.emitter.scheduleDomainEvent({
+        type: name === 'First name' ? 'customer.created' : 'customer.updated', scope: 'timetracking', entityId: 'acme',
+        payload: name === 'First name' ? { customer: { name, color: '#03a9f4', archived: false } } : { fields: { name } },
+      });
+    }
+    await leader.emitter.flushDomainEvents();
+    await leader.idb.flushPendingPersists();
+    // A device from before applied ids were kept for time tracking, whose view lost the customer.
+    const db = await leader.idb.openStore();
+    await db.delete('read_model', '__timetracking__:appliedEventIds');
+    await db.put('kv', { customers: [], projects: [], timeEntries: [] }, 'kanvana:timetracking');
+    await closeTab(leader);
+
+    const fresh = await openTab();
+
+    await waitFor(() => expect(customerNames(fresh)).toEqual(['Second name']));
   });
 
   it('does not apply a time-tracking event twice after a reload', async () => {
