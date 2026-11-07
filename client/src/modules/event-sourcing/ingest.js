@@ -119,11 +119,12 @@ export async function ingestStoredEvents(ids) {
   await foldStoredEvents(events.filter(Boolean));
 }
 
-// For a tab that may have missed notices: one opening, waking up or taking over.
-export async function ingestMissedEvents() {
+// For a tab that may have missed notices: one opening, waking up or taking over. `scopes` limits it to those event scopes.
+export async function ingestMissedEvents({ scopes = null } = {}) {
   const db = getDbRef();
   if (!db || !projector) return;
-  await foldStoredEvents(projector.missedEvents(await db.getAll(EVENTS_STORE)));
+  const stored = await db.getAll(EVENTS_STORE);
+  await foldStoredEvents(projector.missedEvents(scopes ? stored.filter((event) => scopes.includes(event.scope)) : stored));
 }
 
 async function foldStoredEvents(events) {

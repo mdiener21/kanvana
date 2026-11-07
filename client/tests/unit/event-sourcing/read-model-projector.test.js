@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { createReadModelProjector } from '../../../src/modules/event-sourcing/read-model-projector.js';
 import { DATA_CHANGED, emit, EVENT_EMITTED, off, on } from '../../../src/modules/events.js';
 import { ingestEvent, ingestRemoteBatch } from '../../../src/modules/event-sourcing/ingest.js';
-import { TIMETRACKING_SNAPSHOT_KEY } from '../../../src/modules/event-sourcing/snapshot.js';
+import { GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY } from '../../../src/modules/event-sourcing/snapshot.js';
 
 const BOARD_ID = 'board-a';
 const BOARDS_KEY = 'kanbanBoards';
@@ -146,7 +146,8 @@ describe('createReadModelProjector', () => {
     });
 
     expect(h.ctx.schedulePersist).toHaveBeenCalledWith(GLOBAL_SETTINGS_KEY, h.state.globalSettings);
-    expect(h.ctx.scheduleReadModelPersist).not.toHaveBeenCalled();
+    // Only the global view's applied ids, written with it, so a gap stays detectable.
+    expect(h.ctx.scheduleReadModelPersist.mock.calls).toEqual([[GLOBAL_SNAPSHOT_KEY, 'appliedEventIds', ['g1']]]);
   });
 
   test('timetracking-scope event is never routed into a board projection and lands in the time-tracking slot', () => {
@@ -170,9 +171,9 @@ describe('createReadModelProjector', () => {
     expect(h.state.settings[BOARD_ID]).toEqual({});
     expect(h.state.globalSettings).toBeNull();
     expect(h.state.timeTracking.customers).toEqual([{ id: 'x', name: 'Acme' }]);
-    expect(h.ctx.scheduleReadModelPersist).not.toHaveBeenCalled();
+    expect(h.ctx.scheduleReadModelPersist.mock.calls).toEqual([[TIMETRACKING_SNAPSHOT_KEY, 'appliedEventIds', ['t1']]]);
     expect(h.ctx.schedulePersist).toHaveBeenCalledWith(TIME_TRACKING_KEY, h.state.timeTracking);
-    expect(h.ctx.checkAndScheduleSnapshot).toHaveBeenCalledWith(TIMETRACKING_SNAPSHOT_KEY, { fold: expect.any(Function) });
+    expect(h.ctx.checkAndScheduleSnapshot).toHaveBeenCalledWith(TIMETRACKING_SNAPSHOT_KEY, { fold: expect.any(Function), onSaved: expect.any(Function) });
   });
 
   test('register() is idempotent — a single ingest projects once', () => {
@@ -346,7 +347,7 @@ describe('createReadModelProjector', () => {
       expect(h.state.appliedEventIds[BOARD_ID]).toEqual(['dup-1', 'dup-2']);
     });
 
-    test('a board-less no-op writes nothing but its newest HLC and still counts towards the next snapshot', async () => {
+    test('a board-less no-op writes nothing but its applied id and newest HLC and still counts towards the next snapshot', async () => {
       const customer = (id, wallTime) => ({
         id,
         type: 'customer.created',
@@ -365,7 +366,7 @@ describe('createReadModelProjector', () => {
       const changed = await countDataChanged(() => ingest(customer('c-b', 6)));
 
       expect(changed).toBe(0);
-      expect(persistCalls(h)).toEqual(['newestApplied']);
+      expect(persistCalls(h)).toEqual(['appliedEventIds', 'newestApplied']);
       expect(h.ctx.checkAndScheduleSnapshot).toHaveBeenCalledTimes(1);
     });
 

@@ -1,5 +1,6 @@
 // Sync leader (#222): only the holder of a Web Lock runs the session's network side; tabs follow it over a BroadcastChannel.
 
+import { EVENT_SCOPE } from '../constants.js';
 import { BOARD_SETTINGS_WRITTEN, EVENTS_STORED, PEER_SYNC_CHANGED, SNAPSHOT_ADOPTED, emit, off, on } from '../events.js';
 import { flushPendingPersists } from '../idb-store.js';
 import { refreshBoardSettings } from '../storage.js';
@@ -10,6 +11,7 @@ import { getSyncSessionState, POCKETBASE_NETWORK, SESSION_STATE, setLeaderSessio
 
 const LOCK_NAME = 'kanvana:sync-leader';
 const CHANNEL_NAME = 'kanvana:sync';
+const BOARDLESS_SCOPES = [EVENT_SCOPE.GLOBAL, EVENT_SCOPE.TIMETRACKING];
 
 const MESSAGE = Object.freeze({
   EVENTS_STORED: 'events-stored',
@@ -241,6 +243,9 @@ export async function initSyncLeader({ network = POCKETBASE_NETWORK } = {}) {
     }
   }
   if (!_elected) _isLeader = true;
+  // A follower reads them in becomeFollower; the first tab must too, or a gap a stale tab left in these views is
+  // never repaired. Board events the one-time backfill logged are held by the board but not applied, so boards wait.
+  if (_isLeader) ingestMissedEvents({ scopes: BOARDLESS_SCOPES }).catch(logFailure('Reading missed events'));
   _booted = true;
   return _gatedNetwork;
 }

@@ -173,17 +173,25 @@ the same slices and writes each once when it ends. A rebuild replaces every list
 |---|---|
 | Board task delete records | `read_model` `{boardId}:taskTombstones`, and the board snapshot's `taskTombstones`. Adopting a snapshot adds its delete records to the board's (deletes are permanent). A `task.created` / `task.updated` / `task.moved` for a deleted task is a no-op, in any arrival order. |
 | Board applied event ids | The board's latest snapshot's `appliedEventIds`, plus the live set `read_model` `{boardId}:appliedEventIds`. Each board event is projected from state seeded with both, so a snapshot taken from it holds them all; once saved, the ids it holds are pruned from the live set (no unbounded growth of the live set). |
+| Global / time-tracking applied event ids | The same, keyed by the scope's sentinel: `read_model` `__global__:appliedEventIds` and `__timetracking__:appliedEventIds`, written in the same batch as the scope's `kv` slot. A tab that writes a stale copy of the slot writes its stale id set with it, so the events that copy lacks still count as missed (see Several tabs below). |
 | Any scope, remote origin | `ingestEvent()` skips a remote event whose id is already in the `events` store (SSE echo, catch-up overlap). Events GC'd from the store are covered by a snapshot (see above), and ingest drops an event at or below its key's snapshot HLC (§9 Ordering). |
 | Time-tracking delete records | Inside the `kanvana:timetracking` slot (`tombstones`), as before. |
 
 `initStorage()` loads the board memory into `state` (`taskTombstones`, `appliedEventIds`, and the latest
-snapshot's ids as `snapshotAppliedIds`), so local projection stays synchronous (ADR-0005).
+snapshot's ids as `snapshotAppliedIds`, for the global and time-tracking scopes too), so local projection
+stays synchronous (ADR-0005).
 
 **Several tabs** (#222): each tab holds its own in-memory `state` and writes its copy of a board out on
 every projection, so no tab may trust another's stored `read_model`. A tab that hears of events another tab
 stored re-reads those events from the `events` store and folds them through the projector by the usual
 rules (§9 Ordering), a rebuild for a late one included. An edit made on a stale copy therefore costs nothing:
 the event it missed arrives, every tab converges in HLC order and writes the complete board out. See §4 Sync leader.
+If the stale tab never hears (it froze, then closed), its copy is what IndexedDB keeps. A tab opening next to
+others folds the stored events its applied ids lack (`ingestMissedEvents()`); the first tab to open does the
+same for the global and time-tracking scopes only, since the one-time backfill logs board events the board
+already holds without applying them. A missed event older than the scope's newest applied one is late, so
+the scope is rebuilt in HLC order. A device from before time-tracking ids were kept has none, so its first startup rebuilds
+the global and time-tracking views once.
 
 **Key public functions:**
 

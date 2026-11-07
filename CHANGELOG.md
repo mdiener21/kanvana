@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A time-tracking project no longer shows `? / Project` on one device after its customer was created on another. A browser tab that missed a sync update could save its outdated copy of the time-tracking data over the correct one, and nothing repaired it. Each device now records which changes its time-tracking data and global settings hold, and on opening it applies any it is missing. The first start after updating rebuilds both from this device's change history once.
 - Dragging a task no longer gives cards that aren't on screen (Done past "Show more", filtered-out or collapsed cards) the same position as a visible card. They now keep their place behind the card they followed (#140).
 - Dropping a task on a swimlane board, including into Done, now updates the board in place instead of rebuilding it, closing the last path to the renderer crash seen on large boards (#139). A drop across lanes now updates the board once instead of twice (#142).
 - A change that alters nothing, such as a repeat of a task's creation arriving from another device, no longer redraws the board or saves it again (#138).
