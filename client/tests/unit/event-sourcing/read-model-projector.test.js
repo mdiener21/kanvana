@@ -409,4 +409,32 @@ describe('createReadModelProjector', () => {
       expect(h.ctx.checkAndScheduleSnapshot).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe('board settings written without an event (#279)', () => {
+    test('writeBoardSettings sets the board settings and stores them', async () => {
+      h.readModel.writeBoardSettings(BOARD_ID, { swimLanesEnabled: true });
+
+      expect(h.readModel.board(BOARD_ID).settings).toEqual({ swimLanesEnabled: true });
+      expect(persistCalls(h)).toEqual(['settings']);
+      await _flushPersistsForTesting();
+      expect(await (await openStore()).get(KV_STORE, SETTINGS_KEY)).toEqual({ swimLanesEnabled: true });
+    });
+
+    test('refreshBoardSettings takes settings another tab stored and stores nothing itself', async () => {
+      await (await openStore()).put(KV_STORE, { showPriority: false }, SETTINGS_KEY);
+
+      expect(await h.readModel.refreshBoardSettings(BOARD_ID)).toBe(true);
+
+      expect(h.readModel.board(BOARD_ID).settings).toEqual({ showPriority: false });
+      expect(persistCalls(h)).toEqual([]);
+    });
+
+    test('refreshBoardSettings keeps the current settings when none are stored', async () => {
+      await (await openStore()).delete(KV_STORE, SETTINGS_KEY);
+
+      expect(await h.readModel.refreshBoardSettings(BOARD_ID)).toBe(false);
+
+      expect(h.readModel.board(BOARD_ID).settings).toEqual({});
+    });
+  });
 });

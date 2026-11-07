@@ -974,8 +974,7 @@ export function loadSettings() {
   if (parsed) return normalizeSettings(parsed);
 
   const defaults = defaultSettings();
-  readModelProjector.setBoardSlice(boardId, 'settings', defaults);
-  schedulePersist(keyFor(boardId, 'settings'), defaults);
+  readModelProjector.writeBoardSettings(boardId, defaults);
   return defaults;
 }
 
@@ -983,17 +982,13 @@ export function saveSettings(settings) {
   ensureBoardsInitialized();
   const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
   const normalized = normalizeSettings(settings);
-  readModelProjector.setBoardSlice(boardId, 'settings', normalized);
-  schedulePersist(keyFor(boardId, 'settings'), normalized);
+  readModelProjector.writeBoardSettings(boardId, normalized);
   emit(BOARD_SETTINGS_WRITTEN, { boardId });
 }
 
-// Another tab wrote settings no event carries (#222); this tab's old copy would undo them on its next board save.
+// Another tab wrote settings no event carries (#222).
 export async function refreshBoardSettings(boardId) {
-  const db = await openStore();
-  const stored = safeParseObject(await db.get(KV_STORE, keyFor(boardId, 'settings')));
-  if (!stored) return;
-  readModelProjector.setBoardSlice(boardId, 'settings', stored);
+  if (!(await readModelProjector.refreshBoardSettings(boardId))) return;
   emit(DATA_CHANGED, { settings: boardId });
 }
 

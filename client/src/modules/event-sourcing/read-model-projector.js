@@ -489,7 +489,7 @@ export function createReadModelProjector(ctx) {
     taskCacheByBoard.set(boardId, tasks);
   }
 
-  // ── Writes storage still makes without an event; #278 and #279 route them through events/the Read Model.
+  // ── Writes storage still makes without an event; #278 routes them through the Read Model.
 
   function setBoards(next) {
     state.boards = next;
@@ -501,6 +501,22 @@ export function createReadModelProjector(ctx) {
 
   function setGlobalSettings(value) {
     state.globalSettings = value;
+  }
+
+  // ── Board settings no event carries (swimlanes, display toggles); a rebuild keeps them (see fold).
+
+  function writeBoardSettings(boardId, settings) {
+    state.settings[boardId] = settings;
+    schedulePersist(keyFor(boardId, 'settings'), settings, () => markUnsaved(boardId, 'settings'));
+  }
+
+  // Another tab stored them (#222); this tab's old copy would undo them on its next board save. True when taken.
+  async function refreshBoardSettings(boardId) {
+    const db = await openStore();
+    const stored = safeParseObject(await db.get(KV_STORE, keyFor(boardId, 'settings')));
+    if (!stored) return false;
+    state.settings[boardId] = stored;
+    return true;
   }
 
   function reset() {
@@ -518,6 +534,6 @@ export function createReadModelProjector(ctx) {
   return {
     load, register, reset, applyAllPending, dropBoard,
     boards, board, globalSettings: loadGlobalSettings, timeTracking, cachedTasks, cacheTasks,
-    setBoards, setBoardSlice, setGlobalSettings
+    setBoards, setBoardSlice, setGlobalSettings, writeBoardSettings, refreshBoardSettings
   };
 }
