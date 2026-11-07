@@ -7,7 +7,8 @@ import { normalizeBoardModelIds } from './board-serializer.js';
 import { initHlc } from './event-sourcing/hlc.js';
 import { _flushDomainEventsForTesting, scheduleDomainEvent } from './event-sourcing/emitter.js';
 import { checkAndScheduleSnapshot, _resetSnapshotSchedulerForTesting } from './event-sourcing/snapshot.js';
-import { createReadModelProjector, normalizeGlobalSettings } from './event-sourcing/read-model-projector.js';
+import { normalizeGlobalSettings } from './event-sourcing/read-model-projector.js';
+import { createReadModel } from './event-sourcing/ingest.js';
 import { backfillEventLog } from './event-sourcing/backfill.js';
 import { BOARD_SETTINGS_WRITTEN, DATA_CHANGED, emit } from './events.js';
 
@@ -46,8 +47,8 @@ const syntheticDoneIdByBoard = new Map();
 let defaultBoardDeferred = false;
 
 // The Read Model: sole writer of the read model (ADR-0005), extracted from this module (#119).
-// It owns its state and loading; this module hands it schedulers and keys.
-const readModelProjector = createReadModelProjector({
+// It owns its state and loading; this module hands it schedulers and keys. Ingest makes it and alone projects into it (#281).
+const readModelProjector = createReadModel({
   demoTasksForReplay,
   withoutUnheldDemoTasks,
   schedulePersist,
@@ -455,7 +456,7 @@ export async function initStorage() {
   // read model is already loaded above, so projecting those events during boot
   // would trigger one DATA_CHANGED/full render per entity (hundreds for a
   // large board) before the initial render is even allowed to run.
-  readModelProjector.register();
+  readModelProjector.startProjecting();
 
   // Non-blocking quota warning at 80%.
   if (typeof navigator !== 'undefined' && navigator.storage?.estimate) {
@@ -541,10 +542,10 @@ export function setActiveBoardId(boardId) {
 
 export function ensureBoardsInitialized() {
   // Local mutations emit events that the projection folds into the read model
-  // synchronously (ADR-0005). Register here so every storage entry point — not
-  // just initStorage() — has the sole writer subscribed (e.g. unit tests that
+  // synchronously (ADR-0005). Start projecting here so every storage entry point —
+  // not just initStorage() — has the sole writer projecting (e.g. unit tests that
   // never call initStorage). Idempotent.
-  readModelProjector.register();
+  readModelProjector.startProjecting();
   const boards = listBoards();
   if (boards.length > 0) {
     if (!getActiveBoardId()) setActiveBoardId(boards[0].id);

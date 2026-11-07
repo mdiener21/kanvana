@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { deleteDB } from 'idb';
 import { resetLocalStorage } from '../setup.js';
-import { createReadModelProjector } from '../../../src/modules/event-sourcing/read-model-projector.js';
 import { DATA_CHANGED, emit, EVENT_EMITTED, off, on } from '../../../src/modules/events.js';
-import { ingestEvent, ingestRemoteBatch } from '../../../src/modules/event-sourcing/ingest.js';
+import { createReadModel, ingestEvent, ingestRemoteBatch } from '../../../src/modules/event-sourcing/ingest.js';
 import { GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY } from '../../../src/modules/event-sourcing/snapshot.js';
 import {
   KV_STORE, READ_MODEL_STORE, keyFor, openStore, readModelKeyFor, schedulePersist, scheduleReadModelPersist, _flushPersistsForTesting
@@ -62,9 +61,9 @@ async function loadReadModel(slices) {
     timeTrackingKey: TIME_TRACKING_KEY,
     newestAppliedKey: NEWEST_APPLIED_KEY
   };
-  const readModel = createReadModelProjector(ctx);
+  const readModel = createReadModel(ctx);
   await readModel.load();
-  readModel.register();
+  readModel.startProjecting();
   return { ctx, readModel };
 }
 
@@ -105,7 +104,7 @@ async function countDataChanged(run) {
 
 const MEMORY = ['appliedEventIds', 'newestApplied'];
 
-describe('createReadModelProjector', () => {
+describe('createReadModel', () => {
   let h;
   // A test needing another stored board starts the Read Model again on it.
   async function reloadWith(slices) {
@@ -206,14 +205,14 @@ describe('createReadModelProjector', () => {
     expect(h.ctx.checkAndScheduleSnapshot).toHaveBeenCalledWith(TIMETRACKING_SNAPSHOT_KEY, { fold: expect.any(Function), onSaved: expect.any(Function) });
   });
 
-  test('register() is idempotent — a single ingest projects once', () => {
-    h.readModel.register();
+  test('startProjecting() is idempotent — a single ingest projects once', () => {
+    h.readModel.startProjecting();
     ingest(boardEvent({ id: 'once' }));
 
     expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(2);
   });
 
-  test('reset() disconnects the projector from ingest; applied ids are stored, so a reloaded Read Model skips them', async () => {
+  test('reset() stops projecting ingested events; applied ids are stored, so a reloaded Read Model skips them', async () => {
     const ev = boardEvent({ id: 'seen' });
     ingest(ev);
     expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(2);

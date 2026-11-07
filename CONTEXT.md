@@ -130,7 +130,7 @@ The storage layer is split into three modules:
 | `idb-store.js` | IDB connection singleton, key helpers, fire-and-forget `schedulePersist()` / `scheduleReadModelPersist()` / `scheduleDelete()`, event helpers (`persistEvent`, `getUnsyncedEvents`, `markEventSynced`), and the Data Owner record (`getDataOwner`, `claimDataOwner`, `replaceLocalData`) |
 | `board-serializer.js` | Board import normalizer — remaps non-UUID IDs, coerces fields on import or IDB migration |
 | `storage.js` | All public CRUD functions. Imports from both above. Hands the Read Model its schedulers and storage keys, and reads boards through its `board(id)` / `boards()` calls. |
-| `event-sourcing/read-model-projector.js` | `createReadModelProjector()` — the Read Model, extracted from `storage.js` ([#119](docs/adr/0005-reducer-sole-read-model-writer.md)). Owns the in-memory `state` and per-board task cache, loads them from IDB (`load()`), and answers reads (`board(id)` → tasks, columns, labels, settings). Connects to the ingest interface on `register()` and folds each ingested domain event into its `state` via the pure reducer (the sole writer). |
+| `event-sourcing/read-model-projector.js` | `createReadModelProjector()` — the Read Model, extracted from `storage.js` ([#119](docs/adr/0005-reducer-sole-read-model-writer.md)). Owns the in-memory `state` and per-board task cache, loads them from IDB (`load()`), and answers reads (`board(id)` → tasks, columns, labels, settings). Private to `ingest.js` (#281): `createReadModel(ctx)` there makes it and hands `storage.js` only its `readModel` side; ingest alone drives its projection side (classify an event as applied / in-order / late, project, fold onto a snapshot, rebuild a scope), which folds each ingested domain event into `state` via the pure reducer (the sole writer). Until `startProjecting()`, ingested events are only persisted (boot-time backfill). |
 
 **Main `kv` keys:**
 
@@ -524,7 +524,7 @@ this device's clock is rejected at ingest (#181): it would win every field and s
 
 **Live ingest folds in HLC order** (#179). The projector records the newest HLC it has folded into each
 **scope key** (board id, `__global__`, `__timetracking__`) in kv `kanvana:ingest:newestAppliedHlc`
-(derived once from the stored events on devices that predate it). `ingestEvent()` classifies each event:
+(derived once from the stored events on devices that predate it). `ingestEvent()` classifies each event (`classify()` in `read-model-projector.js`, which only `ingest.js` calls):
 
 | Event | What happens |
 |---|---|
@@ -534,7 +534,7 @@ this device's clock is rejected at ingest (#181): it would win every field and s
 | Remote, reached the server more than the grace window after its HLC (`record.created − hlc.wallTime > GRACE_WINDOW_MS`) | **Dropped** and logged once. The server's receipt time is the same on every device, so every device drops the same events whatever it has snapshotted. A record without `created` (servers before migration `1746100013`) is never dropped. |
 | Late, covered by this device's snapshot (HLC ≤ snapshot HLC) but not held by it | Folded onto the snapshot (which is saved again), then the key is rebuilt; the events before it may be gone. If the snapshot already holds its id: no-op. |
 
-The rule lives only in `ingest.js`, so SSE and catch-up apply or drop a late event the same way.
+The rule lives only in `ingest.js` and the projector private to it (`read-model-projector.js`: the classification, the fold onto a snapshot and the rebuild merge), so SSE and catch-up apply or drop a late event the same way.
 Known limit: an event folded onto a snapshot is applied after the events the snapshot holds, so a device
 whose snapshot covers it can order it differently from one that never snapshotted; it is still applied on both.
 Rebuilds of one key run one at a time; requests made while one waits share it, and events committed

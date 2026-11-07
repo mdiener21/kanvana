@@ -291,26 +291,26 @@ These lists compare source/spec filenames against test file names and test title
 - Type: Unit
 - Test count: 20
 
-- `tests/unit/event-sourcing/read-model-projector.test.js:109` createReadModelProjector > an ingested board event projects into state and schedules read-model persist
-- `tests/unit/event-sourcing/read-model-projector.test.js:117` createReadModelProjector > an event emitted on the bus without ingest is not projected
-- `tests/unit/event-sourcing/read-model-projector.test.js:122` createReadModelProjector > ingest is idempotent by event id (dedup) and announces DATA_CHANGED once
-- `tests/unit/event-sourcing/read-model-projector.test.js:135` createReadModelProjector > global-scope event projects globalSettings and persists the global key only
-- `tests/unit/event-sourcing/read-model-projector.test.js:152` createReadModelProjector > timetracking-scope event is never routed into a board projection and lands in the time-tracking slot
-- `tests/unit/event-sourcing/read-model-projector.test.js:178` createReadModelProjector > register() is idempotent — a single ingest projects once
-- `tests/unit/event-sourcing/read-model-projector.test.js:185` createReadModelProjector > reset() disconnects the projector from ingest; applied ids live in state, not the projector
-- `tests/unit/event-sourcing/read-model-projector.test.js:223` createReadModelProjector > persists only the slices an event changed > a label event writes the labels only
-- `tests/unit/event-sourcing/read-model-projector.test.js:233` createReadModelProjector > persists only the slices an event changed > the slices an event leaves alone keep their references
-- `tests/unit/event-sourcing/read-model-projector.test.js:244` createReadModelProjector > persists only the slices an event changed > a slice the board has never stored is written, so a reload does not bring defaults back
-- `tests/unit/event-sourcing/read-model-projector.test.js:252` createReadModelProjector > persists only the slices an event changed > a local event is fully projected in memory before ingest returns
-- `tests/unit/event-sourcing/read-model-projector.test.js:259` createReadModelProjector > persists only the slices an event changed > a remote event takes the same selective path as a local one
-- `tests/unit/event-sourcing/read-model-projector.test.js:266` createReadModelProjector > persists only the slices an event changed > a catch-up batch writes each changed slice once, however many events it holds
-- `tests/unit/event-sourcing/read-model-projector.test.js:276` createReadModelProjector > persists only the slices an event changed > a catch-up batch covering two kinds of slice writes both
-- `tests/unit/event-sourcing/read-model-projector.test.js:294` createReadModelProjector > a reducer no-op > writes only the applied-event memory and emits no DATA_CHANGED
-- `tests/unit/event-sourcing/read-model-projector.test.js:305` createReadModelProjector > a reducer no-op > is remembered, so its next delivery writes nothing
-- `tests/unit/event-sourcing/read-model-projector.test.js:327` createReadModelProjector > a reducer no-op > adding a label or relationship a task already has changes nothing
-- `tests/unit/event-sourcing/read-model-projector.test.js:338` createReadModelProjector > a reducer no-op > a catch-up batch of nothing but no-ops writes the memory and emits no DATA_CHANGED
-- `tests/unit/event-sourcing/read-model-projector.test.js:349` createReadModelProjector > a reducer no-op > a board-less no-op writes nothing but its newest HLC and still counts towards the next snapshot
-- `tests/unit/event-sourcing/read-model-projector.test.js:372` createReadModelProjector > a reducer no-op > still asks for a snapshot, since the stored event counts towards the next one
+- `tests/unit/event-sourcing/read-model-projector.test.js:109` createReadModel > an ingested board event projects into state and schedules read-model persist
+- `tests/unit/event-sourcing/read-model-projector.test.js:117` createReadModel > an event emitted on the bus without ingest is not projected
+- `tests/unit/event-sourcing/read-model-projector.test.js:122` createReadModel > ingest is idempotent by event id (dedup) and announces DATA_CHANGED once
+- `tests/unit/event-sourcing/read-model-projector.test.js:135` createReadModel > global-scope event projects globalSettings and persists the global key only
+- `tests/unit/event-sourcing/read-model-projector.test.js:152` createReadModel > timetracking-scope event is never routed into a board projection and lands in the time-tracking slot
+- `tests/unit/event-sourcing/read-model-projector.test.js:178` createReadModel > startProjecting() is idempotent — a single ingest projects once
+- `tests/unit/event-sourcing/read-model-projector.test.js:185` createReadModel > reset() stops projecting ingested events; applied ids live in state, not the projector
+- `tests/unit/event-sourcing/read-model-projector.test.js:223` createReadModel > persists only the slices an event changed > a label event writes the labels only
+- `tests/unit/event-sourcing/read-model-projector.test.js:233` createReadModel > persists only the slices an event changed > the slices an event leaves alone keep their references
+- `tests/unit/event-sourcing/read-model-projector.test.js:244` createReadModel > persists only the slices an event changed > a slice the board has never stored is written, so a reload does not bring defaults back
+- `tests/unit/event-sourcing/read-model-projector.test.js:252` createReadModel > persists only the slices an event changed > a local event is fully projected in memory before ingest returns
+- `tests/unit/event-sourcing/read-model-projector.test.js:259` createReadModel > persists only the slices an event changed > a remote event takes the same selective path as a local one
+- `tests/unit/event-sourcing/read-model-projector.test.js:266` createReadModel > persists only the slices an event changed > a catch-up batch writes each changed slice once, however many events it holds
+- `tests/unit/event-sourcing/read-model-projector.test.js:276` createReadModel > persists only the slices an event changed > a catch-up batch covering two kinds of slice writes both
+- `tests/unit/event-sourcing/read-model-projector.test.js:294` createReadModel > a reducer no-op > writes only the applied-event memory and emits no DATA_CHANGED
+- `tests/unit/event-sourcing/read-model-projector.test.js:305` createReadModel > a reducer no-op > is remembered, so its next delivery writes nothing
+- `tests/unit/event-sourcing/read-model-projector.test.js:327` createReadModel > a reducer no-op > adding a label or relationship a task already has changes nothing
+- `tests/unit/event-sourcing/read-model-projector.test.js:338` createReadModel > a reducer no-op > a catch-up batch of nothing but no-ops writes the memory and emits no DATA_CHANGED
+- `tests/unit/event-sourcing/read-model-projector.test.js:349` createReadModel > a reducer no-op > a board-less no-op writes nothing but its newest HLC and still counts towards the next snapshot
+- `tests/unit/event-sourcing/read-model-projector.test.js:372` createReadModel > a reducer no-op > still asks for a snapshot, since the stored event counts towards the next one
 
 ### Reducer
 

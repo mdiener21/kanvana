@@ -2,13 +2,20 @@ import { applyEvent, applyEvents, createProjectionState, createTimeTrackingState
 import { EVENTS_STORE, KV_STORE, READ_MODEL_STORE, SNAPSHOTS_STORE, keyFor, openStore, readModelKeyFor, writeIfDataCurrent } from '../idb-store.js';
 import { GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY, loadSnapshot, scopeForSnapshotKey, snapshotKeyForEvent } from './snapshot.js';
 import { EVENT_SCOPE } from '../constants.js';
-import { EVENT_ORDER, connectProjector, createSuperseded } from './ingest.js';
 import { compareHlc, laterHlc } from './hlc.js';
 import { safeParseArray, safeParseObject } from '../utils.js';
 
 // The Read Model: sole writer of the IDB read model (ADR-0005). It owns the in-memory
 // state, loads it from IDB and answers reads; storage.js hands it only schedulers and keys.
 // The reducer (applyEvent/createProjectionState) stays pure and is imported directly.
+// Private to ingest.js, which creates it and alone drives its projection side; storage gets its `readModel`.
+
+export const EVENT_ORDER = Object.freeze({ APPLIED: 'applied', IN_ORDER: 'in-order', LATE: 'late' });
+
+// What an adopted snapshot replaced: the old snapshots and the stored events the new one covers.
+export function createSuperseded() {
+  return { snapshots: [], events: [] };
+}
 
 // What IDB stores per board. The board list is one key shared by every board, so it is tracked apart.
 const BOARD_SLICES = ['tasks', 'columns', 'labels', 'settings', 'taskTombstones', 'appliedEventIds'];
@@ -78,7 +85,6 @@ export function createReadModelProjector(ctx) {
     }]
   ]);
 
-  let disconnect = null;
   // The one copy of the scope state (#280). Each scope opens on its first begin and closes on its last end, however
   // many callers nest or overlap. A remote catch-up batch keeps projecting in memory but saves each board it touched
   // once, at its end (#237).
@@ -474,9 +480,8 @@ export function createReadModelProjector(ctx) {
     return fold(key, snapshot, [event]);
   }
 
-  function register() {
-    if (disconnect) return;
-    disconnect = connectProjector({ classify, project, rebuild, snapshotToAdopt, foldOntoSnapshot, beginBatch, endBatch, beginCommit, endCommit, holdChange, holdStored, missedEvents });
+  // Adding the same listener again is a no-op, so this is idempotent.
+  function startProjecting() {
     window.addEventListener('pagehide', persistBatchOnPageHide);
   }
 
@@ -584,13 +589,14 @@ export function createReadModelProjector(ctx) {
     unsavedSlices.clear();
     boardsUnsaved = false;
     window.removeEventListener('pagehide', persistBatchOnPageHide);
-    disconnect?.();
-    disconnect = null;
   }
 
   return {
-    load, register, reset, applyAllPending, addBoard, removeBoard,
-    boards, board, globalSettings: loadGlobalSettings, timeTracking, cachedTasks, cacheTasks,
-    setBoards, setBoardSlice, setGlobalSettings, writeBoardSettings, refreshBoardSettings
+    readModel: {
+      load, startProjecting, reset, applyAllPending, addBoard, removeBoard,
+      boards, board, globalSettings: loadGlobalSettings, timeTracking, cachedTasks, cacheTasks,
+      setBoards, setBoardSlice, setGlobalSettings, writeBoardSettings, refreshBoardSettings
+    },
+    classify, project, rebuild, snapshotToAdopt, foldOntoSnapshot, beginBatch, endBatch, beginCommit, endCommit, holdChange, holdStored, missedEvents
   };
 }

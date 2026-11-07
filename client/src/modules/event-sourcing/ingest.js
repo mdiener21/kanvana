@@ -5,27 +5,36 @@ import { flushPendingPersists, getDbRef, persistEvent, EVENTS_STORE } from '../i
 import { compareHlc, observeRemote } from './hlc.js';
 import { validateEvent } from './event-validation.js';
 import { GRACE_WINDOW_MS, loadEventsAfter, loadSnapshot, saveSnapshot, snapshotKeyForEvent } from './snapshot.js';
+import { EVENT_ORDER, createReadModelProjector, createSuperseded } from './read-model-projector.js';
 
 export const EVENT_ORIGIN = Object.freeze({ LOCAL: 'local', REMOTE: 'remote' });
-export const EVENT_ORDER = Object.freeze({ APPLIED: 'applied', IN_ORDER: 'in-order', LATE: 'late' });
 
+// The Read Model's projector (ADR-0005) is private to ingest: made here, and driven only from here.
+let readModel = null;
+// The same projector while it projects ingested events; until then events are only persisted, which boot-time backfill needs.
 let projector = null;
 const unpersisted = new Map();
 const committedDuringRebuild = new Map();
 const rebuilds = new Map();
 const superseded = new Map();
-
-// What an adopted snapshot replaced: the old snapshots and the stored events the new one covers.
-export function createSuperseded() {
-  return { snapshots: [], events: [] };
-}
 const loggedDrops = new Set();
 
-// Until the projector (ADR-0005) connects, events are only persisted, which is what boot-time backfill needs.
-export function connectProjector(next) {
-  projector = next;
-  return () => {
-    if (projector === next) projector = null;
+// Storage gets the reads and the writes no event carries; one made later replaces this one.
+export function createReadModel(ctx) {
+  const created = createReadModelProjector(ctx);
+  readModel = created;
+  projector = null;
+  return {
+    ...created.readModel,
+    startProjecting() {
+      if (readModel !== created) return;
+      created.readModel.startProjecting();
+      projector = created;
+    },
+    reset() {
+      created.readModel.reset();
+      if (projector === created) projector = null;
+    }
   };
 }
 
@@ -40,12 +49,11 @@ export function ingestEvent(input, { origin = EVENT_ORIGIN.LOCAL, receivedAt } =
 // One redraw and one write per slice for a user mutation (#142); synchronous, to stay in this tick's write batch (#256) and a drop's reconcile window.
 // The projector holds the scope state (#280); a nested commit joins the outer one, which alone closes it.
 export function commitTogether(mutation) {
-  const scopeProjector = projector;
-  scopeProjector?.beginCommit();
+  readModel?.beginCommit();
   try {
     return mutation();
   } finally {
-    scopeProjector?.endCommit(closeCommit);
+    readModel?.endCommit(closeCommit);
   }
 }
 
@@ -72,7 +80,7 @@ export async function ingestRemoteBatch(items) {
   const stored = await storedIds();
   const fresh = [];
   const writes = [];
-  const batchProjector = beginRemoteBatch();
+  readModel?.beginBatch();
   try {
     for (const { event, receivedAt } of valid) {
       if (await ingestRemote(event, receivedAt, stored, writes)) fresh.push(event);
@@ -80,7 +88,7 @@ export async function ingestRemoteBatch(items) {
     }
     await Promise.all(writes);
   } finally {
-    endRemoteBatch(batchProjector);
+    endRemoteBatch();
   }
   // The read model the batch deferred is stored before the caller advances its watermark.
   await flushPendingPersists();
@@ -88,15 +96,9 @@ export async function ingestRemoteBatch(items) {
   return fresh;
 }
 
-// The projector holds the batch (#280); the one that began it ends it, and says when the last overlapping batch closes.
-function beginRemoteBatch() {
-  const batchProjector = projector;
-  batchProjector?.beginBatch();
-  return batchProjector;
-}
-
-function endRemoteBatch(batchProjector) {
-  if (batchProjector?.endBatch()) emit(DATA_CHANGED, { batch: true });
+// The projector holds the batch (#280) and says when the last overlapping batch closes.
+function endRemoteBatch() {
+  if (readModel?.endBatch()) emit(DATA_CHANGED, { batch: true });
 }
 
 // Another tab stored these (#222); its read model is not copied, since it may lack this tab's newest edit.
@@ -117,7 +119,7 @@ export async function ingestMissedEvents({ scopes = null } = {}) {
 
 async function foldStoredEvents(events) {
   const lateKeys = new Set();
-  const batchProjector = beginRemoteBatch();
+  readModel?.beginBatch();
   try {
     for (const event of [...events].sort((a, b) => compareHlc(a.hlc, b.hlc))) {
       // Or the next local edit here could sort before an event this tab already shows.
@@ -127,7 +129,7 @@ async function foldStoredEvents(events) {
       else if (order === EVENT_ORDER.IN_ORDER && projector.project(event, { batched: true })) signalChanged({ event });
     }
   } finally {
-    endRemoteBatch(batchProjector);
+    endRemoteBatch();
   }
   for (const key of lateKeys) await rebuildScope(key);
 }
