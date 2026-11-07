@@ -1,5 +1,4 @@
-// #278: a created or seeded board is written through the Read Model, so a failed save of it is retried by the
-// next edit on that board like any other unsaved slice (#141).
+// A created or seeded board is stored through the Read Model, which retries a failed save on the next edit (#278, #141).
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { deleteDB } from 'idb';
 import { resetLocalStorage } from '../setup.js';

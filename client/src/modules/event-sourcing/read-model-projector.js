@@ -9,10 +9,7 @@ import { DATA_CHANGED, emit } from '../events.js';
 import { safeParseArray, safeParseObject } from '../utils.js';
 import { normalizeGlobalSettings } from '../normalize.js';
 
-// The Read Model: sole writer of the IDB read model (ADR-0005). It owns the in-memory
-// state, loads it from IDB and answers reads; storage.js hands it only schedulers and keys.
-// The reducer (applyEvent/createProjectionState) stays pure and is imported directly.
-// Private to ingest.js, which makes the one instance and alone projects into it.
+// The Read Model, sole writer of the IDB read model (ADR-0005); ingest.js makes the one instance and alone projects into it.
 
 export const EVENT_ORDER = Object.freeze({ APPLIED: 'applied', IN_ORDER: 'in-order', LATE: 'late' });
 
@@ -248,7 +245,6 @@ export function createReadModelProjector(ctx) {
     if (batch) [...batch.pending.keys()].forEach(applyPending);
   }
 
-  // Forgets a board's state and deletes its stored slices.
   function dropBoard(boardId) {
     for (const slice of [...BOARD_SLICES, 'snapshotAppliedIds']) delete state[slice][boardId];
     taskCacheByBoard.delete(boardId);
@@ -487,7 +483,7 @@ export function createReadModelProjector(ctx) {
     stored.then(forget, forget);
   }
 
-  // False when the snapshot covering a late event already holds it. The events before it may be gone, so it is folded onto the snapshot.
+  // The events before a covered late event may be gone, so it folds onto the snapshot; false when that already holds it.
   async function foldOntoCoveringSnapshot(event) {
     if (!projecting || classify(event) !== EVENT_ORDER.LATE) return true;
     const key = snapshotKeyForEvent(event);

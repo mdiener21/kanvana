@@ -98,8 +98,7 @@ describe('rebuild', () => {
     expect(titles).toContain('T2');
   });
 
-  // CONTEXT.md §9 known limit: swimlane settings carry no event, so a rebuild keeps the live ones
-  // unless an event holds the same fields (createBoard's settings.updated does, so the seeded board is used).
+  // The seeded board, since createBoard's settings.updated would hold the same fields (CONTEXT.md §9 known limit).
   test('keeps swimlane settings written without an event', async () => {
     boardId = listBoards()[0].id;
     todoColumn = loadColumnsForBoard(boardId)[0].id;
