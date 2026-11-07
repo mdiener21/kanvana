@@ -25,7 +25,7 @@ export function createReadModel(ctx) {
 }
 
 // Until storage starts projecting, ingested events are only persisted, which boot-time backfill needs.
-function projector() {
+function projectingReadModel() {
   return readModel?.isProjecting() ? readModel : null;
 }
 
@@ -93,7 +93,7 @@ function endRemoteBatch() {
 // Another tab stored these (#222); its read model is not copied, since it may lack this tab's newest edit.
 export async function ingestStoredEvents(ids) {
   const db = getDbRef();
-  if (!db || !projector()) return;
+  if (!db || !projectingReadModel()) return;
   const events = await Promise.all(ids.map((id) => db.get(EVENTS_STORE, id)));
   await foldStoredEvents(events.filter(Boolean));
 }
@@ -101,9 +101,9 @@ export async function ingestStoredEvents(ids) {
 // For a tab that may have missed notices: one opening, waking up or taking over. `scopes` limits it to those event scopes.
 export async function ingestMissedEvents({ scopes = null } = {}) {
   const db = getDbRef();
-  if (!db || !projector()) return;
+  if (!db || !projectingReadModel()) return;
   const stored = await db.getAll(EVENTS_STORE);
-  await foldStoredEvents(projector().missedEvents(scopes ? stored.filter((event) => scopes.includes(event.scope)) : stored));
+  await foldStoredEvents(projectingReadModel().missedEvents(scopes ? stored.filter((event) => scopes.includes(event.scope)) : stored));
 }
 
 async function foldStoredEvents(events) {
@@ -113,7 +113,7 @@ async function foldStoredEvents(events) {
     for (const event of [...events].sort((a, b) => compareHlc(a.hlc, b.hlc))) {
       // Or the next local edit here could sort before an event this tab already shows.
       await observeRemote(event.hlc);
-      const order = projector()?.classify(event);
+      const order = projectingReadModel()?.classify(event);
       if (order === EVENT_ORDER.LATE) lateKeys.add(snapshotKeyForEvent(event));
       else if (order === EVENT_ORDER.IN_ORDER && readModel.project(event, { batched: true })) signalChanged({ event });
     }
@@ -171,7 +171,7 @@ async function storedIds() {
 
 function commit(event, origin, { batched = false } = {}) {
   const key = snapshotKeyForEvent(event);
-  const order = projector()?.classify(event);
+  const order = projectingReadModel()?.classify(event);
   // A late local edit still shows at once; the rebuild then puts it in order.
   if (order && (order !== EVENT_ORDER.LATE || origin === EVENT_ORIGIN.LOCAL)) {
     if (readModel.project(event, { batched }) && !readModel.holdChange({ local: origin === EVENT_ORIGIN.LOCAL })) {
