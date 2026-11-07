@@ -4,17 +4,13 @@ import { DATA_CHANGED, EVENT_EMITTED, EVENTS_STORED, SNAPSHOT_ADOPTED, emit } fr
 import { flushPendingPersists, getDbRef, persistEvent, EVENTS_STORE } from '../idb-store.js';
 import { compareHlc, observeRemote } from './hlc.js';
 import { validateEvent } from './event-validation.js';
-import { GRACE_WINDOW_MS, loadEventsAfter, loadSnapshot, saveSnapshot, snapshotKeyForEvent } from './snapshot.js';
-import { EVENT_ORDER, createReadModelProjector, createSuperseded } from './read-model-projector.js';
+import { GRACE_WINDOW_MS, snapshotKeyForEvent } from './snapshot.js';
+import { EVENT_ORDER, createReadModelProjector } from './read-model-projector.js';
 
 export const EVENT_ORIGIN = Object.freeze({ LOCAL: 'local', REMOTE: 'remote' });
 
 // The one Read Model (ADR-0005). Storage gets its reads and the writes no event carries; only ingest projects into it.
 let readModel = null;
-const unpersisted = new Map();
-const committedDuringRebuild = new Map();
-const rebuilds = new Map();
-const superseded = new Map();
 const loggedDrops = new Set();
 
 const STORAGE_SIDE = [
@@ -124,7 +120,7 @@ async function foldStoredEvents(events) {
   } finally {
     endRemoteBatch();
   }
-  for (const key of lateKeys) await rebuildScope(key);
+  for (const key of lateKeys) await readModel.rebuildScope(key);
 }
 
 function signalChanged(detail) {
@@ -139,7 +135,7 @@ async function ingestRemote(event, receivedAt, stored, writes) {
     logDrop(event);
     return true;
   }
-  if (projector()?.classify(event) === EVENT_ORDER.LATE && !await foldIntoCoveringSnapshot(event)) return true;
+  if (readModel && !await readModel.foldOntoCoveringSnapshot(event)) return true;
   await observeRemote(event.hlc);
   const written = commit(event, EVENT_ORIGIN.REMOTE, { batched: Boolean(writes) });
   if (!writes) await written;
@@ -173,17 +169,6 @@ async function storedIds() {
   return db ? new Set(await db.getAllKeys(EVENTS_STORE)) : null;
 }
 
-// The events before a covered event may be gone, so one the snapshot lacks is folded onto the snapshot.
-async function foldIntoCoveringSnapshot(event) {
-  const key = snapshotKeyForEvent(event);
-  const snapshot = await loadSnapshot(key);
-  if (!snapshot || compareHlc(event.hlc, snapshot.hlc) > 0) return true;
-  const folded = readModel.foldOntoSnapshot(key, snapshot, event);
-  if (!folded) return false;
-  await saveSnapshot(key, folded, snapshot.hlc);
-  return true;
-}
-
 function commit(event, origin, { batched = false } = {}) {
   const key = snapshotKeyForEvent(event);
   const order = projector()?.classify(event);
@@ -194,75 +179,29 @@ function commit(event, origin, { batched = false } = {}) {
     }
   }
   emit(EVENT_EMITTED, event);
-  committedDuringRebuild.get(key)?.set(event.id, event);
-  if (!getDbRef()) return Promise.resolve();
+  const persisted = getDbRef() ? store(event, origin, batched) : null;
+  readModel?.noteCommitted(event, persisted);
+  if (!persisted) return Promise.resolve();
+  return order === EVENT_ORDER.LATE ? persisted.then(() => readModel.rebuildScope(key)) : persisted;
+}
 
-  unpersisted.set(event.id, event);
+function store(event, origin, batched) {
   let heldByCommit = false;
   const persisted = persistEvent({ ...event, synced: origin === EVENT_ORIGIN.REMOTE })
     .then(() => flushPendingPersists())
     .then(() => {
       // Other tabs and the queue read the store, so they may only hear of an event once it is there.
       if (!batched && !heldByCommit) emit(EVENTS_STORED, { ids: [event.id], local: origin === EVENT_ORIGIN.LOCAL });
-    })
-    .finally(() => unpersisted.delete(event.id));
-  heldByCommit = Boolean(readModel?.holdStored(persisted, event.id));
-  return order === EVENT_ORDER.LATE ? persisted.then(() => rebuildScope(key)) : persisted;
-}
-
-// The rebuild keeps this device's newer stored events (#180) and drops what only the replaced history knew.
-export async function adoptSnapshot(key, state, hlc) {
-  const replaced = await loadSnapshot(key);
-  const covered = (await loadEventsAfter(key, replaced?.hlc ?? null)).filter((event) => compareHlc(event.hlc, hlc) <= 0);
-  await saveSnapshot(key, projector()?.snapshotToAdopt(key, state) ?? state, hlc);
-  const entry = superseded.get(key) ?? createSuperseded();
-  if (replaced) entry.snapshots.push(replaced);
-  entry.events.push(...covered);
-  superseded.set(key, entry);
-  await rebuildScope(key);
-  const held = replaced ? [...replaced.state.tasks, ...replaced.state.columns, ...replaced.state.labels] : [];
-  emit(SNAPSHOT_ADOPTED, { key, forgotten: [...covered.map((event) => event.entity_id), ...held.map((item) => item?.id)] });
-}
-
-// Another tab adopted a snapshot (#222): only it knows what was replaced, and this rebuild must drop the same.
-export function rebuildAfterPeerAdoption(key, forgotten) {
-  const entry = superseded.get(key) ?? createSuperseded();
-  entry.events.push(...forgotten.map((entity_id) => ({ entity_id })));
-  superseded.set(key, entry);
-  return rebuildScope(key);
-}
-
-// Requests for a key that is already waiting to rebuild share that run.
-export function rebuildScope(key) {
-  const current = rebuilds.get(key);
-  if (current?.waiting) return current.promise;
-  const entry = { waiting: true };
-  entry.promise = (current?.promise ?? Promise.resolve())
-    .catch(() => {})
-    .then(() => {
-      entry.waiting = false;
-      return runRebuild(key);
-    })
-    .finally(() => {
-      if (rebuilds.get(key) === entry) rebuilds.delete(key);
     });
-  rebuilds.set(key, entry);
-  return entry.promise;
+  heldByCommit = Boolean(readModel?.holdStored(persisted, event.id));
+  return persisted;
 }
 
-// Events committed while the store is read may be missing from the read; the reducer dedups by id.
-async function runRebuild(key) {
-  if (!projector()) return;
-  const collected = new Map([...unpersisted].filter(([, event]) => snapshotKeyForEvent(event) === key));
-  const replaced = superseded.get(key);
-  superseded.delete(key);
-  committedDuringRebuild.set(key, collected);
-  try {
-    const snapshot = await loadSnapshot(key);
-    const stored = await loadEventsAfter(key, snapshot?.hlc ?? null);
-    const pending = [...collected.values()].filter((event) => !snapshot || compareHlc(event.hlc, snapshot.hlc) > 0);
-    if (projector()?.rebuild(key, snapshot, [...stored, ...pending], replaced)) signalChanged({ rebuilt: key });
-  } finally {
-    committedDuringRebuild.delete(key);
-  }
+export async function adoptSnapshot(key, state, hlc) {
+  const forgotten = await readModel.adoptSnapshot(key, state, hlc);
+  emit(SNAPSHOT_ADOPTED, { key, forgotten });
+}
+
+export function rebuildAfterPeerAdoption(key, forgotten) {
+  return readModel.rebuildAfterPeerAdoption(key, forgotten);
 }

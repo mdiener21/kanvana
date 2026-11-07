@@ -1,8 +1,11 @@
 import { applyEvent, applyEvents, createProjectionState, createTimeTrackingState } from '../reducer.js';
 import { EVENTS_STORE, KV_STORE, READ_MODEL_STORE, SNAPSHOTS_STORE, keyFor, openStore, readModelKeyFor, writeIfDataCurrent } from '../idb-store.js';
-import { GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY, loadSnapshot, scopeForSnapshotKey, snapshotKeyForEvent } from './snapshot.js';
+import {
+  GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY, loadEventsAfter, loadSnapshot, saveSnapshot, scopeForSnapshotKey, snapshotKeyForEvent
+} from './snapshot.js';
 import { EVENT_SCOPE } from '../constants.js';
 import { compareHlc, laterHlc } from './hlc.js';
+import { DATA_CHANGED, emit } from '../events.js';
 import { safeParseArray, safeParseObject } from '../utils.js';
 import { normalizeGlobalSettings } from '../normalize.js';
 
@@ -14,7 +17,7 @@ import { normalizeGlobalSettings } from '../normalize.js';
 export const EVENT_ORDER = Object.freeze({ APPLIED: 'applied', IN_ORDER: 'in-order', LATE: 'late' });
 
 // What an adopted snapshot replaced: the old snapshots and the stored events the new one covers.
-export function createSuperseded() {
+function createSuperseded() {
   return { snapshots: [], events: [] };
 }
 
@@ -86,6 +89,8 @@ export function createReadModelProjector(ctx) {
   let boardsUnsaved = false;
   // A local commit scope (#142) projects each event at once; it saves, redraws and announces once, when it closes.
   let commit = null;
+  // Off during boot-time backfill, so its events are persisted without a render each.
+  let projecting = false;
 
   function classify(event) {
     if (hasApplied(event)) return EVENT_ORDER.APPLIED;
@@ -324,7 +329,7 @@ export function createReadModelProjector(ctx) {
   }
 
   // Entities nothing in the event log knows of come from writes that emit no event yet (import), so they stay.
-  function rebuild(key, snapshot, events, superseded = createSuperseded()) {
+  function rebuild(key, snapshot, events, replaced = createSuperseded()) {
     applyPending(key);
     const projected = fold(key, snapshot, events, { live: true });
     const newest = [snapshot?.hlc, ...events.map((event) => event.hlc)].reduce(laterHlc, null);
@@ -338,8 +343,8 @@ export function createReadModelProjector(ctx) {
     }
 
     const live = liveBoard(key);
-    const mentioned = new Set([...events, ...superseded.events].map((event) => event.entity_id));
-    for (const { state: held } of superseded.snapshots) {
+    const mentioned = new Set([...events, ...replaced.events].map((event) => event.entity_id));
+    for (const { state: held } of replaced.snapshots) {
       for (const item of [...held.tasks, ...held.columns, ...held.labels]) mentioned.add(item?.id);
     }
     const taskTombstones = new Set([...boardMemory(key).taskTombstones, ...projected.taskTombstones]);
@@ -467,14 +472,89 @@ export function createReadModelProjector(ctx) {
     else scheduleReadModelDelete(boardId, slice);
   }
 
-  // Null when the snapshot already holds the event.
-  function foldOntoSnapshot(key, snapshot, event) {
-    if (snapshot.state.appliedEventIds.has(event.id)) return null;
-    return fold(key, snapshot, [event]);
+  // ── Late events (CONTEXT.md §9): folded onto the snapshot that covers them, then put in order by a rebuild.
+
+  // Committed events the store may not hold yet, which a rebuild reading the store would miss.
+  const unstored = new Map();
+  const committedDuringRebuild = new Map();
+  const rebuilds = new Map();
+  const superseded = new Map();
+
+  function noteCommitted(event, stored) {
+    committedDuringRebuild.get(snapshotKeyForEvent(event))?.set(event.id, event);
+    if (!stored) return;
+    unstored.set(event.id, event);
+    const forget = () => unstored.delete(event.id);
+    stored.then(forget, forget);
   }
 
-  // Off during boot-time backfill, so its events are persisted without a render each.
-  let projecting = false;
+  // False when the snapshot covering a late event already holds it. The events before it may be gone, so it is folded onto the snapshot.
+  async function foldOntoCoveringSnapshot(event) {
+    if (!projecting || classify(event) !== EVENT_ORDER.LATE) return true;
+    const key = snapshotKeyForEvent(event);
+    const snapshot = await loadSnapshot(key);
+    if (!snapshot || compareHlc(event.hlc, snapshot.hlc) > 0) return true;
+    if (snapshot.state.appliedEventIds.has(event.id)) return false;
+    await saveSnapshot(key, fold(key, snapshot, [event]), snapshot.hlc);
+    return true;
+  }
+
+  // The rebuild keeps this device's newer stored events (#180) and drops what only the replaced history knew; resolves to what it forgot.
+  async function adoptSnapshot(key, snapshotState, hlc) {
+    const replaced = await loadSnapshot(key);
+    const covered = (await loadEventsAfter(key, replaced?.hlc ?? null)).filter((event) => compareHlc(event.hlc, hlc) <= 0);
+    await saveSnapshot(key, projecting ? snapshotToAdopt(key, snapshotState) : snapshotState, hlc);
+    const entry = superseded.get(key) ?? createSuperseded();
+    if (replaced) entry.snapshots.push(replaced);
+    entry.events.push(...covered);
+    superseded.set(key, entry);
+    await rebuildScope(key);
+    const held = replaced ? [...replaced.state.tasks, ...replaced.state.columns, ...replaced.state.labels] : [];
+    return [...covered.map((event) => event.entity_id), ...held.map((item) => item?.id)];
+  }
+
+  // Another tab adopted a snapshot (#222): only it knows what was replaced, and this rebuild must drop the same.
+  function rebuildAfterPeerAdoption(key, forgotten) {
+    const entry = superseded.get(key) ?? createSuperseded();
+    entry.events.push(...forgotten.map((entity_id) => ({ entity_id })));
+    superseded.set(key, entry);
+    return rebuildScope(key);
+  }
+
+  // Requests for a key that is already waiting to rebuild share that run.
+  function rebuildScope(key) {
+    const current = rebuilds.get(key);
+    if (current?.waiting) return current.promise;
+    const entry = { waiting: true };
+    entry.promise = (current?.promise ?? Promise.resolve())
+      .catch(() => {})
+      .then(() => {
+        entry.waiting = false;
+        return runRebuild(key);
+      })
+      .finally(() => {
+        if (rebuilds.get(key) === entry) rebuilds.delete(key);
+      });
+    rebuilds.set(key, entry);
+    return entry.promise;
+  }
+
+  // Events committed while the store is read may be missing from the read; the reducer dedups by id.
+  async function runRebuild(key) {
+    if (!projecting) return;
+    const collected = new Map([...unstored].filter(([, event]) => snapshotKeyForEvent(event) === key));
+    const replaced = superseded.get(key);
+    superseded.delete(key);
+    committedDuringRebuild.set(key, collected);
+    try {
+      const snapshot = await loadSnapshot(key);
+      const stored = await loadEventsAfter(key, snapshot?.hlc ?? null);
+      const pending = [...collected.values()].filter((event) => !snapshot || compareHlc(event.hlc, snapshot.hlc) > 0);
+      if (projecting && rebuild(key, snapshot, [...stored, ...pending], replaced) && !holdChange()) emit(DATA_CHANGED, { rebuilt: key });
+    } finally {
+      committedDuringRebuild.delete(key);
+    }
+  }
 
   // Adding the same listener again is a no-op, so this is idempotent.
   function startProjecting() {
@@ -597,6 +677,7 @@ export function createReadModelProjector(ctx) {
     load, startProjecting, isProjecting, reset, addBoard, removeBoard,
     boards, board, globalSettings: loadGlobalSettings, timeTracking, cachedTasks, cacheTasks,
     setBoards, setBoardSlice, setGlobalSettings, writeBoardSettings, refreshBoardSettings,
-    classify, project, rebuild, snapshotToAdopt, foldOntoSnapshot, beginBatch, endBatch, beginCommit, endCommit, holdChange, holdStored, missedEvents
+    classify, project, missedEvents, beginBatch, endBatch, beginCommit, endCommit, holdChange, holdStored,
+    noteCommitted, foldOntoCoveringSnapshot, adoptSnapshot, rebuildAfterPeerAdoption, rebuildScope
   };
 }
