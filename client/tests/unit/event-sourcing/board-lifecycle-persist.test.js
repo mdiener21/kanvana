@@ -8,6 +8,7 @@ import {
   _resetStorageForTesting,
   _flushPersistsForTesting,
   createBoard,
+  deleteBoard,
   ensureBoardsInitialized,
   getActiveBoardId,
   listBoards,
@@ -16,7 +17,7 @@ import {
   loadSettingsForBoard,
   loadTasksForBoard
 } from '../../../src/modules/storage.js';
-import { schedulePersist } from '../../../src/modules/idb-store.js';
+import { KV_STORE, openStore, schedulePersist } from '../../../src/modules/idb-store.js';
 import { EVENT_ORIGIN, ingestEvent } from '../../../src/modules/event-sourcing/ingest.js';
 
 let consoleError;
@@ -93,4 +94,30 @@ test('a seeded default board whose save failed is stored whole by the next edit 
   await reload();
 
   expect(board(id)).toEqual(before);
+});
+
+test('creating or deleting a board stores the board list as listed, without a board deleted elsewhere', async () => {
+  ensureBoardsInitialized();
+  const gone = createBoard('Deleted on another device');
+  await ingestEvent({
+    id: crypto.randomUUID(),
+    type: 'board.deleted',
+    hlc: { wallTime: Date.now() + 1_000, counter: 0, nodeId: 'node-b' },
+    at: new Date().toISOString(),
+    actor: { type: 'human', id: null },
+    scope: 'board',
+    board_id: gone.id,
+    entity_id: gone.id,
+    payload: {}
+  }, { origin: EVENT_ORIGIN.REMOTE });
+  const storedIds = async () => {
+    await _flushPersistsForTesting();
+    return (await (await openStore()).get(KV_STORE, 'kanbanBoards')).map((item) => item.id);
+  };
+
+  const created = createBoard('Created');
+  expect(await storedIds()).toEqual(listBoards().map((item) => item.id));
+
+  deleteBoard(created.id);
+  expect(await storedIds()).toEqual(listBoards().map((item) => item.id));
 });

@@ -22,7 +22,8 @@ function createSuperseded() {
 }
 
 // What IDB stores per board. The board list is one key shared by every board, so it is tracked apart.
-const BOARD_SLICES = ['tasks', 'columns', 'labels', 'settings', 'taskTombstones', 'appliedEventIds'];
+const VIEW_SLICES = ['tasks', 'columns', 'labels', 'settings'];
+const BOARD_SLICES = [...VIEW_SLICES, 'taskTombstones', 'appliedEventIds'];
 
 function emptyState() {
   return {
@@ -249,9 +250,7 @@ export function createReadModelProjector(ctx) {
 
   // Forgets a board's state and deletes its stored slices.
   function dropBoard(boardId) {
-    for (const slot of [state.tasks, state.columns, state.labels, state.settings, state.taskTombstones, state.appliedEventIds, state.snapshotAppliedIds]) {
-      delete slot[boardId];
-    }
+    for (const slice of [...BOARD_SLICES, 'snapshotAppliedIds']) delete state[slice][boardId];
     taskCacheByBoard.delete(boardId);
     unsavedSlices.delete(boardId);
     BOARD_SLICES.forEach((slice) => deleteSlice(boardId, slice));
@@ -263,19 +262,19 @@ export function createReadModelProjector(ctx) {
   }
 
   // A board made without replaying events (created or seeded here) is stored like any projected change, so a failed save is retried.
-  function addBoard(newBoard, slices) {
-    state.boards = [...state.boards, newBoard];
+  function addBoard(boards, boardId, slices) {
+    state.boards = boards;
     boardsUnsaved = true;
-    for (const slice of ['tasks', 'columns', 'labels', 'settings']) {
-      state[slice][newBoard.id] = slices[slice];
-      markUnsaved(newBoard.id, slice);
+    for (const slice of VIEW_SLICES) {
+      state[slice][boardId] = slices[slice];
+      markUnsaved(boardId, slice);
     }
-    saveBoard(newBoard.id);
+    saveBoard(boardId);
   }
 
   // The board leaves the list before `announce` emits its board.deleted; projecting that writes its slices once more, so they go after.
-  function removeBoard(boardId, announce) {
-    state.boards = state.boards.filter((item) => item.id !== boardId);
+  function removeBoard(boardId, boards, announce) {
+    state.boards = boards;
     boardsUnsaved = true;
     persistBoards();
     announce();
@@ -424,7 +423,7 @@ export function createReadModelProjector(ctx) {
   function writeBoard(boardId, projected) {
     const tombstonesBefore = (safeParseArray(state.taskTombstones[boardId]) || []).length;
     const appliedBefore = (safeParseArray(state.appliedEventIds[boardId]) || []).length;
-    const changed = ['tasks', 'columns', 'labels', 'settings'].filter((slice) => projected[slice] !== state[slice][boardId]);
+    const changed = VIEW_SLICES.filter((slice) => projected[slice] !== state[slice][boardId]);
     if (projected.taskTombstones.size !== tombstonesBefore) changed.push('taskTombstones');
     const boardsChanged = projected.boards !== state.boards;
 
@@ -581,22 +580,21 @@ export function createReadModelProjector(ctx) {
     return newest;
   }
 
-  // Board settings live in the key-value store, the other slices in the read-model store.
   async function load() {
     const db = await openStore();
     state.boards = safeParseArray(await db.get(KV_STORE, boardsKey)) || [];
     state.globalSettings = normalizeGlobalSettings(await db.get(KV_STORE, globalSettingsKey));
     state.timeTracking = createTimeTrackingState(await db.get(KV_STORE, timeTrackingKey));
 
+    const loadSlice = (key, slice) => (slice === 'settings'
+      ? db.get(KV_STORE, keyFor(key, slice))
+      : db.get(READ_MODEL_STORE, readModelKeyFor(key, slice)));
     for (const board of state.boards) {
-      state.tasks[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'tasks'))) ?? null;
-      state.columns[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'columns'))) ?? null;
-      state.labels[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'labels'))) ?? null;
-      state.settings[board.id] = (await db.get(KV_STORE, keyFor(board.id, 'settings'))) ?? null;
-      state.taskTombstones[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'taskTombstones'))) ?? [];
+      for (const slice of VIEW_SLICES) state[slice][board.id] = (await loadSlice(board.id, slice)) ?? null;
+      state.taskTombstones[board.id] = (await loadSlice(board.id, 'taskTombstones')) ?? [];
     }
     for (const key of [...state.boards.map((board) => board.id), GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY]) {
-      state.appliedEventIds[key] = (await db.get(READ_MODEL_STORE, readModelKeyFor(key, 'appliedEventIds'))) ?? [];
+      state.appliedEventIds[key] = (await loadSlice(key, 'appliedEventIds')) ?? [];
       state.snapshotAppliedIds[key] = (await loadSnapshot(key))?.state.appliedEventIds ?? new Set();
     }
     state.newestAppliedHlc = await loadNewestAppliedHlc(db);
@@ -650,7 +648,7 @@ export function createReadModelProjector(ctx) {
 
   function writeBoardSettings(boardId, settings) {
     state.settings[boardId] = settings;
-    schedulePersist(keyFor(boardId, 'settings'), settings, () => markUnsaved(boardId, 'settings'));
+    schedulePersist(keyFor(boardId, 'settings'), settings);
   }
 
   // Another tab stored them (#222); this tab's old copy would undo them on its next board save. True when taken.

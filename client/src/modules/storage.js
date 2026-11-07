@@ -557,7 +557,7 @@ export function ensureBoardsInitialized() {
   const defaults = stableDefaultBoardData();
   if (defaultBoardDeferred) defaults.tasks = [];
   const board = { id: boardId, name: 'Default Board', createdAt: created };
-  readModel.addBoard(board, defaults);
+  readModel.addBoard([...boards, board], boardId, defaults);
   activeBoardId = boardId;
   schedulePersist(ACTIVE_BOARD_KEY, boardId);
   if (defaultBoardDeferred) return;
@@ -621,6 +621,7 @@ export function createBoard(name, initialData = {}) {
   ensureBoardsInitialized();
   const trimmed = typeof name === 'string' ? name.trim() : '';
   const boardName = trimmed || 'Untitled board';
+  const boards = listBoards();
   const id = generateUUID();
   const defaults = defaultBoardData(false);
   const data = {
@@ -630,7 +631,7 @@ export function createBoard(name, initialData = {}) {
     settings: { ...defaults.settings, ...initialData.settings }
   };
   const board = { id, name: boardName, createdAt: nowIso() };
-  readModel.addBoard(board, data);
+  readModel.addBoard([...boards, board], id, data);
 
   activeBoardId = id;
   schedulePersist(ACTIVE_BOARD_KEY, id);
@@ -684,7 +685,7 @@ export function deleteBoard(boardId) {
     schedulePersist(ACTIVE_BOARD_KEY, remaining[0].id);
   }
 
-  readModel.removeBoard(id, () => scheduleDomainEvent({
+  readModel.removeBoard(id, remaining, () => scheduleDomainEvent({
     type: 'board.deleted',
     boardId: id,
     entityId: id,
