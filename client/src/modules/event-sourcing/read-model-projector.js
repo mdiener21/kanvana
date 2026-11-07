@@ -79,12 +79,14 @@ export function createReadModelProjector(ctx) {
   ]);
 
   let disconnect = null;
-  // A remote catch-up batch keeps projecting in memory but saves each board it touched once, at its end (#237).
+  // The one copy of the scope state (#280). Each scope opens on its first begin and closes on its last end, however
+  // many callers nest or overlap. A remote catch-up batch keeps projecting in memory but saves each board it touched
+  // once, at its end (#237).
   let batch = null;
   // What changed in memory since it was last stored. A save writes these and nothing else.
   const unsavedSlices = new Map();
   let boardsUnsaved = false;
-  // A local commit scope (#142) projects each event at once and saves what they changed once, when it closes.
+  // A local commit scope (#142) projects each event at once; it saves, redraws and announces once, when it closes.
   let commit = null;
 
   function classify(event) {
@@ -117,15 +119,38 @@ export function createReadModelProjector(ctx) {
   }
 
   function beginCommit() {
-    commit = { boards: new Set(), boardless: new Map(), newestApplied: false };
+    commit ??= { depth: 0, boards: new Set(), boardless: new Map(), newestApplied: false, changed: false, stored: [] };
+    commit.depth += 1;
   }
 
-  function endCommit() {
+  // `onClosed` gets what the closing commit changed and stored, even if saving it throws.
+  function endCommit(onClosed) {
     if (!commit) return;
+    commit.depth -= 1;
+    if (commit.depth > 0) return;
     const closing = commit;
     commit = null;
-    closing.boardless.forEach(({ slot, viewChanged }, key) => persistBoardless(slot, key, viewChanged));
-    persistTouched(closing);
+    try {
+      closing.boardless.forEach(({ slot, viewChanged }, key) => persistBoardless(slot, key, viewChanged));
+      persistTouched(closing);
+    } finally {
+      onClosed?.({ changed: closing.changed, stored: closing.stored });
+    }
+  }
+
+  // True when an open scope takes the change, to signal it once when it closes; a batch takes only remote changes.
+  function holdChange({ local = false } = {}) {
+    if (commit) commit.changed = true;
+    else if (batch && !local) batch.changed = true;
+    else return false;
+    return true;
+  }
+
+  // True when an open commit takes the event, to announce it with the commit's others once stored.
+  function holdStored(persisted, eventId) {
+    if (!commit) return false;
+    commit.stored.push(persisted.then(() => eventId));
+    return true;
   }
 
   function persistTouched({ boards, newestApplied }) {
@@ -135,7 +160,8 @@ export function createReadModelProjector(ctx) {
   }
 
   function beginBatch() {
-    batch ??= { boards: new Set(), saved: new Set(), dropped: new Set(), newestApplied: false, pending: new Map(), changed: false };
+    batch ??= { depth: 0, boards: new Set(), saved: new Set(), dropped: new Set(), newestApplied: false, pending: new Map(), changed: false };
+    batch.depth += 1;
   }
 
   function persistBatch() {
@@ -146,9 +172,11 @@ export function createReadModelProjector(ctx) {
     batch.newestApplied = false;
   }
 
-  // Whether the batch changed anything a render would show; queued events only reveal that once applied.
+  // Whether the closing batch changed anything a render would show; queued events only reveal that once applied.
   function endBatch() {
     if (!batch) return false;
+    batch.depth -= 1;
+    if (batch.depth > 0) return false;
     persistBatch();
     const { saved, changed } = batch;
     batch = null;
@@ -448,7 +476,7 @@ export function createReadModelProjector(ctx) {
 
   function register() {
     if (disconnect) return;
-    disconnect = connectProjector({ classify, project, rebuild, snapshotToAdopt, foldOntoSnapshot, beginBatch, endBatch, beginCommit, endCommit, missedEvents });
+    disconnect = connectProjector({ classify, project, rebuild, snapshotToAdopt, foldOntoSnapshot, beginBatch, endBatch, beginCommit, endCommit, holdChange, holdStored, missedEvents });
     window.addEventListener('pagehide', persistBatchOnPageHide);
   }
 

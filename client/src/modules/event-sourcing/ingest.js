@@ -20,9 +20,6 @@ export function createSuperseded() {
   return { snapshots: [], events: [] };
 }
 const loggedDrops = new Set();
-let batchDepth = 0;
-let batchChanged = false;
-let commitScope = null;
 
 // Until the projector (ADR-0005) connects, events are only persisted, which is what boot-time backfill needs.
 export function connectProjector(next) {
@@ -41,23 +38,20 @@ export function ingestEvent(input, { origin = EVENT_ORIGIN.LOCAL, receivedAt } =
 }
 
 // One redraw and one write per slice for a user mutation (#142); synchronous, to stay in this tick's write batch (#256) and a drop's reconcile window.
+// The projector holds the scope state (#280); a nested commit joins the outer one, which alone closes it.
 export function commitTogether(mutation) {
-  if (commitScope) return mutation();
   const scopeProjector = projector;
-  const scope = { changed: false, stored: [] };
   scopeProjector?.beginCommit();
-  commitScope = scope;
   try {
     return mutation();
   } finally {
-    commitScope = null;
-    try {
-      scopeProjector?.endCommit();
-    } finally {
-      if (scope.changed) emit(DATA_CHANGED);
-      announceStored(scope.stored);
-    }
+    scopeProjector?.endCommit(closeCommit);
   }
+}
+
+function closeCommit({ changed, stored }) {
+  if (changed) emit(DATA_CHANGED);
+  announceStored(stored);
 }
 
 // One notice, so another tab folds the mutation as one and never shows half of it. A failed write was already logged.
@@ -94,21 +88,15 @@ export async function ingestRemoteBatch(items) {
   return fresh;
 }
 
-// The projector can reconnect while the batch awaits; the one that began the batch must end it.
+// The projector holds the batch (#280); the one that began it ends it, and says when the last overlapping batch closes.
 function beginRemoteBatch() {
   const batchProjector = projector;
   batchProjector?.beginBatch();
-  batchDepth += 1;
   return batchProjector;
 }
 
 function endRemoteBatch(batchProjector) {
-  if (batchProjector?.endBatch()) batchChanged = true;
-  batchDepth -= 1;
-  if (batchDepth === 0 && batchChanged) {
-    batchChanged = false;
-    emit(DATA_CHANGED, { batch: true });
-  }
+  if (batchProjector?.endBatch()) emit(DATA_CHANGED, { batch: true });
 }
 
 // Another tab stored these (#222); its read model is not copied, since it may lack this tab's newest edit.
@@ -145,8 +133,7 @@ async function foldStoredEvents(events) {
 }
 
 function signalChanged(detail) {
-  if (batchDepth > 0) batchChanged = true;
-  else emit(DATA_CHANGED, detail);
+  if (!projector?.holdChange()) emit(DATA_CHANGED, detail);
 }
 
 // The event store, unlike session memory, survives a reload (#178).
@@ -207,10 +194,8 @@ function commit(event, origin, { batched = false } = {}) {
   const order = projector?.classify(event);
   // A late local edit still shows at once; the rebuild then puts it in order.
   if (order !== EVENT_ORDER.LATE || origin === EVENT_ORIGIN.LOCAL) {
-    if (projector?.project(event, { batched })) {
-      if (commitScope) commitScope.changed = true;
-      else if (origin === EVENT_ORIGIN.LOCAL) emit(DATA_CHANGED, { event });
-      else signalChanged({ event });
+    if (projector?.project(event, { batched }) && !projector.holdChange({ local: origin === EVENT_ORIGIN.LOCAL })) {
+      emit(DATA_CHANGED, { event });
     }
   }
   emit(EVENT_EMITTED, event);
@@ -218,15 +203,15 @@ function commit(event, origin, { batched = false } = {}) {
   if (!getDbRef()) return Promise.resolve();
 
   unpersisted.set(event.id, event);
-  const scope = commitScope;
+  let heldByCommit = false;
   const persisted = persistEvent({ ...event, synced: origin === EVENT_ORIGIN.REMOTE })
     .then(() => flushPendingPersists())
     .then(() => {
       // Other tabs and the queue read the store, so they may only hear of an event once it is there.
-      if (!batched && !scope) emit(EVENTS_STORED, { ids: [event.id], local: origin === EVENT_ORIGIN.LOCAL });
+      if (!batched && !heldByCommit) emit(EVENTS_STORED, { ids: [event.id], local: origin === EVENT_ORIGIN.LOCAL });
     })
     .finally(() => unpersisted.delete(event.id));
-  scope?.stored.push(persisted.then(() => event.id));
+  heldByCommit = Boolean(projector?.holdStored(persisted, event.id));
   return order === EVENT_ORDER.LATE ? persisted.then(() => rebuildScope(key)) : persisted;
 }
 
