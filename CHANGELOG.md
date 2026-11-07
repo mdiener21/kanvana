@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.10] - 2026-11-07
+
 ### Changed
 
 - Moving a task now records and syncs only the columns the move touches instead of the whole board, so a move on a 1,000-task board syncs about 1.5 KB instead of about 107 KB. Devices on an older version keep working, and boards converge whichever kind of move arrives first (#140).
