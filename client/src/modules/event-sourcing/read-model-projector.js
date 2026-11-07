@@ -1,25 +1,43 @@
 import { applyEvent, applyEvents, createProjectionState, createTimeTrackingState } from '../reducer.js';
-import { keyFor } from '../idb-store.js';
-import { scopeForSnapshotKey, snapshotKeyForEvent } from './snapshot.js';
+import { EVENTS_STORE, KV_STORE, READ_MODEL_STORE, SNAPSHOTS_STORE, keyFor, openStore, readModelKeyFor, writeIfDataCurrent } from '../idb-store.js';
+import { GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY, loadSnapshot, scopeForSnapshotKey, snapshotKeyForEvent } from './snapshot.js';
 import { EVENT_SCOPE } from '../constants.js';
 import { EVENT_ORDER, connectProjector, createSuperseded } from './ingest.js';
 import { compareHlc, laterHlc } from './hlc.js';
+import { safeParseArray, safeParseObject } from '../utils.js';
 
-// Sole writer of the IDB read model (ADR-0005). Extracted from storage.js so the
-// projection layer owns the read model independent of CRUD. storage.js wires the
-// closure `state` + schedulers in via createReadModelProjector(); the reducer
-// (applyEvent/createProjectionState) stays pure and is imported directly.
+// The Read Model: sole writer of the IDB read model (ADR-0005). It owns the in-memory
+// state, loads it from IDB and answers reads; storage.js hands it only schedulers and keys.
+// The reducer (applyEvent/createProjectionState) stays pure and is imported directly.
 
 // What IDB stores per board. The board list is one key shared by every board, so it is tracked apart.
 const BOARD_SLICES = ['tasks', 'columns', 'labels', 'settings', 'taskTombstones', 'appliedEventIds'];
 
+const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
+
+export function normalizeGlobalSettings(raw) {
+  if (!isPlainObject(raw)) return {};
+  return isPlainObject(raw.timeTracking) ? { timeTracking: { ...raw.timeTracking } } : {};
+}
+
+function emptyState() {
+  return {
+    boards: [],
+    tasks: {},    // { [boardId]: task[] | null }
+    columns: {},  // { [boardId]: column[] | null }
+    labels: {},   // { [boardId]: label[] | null }
+    settings: {},  // { [boardId]: object | null }
+    taskTombstones: {},  // { [boardId]: taskId[] } — task delete records (#178)
+    appliedEventIds: {},  // { [boardId]: eventId[] } — applied ids not yet held by a snapshot (#178)
+    snapshotAppliedIds: {},  // { [boardId]: Set<eventId> } — applied ids held by the board's latest snapshot
+    newestAppliedHlc: {},  // { [scopeKey]: hlc } — newest event folded into each key's view (#179)
+    globalSettings: null,
+    timeTracking: null
+  };
+}
+
 export function createReadModelProjector(ctx) {
   const {
-    state,
-    taskCacheByBoard,
-    loadGlobalSettings,
-    safeParseArray,
-    safeParseObject,
     demoTasksForReplay,
     withoutUnheldDemoTasks,
     schedulePersist,
@@ -30,6 +48,15 @@ export function createReadModelProjector(ctx) {
     timeTrackingKey,
     newestAppliedKey
   } = ctx;
+
+  let state = emptyState();
+  // Per-board default-task cache (keeps defaults stable within a session).
+  const taskCacheByBoard = new Map();
+
+  function loadGlobalSettings() {
+    const parsed = safeParseObject(state.globalSettings);
+    return parsed ? normalizeGlobalSettings(parsed) : {};
+  }
 
   // With `live`, global settings (merged field by field) keep live fields under the snapshot's.
   const boardlessSlots = new Map([
@@ -186,7 +213,12 @@ export function createReadModelProjector(ctx) {
     if (batch) [...batch.pending.keys()].forEach(applyPending);
   }
 
+  // Forgets a deleted board's state; storage deletes its stored slices.
   function dropBoard(boardId) {
+    for (const slot of [state.tasks, state.columns, state.labels, state.settings, state.taskTombstones, state.appliedEventIds, state.snapshotAppliedIds]) {
+      delete slot[boardId];
+    }
+    taskCacheByBoard.delete(boardId);
     unsavedSlices.delete(boardId);
     if (!batch) return;
     batch.pending.delete(boardId);
@@ -391,7 +423,89 @@ export function createReadModelProjector(ctx) {
     window.addEventListener('pagehide', persistBatchOnPageHide);
   }
 
+  // Devices from before #179 never recorded it, so it is derived once from the stored events and snapshots.
+  async function loadNewestAppliedHlc(db) {
+    const stored = safeParseObject(await db.get(KV_STORE, newestAppliedKey));
+    if (stored) return { ...stored };
+
+    const newest = {};
+    const note = (key, hlc) => {
+      if (key && hlc) newest[key] = laterHlc(newest[key], hlc);
+    };
+    for (const event of await db.getAll(EVENTS_STORE)) note(snapshotKeyForEvent(event), event.hlc);
+    for (const key of await db.getAllKeys(SNAPSHOTS_STORE)) note(key, (await db.get(SNAPSHOTS_STORE, key))?.hlc);
+    await writeIfDataCurrent(KV_STORE, (store) => store.put(newest, newestAppliedKey));
+    return newest;
+  }
+
+  // Board settings live in the key-value store, the other slices in the read-model store.
+  async function load() {
+    const db = await openStore();
+    state.boards = safeParseArray(await db.get(KV_STORE, boardsKey)) || [];
+    state.globalSettings = normalizeGlobalSettings(await db.get(KV_STORE, globalSettingsKey));
+    state.timeTracking = createTimeTrackingState(await db.get(KV_STORE, timeTrackingKey));
+
+    for (const board of state.boards) {
+      state.tasks[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'tasks'))) ?? null;
+      state.columns[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'columns'))) ?? null;
+      state.labels[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'labels'))) ?? null;
+      state.settings[board.id] = (await db.get(KV_STORE, keyFor(board.id, 'settings'))) ?? null;
+      state.taskTombstones[board.id] = (await db.get(READ_MODEL_STORE, readModelKeyFor(board.id, 'taskTombstones'))) ?? [];
+    }
+    for (const key of [...state.boards.map((board) => board.id), GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY]) {
+      state.appliedEventIds[key] = (await db.get(READ_MODEL_STORE, readModelKeyFor(key, 'appliedEventIds'))) ?? [];
+      state.snapshotAppliedIds[key] = (await loadSnapshot(key))?.state.appliedEventIds ?? new Set();
+    }
+    state.newestAppliedHlc = await loadNewestAppliedHlc(db);
+  }
+
+  // ── Reads: queued catch-up events are applied first, so a read never sees a stale board.
+
+  function boards() {
+    applyAllPending();
+    return state.boards;
+  }
+
+  // Each slice parsed, or null when the board has never stored it.
+  function board(boardId) {
+    applyAllPending();
+    return {
+      tasks: safeParseArray(state.tasks[boardId]),
+      columns: safeParseArray(state.columns[boardId]),
+      labels: safeParseArray(state.labels[boardId]),
+      settings: safeParseObject(state.settings[boardId])
+    };
+  }
+
+  function timeTracking() {
+    return createTimeTrackingState(state.timeTracking);
+  }
+
+  function cachedTasks(boardId) {
+    return taskCacheByBoard.get(boardId);
+  }
+
+  function cacheTasks(boardId, tasks) {
+    taskCacheByBoard.set(boardId, tasks);
+  }
+
+  // ── Writes storage still makes without an event; #278 and #279 route them through events/the Read Model.
+
+  function setBoards(next) {
+    state.boards = next;
+  }
+
+  function setBoardSlice(boardId, slice, value) {
+    state[slice][boardId] = value;
+  }
+
+  function setGlobalSettings(value) {
+    state.globalSettings = value;
+  }
+
   function reset() {
+    state = emptyState();
+    taskCacheByBoard.clear();
     batch = null;
     commit = null;
     unsavedSlices.clear();
@@ -401,5 +515,9 @@ export function createReadModelProjector(ctx) {
     disconnect = null;
   }
 
-  return { register, reset, applyAllPending, dropBoard };
+  return {
+    load, register, reset, applyAllPending, dropBoard,
+    boards, board, globalSettings: loadGlobalSettings, timeTracking, cachedTasks, cacheTasks,
+    setBoards, setBoardSlice, setGlobalSettings
+  };
 }

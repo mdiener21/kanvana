@@ -129,8 +129,8 @@ The storage layer is split into three modules:
 |---|---|
 | `idb-store.js` | IDB connection singleton, key helpers, fire-and-forget `schedulePersist()` / `scheduleReadModelPersist()` / `scheduleDelete()`, event helpers (`persistEvent`, `getUnsyncedEvents`, `markEventSynced`), and the Data Owner record (`getDataOwner`, `claimDataOwner`, `replaceLocalData`) |
 | `board-serializer.js` | Board import normalizer — remaps non-UUID IDs, coerces fields on import or IDB migration |
-| `storage.js` | In-memory `state` + all public CRUD functions. Imports from both above. Owns `state`/schedulers; wires them into the read-model projector. |
-| `event-sourcing/read-model-projector.js` | `createReadModelProjector()` — the read-model projection host, extracted from `storage.js` ([#119](docs/adr/0005-reducer-sole-read-model-writer.md)). Connects to the ingest interface on `register()` and folds each ingested domain event into the injected `state` via the pure reducer (the sole writer). |
+| `storage.js` | All public CRUD functions. Imports from both above. Hands the Read Model its schedulers and storage keys, and reads boards through its `board(id)` / `boards()` calls. |
+| `event-sourcing/read-model-projector.js` | `createReadModelProjector()` — the Read Model, extracted from `storage.js` ([#119](docs/adr/0005-reducer-sole-read-model-writer.md)). Owns the in-memory `state` and per-board task cache, loads them from IDB (`load()`), and answers reads (`board(id)` → tasks, columns, labels, settings). Connects to the ingest interface on `register()` and folds each ingested domain event into its `state` via the pure reducer (the sole writer). |
 
 **Main `kv` keys:**
 
