@@ -315,6 +315,24 @@ describe('createReadModelProjector', () => {
 
       expect(persistCalls(h)).toEqual(['columns', 'tasks', ...MEMORY].sort());
     });
+
+    test('a catch-up batch touching several boards saves each once and schedules one snapshot check per board, at its end', async () => {
+      const at = (n) => ({ wallTime: 1000 + n, counter: 0, nodeId: 'node-a' });
+      const otherBoard = (n, overrides) => ({ ...boardEvent({ hlc: at(n), ...overrides }), board_id: 'board-b' });
+      await ingestRemoteBatch([
+        { event: boardEvent({ id: 'a-1', hlc: at(1), payload: { fields: { title: 'A1' } } }) },
+        { event: otherBoard(2, { id: 'b-1', type: 'board.created', entity_id: 'board-b', payload: { board: { name: 'B' } } }) },
+        { event: otherBoard(3, { id: 'b-2', type: 'task.created', entity_id: 'task-b', payload: { task: { title: 'B1', column: 'todo' } } }) },
+        { event: boardEvent({ id: 'a-2', hlc: at(4), payload: { fields: { title: 'A2' } } }) },
+        { event: otherBoard(5, { id: 'b-3', type: 'task.updated', entity_id: 'task-b', payload: { fields: { title: 'B2' } } }) }
+      ]);
+
+      const writesFor = (boardId) => h.ctx.scheduleReadModelPersist.mock.calls.filter(([key]) => key === boardId).map(([, slice]) => slice).sort();
+      expect(writesFor(BOARD_ID)).toEqual(['appliedEventIds', 'tasks']);
+      expect(writesFor('board-b')).toEqual(['appliedEventIds', 'columns', 'labels', 'tasks']);
+      expect(h.ctx.checkAndScheduleSnapshot.mock.calls.map(([key]) => key).sort()).toEqual([BOARD_ID, 'board-b']);
+      expect(h.readModel.board('board-b').tasks.map((task) => task.title)).toEqual(['B2']);
+    });
   });
 
   describe('a reducer no-op', () => {
