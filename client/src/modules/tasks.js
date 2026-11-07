@@ -2,11 +2,13 @@ import { byOrder, generateUUID } from './utils.js';
 import { getActiveBoardId, isDoneColumnId, loadColumns, loadLabels, loadSettings, loadTasks } from './storage.js';
 import { applySwimLaneAssignment } from './swimlanes.js';
 import { normalizePriority, normalizeRelationships, normalizeSubTasks } from './normalize.js';
-import { scheduleDomainEvent } from './event-sourcing/emitter.js';
+import { commitTogether, scheduleDomainEvent } from './event-sourcing/emitter.js';
 import { PRIORITY_ORDER } from './constants.js';
+import { $id, $$ } from './dom.js';
 
 const RELATIONSHIP_INVERSE = { prerequisite: 'dependent', dependent: 'prerequisite', related: 'related' };
 
+// Only the affected columns: the reducer also replays the full-board order in old logs and from old devices.
 function emitTaskMoved(boardId, entityId, fromColumn, toColumn, tasks) {
   scheduleDomainEvent({
     type: 'task.moved',
@@ -114,6 +116,10 @@ function syncRelationshipInverses(tasks, taskId, oldRelationships, newRelationsh
 
 // Add a new task
 export function addTask(title, description, priority, dueDate, columnName, labels = [], relationships = [], subTasks = []) {
+  commitTogether(() => emitNewTask(title, description, priority, dueDate, columnName, labels, relationships, subTasks));
+}
+
+function emitNewTask(title, description, priority, dueDate, columnName, labels, relationships, subTasks) {
   if (!title || title.trim() === '') return;
 
   const tasks = loadTasks();
@@ -172,6 +178,10 @@ export function addTask(title, description, priority, dueDate, columnName, label
 
 // Update an existing task
 export function updateTask(taskId, title, description, priority, dueDate, columnName, labels = [], relationships = [], subTasks = []) {
+  commitTogether(() => emitTaskEdit(taskId, title, description, priority, dueDate, columnName, labels, relationships, subTasks));
+}
+
+function emitTaskEdit(taskId, title, description, priority, dueDate, columnName, labels, relationships, subTasks) {
   if (!title || title.trim() === '') return;
   
   const tasks = loadTasks();
@@ -251,7 +261,8 @@ export function updateTask(taskId, title, description, priority, dueDate, column
       });
     }
     if (prevColumn !== nextColumn) {
-      emitTaskMoved(boardId, taskId, prevColumn, nextColumn, tasks);
+      const placed = reorderColumnTasks(tasks, nextColumn, taskId);
+      emitTaskMoved(boardId, taskId, prevColumn, nextColumn, placed.filter((task) => task.column === prevColumn || task.column === nextColumn));
     }
     nextLabels
       .filter((labelId) => !previousLabels.includes(labelId))
@@ -364,46 +375,66 @@ function getLaneKey(node) {
   return node?.closest?.('[data-lane-key]')?.dataset?.laneKey || '';
 }
 
-function buildOrderByColumnFromDom() {
-  const boardContainer = document.getElementById('board-container');
-  const isSwimlaneView = boardContainer?.dataset?.viewMode === 'swimlanes';
-  const orderByColumn = new Map();
+// Swimlane cells come back in row order, so a column reads as its lanes top to bottom.
+function readVisibleTaskIds(columnIds) {
+  const isSwimlaneView = $id('board-container')?.dataset?.viewMode === 'swimlanes';
+  const containerSelector = isSwimlaneView ? '.swimlane-cell[data-column]' : '.task-column[data-column]';
+  const visibleByColumn = new Map([...columnIds].map((columnId) => [columnId, []]));
 
-  if (!isSwimlaneView) {
-    document.querySelectorAll('.task-column[data-column]').forEach((columnEl) => {
-      const columnId = columnEl.dataset.column;
-      if (!columnId) return;
-      const order = [];
-      columnEl.querySelectorAll('.task').forEach((el, idx) => {
-        const taskId = el.dataset.taskId;
-        if (!taskId) return;
-        order.push({ id: taskId, order: idx + 1 });
-      });
-      orderByColumn.set(columnId, order);
-    });
-    return orderByColumn;
-  }
-
-  const flattenedByColumn = new Map();
-  document.querySelectorAll('.swimlane-row').forEach((rowEl) => {
-    rowEl.querySelectorAll('.swimlane-cell[data-column]').forEach((cellEl) => {
-      const columnId = cellEl.dataset.column;
-      if (!columnId) return;
-      if (!flattenedByColumn.has(columnId)) {
-        flattenedByColumn.set(columnId, []);
-      }
-      cellEl.querySelectorAll('.task').forEach((taskEl) => {
-        const taskId = taskEl.dataset.taskId;
-        if (taskId) flattenedByColumn.get(columnId).push(taskId);
-      });
+  $$(containerSelector).forEach((containerEl) => {
+    const visibleIds = visibleByColumn.get(containerEl.dataset.column);
+    if (!visibleIds) return;
+    $$('.task', containerEl).forEach((taskEl) => {
+      if (taskEl.dataset.taskId) visibleIds.push(taskEl.dataset.taskId);
     });
   });
+  return visibleByColumn;
+}
 
-  flattenedByColumn.forEach((taskIds, columnId) => {
-    orderByColumn.set(columnId, taskIds.map((id, index) => ({ id, order: index + 1 })));
+// Cards the DOM does not show (Done past its cut-off, filtered, collapsed) keep their place behind the card they followed.
+function mergeColumnOrder(tasks, columnId, visibleIds, movedTaskId) {
+  const remaining = tasks
+    .filter((task) => task.column === columnId && task.id !== movedTaskId)
+    .sort(byOrder);
+  const remainingIds = new Set(remaining.map((task) => task.id));
+  const visible = visibleIds.filter((id) => id === movedTaskId || remainingIds.has(id));
+  const visibleSet = new Set(visible);
+
+  const followers = new Map();
+  let anchorId = null;
+  remaining.forEach((task) => {
+    if (visibleSet.has(task.id)) {
+      anchorId = task.id;
+      return;
+    }
+    if (!followers.has(anchorId)) followers.set(anchorId, []);
+    followers.get(anchorId).push(task.id);
   });
 
-  return orderByColumn;
+  const merged = [];
+  const leading = followers.get(null) || [];
+  let leadingPlaced = false;
+  visible.forEach((id) => {
+    if (id !== movedTaskId && !leadingPlaced) {
+      merged.push(...leading);
+      leadingPlaced = true;
+    }
+    merged.push(id, ...(followers.get(id) || []));
+  });
+  if (!leadingPlaced) merged.push(...leading);
+  return merged;
+}
+
+function buildOrderFromDrop(tasks, fromColumn, toColumn, movedTaskId) {
+  const visibleByColumn = readVisibleTaskIds(new Set([fromColumn, toColumn]));
+  const toVisible = visibleByColumn.get(toColumn);
+  if (!toVisible.includes(movedTaskId)) toVisible.unshift(movedTaskId);
+
+  const orderById = new Map();
+  visibleByColumn.forEach((visibleIds, columnId) => {
+    mergeColumnOrder(tasks, columnId, visibleIds, movedTaskId).forEach((id, index) => orderById.set(id, index + 1));
+  });
+  return orderById;
 }
 
 /**
@@ -439,8 +470,7 @@ export function updateTaskPositionsFromDrop(evt) {
 
   const movedTask = tasks[movedTaskIndex];
 
-  const affectedColumns = new Set([fromColumn, toColumn]);
-  const orderByColumn = buildOrderByColumnFromDom();
+  const orderById = buildOrderFromDrop(tasks, fromColumn, toColumn, movedTaskId);
 
   // Update tasks
   const updatedTasks = tasks.map(task => {
@@ -455,12 +485,7 @@ export function updateTaskPositionsFromDrop(evt) {
         nextTask = applySwimLaneAssignment(nextTask, settings.swimLaneGroupBy, toLaneKey, labels, settings.swimLaneLabelGroup);
       }
 
-      // Update order
-      const toOrder = orderByColumn.get(toColumn);
-      const orderEntry = toOrder?.find(o => o.id === movedTaskId);
-      if (orderEntry) {
-        nextTask.order = orderEntry.order;
-      }
+      nextTask.order = orderById.get(movedTaskId);
 
       // Only update history/dates if column changed
       if (didChangeColumn || (isSwimlaneView && didChangeLane)) {
@@ -487,15 +512,10 @@ export function updateTaskPositionsFromDrop(evt) {
     }
 
     // Update order for other tasks in affected columns
-    if (affectedColumns.has(task.column)) {
-      const columnOrder = orderByColumn.get(task.column);
-      const orderEntry = columnOrder?.find(o => o.id === task.id);
-      if (orderEntry && orderEntry.order !== task.order) {
-        return { ...task, order: orderEntry.order };
-      }
-    }
-
-    return task;
+    const nextOrder = orderById.get(task.id);
+    return typeof nextOrder === 'number' && nextOrder !== task.order
+      ? { ...task, order: nextOrder }
+      : task;
   });
 
   const finalTasks = isDoneColumnId(toColumn)
@@ -503,7 +523,7 @@ export function updateTaskPositionsFromDrop(evt) {
     : updatedTasks;
 
   const dropBoardId = getActiveBoardId();
-  emitTaskMoved(dropBoardId, movedTaskId, fromColumn, toColumn, finalTasks);
+  emitTaskMoved(dropBoardId, movedTaskId, fromColumn, toColumn, finalTasks.filter((task) => orderById.has(task.id)));
 
   // A swimlane drag reassigns the moved task's lane-defining fields (labels,
   // priority, swimlane markers). task.moved only carries column/order, so emit
@@ -524,6 +544,8 @@ export function updateTaskPositionsFromDrop(evt) {
       fields.swimlaneLabelGroup = movedFinal.swimlaneLabelGroup || '';
     }
     if (Object.keys(fields).length > 0) {
+      // The reducer stamps a column change itself; a lane change is only this event.
+      if (!didChangeColumn) fields.changeDate = nowIso;
       scheduleDomainEvent({ type: 'task.updated', boardId: dropBoardId, entityId: movedTaskId, payload: { fields } });
     }
   }
@@ -548,7 +570,7 @@ export function moveTaskToTopInColumn(taskId, columnId, tasksCache) {
   const didUpdate = updatedTasks.some((task, index) => task !== tasks[index]);
 
   if (didUpdate) {
-    emitTaskMoved(getActiveBoardId(), taskId, columnId, columnId, updatedTasks);
+    emitTaskMoved(getActiveBoardId(), taskId, columnId, columnId, updatedTasks.filter((task) => task.column === columnId));
     return updatedTasks;
   }
   return tasks;

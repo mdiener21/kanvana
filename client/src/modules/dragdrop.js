@@ -1,8 +1,9 @@
 import Sortable from 'sortablejs';
 import { moveTaskToTopInColumn, updateTaskPositionsFromDrop } from './tasks.js';
 import { updateColumnPositions } from './columns.js';
-import { emit, DATA_CHANGED, DRAG_RECONCILE_BEGIN, DRAG_RECONCILE_END } from './events.js';
+import { emit, DRAG_RECONCILE_BEGIN, DRAG_RECONCILE_END } from './events.js';
 import { isDoneColumnId } from './storage.js';
+import { commitTogether } from './event-sourcing/emitter.js';
 
 // Store Sortable instances for cleanup
 let taskSortables = [];
@@ -27,6 +28,15 @@ export function initDragDrop() {
   destroySortables();
   initTaskSortables();
   initColumnSortable();
+}
+
+// Only instances whose list left the board: a drop reconciles in place and never reinitializes drag and drop.
+export function pruneDetachedTaskSortables() {
+  taskSortables = taskSortables.filter((sortable) => {
+    if (sortable.el?.isConnected) return true;
+    sortable.destroy();
+    return false;
+  });
 }
 
 // Clean up existing sortable instances
@@ -261,51 +271,31 @@ function initTaskSortables() {
         }
       },
       
-      onEnd: async function(evt) {
-        const restoreCollapsedDropZones = !isSwimlaneViewEnabled();
-        cleanupTaskDragState({ restoreCollapsedDropZones });
-
+      onEnd: function(evt) {
         const isSwimlaneView = isSwimlaneViewEnabled();
+        cleanupTaskDragState({ restoreCollapsedDropZones: !isSwimlaneView });
 
-        // Let Sortable finish its drop cleanup before a swimlane rebuild
-        // destroys its instances. Standard boards reconcile in place.
-        if (isSwimlaneView) {
-          await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
-        }
-
-        // Open a reconcile window for the whole mutation. Every DATA_CHANGED that
-        // updateTaskPositionsFromDrop()/moveTaskToTopInColumn() emit synchronously
-        // is routed through reconcileBoard() (patch in place) instead of
-        // renderBoard() (full teardown), so the just-dragged node is never
-        // detached. Counters, collapsed titles, due dates, and notifications are
-        // reconcile's responsibility now — no manual sync pass here.
-        const renderModule = isSwimlaneView ? await import('./render.js') : null;
-        if (renderModule) renderModule.beginDragReconcile();
-        else emit(DRAG_RECONCILE_BEGIN);
+        // The commit's one DATA_CHANGED reconciles in this window, so the dragged node is never detached.
+        emit(DRAG_RECONCILE_BEGIN, evt.item);
         try {
-          const dropResult = updateTaskPositionsFromDrop(evt);
-          if (!dropResult) return;
+          commitTogether(() => {
+            const dropResult = updateTaskPositionsFromDrop(evt);
+            if (!dropResult) return;
 
-          const toColumnEl = getTaskContainerElement(evt.to);
+            const toColumnEl = getTaskContainerElement(evt.to);
 
-          if (!isSwimlaneView && toColumnEl?.classList.contains('is-collapsed')) {
-            // Keep collapsed drops state-only so Sortable's detached drag node is
-            // never re-parented here; reconcile repaints from state.
-            moveTaskToTopInColumn(dropResult.movedTaskId, dropResult.toColumn);
-          }
-
-          if (isSwimlaneView && (dropResult.didChangeColumn || dropResult.didChangeLane)) {
-            // Swimlane boards fall outside reconcile's scope; the emitted
-            // DATA_CHANGED falls back to a full renderBoard() rebuild.
-            emit(DATA_CHANGED);
-          }
+            if (!isSwimlaneView && toColumnEl?.classList.contains('is-collapsed')) {
+              // Keep collapsed drops state-only so Sortable's detached drag node is
+              // never re-parented here; reconcile repaints from state.
+              moveTaskToTopInColumn(dropResult.movedTaskId, dropResult.toColumn);
+            }
+          });
         } finally {
-          if (renderModule) renderModule.endDragReconcile();
-          else emit(DRAG_RECONCILE_END);
+          emit(DRAG_RECONCILE_END);
         }
       }
     });
-    
+
     taskSortables.push(sortable);
   });
 }

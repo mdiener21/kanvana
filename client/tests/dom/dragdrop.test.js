@@ -7,8 +7,6 @@ const mocks = vi.hoisted(() => ({
   moveTaskToTopInColumn: vi.fn(),
   isDoneColumnId: vi.fn((columnId) => columnId === 'done'),
   loadTasks: vi.fn(() => []),
-  beginDragReconcile: vi.fn(),
-  endDragReconcile: vi.fn(),
 }));
 
 vi.mock('sortablejs', () => ({
@@ -34,14 +32,13 @@ vi.mock('../../src/modules/events.js', () => ({
   emit: vi.fn(),
 }));
 
+vi.mock('../../src/modules/event-sourcing/emitter.js', () => ({
+  commitTogether: (mutation) => mutation(),
+}));
+
 vi.mock('../../src/modules/storage.js', () => ({
   isDoneColumnId: mocks.isDoneColumnId,
   loadTasks: mocks.loadTasks,
-}));
-
-vi.mock('../../src/modules/render.js', () => ({
-  beginDragReconcile: mocks.beginDragReconcile,
-  endDragReconcile: mocks.endDragReconcile,
 }));
 
 function mountBoard({ targetColumn = 'done', collapsed = false } = {}) {
@@ -87,8 +84,6 @@ beforeEach(() => {
   mocks.moveTaskToTopInColumn.mockReset();
   mocks.isDoneColumnId.mockClear();
   mocks.loadTasks.mockClear();
-  mocks.beginDragReconcile.mockClear();
-  mocks.endDragReconcile.mockClear();
 });
 
 afterEach(() => {

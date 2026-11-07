@@ -77,6 +77,20 @@ divergence bug surfaces. Rejected: leaves ADR-0004's headline invariant false, k
   to the HLC-ordered result).
 - **`CONTEXT.md` §3 is updated** to describe a single write path once this lands.
 
+## Amendment: commit scopes and selective persistence (#141, #142)
+
+- **Same reference means nothing to store.** Reducer handlers keep the reference of a slice an event
+  leaves alone, and the projector writes only the slices whose reference changed, plus the event
+  memory (`appliedEventIds`, the newest applied HLC). A rebuild stores the whole board.
+- **Commit scopes.** `commitTogether(mutation)` is the one synchronous scope for a user mutation that
+  emits several events. Each event still projects at once and in order; when the outermost scope closes,
+  the board redraws once and each changed slice is stored once. A nested scope joins the outer one.
+- **Slices are separate writes but do not fail independently.** Everything written in one tick shares
+  one IndexedDB transaction with its events (#256), so one failed write fails the whole batch. The
+  projector marks every slice of a failed batch unsaved again, and the next save of that board stores
+  it. Events of a failed batch are not retried, so such an edit survives a reload on this device but
+  never syncs.
+
 ## References
 
 - ADR-0004: `docs/adr/0004-event-sourced-sync.md`

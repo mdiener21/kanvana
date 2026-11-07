@@ -21,6 +21,8 @@ let _starting = null;
 let _catchingUp = null;
 let _onConnect = null;
 let _pullGeneration = 0;
+let _arrivals = [];
+let _applyingArrivals = false;
 
 function recordToEvent(r) {
   return {
@@ -45,8 +47,32 @@ async function setLastSeen(key, hlc) {
   await writeIfDataCurrent(KV_STORE, (store) => store.put(hlc, LAST_SEEN_PREFIX + key));
 }
 
-export async function applyRemoteEvent(record) {
-  await ingestEvent(recordToEvent(record), { origin: EVENT_ORIGIN.REMOTE, receivedAt: record.created });
+// Messages landing while earlier ones are being stored join one batch, so a burst does not redraw per event (#142).
+export function applyRemoteEvent(record) {
+  return new Promise((resolve, reject) => {
+    _arrivals.push({ record, resolve, reject });
+    applyArrivals();
+  });
+}
+
+async function applyArrivals() {
+  if (_applyingArrivals) return;
+  _applyingArrivals = true;
+  while (_arrivals.length) {
+    const burst = _arrivals;
+    _arrivals = [];
+    try {
+      if (burst.length === 1) {
+        await ingestEvent(recordToEvent(burst[0].record), { origin: EVENT_ORIGIN.REMOTE, receivedAt: burst[0].record.created });
+      } else {
+        await ingestRemoteBatch(burst.map(({ record }) => ({ event: recordToEvent(record), receivedAt: record.created })));
+      }
+      burst.forEach(({ resolve }) => resolve());
+    } catch (err) {
+      burst.forEach(({ reject }) => reject(err));
+    }
+  }
+  _applyingArrivals = false;
 }
 
 // `onConnect` fires on every SSE connect, the initial one and each automatic reconnect.

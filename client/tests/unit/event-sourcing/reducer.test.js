@@ -1,4 +1,4 @@
-import { expect, test, vi } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { applyEvent, applyEvents, createProjectionState } from '../../../src/modules/reducer.js';
 
 function event(overrides) {
@@ -101,6 +101,126 @@ test('task.moved updates column order and columnHistory', () => {
     ]
   });
   expect(moved.tasks.find((task) => task.id === 'task-b')).toMatchObject({ column: 'doing', order: 2 });
+});
+
+test('task.moved stamps changeDate on the moved task only when its column changes', () => {
+  const OLD = '2026-05-20T00:00:00.000Z';
+  const AT = '2026-05-26T00:00:00.000Z';
+  const state = createProjectionState({
+    tasks: [
+      { id: 'task-a', column: 'todo', order: 1, changeDate: OLD },
+      { id: 'task-b', column: 'doing', order: 1, changeDate: OLD }
+    ]
+  });
+  const across = { from_column: 'todo', to_column: 'doing', order: [{ id: 'task-a', column: 'doing', order: 1 }, { id: 'task-b', column: 'doing', order: 2 }] };
+  const moved = applyEvent(state, event({ id: 'across', type: 'task.moved', at: AT, payload: across }));
+  expect(moved.tasks.find((task) => task.id === 'task-a').changeDate).toBe(AT);
+  expect(moved.tasks.find((task) => task.id === 'task-b').changeDate).toBe(OLD);
+
+  const within = { from_column: 'todo', to_column: 'todo', order: [{ id: 'task-a', column: 'todo', order: 5 }] };
+  const reordered = applyEvent(state, event({ id: 'within', type: 'task.moved', at: AT, payload: within }));
+  expect(reordered.tasks.find((task) => task.id === 'task-a').changeDate).toBe(OLD);
+});
+
+describe('task.moved payload shapes', () => {
+  const DONE = { id: 'done', name: 'Done', order: 3, role: 'done' };
+  const SEED = {
+    columns: [{ id: 'todo', name: 'To Do', order: 1 }, { id: 'doing', name: 'Doing', order: 2 }, DONE],
+    tasks: [
+      { id: 'a', column: 'todo', order: 1, swimlaneLabelId: 'lane-1', columnHistory: [{ column: 'todo', at: '2026-05-01T00:00:00.000Z' }] },
+      { id: 'b', column: 'todo', order: 2, columnHistory: [] },
+      { id: 'c', column: 'doing', order: 1, columnHistory: [] },
+      { id: 'd', column: 'done', order: 1, doneDate: '2026-05-02T00:00:00.000Z', columnHistory: [] },
+      { id: 'parked', column: 'doing', order: 2, columnHistory: [] }
+    ]
+  };
+
+  function moved(id, entityId, at, order) {
+    return event({ id, entity_id: entityId, at, type: 'task.moved', payload: { order } });
+  }
+
+  // The same three moves, as a device on the old build and one on this build would emit them.
+  const FULL_BOARD = [
+    moved('e1', 'a', '2026-05-10T00:00:00.000Z', [
+      { id: 'a', column: 'done', order: 1 },
+      { id: 'b', column: 'todo', order: 2 },
+      { id: 'c', column: 'doing', order: 1 },
+      { id: 'd', column: 'done', order: 2 },
+      { id: 'parked', column: 'doing', order: 2 }
+    ]),
+    moved('e2', 'a', '2026-05-11T00:00:00.000Z', [
+      { id: 'a', column: 'doing', order: 1 },
+      { id: 'b', column: 'todo', order: 2 },
+      { id: 'c', column: 'doing', order: 2 },
+      { id: 'd', column: 'done', order: 1 },
+      { id: 'parked', column: 'doing', order: 3 }
+    ]),
+    moved('e3', 'b', '2026-05-12T00:00:00.000Z', [
+      { id: 'a', column: 'doing', order: 1 },
+      { id: 'b', column: 'todo', order: 1 },
+      { id: 'c', column: 'doing', order: 2 },
+      { id: 'd', column: 'done', order: 1 },
+      { id: 'parked', column: 'doing', order: 3 }
+    ])
+  ];
+  const AFFECTED_COLUMNS = [
+    moved('e1', 'a', '2026-05-10T00:00:00.000Z', [
+      { id: 'a', column: 'done', order: 1 },
+      { id: 'b', column: 'todo', order: 2 },
+      { id: 'd', column: 'done', order: 2 }
+    ]),
+    moved('e2', 'a', '2026-05-11T00:00:00.000Z', [
+      { id: 'a', column: 'doing', order: 1 },
+      { id: 'c', column: 'doing', order: 2 },
+      { id: 'd', column: 'done', order: 1 },
+      { id: 'parked', column: 'doing', order: 3 }
+    ]),
+    moved('e3', 'b', '2026-05-12T00:00:00.000Z', [
+      { id: 'b', column: 'todo', order: 1 }
+    ])
+  ];
+
+  const replay = (events) => applyEvents(createProjectionState(structuredClone(SEED)), events).tasks;
+
+  test('an affected-column move replays to the expected task fields', () => {
+    const tasks = replay(AFFECTED_COLUMNS);
+
+    expect(tasks).toEqual([
+      {
+        id: 'a',
+        column: 'doing',
+        order: 1,
+        swimlaneLabelId: 'lane-1',
+        changeDate: '2026-05-11T00:00:00.000Z',
+        columnHistory: [
+          { column: 'todo', at: '2026-05-01T00:00:00.000Z' },
+          { column: 'done', at: '2026-05-10T00:00:00.000Z' },
+          { column: 'doing', at: '2026-05-11T00:00:00.000Z' }
+        ]
+      },
+      { id: 'b', column: 'todo', order: 1, columnHistory: [] },
+      { id: 'c', column: 'doing', order: 2, columnHistory: [] },
+      { id: 'd', column: 'done', order: 1, doneDate: '2026-05-02T00:00:00.000Z', columnHistory: [] },
+      { id: 'parked', column: 'doing', order: 3, columnHistory: [] }
+    ]);
+  });
+
+  test('a move into Done stamps doneDate whichever shape it has', () => {
+    const entering = (events) => replay(events.slice(0, 1)).find((task) => task.id === 'a');
+
+    expect(entering(AFFECTED_COLUMNS).doneDate).toBe('2026-05-10T00:00:00.000Z');
+    expect(entering(FULL_BOARD).doneDate).toBe('2026-05-10T00:00:00.000Z');
+  });
+
+  test('the old full-board shape and the affected-column shape replay to the same tasks', () => {
+    expect(replay(AFFECTED_COLUMNS)).toEqual(replay(FULL_BOARD));
+  });
+
+  test('a log mixing both shapes replays to the same tasks', () => {
+    const mixed = [FULL_BOARD[0], AFFECTED_COLUMNS[1], FULL_BOARD[2]];
+
+    expect(replay(mixed)).toEqual(replay(FULL_BOARD));
+  });
 });
 
 test('unknown event types warn and leave projection unchanged', () => {
@@ -339,9 +459,9 @@ test('applying a list of events leaves the input state unchanged', () => {
   expect(next.appliedEventIds).not.toBe(input.appliedEventIds);
 });
 
-// Copying the state once per event made a list cost tasks x events copies (#238); one copy keeps it linear.
+// Copying the state per event made a list cost tasks x events copies (#238), and a slice no event touched is shared (#141).
 // Copying the task list means walking it; this list counts its walks, and its copies (via Symbol.species) keep counting.
-test('applying a list of events copies the state once, not once per event', () => {
+test('applying a list of events never copies a slice none of them changes', () => {
   let walks = 0;
   class CountingTasks extends Array {
     map(...args) {
@@ -357,5 +477,6 @@ test('applying a list of events copies the state once, not once per event', () =
   const next = applyEvents(createProjectionState({ tasks }), events);
 
   expect(next.settings).toEqual({ n: 49 });
-  expect(walks).toBe(1);
+  expect(next.tasks).toBe(tasks);
+  expect(walks).toBe(0);
 });

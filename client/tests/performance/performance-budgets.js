@@ -22,6 +22,8 @@ export const PERFORMANCE_CI_BUDGETS = process.env.KANVANA_PERF_BUDGET === 'ci';
 // GitHub-hosted Ubuntu runs from 2026-10-04 and 2026-10-05.
 // Startup baselines were re-recorded after switching to the board-render mark
 // on 2026-10-07; older values included unrelated page-load and polling delays.
+// steadyStateReadModelWrites is 3 per move since #141: the tasks, the applied event
+// ids and the newest-applied HLC. It reproduces exactly, so its budget is its baseline.
 export const PERFORMANCE_SCENARIOS = [
   {
     taskCount: 400,
@@ -37,6 +39,7 @@ export const PERFORMANCE_SCENARIOS = [
       liveTaskCards: 205,
       startupBoardRenders: 1,
       steadyStateBoardRenders: 5,
+      steadyStateReadModelWrites: 15,
       browserCrashEvents: 0,
     },
     budget: {
@@ -50,6 +53,7 @@ export const PERFORMANCE_SCENARIOS = [
       liveTaskCards: 210,
       startupBoardRenders: 1,
       steadyStateBoardRenders: 5,
+      steadyStateReadModelWrites: 15,
       browserCrashEvents: 0,
     },
     localBudget: {
@@ -70,6 +74,7 @@ export const PERFORMANCE_SCENARIOS = [
       liveTaskCards: 445,
       startupBoardRenders: 1,
       steadyStateBoardRenders: 5,
+      steadyStateReadModelWrites: 15,
       browserCrashEvents: 0,
     },
     budget: {
@@ -83,6 +88,7 @@ export const PERFORMANCE_SCENARIOS = [
       liveTaskCards: 450,
       startupBoardRenders: 1,
       steadyStateBoardRenders: 5,
+      steadyStateReadModelWrites: 15,
       browserCrashEvents: 0,
     },
     localBudget: {
@@ -102,7 +108,8 @@ export const PERFORMANCE_SCENARIOS = [
       detachedDomNodes: 10069,
       liveTaskCards: 160,
       startupBoardRenders: 1,
-      steadyStateBoardRenders: 10,
+      steadyStateBoardRenders: 5,
+      steadyStateReadModelWrites: 15,
       browserCrashEvents: 0,
     },
     budget: {
@@ -115,7 +122,8 @@ export const PERFORMANCE_SCENARIOS = [
       detachedDomNodes: 10600,
       liveTaskCards: 165,
       startupBoardRenders: 1,
-      steadyStateBoardRenders: 10,
+      steadyStateBoardRenders: 5,
+      steadyStateReadModelWrites: 15,
       browserCrashEvents: 0,
     },
     localBudget: {
@@ -135,7 +143,8 @@ export const PERFORMANCE_SCENARIOS = [
       detachedDomNodes: 20869,
       liveTaskCards: 400,
       startupBoardRenders: 1,
-      steadyStateBoardRenders: 10,
+      steadyStateBoardRenders: 5,
+      steadyStateReadModelWrites: 15,
       browserCrashEvents: 0,
     },
     budget: {
@@ -148,7 +157,8 @@ export const PERFORMANCE_SCENARIOS = [
       detachedDomNodes: 22000,
       liveTaskCards: 405,
       startupBoardRenders: 1,
-      steadyStateBoardRenders: 10,
+      steadyStateBoardRenders: 5,
+      steadyStateReadModelWrites: 15,
       browserCrashEvents: 0,
     },
     localBudget: {
@@ -158,18 +168,46 @@ export const PERFORMANCE_SCENARIOS = [
 ];
 
 export const PERFORMANCE_BACKFILL_SCENARIOS = [
-  { taskCount: 400, baseline: { startupMs: 343.3, backfillMs: 52.3 }, budget: { startupMs: 3000, backfillMs: 200 } },
-  { taskCount: 1000, baseline: { startupMs: 506.3, backfillMs: 127.9 }, budget: { startupMs: 4000, backfillMs: 400 } },
+  { taskCount: 400, baseline: { startupMs: 343.3, backfillMs: 52.3, retainedDomNodes: 16330 }, budget: { startupMs: 3000, backfillMs: 200, retainedDomNodes: 18600 } },
+  { taskCount: 1000, baseline: { startupMs: 506.3, backfillMs: 127.9, retainedDomNodes: 30250 }, budget: { startupMs: 4000, backfillMs: 400, retainedDomNodes: 34700 } },
 ];
 
 // A fresh signed-in device catches up one task.created and one task.updated per
 // task on the board it shows (#235), with PocketBase mocked. Baseline recorded locally on
 // 2026-10-27 after #238 (each board's batch applied to one copy of the board; read model saved
-// once per board per catch-up batch); readModelWrites is 8 per batch for the one affected board.
+// once per board per catch-up batch). readModelWrites was re-recorded after #141: 3 per batch for
+// the one affected board (its tasks, applied event ids and the newest-applied HLC).
 export const PERFORMANCE_CATCHUP_SCENARIOS = [
   {
     taskCount: 400,
-    baseline: { allCardsShownMs: 2526, boardRenders: 1, readModelWrites: 8 },
-    budget: { allCardsShownMs: 5000, boardRenders: 2, readModelWrites: 16 },
+    baseline: { allCardsShownMs: 2526, boardRenders: 1, readModelWrites: 3 },
+    budget: { allCardsShownMs: 5000, boardRenders: 2, readModelWrites: 6 },
+  },
+];
+
+// A move beside tasks it does not touch (#140): its event names the two affected columns only, so
+// its size follows them and not the board. Size and entry counts reproduce exactly run to run.
+// Baseline recorded locally on 2026-11-04; the CI drop limit is about 2x that, pending a CI run.
+export const PERFORMANCE_MOVE_SCENARIOS = [
+  {
+    unrelatedTasks: 1000,
+    movingTasks: 6,
+    doneTasks: 4,
+    baseline: { taskDropLatencyMs: 249.7, moveEventBytes: 1523, unrelatedEntries: 0 },
+    budget: { taskDropLatencyMs: 500, moveEventBytes: 1550, unrelatedEntries: 0 },
+    localBudget: { taskDropLatencyMs: 1300 },
+  },
+];
+
+// One save of the task form that changes the title, a label, a relationship, a sub-task and the
+// column (#142): six events, one render, and the tasks, applied ids and newest-applied HLC stored once.
+// Renders, writes and events reproduce exactly. Baseline recorded locally on 2026-11-04; the CI save
+// limit is about 2x that, pending a CI run, and the heap limit is the 1,000-task steady-state one.
+export const PERFORMANCE_EDIT_SCENARIOS = [
+  {
+    taskCount: 1000,
+    baseline: { taskSaveLatencyMs: 176.4, jsHeapUsedMb: 7.86, boardRendersPerSave: 1, readModelWritesPerSave: 3, eventsPerSave: 6 },
+    budget: { taskSaveLatencyMs: 350, jsHeapUsedMb: 12, boardRendersPerSave: 1, readModelWritesPerSave: 3, eventsPerSave: 6 },
+    localBudget: { taskSaveLatencyMs: 1300 },
   },
 ];

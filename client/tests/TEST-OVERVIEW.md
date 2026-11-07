@@ -4,11 +4,11 @@ Generated from test source. Do not edit by hand; run `npm run test:overview` fro
 
 ## Fast Scan
 
-- Test files: 140
-- Test cases: 1285
-- Unit files: 49
-- DOM integration files: 43
-- E2E files: 46
+- Test files: 147
+- Test cases: 1371
+- Unit files: 50
+- DOM integration files: 45
+- E2E files: 50
 - Performance files: 1
 
 ## How To Use This
@@ -289,37 +289,72 @@ These lists compare source/spec filenames against test file names and test title
 
 - Path: `tests/unit/event-sourcing/read-model-projector.test.js`
 - Type: Unit
-- Test count: 7
+- Test count: 20
 
-- `tests/unit/event-sourcing/read-model-projector.test.js:78` createReadModelProjector > an ingested board event projects into state and schedules read-model persist
-- `tests/unit/event-sourcing/read-model-projector.test.js:88` createReadModelProjector > an event emitted on the bus without ingest is not projected
-- `tests/unit/event-sourcing/read-model-projector.test.js:93` createReadModelProjector > ingest is idempotent by event id (dedup) and announces DATA_CHANGED once
-- `tests/unit/event-sourcing/read-model-projector.test.js:106` createReadModelProjector > global-scope event projects globalSettings and persists the global key only
-- `tests/unit/event-sourcing/read-model-projector.test.js:123` createReadModelProjector > timetracking-scope event is never routed into a board projection and lands in the time-tracking slot
-- `tests/unit/event-sourcing/read-model-projector.test.js:149` createReadModelProjector > register() is idempotent — a single ingest projects once
-- `tests/unit/event-sourcing/read-model-projector.test.js:156` createReadModelProjector > reset() disconnects the projector from ingest; applied ids live in state, not the projector
+- `tests/unit/event-sourcing/read-model-projector.test.js:109` createReadModelProjector > an ingested board event projects into state and schedules read-model persist
+- `tests/unit/event-sourcing/read-model-projector.test.js:117` createReadModelProjector > an event emitted on the bus without ingest is not projected
+- `tests/unit/event-sourcing/read-model-projector.test.js:122` createReadModelProjector > ingest is idempotent by event id (dedup) and announces DATA_CHANGED once
+- `tests/unit/event-sourcing/read-model-projector.test.js:135` createReadModelProjector > global-scope event projects globalSettings and persists the global key only
+- `tests/unit/event-sourcing/read-model-projector.test.js:152` createReadModelProjector > timetracking-scope event is never routed into a board projection and lands in the time-tracking slot
+- `tests/unit/event-sourcing/read-model-projector.test.js:178` createReadModelProjector > register() is idempotent — a single ingest projects once
+- `tests/unit/event-sourcing/read-model-projector.test.js:185` createReadModelProjector > reset() disconnects the projector from ingest; applied ids live in state, not the projector
+- `tests/unit/event-sourcing/read-model-projector.test.js:223` createReadModelProjector > persists only the slices an event changed > a label event writes the labels only
+- `tests/unit/event-sourcing/read-model-projector.test.js:233` createReadModelProjector > persists only the slices an event changed > the slices an event leaves alone keep their references
+- `tests/unit/event-sourcing/read-model-projector.test.js:244` createReadModelProjector > persists only the slices an event changed > a slice the board has never stored is written, so a reload does not bring defaults back
+- `tests/unit/event-sourcing/read-model-projector.test.js:252` createReadModelProjector > persists only the slices an event changed > a local event is fully projected in memory before ingest returns
+- `tests/unit/event-sourcing/read-model-projector.test.js:259` createReadModelProjector > persists only the slices an event changed > a remote event takes the same selective path as a local one
+- `tests/unit/event-sourcing/read-model-projector.test.js:266` createReadModelProjector > persists only the slices an event changed > a catch-up batch writes each changed slice once, however many events it holds
+- `tests/unit/event-sourcing/read-model-projector.test.js:276` createReadModelProjector > persists only the slices an event changed > a catch-up batch covering two kinds of slice writes both
+- `tests/unit/event-sourcing/read-model-projector.test.js:294` createReadModelProjector > a reducer no-op > writes only the applied-event memory and emits no DATA_CHANGED
+- `tests/unit/event-sourcing/read-model-projector.test.js:305` createReadModelProjector > a reducer no-op > is remembered, so its next delivery writes nothing
+- `tests/unit/event-sourcing/read-model-projector.test.js:327` createReadModelProjector > a reducer no-op > adding a label or relationship a task already has changes nothing
+- `tests/unit/event-sourcing/read-model-projector.test.js:338` createReadModelProjector > a reducer no-op > a catch-up batch of nothing but no-ops writes the memory and emits no DATA_CHANGED
+- `tests/unit/event-sourcing/read-model-projector.test.js:349` createReadModelProjector > a reducer no-op > a board-less no-op writes nothing but its newest HLC and still counts towards the next snapshot
+- `tests/unit/event-sourcing/read-model-projector.test.js:372` createReadModelProjector > a reducer no-op > still asks for a snapshot, since the stored event counts towards the next one
 
 ### Reducer
 
 - Path: `tests/unit/event-sourcing/reducer.test.js`
 - Type: Unit
-- Test count: 15
+- Test count: 20
 
 - `tests/unit/event-sourcing/reducer.test.js:18` applyEvent is idempotent by event id
 - `tests/unit/event-sourcing/reducer.test.js:35` task.deleted tombstones prevent later task updates from resurrecting the task
 - `tests/unit/event-sourcing/reducer.test.js:51` task.updated merges different field events on the same task
 - `tests/unit/event-sourcing/reducer.test.js:74` task.moved updates column order and columnHistory
-- `tests/unit/event-sourcing/reducer.test.js:106` unknown event types warn and leave projection unchanged
-- `tests/unit/event-sourcing/reducer.test.js:131` label events create update and tombstone labels
-- `tests/unit/event-sourcing/reducer.test.js:155` label task membership events update task label refs
-- `tests/unit/event-sourcing/reducer.test.js:177` column events create update delete and reorder columns
-- `tests/unit/event-sourcing/reducer.test.js:206` settings.updated handles board and global settings
-- `tests/unit/event-sourcing/reducer.test.js:224` settings.updated in the timetracking scope touches neither board nor global settings
-- `tests/unit/event-sourcing/reducer.test.js:238` projection state carries an empty time-tracking slot that survives events
-- `tests/unit/event-sourcing/reducer.test.js:246` subtask and relationship events update embedded task collections
-- `tests/unit/event-sourcing/reducer.test.js:318` applying a list of events equals applying them one by one, duplicates and tombstones included
-- `tests/unit/event-sourcing/reducer.test.js:329` applying a list of events leaves the input state unchanged
-- `tests/unit/event-sourcing/reducer.test.js:344` applying a list of events copies the state once, not once per event
+- `tests/unit/event-sourcing/reducer.test.js:106` task.moved stamps changeDate on the moved task only when its column changes
+- `tests/unit/event-sourcing/reducer.test.js:185` task.moved payload shapes > an affected-column move replays to the expected task fields
+- `tests/unit/event-sourcing/reducer.test.js:208` task.moved payload shapes > a move into Done stamps doneDate whichever shape it has
+- `tests/unit/event-sourcing/reducer.test.js:215` task.moved payload shapes > the old full-board shape and the affected-column shape replay to the same tasks
+- `tests/unit/event-sourcing/reducer.test.js:219` task.moved payload shapes > a log mixing both shapes replays to the same tasks
+- `tests/unit/event-sourcing/reducer.test.js:226` unknown event types warn and leave projection unchanged
+- `tests/unit/event-sourcing/reducer.test.js:251` label events create update and tombstone labels
+- `tests/unit/event-sourcing/reducer.test.js:275` label task membership events update task label refs
+- `tests/unit/event-sourcing/reducer.test.js:297` column events create update delete and reorder columns
+- `tests/unit/event-sourcing/reducer.test.js:326` settings.updated handles board and global settings
+- `tests/unit/event-sourcing/reducer.test.js:344` settings.updated in the timetracking scope touches neither board nor global settings
+- `tests/unit/event-sourcing/reducer.test.js:358` projection state carries an empty time-tracking slot that survives events
+- `tests/unit/event-sourcing/reducer.test.js:366` subtask and relationship events update embedded task collections
+- `tests/unit/event-sourcing/reducer.test.js:438` applying a list of events equals applying them one by one, duplicates and tombstones included
+- `tests/unit/event-sourcing/reducer.test.js:449` applying a list of events leaves the input state unchanged
+- `tests/unit/event-sourcing/reducer.test.js:464` applying a list of events never copies a slice none of them changes
+
+### Selective Persist
+
+- Path: `tests/unit/event-sourcing/selective-persist.test.js`
+- Type: Unit
+- Test count: 10
+
+- `tests/unit/event-sourcing/selective-persist.test.js:98` writes that reach IndexedDB > a task move stores the tasks and the event memory, and no other slice
+- `tests/unit/event-sourcing/selective-persist.test.js:105` writes that reach IndexedDB > a column, a label, a settings and a board event each store their own slice
+- `tests/unit/event-sourcing/selective-persist.test.js:120` writes that reach IndexedDB > a duplicate create stores the event memory only, and renders nothing
+- `tests/unit/event-sourcing/selective-persist.test.js:148` hydration and replay > a board saved slice by slice hydrates to what was in memory
+- `tests/unit/event-sourcing/selective-persist.test.js:159` hydration and replay > a board saved slice by slice matches a replay of the same events from its start
+- `tests/unit/event-sourcing/selective-persist.test.js:174` hydration and replay > a reload still remembers a task deletion and every applied id, so neither replays
+- `tests/unit/event-sourcing/selective-persist.test.js:216` snapshots > a run of no-ops takes one snapshot, not one per event
+- `tests/unit/event-sourcing/selective-persist.test.js:233` snapshots > a snapshot holds the whole board though each event stored only its slice
+- `tests/unit/event-sourcing/selective-persist.test.js:260` backfill at boot (#138) > fills the log with valid syncable events, without projecting or announcing them
+- `tests/unit/event-sourcing/selective-persist.test.js:286` backfill at boot (#138) > a reopen with the flag set adds no events and shows the same board
 
 ### Snapshot
 
@@ -1027,11 +1062,11 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 5
 
-- `tests/dom/dragdrop.test.js:99` task drop mutates state inside the reconcile window
-- `tests/dom/dragdrop.test.js:119` task drop wraps its state mutation in a reconcile window
-- `tests/dom/dragdrop.test.js:143` collapsed non-done drops still pin the moved task through state
-- `tests/dom/dragdrop.test.js:167` reinitializing during an active task drag clears transient drag state
-- `tests/dom/dragdrop.test.js:187` reinitializing during an active column drag clears the column drag class
+- `tests/dom/dragdrop.test.js:94` task drop mutates state inside the reconcile window
+- `tests/dom/dragdrop.test.js:114` task drop wraps its state mutation in a reconcile window
+- `tests/dom/dragdrop.test.js:138` collapsed non-done drops still pin the moved task through state
+- `tests/dom/dragdrop.test.js:162` reinitializing during an active task drag clears transient drag state
+- `tests/dom/dragdrop.test.js:182` reinitializing during an active column drag clears the column drag class
 
 ### Auth Refresh Race
 
@@ -1081,6 +1116,34 @@ _No executable test cases detected._
 - `tests/dom/event-sourcing/column-sort.test.js:93` a rebuild triggered by a late remote event keeps the sorted order
 - `tests/dom/event-sourcing/column-sort.test.js:136` a sort reaches a second device over SSE
 - `tests/dom/event-sourcing/column-sort.test.js:143` a sort reaches a second device through catch-up
+
+### Commit Scope
+
+- Path: `tests/dom/event-sourcing/commit-scope.test.js`
+- Type: DOM Integration
+- Test count: 21
+
+- `tests/dom/event-sourcing/commit-scope.test.js:117` a task edit that emits several events > every event is projected in order before the caller gets control back
+- `tests/dom/event-sourcing/commit-scope.test.js:128` a task edit that emits several events > is one board commit, signalled before the caller gets control back
+- `tests/dom/event-sourcing/commit-scope.test.js:133` a task edit that emits several events > writes each changed slice once, holding the final projection
+- `tests/dom/event-sourcing/commit-scope.test.js:146` a task edit that emits several events > is one notice to other tabs, naming every event once it is stored
+- `tests/dom/event-sourcing/commit-scope.test.js:161` a task edit that emits several events > a new task placed above others is one commit too
+- `tests/dom/event-sourcing/commit-scope.test.js:169` a commit around other multi-event mutations > a nested commit joins the outer one, which alone redraws and stores
+- `tests/dom/event-sourcing/commit-scope.test.js:190` a commit around other multi-event mutations > deleting a label on several tasks is one commit
+- `tests/dom/event-sourcing/commit-scope.test.js:203` a commit around other multi-event mutations > deleting a column with tasks is one commit
+- `tests/dom/event-sourcing/commit-scope.test.js:213` the task form > saving labels, a relationship, a sub-task and a column move renders the board once
+- `tests/dom/event-sourcing/commit-scope.test.js:245` failure inside a commit > changes to different slices stay separate writes, each with its final value
+- `tests/dom/event-sourcing/commit-scope.test.js:263` failure inside a commit > a mutation that throws part-way still shows and stores what it projected
+- `tests/dom/event-sourcing/commit-scope.test.js:282` failure inside a commit > a write that fails stores nothing of the commit, the screen keeps the edit, and later edits still store
+- `tests/dom/event-sourcing/commit-scope.test.js:401` a drop > on a standard board reconciles once, inside its window
+- `tests/dom/event-sourcing/commit-scope.test.js:408` a drop > into a collapsed column is one reconcile for its two moves
+- `tests/dom/event-sourcing/commit-scope.test.js:417` a drop > across swimlanes reconciles once for its move and its field change
+- `tests/dom/event-sourcing/commit-scope.test.js:432` a drop > to another column stamps the updated date from its event, on the card as well
+- `tests/dom/event-sourcing/commit-scope.test.js:446` a drop > within a column leaves the updated date alone
+- `tests/dom/event-sourcing/commit-scope.test.js:453` a drop > to another lane of the same column carries the updated date in its event
+- `tests/dom/event-sourcing/commit-scope.test.js:487` a burst of remote events > does not redraw for each event and ends on the newest edit
+- `tests/dom/event-sourcing/commit-scope.test.js:497` a burst of remote events > applies by HLC whatever order it arrives in
+- `tests/dom/event-sourcing/commit-scope.test.js:506` a burst of remote events > an event that repeats in the burst applies once
 
 ### Cross Tab Read Model
 
@@ -1247,17 +1310,17 @@ _No executable test cases detected._
 - `tests/dom/event-sourcing/realtime.test.js:309` catch-up pull > AC-005: pulls events > lastSeenHlc, applies in order, advances lastSeenHlc atomically
 - `tests/dom/event-sourcing/realtime.test.js:330` catch-up pull > signals DATA_CHANGED once for the whole pulled batch
 - `tests/dom/event-sourcing/realtime.test.js:352` catch-up pull > saves each part of a caught-up board once per batch, not once per event
-- `tests/dom/event-sourcing/realtime.test.js:392` catch-up pull > saves a local edit made during a catch-up at once, not when the batch ends
-- `tests/dom/event-sourcing/realtime.test.js:425` catch-up pull > saves the boards a catch-up has touched so far when the page is hidden
-- `tests/dom/event-sourcing/realtime.test.js:458` catch-up pull > a local edit made during a catch-up applies on top of the events the batch already took in
-- `tests/dom/event-sourcing/realtime.test.js:486` catch-up pull > a local command issued during a catch-up builds on the events the batch already took in
-- `tests/dom/event-sourcing/realtime.test.js:517` catch-up pull > a board deleted during a catch-up stays deleted when the batch ends
-- `tests/dom/event-sourcing/realtime.test.js:546` catch-up pull > a reload after a catch-up shows the same board
-- `tests/dom/event-sourcing/realtime.test.js:592` catch-up pull > advances the catch-up watermark only after the board read model is stored
-- `tests/dom/event-sourcing/realtime.test.js:621` catch-up pull > signals no DATA_CHANGED when the pulled batch is already stored
-- `tests/dom/event-sourcing/realtime.test.js:637` catch-up pull > a poison event among good ones is skipped: good ones applied, poison not persisted, logged once (#181)
-- `tests/dom/event-sourcing/realtime.test.js:666` catch-up pull > ingests timetracking events under their own watermark without touching boards
-- `tests/dom/event-sourcing/realtime.test.js:695` catch-up pull > AC-005/AC-006: re-running catch-up applies nothing new (idempotent overlap)
+- `tests/dom/event-sourcing/realtime.test.js:391` catch-up pull > saves a local edit made during a catch-up at once, not when the batch ends
+- `tests/dom/event-sourcing/realtime.test.js:424` catch-up pull > saves the boards a catch-up has touched so far when the page is hidden
+- `tests/dom/event-sourcing/realtime.test.js:457` catch-up pull > a local edit made during a catch-up applies on top of the events the batch already took in
+- `tests/dom/event-sourcing/realtime.test.js:485` catch-up pull > a local command issued during a catch-up builds on the events the batch already took in
+- `tests/dom/event-sourcing/realtime.test.js:516` catch-up pull > a board deleted during a catch-up stays deleted when the batch ends
+- `tests/dom/event-sourcing/realtime.test.js:545` catch-up pull > a reload after a catch-up shows the same board
+- `tests/dom/event-sourcing/realtime.test.js:591` catch-up pull > advances the catch-up watermark only after the board read model is stored
+- `tests/dom/event-sourcing/realtime.test.js:620` catch-up pull > signals no DATA_CHANGED when the pulled batch is already stored
+- `tests/dom/event-sourcing/realtime.test.js:636` catch-up pull > a poison event among good ones is skipped: good ones applied, poison not persisted, logged once (#181)
+- `tests/dom/event-sourcing/realtime.test.js:665` catch-up pull > ingests timetracking events under their own watermark without touching boards
+- `tests/dom/event-sourcing/realtime.test.js:694` catch-up pull > AC-005/AC-006: re-running catch-up applies nothing new (idempotent overlap)
 
 ### Replay Fidelity
 
@@ -1486,13 +1549,23 @@ _No executable test cases detected._
 
 - Path: `tests/dom/event-sourcing/task-moved-payloads.test.js`
 - Type: DOM Integration
-- Test count: 5
+- Test count: 15
 
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:54` addTask emits the renumbered column with the new task first
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:72` updateTask to another column emits every task on the board
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:89` a drop to another column emits every task on the board
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:117` moveTaskToTopInColumn emits every task on the board
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:134` sortColumnTasks emits the sorted column with the column id as entity id
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:95` addTask emits the renumbered column with the new task first
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:113` updateTask to another column emits both columns and leaves an unrelated one out
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:122` updateTask to another column puts the task on top there, with no colliding order
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:135` moveTaskToTopInColumn emits only that column, complete
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:152` a drop > to another column emits both columns, complete, and no unrelated column
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:172` a drop > within a column emits that one column, complete
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:192` a drop > reads only the affected task lists from the DOM
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:205` a drop > in swimlanes reads only the affected columns, lane by lane
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:229` a drop > keeps cards not on screen after the card they followed, with no colliding order
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:239` a drop > keeps a card not on screen first in its column when it was first
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:248` a drop > keeps cards that followed the dragged card in the column it left
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:262` a drop > into a column showing none of its cards goes first
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:276` a drop > into Done pins the card above the Done cards past the cut-off
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:290` a drop > in swimlanes still applies the destination lane to the moved card
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:304` sortColumnTasks emits the sorted column with the column id as entity id
 
 ### Msw Example
 
@@ -1546,7 +1619,7 @@ _No executable test cases detected._
 - `tests/dom/reconcile.test.js:121` a data change inside a drag-reconcile window patches in place instead of rebuilding
 - `tests/dom/reconcile.test.js:138` reconcileBoard refreshes notifications, matching a full render
 - `tests/dom/reconcile.test.js:148` reconcileBoard respects the active board filter, like a full render
-- `tests/dom/reconcile.test.js:170` reconcileBoard defers to a full rebuild when swimlane mode is on
+- `tests/dom/reconcile.test.js:170` reconcileBoard defers to a full rebuild when swimlane mode is on but the board on screen is not a swimlane board
 - `tests/dom/reconcile.test.js:183` reconcileBoard defers to a full rebuild when the column set changed
 - `tests/dom/reconcile.test.js:196` reconcileBoard virtualizes an overfull Done column instead of rendering every card
 - `tests/dom/reconcile.test.js:213` reconcileBoard patches a card due-date in place when it lands in Done
@@ -1559,6 +1632,29 @@ _No executable test cases detected._
 
 - `tests/dom/settings-ui.test.js:44` settings modal opens with board settings controls
 - `tests/dom/settings-ui.test.js:57` settings changes persist through board settings
+
+### Swimlane Reconcile
+
+- Path: `tests/dom/swimlane-reconcile.test.js`
+- Type: DOM Integration
+- Test count: 16
+
+- `tests/dom/swimlane-reconcile.test.js:167` a cross-column drop keeps the dragged node attached and rebuilds nothing
+- `tests/dom/swimlane-reconcile.test.js:200` a reconcile never removes a card that is already in its right place
+- `tests/dom/swimlane-reconcile.test.js:216` reorders the cards of a cell to match state, keeping every node
+- `tests/dom/swimlane-reconcile.test.js:227` a drop into Done keeps the node attached until Sortable lets go, then hides it from the row
+- `tests/dom/swimlane-reconcile.test.js:257` consecutive drops into Done each land, with every Done cell still a drop target
+- `tests/dom/swimlane-reconcile.test.js:273` a cross-lane drop refreshes the fields the lane defines on the same node
+- `tests/dom/swimlane-reconcile.test.js:297` a lane that loses its last task leaves in place, and only its Sortables are destroyed, after the drop
+- `tests/dom/swimlane-reconcile.test.js:324` updates a collapsed cell summary and a collapsed column summary
+- `tests/dom/swimlane-reconcile.test.js:343` a drop into a collapsed Done column shows the due date with no countdown
+- `tests/dom/swimlane-reconcile.test.js:358` updates the WIP state and counter of a column header
+- `tests/dom/swimlane-reconcile.test.js:375` counts and shows the same tasks as a full render under a board filter
+- `tests/dom/swimlane-reconcile.test.js:396` a lane the board does not have yet defers to a full rebuild, changing nothing
+- `tests/dom/swimlane-reconcile.test.js:406` a swimlane drop that needs a rebuild waits until Sortable has let go
+- `tests/dom/swimlane-reconcile.test.js:429` a standard-board drop that needs a rebuild waits until Sortable has let go
+- `tests/dom/swimlane-reconcile.test.js:450` a changed column set defers to a full rebuild
+- `tests/dom/swimlane-reconcile.test.js:457` a changed lane grouping defers to a full rebuild
 
 ### Task Card Delete
 
@@ -2107,6 +2203,16 @@ _No executable test cases detected._
 - `tests/e2e/reports.spec.ts:52` average lead time runs from creation to done
 - `tests/e2e/reports.spec.ts:65` a board with nothing completed reports zero
 
+### Selective Persist Convergence
+
+- Path: `tests/e2e/selective-persist-convergence.spec.ts`
+- Type: End-to-End
+- Test count: 3
+
+- `tests/e2e/selective-persist-convergence.spec.ts:80` two devices that exchange their events show the same board, and still do after a reload
+- `tests/e2e/selective-persist-convergence.spec.ts:106` a remote task edit stores the tasks and applied ids on the receiving device, and no other slice
+- `tests/e2e/selective-persist-convergence.spec.ts:135` a board without the migration flag backfills once, and a reopen shows the same board with no new events
+
 ### Stale Tab Refusal
 
 - Path: `tests/e2e/stale-tab-refusal.spec.ts`
@@ -2147,6 +2253,17 @@ _No executable test cases detected._
 - `tests/e2e/swimlanes-dnd.spec.js:64` Swim lane drag and drop > moves a task between priority swim lanes and updates task priority
 - `tests/e2e/swimlanes-dnd.spec.js:85` Swim lane drag and drop > moves a task between rows from the selected label group
 
+### Swimlanes Drop Reconcile
+
+- Path: `tests/e2e/swimlanes-drop-reconcile.spec.js`
+- Type: End-to-End
+- Test count: 4
+
+- `tests/e2e/swimlanes-drop-reconcile.spec.js:165` Swimlane drop reconciliation on a 400-task board > consecutive native mouse drags into Done do not crash, freeze or lose tasks
+- `tests/e2e/swimlanes-drop-reconcile.spec.js:217` Swimlane drop reconciliation > a cross-lane, cross-column drop reuses the dragged node and updates the moved task
+- `tests/e2e/swimlanes-drop-reconcile.spec.js:260` Swimlane drop reconciliation > a drag still works after a lane has lost its last task
+- `tests/e2e/swimlanes-drop-reconcile.spec.js:281` Swimlane drop reconciliation > a drop into Done clears the task from the due-soon notifications
+
 ### Swimlanes Persistence
 
 - Path: `tests/e2e/swimlanes-persistence.spec.js`
@@ -2177,6 +2294,22 @@ _No executable test cases detected._
 
 - `tests/e2e/task-delete.spec.ts:37` Task Deletion > permanent delete — confirm removes task and decrements counter
 - `tests/e2e/task-delete.spec.ts:55` Task Deletion > cancel delete — task survives and counter is unchanged
+
+### Task Edit Commit
+
+- Path: `tests/e2e/task-edit-commit.spec.ts`
+- Type: End-to-End
+- Test count: 1
+
+- `tests/e2e/task-edit-commit.spec.ts:27` a save with labels, a relationship, a sub-task and a column move draws the board once and survives a reload
+
+### Task Move Convergence
+
+- Path: `tests/e2e/task-move-convergence.spec.ts`
+- Type: End-to-End
+- Test count: 1
+
+- `tests/e2e/task-move-convergence.spec.ts:95` old full-board and new affected-column moves converge in either arrival order
 
 ### Timetracking Archive
 
@@ -2306,12 +2439,14 @@ _No executable test cases detected._
 
 - Path: `tests/performance/large-board.spec.js`
 - Type: Performance
-- Test count: 4
+- Test count: 6
 
-- `tests/performance/large-board.spec.js:298` smoke: 400-task standard board renders within startup budget
-- `tests/performance/large-board.spec.js:346` ${scenario.taskCount} tasks in ${scenario.view} view stay within performance budgets
-- `tests/performance/large-board.spec.js:428` ${taskCount} tasks complete event-log backfill within budget
-- `tests/performance/large-board.spec.js:651` ${taskCount} tasks (${taskCount * 2} events) catch up on a fresh signed-in device within budget
+- `tests/performance/large-board.spec.js:330` smoke: 400-task standard board renders within startup budget
+- `tests/performance/large-board.spec.js:378` ${scenario.taskCount} tasks in ${scenario.view} view stay within performance budgets
+- `tests/performance/large-board.spec.js:462` ${taskCount} tasks complete event-log backfill within budget
+- `tests/performance/large-board.spec.js:569` moves stay within budget beside ${unrelatedTasks} unrelated tasks
+- `tests/performance/large-board.spec.js:665` a multi-event task edit on ${taskCount} tasks stays within budget
+- `tests/performance/large-board.spec.js:861` ${taskCount} tasks (${taskCount * 2} events) catch up on a fresh signed-in device within budget
 
 ## Other Tests
 

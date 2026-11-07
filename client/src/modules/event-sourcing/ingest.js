@@ -22,6 +22,7 @@ export function createSuperseded() {
 const loggedDrops = new Set();
 let batchDepth = 0;
 let batchChanged = false;
+let commitScope = null;
 
 // Until the projector (ADR-0005) connects, events are only persisted, which is what boot-time backfill needs.
 export function connectProjector(next) {
@@ -37,6 +38,34 @@ export function ingestEvent(input, { origin = EVENT_ORIGIN.LOCAL, receivedAt } =
   if (!event) return Promise.resolve();
   if (origin === EVENT_ORIGIN.REMOTE) return ingestRemote(event, receivedAt).then(() => {});
   return commit(event, origin);
+}
+
+// One redraw and one write per slice for a user mutation (#142); synchronous, to stay in this tick's write batch (#256) and a drop's reconcile window.
+export function commitTogether(mutation) {
+  if (commitScope) return mutation();
+  const scopeProjector = projector;
+  const scope = { changed: false, stored: [] };
+  scopeProjector?.beginCommit();
+  commitScope = scope;
+  try {
+    return mutation();
+  } finally {
+    commitScope = null;
+    try {
+      scopeProjector?.endCommit();
+    } finally {
+      if (scope.changed) emit(DATA_CHANGED);
+      announceStored(scope.stored);
+    }
+  }
+}
+
+// One notice, so another tab folds the mutation as one and never shows half of it. A failed write was already logged.
+function announceStored(stored) {
+  if (!stored.length) return;
+  Promise.all(stored)
+    .then((ids) => emit(EVENTS_STORED, { ids, local: true }))
+    .catch(() => {});
 }
 
 // Catch-up's path: validated and sorted once; resolves to the events not stored before, for its watermark.
@@ -74,7 +103,7 @@ function beginRemoteBatch() {
 }
 
 function endRemoteBatch(batchProjector) {
-  batchProjector?.endBatch();
+  if (batchProjector?.endBatch()) batchChanged = true;
   batchDepth -= 1;
   if (batchDepth === 0 && batchChanged) {
     batchChanged = false;
@@ -179,7 +208,8 @@ function commit(event, origin, { batched = false } = {}) {
   // A late local edit still shows at once; the rebuild then puts it in order.
   if (order !== EVENT_ORDER.LATE || origin === EVENT_ORIGIN.LOCAL) {
     if (projector?.project(event, { batched })) {
-      if (origin === EVENT_ORIGIN.LOCAL) emit(DATA_CHANGED, { event });
+      if (commitScope) commitScope.changed = true;
+      else if (origin === EVENT_ORIGIN.LOCAL) emit(DATA_CHANGED, { event });
       else signalChanged({ event });
     }
   }
@@ -188,13 +218,15 @@ function commit(event, origin, { batched = false } = {}) {
   if (!getDbRef()) return Promise.resolve();
 
   unpersisted.set(event.id, event);
+  const scope = commitScope;
   const persisted = persistEvent({ ...event, synced: origin === EVENT_ORIGIN.REMOTE })
     .then(() => flushPendingPersists())
     .then(() => {
       // Other tabs and the queue read the store, so they may only hear of an event once it is there.
-      if (!batched) emit(EVENTS_STORED, { ids: [event.id], local: origin === EVENT_ORIGIN.LOCAL });
+      if (!batched && !scope) emit(EVENTS_STORED, { ids: [event.id], local: origin === EVENT_ORIGIN.LOCAL });
     })
     .finally(() => unpersisted.delete(event.id));
+  scope?.stored.push(persisted.then(() => event.id));
   return order === EVENT_ORDER.LATE ? persisted.then(() => rebuildScope(key)) : persisted;
 }
 

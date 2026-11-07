@@ -156,8 +156,15 @@ reaches it is `ingestEvent()` (`event-sourcing/ingest.js`). Local events are ing
 **synchronously** by `scheduleDomainEvent()`, so the in-memory projection is updated before the
 mutation returns / `renderBoard()` runs (instant UI); only the IDB event persist and the PocketBase
 push are async. Each mutation's events are self-complete — they encode every read-model effect
-(relationship inverses on target tasks, sibling reordering, derived `doneDate`, swimlane reassignment)
+(relationship inverses on target tasks, sibling reordering, derived `doneDate` and move `changeDate`, swimlane reassignment)
 so the projection reproduces the change from events alone. Deletes are hard removals via `task.deleted`.
+
+**Selective persistence** (#141): the reducer shares every slice an event leaves alone, so the same reference
+means nothing to store. The projector writes only the slices whose reference changed (`tasks`, `columns`, `labels`,
+`settings`, `taskTombstones`, the board list), plus the event memory: `appliedEventIds` and the newest applied HLC stay
+durable for every event (#178). An event that changes no slice (a reducer no-op, such as a duplicate `*.created`)
+stores that memory only, emits no `DATA_CHANGED` and still counts towards the next snapshot. A catch-up batch tracks
+the same slices and writes each once when it ends. A rebuild replaces every list, so it stores the whole board.
 
 **Delete records and applied ids** (#178): the event log's memory of "deleted" and
 "already applied" is durable, so it survives a reload and a snapshot adoption.
@@ -225,7 +232,7 @@ manual push/pull); the header **sync-state indicator** shows `Live` / `Syncing�
 | `event-sourcing/sync-leader.js` | **Sync leader** (#222) — elects one tab with a Web Lock and links the tabs with a BroadcastChannel. `initSyncLeader()` resolves to the leader-gated network side the tab's session runs on |
 | `event-sourcing/sync-queue.js` | **Outbound** — drains unsynced events to the PB `events` collection in HLC order (debounce, in-flight cap, three-tier retry, no rollback), stamped with the Data Owner, and pushes nothing when the signed-in account is not the Data Owner. Runs only between `startSyncQueue({ onAuthRejected })` and `stopSyncQueue()`; `drainSyncQueue()`, `getSyncStatus()` |
 | `event-sourcing/ingest.js` | **Ingest interface** — `ingestEvent(event, { origin, receivedAt })`, the single entry point of the event log for local and remote events (catch-up uses `ingestRemoteBatch(items)`, which validates and sorts once, applies each board's in-order events to one copy of the board as one list (#238) and saves each touched board's read model once when the batch ends (#237), and returns the events not stored before): validate, observe the remote HLC (remote only), project, `DATA_CHANGED`, `EVENT_EMITTED`, persist (`synced` = origin is `remote`) |
-| `event-sourcing/realtime.js` | **Inbound** — SSE subscription (`startRealtime({ onConnect })`, `stopRealtime()`) + catch-up pull (`catchUp()`), run by the session; a stop also ends a pull in flight; remote events go through `ingestEvent(…, { origin: 'remote' })` (deduped by id) |
+| `event-sourcing/realtime.js` | **Inbound** — SSE subscription (`startRealtime({ onConnect })`, `stopRealtime()`) + catch-up pull (`catchUp()`), run by the session; a stop also ends a pull in flight; remote events go through `ingestEvent(…, { origin: 'remote' })` (deduped by id), and SSE messages arriving while earlier ones are being stored queue up and go through `ingestRemoteBatch` together, so a burst does not redraw per event (#142) |
 | `event-sourcing/hlc.js` | Hybrid Logical Clock — `emitLocal()`, `observeRemote()`, `compareHlc()` |
 | `event-sourcing/snapshot.js`, `snapshot-sync.js` | Client snapshots + upload + event GC. Snapshots are always taken locally; upload runs only between `startSnapshotSync()` and `stopSnapshotSync()`, and only as the Data Owner |
 | `event-sourcing/sync-indicator.js` | Header sync-state indicator (#115), rendered from the session state and queue depth |
@@ -366,7 +373,7 @@ Development runs without a service worker. Production lifecycle tests run with `
 | `labels-modal.js` | Label management modal |
 | `render.js` | Two render adapters behind one read model: `renderBoard()` (full rebuild — `innerHTML` reset + `initDragDrop()`) and `reconcileBoard()` (in-place patch — moves cards by id, reorders, counters, collapsed titles, due dates, Done virtualization). Plus the **drag-reconcile window** (`beginDragReconcile()`/`endDragReconcile()`) that routes a drop's `DATA_CHANGED` through reconcile so the just-dragged node is never detached. See §7 "Board Render Flow". |
 | `swimlanes.js` | Swimlane grouping logic (`groupTasksBySwimLane`, etc.) |
-| `swimlane-renderer.js` | Swimlane board DOM builder |
+| `swimlane-renderer.js` | Swimlane board DOM builder and its in-place patch (`reconcileSwimlaneBoard()`) |
 | `dragdrop.js` | SortableJS initialization/teardown; swimlane-aware drop handling |
 | `importexport.js` | Board JSON export/import with preflight validation |
 | `reports.js` | ECharts: lead time, daily completions, cumulative flow diagram |
@@ -406,12 +413,24 @@ A projected `DATA_CHANGED` normally drives a full `renderBoard()` rebuild. A
 **drag-drop** opens the drag-reconcile window first (`dragdrop.js` `onEnd`), so the
 same `DATA_CHANGED` is routed through `reconcileBoard()` — a keyed in-place patch —
 instead of the `innerHTML` teardown. This is why a drag-to-Done no longer detaches
-the node Chrome's DnD engine still holds. `reconcileBoard()` returns `false` (→ full
-rebuild) for swimlane mode or a structural column-set change.
+the node Chrome's DnD engine still holds. Swimlane boards go through
+`reconcileSwimlaneBoard()`, keyed by lane, column and task. A card state no longer shows
+(a drop into a hidden Done cell) stays attached and hidden until Sortable's `onEnd` has
+returned, then leaves in the next task; a lane that lost its last task leaves in place and
+only its Sortables are destroyed, also after `onEnd`. `reconcileBoard()` returns `false`
+(→ full rebuild, in the next task after `onEnd`) for a structural column-set change, a lane the
+board doesn't have yet, or a changed lane grouping.
 ```
-drop onEnd → beginDragReconcile() → updateTaskPositionsFromDrop() → …DATA_CHANGED…
+drop onEnd → beginDragReconcile() → commitTogether(updateTaskPositionsFromDrop() …) → DATA_CHANGED
            → reconcileBoard() [patch in place]  → endDragReconcile()
 ```
+
+A **commit scope** (`commitTogether()`, `event-sourcing/emitter.js`) wraps one synchronous user
+mutation that makes several events: adding or editing a task, or a drop. Each event still projects at
+once and in order, so the code after it reads its result. When the mutation returns, the board gets one
+`DATA_CHANGED`, each changed read-model slice is stored once, and other tabs get one `EVENTS_STORED`
+naming every event. The scope closes before control returns, so its writes share the tick's write batch
+(§9) and a drop's redraw falls inside its reconcile window. It must never wrap anything asynchronous.
 
 ### Task Due Date Rendering
 ```
@@ -452,6 +471,7 @@ offline, sign-out → stop the queue, snapshot upload and realtime; a push rejec
 
 [local mutation] → scheduleDomainEvent() (stamp UUID + sync HLC) → ingestEvent(event, { origin: 'local' })
 [remote event]   → realtime.js SSE → ingestEvent(event, { origin: 'remote', receivedAt: record.created })
+                   SSE burst (messages landing while earlier ones are stored) → queued → ingestRemoteBatch(burst)
                    catchUp() → ingestRemoteBatch([{ event, receivedAt }]) → the same remote path per event
                                                    (remote only: await observeRemote(hlc) first)
 [server snapshot]→ catchUp(), before its events → adoptSnapshot(key, state, hlc) → save + rebuildScope(key)
@@ -567,7 +587,10 @@ The screen updates synchronously (ADR-0005), so an edit is on screen before Inde
 made through `persistEvent()` and the `schedule*` helpers in one tick joins one **write batch**: a single
 transaction over kv, events and read_model (`batchedWrite`, `idb-store.js`). An event and its read-model change
 therefore land together or not at all, so a read model can not hold an edit whose event is lost and never syncs.
-A multi-event delete is one batch. The batch calls `commit()` in the same task as its writes (#256).
+A multi-event delete is one batch, and so is a commit scope (§7), which also stores each slice once. Slices
+stay separate writes, but one failed write fails the whole batch. The batch calls `commit()` in the same task as its writes (#256).
+After a failed batch the projector marks its slices unsaved again, so the board's next save stores what the screen shows. The batch's
+events are not retried, so that later save is the one case where a read model holds an edit whose event is lost: it survives a reload here but never syncs.
 
 The reason for committing there: Chromium finishes a transaction whose `commit()` was already sent, but aborts one
 still waiting to auto-commit. A probe that wrote 200 records and called `location.reload()` in the same task kept them
@@ -605,6 +628,12 @@ Remaining windows:
 
 A column-wide `task.moved` from a column sort carries the column id as `entity_id`, so the reducer's
 per-task handling (delete-record check, `columnHistory`) does not fire for it.
+
+A `task.moved` payload's `order` lists every task in each affected column, including cards the DOM
+does not show (Done past its cut-off, Done in swimlanes, filtered-out and collapsed cards), and no
+other tasks. Applying one overwrites the column and order of the tasks it names. Events from before
+#140 list the whole board; they stay in logs and old devices still emit them, and the same reducer
+handler replays both shapes.
 
 `payload` (formerly `details`) carries the event data; for field changes, before/after values. Locally,
 events are persisted to the `events` IDB store with a `synced` flag; on PocketBase they live in the

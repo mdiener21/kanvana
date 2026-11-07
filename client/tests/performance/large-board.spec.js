@@ -7,6 +7,8 @@ import {
   PERFORMANCE_CALIBRATION,
   PERFORMANCE_CATCHUP_SCENARIOS,
   PERFORMANCE_CI_BUDGETS,
+  PERFORMANCE_EDIT_SCENARIOS,
+  PERFORMANCE_MOVE_SCENARIOS,
   PERFORMANCE_REPETITIONS,
   PERFORMANCE_SCENARIOS,
 } from './performance-budgets.js';
@@ -143,6 +145,32 @@ async function readRenderCounts(page) {
   }), { full: FULL_RENDER_MARK, reconcile: RECONCILE_RENDER_MARK });
 }
 
+// Runs before the app and counts read-model writes at the IndexedDB boundary, so the count survives
+// changes to how the projector schedules them. A read-model write is one put() or delete() on the
+// read_model store, or on the kv keys the projector also owns: the board list, a board's settings
+// and the newest-applied HLC map.
+function installReadModelWriteCounter() {
+  const writes = [];
+  globalThis.__kanvanaReadModelWrites = writes;
+  const kvReadModelKey = (key) => key === 'kanbanBoards'
+    || key === 'kanvana:ingest:newestAppliedHlc'
+    || (typeof key === 'string' && /^kanbanBoard:.+:settings$/.test(key));
+  for (const method of ['put', 'delete']) {
+    const original = IDBObjectStore.prototype[method];
+    IDBObjectStore.prototype[method] = function countReadModelWrite(...args) {
+      const key = method === 'put' ? args[1] : args[0];
+      if (this.name === 'read_model' || (this.name === 'kv' && kvReadModelKey(key))) {
+        writes.push({ at: performance.now(), key: `${this.name}:${String(key)}` });
+      }
+      return original.apply(this, args);
+    };
+  }
+}
+
+function readModelWriteCount(page) {
+  return page.evaluate(() => globalThis.__kanvanaReadModelWrites.length);
+}
+
 async function dragWithPointer(page, source, destination) {
   await source.scrollIntoViewIfNeeded();
   await destination.scrollIntoViewIfNeeded();
@@ -187,6 +215,7 @@ async function performMeasuredMoves(page, fixture, view) {
   const laneId = fixture.labels[0].id;
   const latencies = [];
   const beforeRenders = await readRenderCounts(page);
+  const writesBefore = await readModelWriteCount(page);
 
   for (let index = 0; index < MOVES_PER_REPETITION; index += 1) {
     let source;
@@ -221,6 +250,7 @@ async function performMeasuredMoves(page, fixture, view) {
   return {
     latencies,
     boardRenders: renderCount(afterRenders) - renderCount(beforeRenders),
+    readModelWrites: await readModelWriteCount(page) - writesBefore,
   };
 }
 
@@ -271,6 +301,7 @@ function summarize(samples) {
     liveTaskCards: Math.max(...samples.map((sample) => sample.liveTaskCards)),
     startupBoardRenders: Math.max(...samples.map((sample) => sample.startupBoardRenders)),
     steadyStateBoardRenders: Math.max(...samples.map((sample) => sample.steadyStateBoardRenders)),
+    steadyStateReadModelWrites: Math.max(...samples.map((sample) => sample.steadyStateReadModelWrites)),
     browserCrashEvents: samples.reduce((total, sample) => total + sample.browserCrashEvents, 0),
   };
 }
@@ -287,6 +318,7 @@ function crashedSample(browserCrashEvents) {
     liveTaskCards: 0,
     startupBoardRenders: 0,
     steadyStateBoardRenders: 0,
+    steadyStateReadModelWrites: 0,
     browserCrashEvents,
   };
 }
@@ -358,6 +390,7 @@ for (const scenario of PERFORMANCE_SCENARIOS) {
         page.on('crash', () => { browserCrashEvents += 1; });
 
         const fixtureSeedMs = await seedSyntheticBoard(page, fixture);
+        await page.addInitScript(installReadModelWriteCounter);
         await page.addInitScript(() => {
           globalThis.__kanvanaPerfMarks = true;
           globalThis.__kanvanaStartupStartedAt = performance.now();
@@ -384,6 +417,7 @@ for (const scenario of PERFORMANCE_SCENARIOS) {
           taskDropLatencies: moveMetrics.latencies,
           startupBoardRenders,
           steadyStateBoardRenders: moveMetrics.boardRenders,
+          steadyStateReadModelWrites: moveMetrics.readModelWrites,
           browserCrashEvents,
           ...memoryMetrics,
         });
@@ -434,6 +468,8 @@ for (const scenario of PERFORMANCE_BACKFILL_SCENARIOS) {
       const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
       try {
         const page = await context.newPage();
+        const cdp = await context.newCDPSession(page);
+        await cdp.send('Performance.enable');
         await seedSyntheticBoard(page, fixture, false);
         await page.addInitScript(() => {
           globalThis.__kanvanaPerfMarks = true;
@@ -458,7 +494,8 @@ for (const scenario of PERFORMANCE_BACKFILL_SCENARIOS) {
         }), BACKFILL_FLAG_KEY);
         expect(sample.backfillMs, 'backfill did not run').toBeGreaterThan(0);
         expect(sample.backfillEvents).toBe(taskCount + fixture.columns.length + fixture.labels.length + 2);
-        samples.push(sample);
+        const { retainedDomNodes } = await collectMemoryMetrics(page, cdp);
+        samples.push({ ...sample, retainedDomNodes });
       } finally {
         await context.close();
       }
@@ -468,6 +505,7 @@ for (const scenario of PERFORMANCE_BACKFILL_SCENARIOS) {
       startupMs: median(samples.map((sample) => sample.startupMs)),
       backfillMs: median(samples.map((sample) => sample.backfillMs)),
       boardRenders: Math.max(...samples.map((sample) => sample.boardRenders)),
+      retainedDomNodes: median(samples.map((sample) => sample.retainedDomNodes)),
     };
     const result = { scenario: { taskCount, mode: 'backfill' }, repetitions: PERFORMANCE_REPETITIONS, metrics: rounded(metrics), baseline: scenario.baseline, budget: scenario.budget };
     console.log(`KANVANA_PERFORMANCE ${JSON.stringify(result)}`);
@@ -476,6 +514,198 @@ for (const scenario of PERFORMANCE_BACKFILL_SCENARIOS) {
     if (!PERFORMANCE_CALIBRATION) {
       for (const [metric, limit] of Object.entries(scenario.budget)) {
         expect(metrics[metric], `${metric} exceeded its ${taskCount}/backfill budget`).toBeLessThanOrEqual(limit);
+      }
+    }
+  });
+}
+
+// #140: a few tasks in the columns a move touches, and everything else in a column it does not.
+function createUnrelatedTasksBoard(unrelatedTasks, movingTasks, doneTasks) {
+  const base = createSyntheticBoard(unrelatedTasks + movingTasks + doneTasks, 'standard');
+  const [, inProgress, done] = base.columns;
+  const parked = createColumn({ id: deterministicUuid(0xc01, 4), name: 'Parked', color: '#94a3b8', order: 4 });
+  const columnOf = (index) => {
+    if (index < movingTasks) return inProgress.id;
+    return index < movingTasks + doneTasks ? done.id : parked.id;
+  };
+  return {
+    ...base,
+    columns: [...base.columns, parked],
+    tasks: base.tasks.map((task, index) => {
+      const { doneDate, ...rest } = task;
+      const column = columnOf(index);
+      return {
+        ...rest,
+        column,
+        order: index + 1,
+        columnHistory: [{ column, at: FIXED_AT }],
+        ...(column === done.id ? { doneDate: FIXED_AT } : {}),
+      };
+    }),
+  };
+}
+
+// As stored and pushed to the server, so this is the size a device syncs.
+async function readMoveEvents(page) {
+  return page.evaluate(() => new Promise((resolve, reject) => {
+    const request = indexedDB.open('kanvana-db');
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const read = db.transaction('events').objectStore('events').getAll();
+      read.onerror = () => { reject(read.error); db.close(); };
+      read.onsuccess = () => {
+        db.close();
+        resolve(read.result
+          .filter((event) => event.type === 'task.moved')
+          .map((event) => ({ bytes: new TextEncoder().encode(JSON.stringify(event)).length, ids: event.payload.order.map((entry) => entry.id) })));
+      };
+    };
+  }));
+}
+
+for (const scenario of PERFORMANCE_MOVE_SCENARIOS) {
+  const { unrelatedTasks, movingTasks, doneTasks } = scenario;
+  test(`moves stay within budget beside ${unrelatedTasks} unrelated tasks`, async ({ browser }, testInfo) => {
+    test.setTimeout(120_000 * PERFORMANCE_REPETITIONS);
+    const fixture = createUnrelatedTasksBoard(unrelatedTasks, movingTasks, doneTasks);
+    const unrelatedIds = new Set(fixture.tasks.slice(movingTasks + doneTasks).map((task) => task.id));
+    const samples = [];
+
+    for (let repetition = 0; repetition < PERFORMANCE_REPETITIONS; repetition += 1) {
+      const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+      try {
+        const page = await context.newPage();
+        await seedSyntheticBoard(page, fixture);
+        await page.addInitScript(installReadModelWriteCounter);
+        await page.addInitScript(() => { globalThis.__kanvanaPerfMarks = true; });
+        await page.goto('/', { waitUntil: 'domcontentloaded' });
+        await expect(page.locator('.task')).toHaveCount(fixture.tasks.length, { timeout: 30_000 });
+        await expect.poll(async () => renderCount(await readRenderCounts(page))).toBeGreaterThan(0);
+
+        const { latencies } = await performMeasuredMoves(page, fixture, 'standard');
+        await expect.poll(async () => (await readMoveEvents(page)).length, { timeout: 10_000 }).toBe(MOVES_PER_REPETITION);
+        samples.push({ latencies, events: await readMoveEvents(page) });
+      } finally {
+        await context.close();
+      }
+    }
+
+    const events = samples.flatMap((sample) => sample.events);
+    const metrics = {
+      taskDropLatencyMs: median(samples.flatMap((sample) => sample.latencies)),
+      moveEventBytes: Math.max(...events.map((event) => event.bytes)),
+      unrelatedEntries: events.reduce((total, event) => total + event.ids.filter((id) => unrelatedIds.has(id)).length, 0),
+    };
+    const budget = { ...scenario.budget, ...(PERFORMANCE_CI_BUDGETS ? {} : scenario.localBudget) };
+    const result = { scenario: { unrelatedTasks, movingTasks, doneTasks, mode: 'move' }, repetitions: PERFORMANCE_REPETITIONS, movesPerRepetition: MOVES_PER_REPETITION, metrics: rounded(metrics), baseline: scenario.baseline, budget };
+    console.log(`KANVANA_PERFORMANCE ${JSON.stringify(result)}`);
+    await testInfo.attach('performance-result', { body: JSON.stringify(result, null, 2), contentType: 'application/json' });
+    if (!PERFORMANCE_CALIBRATION) {
+      for (const [metric, limit] of Object.entries(budget)) {
+        expect(metrics[metric], `${metric} exceeded its ${unrelatedTasks}-unrelated-tasks budget`).toBeLessThanOrEqual(limit);
+      }
+    }
+  });
+}
+
+function storedEventCount(page) {
+  return page.evaluate(() => new Promise((resolve, reject) => {
+    const request = indexedDB.open('kanvana-db');
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const read = db.transaction('events').objectStore('events').count();
+      read.onerror = () => { reject(read.error); db.close(); };
+      read.onsuccess = () => { db.close(); resolve(read.result); };
+    };
+  }));
+}
+
+// One save of the real form. Timed in-page, like a drop, from just before the click to the last render.
+async function saveMultiEventEdit(page, fixture, index) {
+  const taskIndex = Math.floor(fixture.tasks.length * 0.9) + index;
+  const edited = fixture.tasks[taskIndex];
+  const linked = fixture.tasks[fixture.tasks.length - 1 - index];
+  const label = fixture.labels[(taskIndex + 1) % fixture.labels.length];
+  const inProgress = fixture.columns[1].id;
+  const form = page.locator('#task-modal');
+
+  await page.locator(`.task[data-task-id="${edited.id}"] .task-title`).click();
+  await expect(form).toBeVisible();
+  await form.locator('#task-title').fill(`${edited.title} edited`);
+  await form.getByLabel('Filter available labels').fill(label.name);
+  await form.getByRole('checkbox', { name: label.name, exact: true }).check();
+  await form.locator('#task-relationship-search').fill(linked.title);
+  await form.locator('.relationship-result-item').first().click();
+  await form.locator('#task-subtask-input').fill('First step');
+  await form.locator('#task-subtask-input').press('Enter');
+  await form.locator('#task-column').selectOption(inProgress);
+
+  const rendersBefore = renderCount(await readRenderCounts(page));
+  const writesBefore = await readModelWriteCount(page);
+  const eventsBefore = await storedEventCount(page);
+  const savedAt = await page.evaluate(() => performance.now());
+  await form.getByRole('button', { name: 'Save Changes', exact: true }).click();
+  await expect(page.locator(`.task-column[data-column="${inProgress}"] .task[data-task-id="${edited.id}"]`)).toContainText('edited');
+  await expect.poll(async () => (await storedEventCount(page)) - eventsBefore, { timeout: 10_000 }).toBeGreaterThan(0);
+  // A second render or write would come from a later task; give one room to show up.
+  await page.waitForTimeout(100);
+
+  return {
+    latency: await renderLatencySince(page, savedAt),
+    boardRenders: renderCount(await readRenderCounts(page)) - rendersBefore,
+    readModelWrites: await readModelWriteCount(page) - writesBefore,
+    events: await storedEventCount(page) - eventsBefore,
+  };
+}
+
+for (const scenario of PERFORMANCE_EDIT_SCENARIOS) {
+  const { taskCount } = scenario;
+  test(`a multi-event task edit on ${taskCount} tasks stays within budget`, async ({ browser }, testInfo) => {
+    test.setTimeout(120_000 * PERFORMANCE_REPETITIONS);
+    const fixture = createSyntheticBoard(taskCount, 'standard');
+    const samples = [];
+
+    for (let repetition = 0; repetition < PERFORMANCE_REPETITIONS; repetition += 1) {
+      const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+      try {
+        const page = await context.newPage();
+        const cdp = await context.newCDPSession(page);
+        await cdp.send('Performance.enable');
+        await seedSyntheticBoard(page, fixture);
+        await page.addInitScript(installReadModelWriteCounter);
+        await page.addInitScript(() => { globalThis.__kanvanaPerfMarks = true; });
+        await page.goto('/', { waitUntil: 'domcontentloaded' });
+        await expect(page.locator('.task')).toHaveCount(Math.floor(taskCount * 0.4) + 50, { timeout: 30_000 });
+        await expect.poll(async () => renderCount(await readRenderCounts(page))).toBeGreaterThan(0);
+
+        const saves = [];
+        for (let index = 0; index < MOVES_PER_REPETITION; index += 1) saves.push(await saveMultiEventEdit(page, fixture, index));
+        const { jsHeapUsedMb } = await collectMemoryMetrics(page, cdp);
+        samples.push({ saves, jsHeapUsedMb });
+      } finally {
+        await context.close();
+      }
+    }
+
+    const saves = samples.flatMap((sample) => sample.saves);
+    const metrics = {
+      taskSaveLatencyMs: median(saves.map((save) => save.latency)),
+      jsHeapUsedMb: median(samples.map((sample) => sample.jsHeapUsedMb)),
+      boardRendersPerSave: Math.max(...saves.map((save) => save.boardRenders)),
+      readModelWritesPerSave: Math.max(...saves.map((save) => save.readModelWrites)),
+      eventsPerSave: Math.max(...saves.map((save) => save.events)),
+    };
+    const budget = { ...scenario.budget, ...(PERFORMANCE_CI_BUDGETS ? {} : scenario.localBudget) };
+    const result = { scenario: { taskCount, mode: 'multi-event edit' }, repetitions: PERFORMANCE_REPETITIONS, savesPerRepetition: MOVES_PER_REPETITION, metrics: rounded(metrics), baseline: scenario.baseline, budget };
+    console.log(`KANVANA_PERFORMANCE ${JSON.stringify(result)}`);
+    await testInfo.attach('performance-result', { body: JSON.stringify(result, null, 2), contentType: 'application/json' });
+    // A save that made fewer events would pass the render and write limits without testing them.
+    expect(Math.min(...saves.map((save) => save.events)), 'a save made fewer events than the scenario needs').toBe(scenario.baseline.eventsPerSave);
+    if (!PERFORMANCE_CALIBRATION) {
+      for (const [metric, limit] of Object.entries(budget)) {
+        expect(metrics[metric], `${metric} exceeded its ${taskCount}-task edit budget`).toBeLessThanOrEqual(limit);
       }
     }
   });
@@ -577,30 +807,10 @@ async function mockPocketBase(context, taskCount) {
   return unmocked;
 }
 
-// Runs before the app: signs the device in, stands in for the realtime stream, and counts
-// read-model writes at the IndexedDB boundary so the count survives changes to how the
-// projector schedules them. A read-model write is one put() or delete() on the read_model
-// store, or on the kv keys the projector also owns: the board list, a board's settings and
-// the newest-applied HLC map.
+// Runs before the app: signs the device in and stands in for the realtime stream.
 function installCatchUpInstrumentation({ token, user }) {
   globalThis.__kanvanaPerfMarks = true;
   localStorage.setItem('pocketbase_auth', JSON.stringify({ token, record: user }));
-
-  const writes = [];
-  globalThis.__kanvanaReadModelWrites = writes;
-  const kvReadModelKey = (key) => key === 'kanbanBoards'
-    || key === 'kanvana:ingest:newestAppliedHlc'
-    || (typeof key === 'string' && /^kanbanBoard:.+:settings$/.test(key));
-  for (const method of ['put', 'delete']) {
-    const original = IDBObjectStore.prototype[method];
-    IDBObjectStore.prototype[method] = function countReadModelWrite(...args) {
-      const key = method === 'put' ? args[1] : args[0];
-      if (this.name === 'read_model' || (this.name === 'kv' && kvReadModelKey(key))) {
-        writes.push({ at: performance.now(), key: `${this.name}:${String(key)}` });
-      }
-      return original.apply(this, args);
-    };
-  }
 
   globalThis.EventSource = class FakeEventSource extends EventTarget {
     constructor(url) {
@@ -656,6 +866,7 @@ for (const scenario of PERFORMANCE_CATCHUP_SCENARIOS) {
       const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 1440, height: 900 } });
       try {
         const unmocked = await mockPocketBase(context, taskCount);
+        await context.addInitScript(installReadModelWriteCounter);
         await context.addInitScript(installCatchUpInstrumentation, { token: PB_TOKEN, user: PB_USER });
         const page = await context.newPage();
 

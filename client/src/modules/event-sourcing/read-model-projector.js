@@ -9,6 +9,10 @@ import { compareHlc, laterHlc } from './hlc.js';
 // projection layer owns the read model independent of CRUD. storage.js wires the
 // closure `state` + schedulers in via createReadModelProjector(); the reducer
 // (applyEvent/createProjectionState) stays pure and is imported directly.
+
+// What IDB stores per board. The board list is one key shared by every board, so it is tracked apart.
+const BOARD_SLICES = ['tasks', 'columns', 'labels', 'settings', 'taskTombstones', 'appliedEventIds'];
+
 export function createReadModelProjector(ctx) {
   const {
     state,
@@ -48,6 +52,11 @@ export function createReadModelProjector(ctx) {
   let disconnect = null;
   // A remote catch-up batch keeps projecting in memory but saves each board it touched once, at its end (#237).
   let batch = null;
+  // What changed in memory since it was last stored. A save writes these and nothing else.
+  const unsavedSlices = new Map();
+  let boardsUnsaved = false;
+  // A local commit scope (#142) projects each event at once and saves what they changed once, when it closes.
+  let commit = null;
 
   function classify(event) {
     if (hasApplied(event)) return EVENT_ORDER.APPLIED;
@@ -74,29 +83,48 @@ export function createReadModelProjector(ctx) {
     if (!newest || newest === state.newestAppliedHlc[key]) return;
     state.newestAppliedHlc[key] = newest;
     if (batched) batch.newestApplied = true;
+    else if (commit) commit.newestApplied = true;
     else schedulePersist(newestAppliedKey, { ...state.newestAppliedHlc });
   }
 
+  function beginCommit() {
+    commit = { boards: new Set(), boardless: new Map(), newestApplied: false };
+  }
+
+  function endCommit() {
+    if (!commit) return;
+    const closing = commit;
+    commit = null;
+    closing.boardless.forEach(({ slot, viewChanged }, key) => persistBoardless(slot, key, viewChanged));
+    persistTouched(closing);
+  }
+
+  function persistTouched({ boards, newestApplied }) {
+    if (newestApplied) schedulePersist(newestAppliedKey, { ...state.newestAppliedHlc });
+    persistBoards();
+    boards.forEach((boardId) => persistBoard(boardId));
+  }
+
   function beginBatch() {
-    batch ??= { boards: new Set(), saved: new Set(), dropped: new Set(), newestApplied: false, pending: new Map() };
+    batch ??= { boards: new Set(), saved: new Set(), dropped: new Set(), newestApplied: false, pending: new Map(), changed: false };
   }
 
   function persistBatch() {
     applyAllPending();
-    if (batch.newestApplied) schedulePersist(newestAppliedKey, { ...state.newestAppliedHlc });
-    if (batch.boards.size) schedulePersist(boardsKey, state.boards);
-    batch.boards.forEach(persistBoard);
+    persistTouched(batch);
     batch.boards.forEach((boardId) => batch.saved.add(boardId));
     batch.boards.clear();
     batch.newestApplied = false;
   }
 
+  // Whether the batch changed anything a render would show; queued events only reveal that once applied.
   function endBatch() {
-    if (!batch) return;
+    if (!batch) return false;
     persistBatch();
-    const { saved } = batch;
+    const { saved, changed } = batch;
     batch = null;
     saved.forEach(scheduleBoardSnapshot);
+    return changed;
   }
 
   // A tab closed mid catch-up keeps the batch's stored events, which catch-up then skips, so save the board so far.
@@ -104,17 +132,21 @@ export function createReadModelProjector(ctx) {
     if (batch) persistBatch();
   }
 
+  // True when the event changed the read model now. A no-op is still remembered and counts towards a snapshot.
   function project(event, { batched = false } = {}) {
     if (!event?.id || hasApplied(event)) return false;
 
     const slot = boardlessSlots.get(event.scope);
     if (slot) {
       const key = snapshotKeyForEvent(event);
-      const projected = applyEvent(createProjectionState({ [slot.field]: slot.seed() }), event);
-      writeBoardless(slot, key, projected[slot.field], [...(safeParseArray(state.appliedEventIds[key]) || []), event.id]);
+      const seeded = createProjectionState({ [slot.field]: slot.seed() });
+      const projected = applyEvent(seeded, event);
+      const changed = projected[slot.field] !== seeded[slot.field];
+      const appliedIds = [...(safeParseArray(state.appliedEventIds[key]) || []), event.id];
+      writeBoardless(slot, key, changed ? projected[slot.field] : undefined, appliedIds);
       noteApplied(key, event.hlc);
       checkAndScheduleSnapshot(key, { fold: (snapshot, events) => fold(key, snapshot, events), onSaved: onSnapshotSaved });
-      return true;
+      return changed;
     }
 
     const boardId = event.board_id;
@@ -129,15 +161,16 @@ export function createReadModelProjector(ctx) {
       batch.pending.set(boardId, pending);
       batch.boards.add(boardId);
       noteApplied(boardId, event.hlc, { batched: true });
-      return true;
+      return false;
     }
 
     applyPending(boardId);
-    writeBoard(boardId, applyEvent(boardProjection(boardId), event));
-    saveBoard(boardId);
+    const changed = writeBoard(boardId, applyEvent(boardProjection(boardId), event));
+    if (commit) commit.boards.add(boardId);
+    else saveBoard(boardId);
     noteApplied(boardId, event.hlc);
     scheduleBoardSnapshot(boardId);
-    return true;
+    return changed;
   }
 
   // One list per board copies it once per run, not once per event (#238).
@@ -145,7 +178,7 @@ export function createReadModelProjector(ctx) {
     const pending = batch?.pending.get(boardId);
     if (!pending) return;
     batch.pending.delete(boardId);
-    writeBoard(boardId, applyEvents(boardProjection(boardId), pending.events));
+    if (writeBoard(boardId, applyEvents(boardProjection(boardId), pending.events))) batch.changed = true;
   }
 
   // Reads mid-batch must see the queued events, or a local command builds its payload from a stale board.
@@ -154,6 +187,7 @@ export function createReadModelProjector(ctx) {
   }
 
   function dropBoard(boardId) {
+    unsavedSlices.delete(boardId);
     if (!batch) return;
     batch.pending.delete(boardId);
     batch.boards.delete(boardId);
@@ -247,6 +281,9 @@ export function createReadModelProjector(ctx) {
       taskTombstones,
       appliedEventIds: projected.appliedEventIds
     });
+    // A rebuild replaces every list and may swap applied ids for a snapshot's, so all of it is stored.
+    BOARD_SLICES.forEach((slice) => markUnsaved(key, slice));
+    boardsUnsaved = true;
     saveBoard(key);
     noteApplied(key, newest);
     return true;
@@ -276,14 +313,34 @@ export function createReadModelProjector(ctx) {
   }
 
   // The view and its applied ids are written together, so a stale tab's copy leaves its gap detectable.
+  // An undefined `value` means the event changed nothing: only its id is remembered (#138).
   function writeBoardless(slot, key, value, appliedIds) {
-    state[slot.field] = value;
+    const viewChanged = value !== undefined;
+    if (viewChanged) state[slot.field] = value;
     setAppliedIds(key, appliedIds);
-    schedulePersist(slot.persistKey, value);
+    if (!commit) return persistBoardless(slot, key, viewChanged);
+    const pending = commit.boardless.get(key);
+    commit.boardless.set(key, { slot, viewChanged: viewChanged || Boolean(pending?.viewChanged) });
+  }
+
+  function persistBoardless(slot, key, viewChanged) {
+    if (viewChanged) schedulePersist(slot.persistKey, state[slot.field]);
     scheduleReadModelPersist(key, 'appliedEventIds', state.appliedEventIds[key]);
   }
 
+  function markUnsaved(boardId, slice) {
+    if (!unsavedSlices.has(boardId)) unsavedSlices.set(boardId, new Set());
+    unsavedSlices.get(boardId).add(slice);
+  }
+
+  // True when a slice other than the event memory changed. A slice never stored counts as changed, so a reload keeps it.
   function writeBoard(boardId, projected) {
+    const tombstonesBefore = (safeParseArray(state.taskTombstones[boardId]) || []).length;
+    const appliedBefore = (safeParseArray(state.appliedEventIds[boardId]) || []).length;
+    const changed = ['tasks', 'columns', 'labels', 'settings'].filter((slice) => projected[slice] !== state[slice][boardId]);
+    if (projected.taskTombstones.size !== tombstonesBefore) changed.push('taskTombstones');
+    const boardsChanged = projected.boards !== state.boards;
+
     state.boards = projected.boards;
     state.tasks[boardId] = projected.tasks;
     state.columns[boardId] = projected.columns;
@@ -292,20 +349,34 @@ export function createReadModelProjector(ctx) {
     state.taskTombstones[boardId] = [...projected.taskTombstones];
     taskCacheByBoard.set(boardId, projected.tasks);
     setAppliedIds(boardId, projected.appliedEventIds);
+
+    changed.forEach((slice) => markUnsaved(boardId, slice));
+    if (boardsChanged) boardsUnsaved = true;
+    if (state.appliedEventIds[boardId].length !== appliedBefore) markUnsaved(boardId, 'appliedEventIds');
+    return boardsChanged || changed.length > 0;
   }
 
   function saveBoard(boardId) {
-    schedulePersist(boardsKey, state.boards);
+    persistBoards();
     persistBoard(boardId);
   }
 
+  function persistBoards() {
+    if (!boardsUnsaved) return;
+    boardsUnsaved = false;
+    schedulePersist(boardsKey, state.boards, () => { boardsUnsaved = true; });
+  }
+
+  // A failed write stored nothing (#256) and a later save only writes what is marked, so it marks the slice again.
   function persistBoard(boardId) {
-    scheduleReadModelPersist(boardId, 'tasks', state.tasks[boardId]);
-    scheduleReadModelPersist(boardId, 'columns', state.columns[boardId]);
-    scheduleReadModelPersist(boardId, 'labels', state.labels[boardId]);
-    schedulePersist(keyFor(boardId, 'settings'), state.settings[boardId]);
-    scheduleReadModelPersist(boardId, 'taskTombstones', state.taskTombstones[boardId]);
-    scheduleReadModelPersist(boardId, 'appliedEventIds', state.appliedEventIds[boardId]);
+    const slices = unsavedSlices.get(boardId);
+    if (!slices) return;
+    unsavedSlices.delete(boardId);
+    for (const slice of slices) {
+      const onFailed = () => markUnsaved(boardId, slice);
+      if (slice === 'settings') schedulePersist(keyFor(boardId, 'settings'), state.settings[boardId], onFailed);
+      else scheduleReadModelPersist(boardId, slice, state[slice][boardId], onFailed);
+    }
   }
 
   // Null when the snapshot already holds the event.
@@ -316,12 +387,15 @@ export function createReadModelProjector(ctx) {
 
   function register() {
     if (disconnect) return;
-    disconnect = connectProjector({ classify, project, rebuild, snapshotToAdopt, foldOntoSnapshot, beginBatch, endBatch, missedEvents });
+    disconnect = connectProjector({ classify, project, rebuild, snapshotToAdopt, foldOntoSnapshot, beginBatch, endBatch, beginCommit, endCommit, missedEvents });
     window.addEventListener('pagehide', persistBatchOnPageHide);
   }
 
   function reset() {
     batch = null;
+    commit = null;
+    unsavedSlices.clear();
+    boardsUnsaved = false;
     window.removeEventListener('pagehide', persistBatchOnPageHide);
     disconnect?.();
     disconnect = null;

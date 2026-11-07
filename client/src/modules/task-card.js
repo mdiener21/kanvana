@@ -7,7 +7,7 @@ import { confirmDialog } from './dialog.js';
 import { calculateDaysUntilDue, formatCountdown, getCountdownClassName } from './dateutils.js';
 import { emit, DATA_CHANGED } from './events.js';
 import { labelTextColor } from './utils.js';
-import { h, cx } from './dom.js';
+import { h, cx, $ } from './dom.js';
 
 function formatDisplayDate(value, locale) {
   const raw = (value || '').toString().trim();
@@ -293,4 +293,18 @@ export function createTaskElement(task, settings, labelsMap = null, today = null
   if (hasFooterContent) li.appendChild(footer);
 
   return li;
+}
+
+// Replaced from a freshly built card, so a moved card shows what a rebuild would while its node stays attached.
+const MOVE_SENSITIVE_PARTS = ['.task-labels', '.task-priority', '.task-footer'];
+
+export function syncTaskElement(card, task, settings, labelsMap = null, today = null) {
+  const fresh = createTaskElement(task, settings, labelsMap, today);
+  MOVE_SENSITIVE_PARTS.forEach((selector) => {
+    const current = $(selector, card);
+    const next = $(selector, fresh);
+    if (current && next) current.replaceWith(next);
+    else if (current) current.remove();
+    else if (next) card.appendChild(next);
+  });
 }

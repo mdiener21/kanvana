@@ -1,15 +1,15 @@
 // Thin orchestrator — delegates to task-card.js, column-element.js, swimlane-renderer.js
 
 import { isDoneColumnId, loadColumns, loadTasks, loadLabels, loadSettings } from './storage.js';
-import { initDragDrop } from './dragdrop.js';
+import { initDragDrop, pruneDetachedTaskSortables } from './dragdrop.js';
 import { renderIcons } from './icons.js';
 import { refreshNotifications } from './notifications.js';
 import { calculateDaysUntilDue, formatCountdown, getCountdownClassName } from './dateutils.js';
 import { syncSwimLaneControls } from './swimlanes.js';
 import { on, DATA_CHANGED, DRAG_RECONCILE_BEGIN, DRAG_RECONCILE_END } from './events.js';
-import { createTaskElement, formatDisplayDate } from './task-card.js';
+import { createTaskElement, formatDisplayDate, syncTaskElement } from './task-card.js';
 import { createColumnElement, closeAllColumnMenus, initColumnMenuCloseHandler } from './column-element.js';
-import { renderSwimlaneBoard } from './swimlane-renderer.js';
+import { reconcileSwimlaneBoard, renderSwimlaneBoard } from './swimlane-renderer.js';
 import { formatWipCount, syncColumnWip } from './wip-limit.js';
 import { byColumnOrder, byOrder } from './utils.js';
 
@@ -19,23 +19,44 @@ import { byColumnOrder, byOrder } from './utils.js';
 // still references is never detached. A counter (not a boolean) survives the
 // several DATA_CHANGED events one drop can emit.
 let dragReconcileDepth = 0;
+// The node Sortable is finishing with during the current drop.
+let droppedCard = null;
+let droppedCardShown = true;
+let dropRemovedLanes = false;
+let dropNeedsRebuild = false;
 
-export function beginDragReconcile() {
+export function beginDragReconcile(card = null) {
   dragReconcileDepth += 1;
+  if (card) droppedCard = card;
 }
 
 export function endDragReconcile() {
   dragReconcileDepth = Math.max(0, dragReconcileDepth - 1);
+  if (dragReconcileDepth > 0) return;
+  const card = droppedCardShown ? null : droppedCard;
+  const removedLanes = dropRemovedLanes;
+  const needsRebuild = dropNeedsRebuild;
+  droppedCard = null;
+  droppedCardShown = true;
+  dropRemovedLanes = false;
+  dropNeedsRebuild = false;
+  if (!card && !removedLanes && !needsRebuild) return;
+  // Sortable holds the dropped node and source list until its onEnd returns, so removals and a rebuild wait for the next task.
+  setTimeout(() => {
+    card?.remove();
+    if (needsRebuild) renderBoard();
+    else if (removedLanes) pruneDetachedTaskSortables();
+  }, 0);
 }
 
-on(DRAG_RECONCILE_BEGIN, beginDragReconcile);
+on(DRAG_RECONCILE_BEGIN, (event) => beginDragReconcile(event.detail));
 on(DRAG_RECONCILE_END, endDragReconcile);
 
 // Subscribe to the event bus so any module can trigger a re-render
 // without importing render.js directly (eliminates circular deps).
 on(DATA_CHANGED, () => {
-  if (dragReconcileDepth > 0 && reconcileBoard()) return;
-  renderBoard();
+  if (dragReconcileDepth === 0) renderBoard();
+  else if (!reconcileBoard()) dropNeedsRebuild = true;
 });
 
 let columnMenuCloseHandlerAttached = false;
@@ -214,27 +235,27 @@ function markRender(name) {
 }
 
 /**
- * reconcile adapter — patch the standard board DOM in place to match the
- * projected read model, reusing existing card nodes instead of tearing the
- * board down. Used on the drag-drop path so the just-dragged node (which
- * Chrome's DnD engine still references) is never detached by an innerHTML
- * reset. Returns true when it handled the update; false when a structural or
- * swimlane change means the caller must fall back to renderBoard().
+ * reconcile adapter — patch the board DOM in place to match the projected read
+ * model, reusing existing card nodes instead of tearing the board down. Used on
+ * the drag-drop path so the just-dragged node (which Chrome's DnD engine still
+ * references) is never detached by an innerHTML reset. Returns true when it
+ * handled the update; false when a structural change means the caller must fall
+ * back to renderBoard().
  */
 export function reconcileBoard() {
   const container = document.getElementById('board-container');
   if (!container) return false;
 
   const settings = loadSettings();
-  // Swimlane boards have a different DOM shape; the reconcile adapter only
-  // handles the standard board. Defer to a full rebuild otherwise.
-  if (settings.swimLanesEnabled === true) return false;
-
   const columns = loadColumns();
   const tasks = loadTasks();
   const labels = loadLabels();
   const labelsMap = new Map(labels.map((l) => [l.id, l]));
   const visibleTasks = selectVisibleTasks(tasks, labels);
+
+  if (settings.swimLanesEnabled === true) {
+    return reconcileSwimlanes(container, columns, visibleTasks, labels, settings, labelsMap);
+  }
 
   // Structural changes (a column added or removed) need a rebuild — the DOM
   // has no node to patch. A pure task move never changes the column set.
@@ -291,7 +312,8 @@ export function reconcileBoard() {
       // A reused card keeps its old due-date markup; patch it in place so a
       // move across the Done boundary updates the countdown without recreating
       // (and detaching) the node. Freshly created cards are already correct.
-      if (reused) syncMovedTaskDueDate(task.id, column.id, tasks);
+      if (card === droppedCard) syncTaskElement(card, task, settings, labelsMap, today);
+      else if (reused) syncMovedTaskDueDate(task.id, column.id, tasks);
       usedIds.add(task.id);
     });
 
@@ -310,6 +332,21 @@ export function reconcileBoard() {
   refreshNotifications();
   markRender('kanvana:board-render:reconcile');
 
+  return true;
+}
+
+function reconcileSwimlanes(container, columns, visibleTasks, labels, settings, labelsMap) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const sortedColumns = [...columns].sort(byColumnOrder);
+  const result = reconcileSwimlaneBoard(container, sortedColumns, visibleTasks, labels, settings, labelsMap, today, droppedCard);
+  if (!result) return false;
+
+  droppedCardShown = result.droppedCardShown;
+  dropRemovedLanes ||= result.removedLanes;
+  if (result.createdCards) renderIcons();
+  refreshNotifications();
+  markRender('kanvana:board-render:reconcile');
   return true;
 }
 

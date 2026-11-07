@@ -103,7 +103,9 @@ event-log backfill. A catch-up scenario signs a fresh device in and pulls 400 ta
 with `page.route`, the realtime stream is replaced in-page, and every request that would leave
 localhost is aborted (the production build loads an analytics script). The pulled events are stamped
 when the device first pulls, so they are newer than the default board it seeded at boot and project
-in order. Each scenario prints one `KANVANA_PERFORMANCE` JSON record and attaches the
+in order. A move scenario drops tasks beside 1,000 tasks in a column the moves do not touch and
+measures the stored event's size. An edit scenario saves a task form change that makes six events.
+Each scenario prints one `KANVANA_PERFORMANCE` JSON record and attaches the
 same JSON to the Playwright result. The smoke check holds an image request open to prove that
 startup timing stops at the board-render mark, before browser `load` finishes.
 CI uploads `client/test-results/performance-report.json` for review after each run.
@@ -129,6 +131,8 @@ CI uploads `client/test-results/performance-report.json` for review after each r
 - `startupBoardRenders` / `steadyStateBoardRenders` — completed full and reconcile renders. The app
   only emits these marks when the harness sets `globalThis.__kanvanaPerfMarks`, so production sessions
   never accumulate an unbounded mark buffer.
+- `steadyStateReadModelWrites` — read-model writes (defined under `readModelWrites` below) across the
+  five measured moves. Each move stores three: the tasks, the applied event ids and the newest-applied HLC.
 - `allCardsShownMs` (catch-up) — navigation start to the first animation frame in which every synced
   card is in the DOM.
 - `boardRenders` (catch-up) — full and reconcile render marks from the moment the server starts
@@ -180,17 +184,20 @@ Drop and heap budgets carry measured headroom because they move with runner load
 | 400 swimlane | 8.9 / 200 | 451.8 / 2500 | 95.0 / 250 | 5.40 / 9 |
 | 1,000 swimlane | 18.5 / 250 | 355.8 / 3600 | 159.3 / 400 | 7.11 / 11 |
 
-| Migration scenario | Startup baseline / budget (ms) | Backfill baseline / budget (ms) | Startup renders |
-|---|---:|---:|---:|
-| 400 standard | 343.3 / 3000 | 52.3 / 200 | 1 |
-| 1,000 standard | 506.3 / 4000 | 127.9 / 400 | 1 |
+| Migration scenario | Startup baseline / budget (ms) | Backfill baseline / budget (ms) | Startup renders | Retained nodes baseline / budget |
+|---|---:|---:|---:|---:|
+| 400 standard | 343.3 / 3000 | 52.3 / 200 | 1 | 16,330 / 18,600 |
+| 1,000 standard | 506.3 / 4000 | 127.9 / 400 | 1 | 30,250 / 34,700 |
 
-| Scenario | Live cards baseline / budget | Live nodes baseline / budget | Detached nodes baseline / budget | Retained nodes baseline / budget | Startup renders | Renders for five moves | Crash events |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| 400 standard | 205 / 210 | 5,513 / 5,800 | 11,832 / 12,500 | 17,345 / 18,300 | 1 | 5 | 0 |
-| 1,000 standard | 445 / 450 | 10,073 / 10,600 | 22,632 / 23,800 | 32,705 / 34,400 | 1 | 5 | 0 |
-| 400 swimlane | 160 / 165 | 4,726 / 5,000 | 10,069 / 10,600 | 14,795 / 15,600 | 1 | 10 | 0 |
-| 1,000 swimlane | 400 / 405 | 9,286 / 9,800 | 20,869 / 22,000 | 30,155 / 31,700 | 1 | 10 | 0 |
+Migration retained nodes were recorded locally (#138). Their budgets sit about 300 nodes above the
+steady-state retained budgets, the gap measured between the two scenarios on that machine.
+
+| Scenario | Live cards baseline / budget | Live nodes baseline / budget | Detached nodes baseline / budget | Retained nodes baseline / budget | Startup renders | Renders for five moves | Read-model writes for five moves | Crash events |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| 400 standard | 205 / 210 | 5,513 / 5,800 | 11,832 / 12,500 | 17,345 / 18,300 | 1 | 5 | 15 | 0 |
+| 1,000 standard | 445 / 450 | 10,073 / 10,600 | 22,632 / 23,800 | 32,705 / 34,400 | 1 | 5 | 15 | 0 |
+| 400 swimlane | 160 / 165 | 4,726 / 5,000 | 10,069 / 10,600 | 14,795 / 15,600 | 1 | 5 | 15 | 0 |
+| 1,000 swimlane | 400 / 405 | 9,286 / 9,800 | 20,869 / 22,000 | 30,155 / 31,700 | 1 | 5 | 15 | 0 |
 
 The catch-up baseline was recorded locally on 2026-10-27, after #238, from six runs of three cold
 starts (medians 1,588.9, 1,597.5, 2,522.2, 2,529.8, 2,969.1 and 4,295.2 ms; renders and writes
@@ -201,18 +208,43 @@ board it touched once, when the batch ends and before the catch-up watermark adv
 of one run puts the reducer at about 13 ms and the state copy under 1 ms (garbage collection 62 ms);
 what remains is per-event IndexedDB work in the ingest loop (storing each event, the per-event
 "already stored?" lookup) and the `event:emitted` listeners, plus time spent waiting on IndexedDB.
-The 8 writes are one
-each of tasks, columns, labels, task tombstones and applied event ids in `read_model`, and the board
-list, board settings and newest-applied HLC in `kv`, for the one board the scenario syncs. The
-renders budget is the ceiling of 2 for the whole catch-up; writes allow one more full save of the
-board and time is about 2x.
+Since #141 a save
+stores only the slices the batch changed, so the 3 writes are the tasks and applied event ids in
+`read_model` and the newest-applied HLC in `kv`; it was 8 with every slice saved. The renders budget
+is the ceiling of 2 for the whole catch-up; writes allow one more such save and time is about 2x.
 
 Before #237 the same scenario took 18,573.6 ms and made 6,400 writes (8 per event), after #234;
 after #237 it took 4,529.2 ms.
 
 | Catch-up scenario | All cards shown baseline / budget (ms) | Renders baseline / budget | Read-model writes baseline / budget |
 |---|---:|---:|---:|
-| 400 tasks / 800 events | 2,526 / 5,000 | 1 / 2 | 8 / 16 |
+| 400 tasks / 800 events | 2,526 / 5,000 | 1 / 2 | 3 / 6 |
+
+The move scenario (#140) makes five real drops from In Progress (6 tasks) to Done (4 tasks) beside
+1,000 tasks in a column the moves do not touch. `moveEventBytes` is the largest stored `task.moved`
+event as UTF-8 JSON, and `unrelatedEntries` counts its order entries for those 1,000 tasks across all
+moves. Both reproduce exactly between runs, so their limits are tight (the bytes allow for a longer HLC counter). The same scenario on the old
+full-board payload measured 107,445 bytes and 5,000 unrelated entries for one repetition, with a
+274 ms drop on the same machine: the size follows the board, and most of the drop time does not. The
+baseline was recorded locally on 2026-11-04; the 500 ms drop budget is about 2x that until a CI run
+calibrates it, and local runs use 1,300 ms.
+
+| Move scenario | Drop baseline / budget (ms) | Event size baseline / budget (bytes) | Unrelated entries baseline / budget |
+|---|---:|---:|---:|
+| 1,000 unrelated tasks | 249.7 / 500 | 1,523 / 1,550 | 0 / 0 |
+
+The edit scenario (#142) saves the real task form five times per start on the 1,000-task board. Each
+save changes the title, a label, a relationship, a sub-task and the column, which is six events.
+`taskSaveLatencyMs` runs in-page from just before the click to the last board render; renders and
+read-model writes are counted per save, with 100 ms allowed for a late one, and the writes are the
+tasks, the applied event ids and the newest-applied HLC. The scenario fails if a save makes fewer
+than six events. The same scenario measured 7 renders, 18 writes and 485 ms per save before the commit
+scope, on the same machine. The baseline was recorded locally on 2026-11-04; the 350 ms save budget is
+about 2x that until a CI run calibrates it, and local runs use 1,300 ms.
+
+| Edit scenario | Save baseline / budget (ms) | Heap baseline / budget (MB) | Renders per save | Read-model writes per save | Events per save |
+|---|---:|---:|---:|---:|---:|
+| 1,000 tasks | 176.4 / 350 | 7.86 / 12 | 1 | 3 | 6 |
 
 ### Known limits
 
