@@ -1,12 +1,15 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { deleteDB } from 'idb';
 import { resetLocalStorage } from '../setup.js';
-import { DATA_CHANGED, emit, EVENT_EMITTED, off, on } from '../../../src/modules/events.js';
-import { createReadModel, ingestEvent, ingestRemoteBatch } from '../../../src/modules/event-sourcing/ingest.js';
-import { GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY } from '../../../src/modules/event-sourcing/snapshot.js';
-import {
-  KV_STORE, READ_MODEL_STORE, keyFor, openStore, readModelKeyFor, schedulePersist, scheduleReadModelPersist, _flushPersistsForTesting
-} from '../../../src/modules/idb-store.js';
+
+// The setup file's storage already made its Read Model; a fresh module graph gets one whose schedulers this test watches.
+vi.resetModules();
+const { DATA_CHANGED, emit, EVENT_EMITTED, EVENTS_STORED, off, on } = await import('../../../src/modules/events.js');
+const { commitTogether, createReadModel, ingestEvent, ingestRemoteBatch } = await import('../../../src/modules/event-sourcing/ingest.js');
+const { GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY } = await import('../../../src/modules/event-sourcing/snapshot.js');
+const {
+  KV_STORE, READ_MODEL_STORE, keyFor, openStore, readModelKeyFor, schedulePersist, scheduleReadModelPersist, _flushPersistsForTesting, _resetIdbForTesting
+} = await import('../../../src/modules/idb-store.js');
 
 const BOARD_ID = 'board-a';
 const BOARDS_KEY = 'kanbanBoards';
@@ -50,18 +53,20 @@ async function storeBoard(slices = {}) {
 }
 
 // The real Read Model on fake-indexeddb; only its schedulers are watched, and they still write.
+const ctx = {
+  schedulePersist: vi.fn(schedulePersist),
+  scheduleReadModelPersist: vi.fn(scheduleReadModelPersist),
+  checkAndScheduleSnapshot: vi.fn(),
+  boardsKey: BOARDS_KEY,
+  globalSettingsKey: GLOBAL_SETTINGS_KEY,
+  timeTrackingKey: TIME_TRACKING_KEY,
+  newestAppliedKey: NEWEST_APPLIED_KEY
+};
+const readModel = createReadModel(ctx);
+
 async function loadReadModel(slices) {
   await storeBoard(slices);
-  const ctx = {
-    schedulePersist: vi.fn(schedulePersist),
-    scheduleReadModelPersist: vi.fn(scheduleReadModelPersist),
-    checkAndScheduleSnapshot: vi.fn(),
-    boardsKey: BOARDS_KEY,
-    globalSettingsKey: GLOBAL_SETTINGS_KEY,
-    timeTrackingKey: TIME_TRACKING_KEY,
-    newestAppliedKey: NEWEST_APPLIED_KEY
-  };
-  const readModel = createReadModel(ctx);
+  vi.clearAllMocks();
   await readModel.load();
   readModel.startProjecting();
   return { ctx, readModel };
@@ -121,6 +126,7 @@ describe('createReadModel', () => {
   afterEach(async () => {
     h.readModel.reset();
     await _flushPersistsForTesting();
+    _resetIdbForTesting();
   });
 
   test('loads its own state from IndexedDB', () => {
@@ -226,6 +232,22 @@ describe('createReadModel', () => {
     await reloadWith();
     ingest(ev);
     expect(h.ctx.scheduleReadModelPersist).not.toHaveBeenCalled();
+  });
+
+  test('a commit made before projecting starts still announces its stored events once', async () => {
+    h.readModel.reset();
+    const announced = [];
+    const handler = (e) => announced.push(e.detail.ids);
+    on(EVENTS_STORED, handler);
+    try {
+      const writes = commitTogether(() => [ingest(boardEvent({ id: 'early-1' })), ingest(boardEvent({ id: 'early-2' }))]);
+      await Promise.all(writes);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    } finally {
+      off(EVENTS_STORED, handler);
+    }
+
+    expect(announced).toEqual([['early-1', 'early-2']]);
   });
 
   describe('persists only the slices an event changed', () => {

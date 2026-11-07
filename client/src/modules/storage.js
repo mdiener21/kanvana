@@ -1,5 +1,5 @@
 import { generateUUID, safeParseArray, safeParseObject } from './utils.js';
-import { normalizePriority as sharedNormalizePriority, isHexColor, normalizeCountdownThreshold, defaultColumnColor, normalizeStringKeys, normalizeRelationships, normalizeSubTasks } from './normalize.js';
+import { normalizePriority as sharedNormalizePriority, isHexColor, normalizeCountdownThreshold, defaultColumnColor, normalizeStringKeys, normalizeRelationships, normalizeSubTasks, normalizeGlobalSettings } from './normalize.js';
 import { DONE_COLUMN_ID, DONE_COLUMN_ROLE, isDoneColumn } from './constants.js';
 import { openStore, isDataCurrent, KV_STORE, READ_MODEL_STORE, EVENTS_STORE, SNAPSHOTS_STORE, isFirstPullPending, schedulePersist, scheduleDelete, scheduleReadModelPersist, scheduleReadModelDelete, keyFor, readModelKeyFor, _flushPersistsForTesting as _flushIdbPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
 // Re-export IDB helpers that tests import from this module for backward compatibility.
@@ -7,7 +7,6 @@ import { normalizeBoardModelIds } from './board-serializer.js';
 import { initHlc } from './event-sourcing/hlc.js';
 import { _flushDomainEventsForTesting, scheduleDomainEvent } from './event-sourcing/emitter.js';
 import { checkAndScheduleSnapshot, _resetSnapshotSchedulerForTesting } from './event-sourcing/snapshot.js';
-import { normalizeGlobalSettings } from './event-sourcing/read-model-projector.js';
 import { createReadModel } from './event-sourcing/ingest.js';
 import { backfillEventLog } from './event-sourcing/backfill.js';
 import { BOARD_SETTINGS_WRITTEN, DATA_CHANGED, emit } from './events.js';
@@ -46,9 +45,8 @@ const syntheticDoneIdByBoard = new Map();
 // After an account switch the default board's events wait for the first catch-up (#221).
 let defaultBoardDeferred = false;
 
-// The Read Model: sole writer of the read model (ADR-0005), extracted from this module (#119).
-// It owns its state and loading; this module hands it schedulers and keys. Ingest makes it and alone projects into it (#281).
-const readModelProjector = createReadModel({
+// Made once; only ingest projects into it (ADR-0005, #281).
+const readModel = createReadModel({
   demoTasksForReplay,
   withoutUnheldDemoTasks,
   schedulePersist,
@@ -78,31 +76,31 @@ async function normalizeIdbState(db) {
   const tx = db.transaction([KV_STORE, READ_MODEL_STORE], 'readwrite');
   if (!await isDataCurrent(tx)) return;
   const store = tx.objectStore(KV_STORE);
-  const readModel = tx.objectStore(READ_MODEL_STORE);
+  const readModelStore = tx.objectStore(READ_MODEL_STORE);
 
   for (const rawBoard of rawBoards) {
     if (!rawBoard || typeof rawBoard !== 'object') continue;
     const oldBoardId = typeof rawBoard.id === 'string' ? rawBoard.id.trim() : '';
     const normalized = normalizeBoardModelIds({
       board: rawBoard,
-      tasks: safeParseArray(await readModel.get(readModelKeyFor(oldBoardId, 'tasks')) ?? await store.get(keyFor(oldBoardId, 'tasks'))) || [],
-      columns: safeParseArray(await readModel.get(readModelKeyFor(oldBoardId, 'columns')) ?? await store.get(keyFor(oldBoardId, 'columns'))) || legacyDefaultColumns(),
-      labels: safeParseArray(await readModel.get(readModelKeyFor(oldBoardId, 'labels')) ?? await store.get(keyFor(oldBoardId, 'labels'))) || [],
+      tasks: safeParseArray(await readModelStore.get(readModelKeyFor(oldBoardId, 'tasks')) ?? await store.get(keyFor(oldBoardId, 'tasks'))) || [],
+      columns: safeParseArray(await readModelStore.get(readModelKeyFor(oldBoardId, 'columns')) ?? await store.get(keyFor(oldBoardId, 'columns'))) || legacyDefaultColumns(),
+      labels: safeParseArray(await readModelStore.get(readModelKeyFor(oldBoardId, 'labels')) ?? await store.get(keyFor(oldBoardId, 'labels'))) || [],
       settings: safeParseObject(await store.get(keyFor(oldBoardId, 'settings'))) || defaultSettings()
     });
 
     const newBoardId = normalized.board.id;
     activeIdMap.set(oldBoardId, newBoardId);
     nextBoards.push(normalized.board);
-    await readModel.put(normalized.tasks, readModelKeyFor(newBoardId, 'tasks'));
-    await readModel.put(normalized.columns, readModelKeyFor(newBoardId, 'columns'));
-    await readModel.put(normalized.labels, readModelKeyFor(newBoardId, 'labels'));
+    await readModelStore.put(normalized.tasks, readModelKeyFor(newBoardId, 'tasks'));
+    await readModelStore.put(normalized.columns, readModelKeyFor(newBoardId, 'columns'));
+    await readModelStore.put(normalized.labels, readModelKeyFor(newBoardId, 'labels'));
     await store.put(normalized.settings, keyFor(newBoardId, 'settings'));
 
     if (oldBoardId && oldBoardId !== newBoardId) {
-      await readModel.delete(readModelKeyFor(oldBoardId, 'tasks'));
-      await readModel.delete(readModelKeyFor(oldBoardId, 'columns'));
-      await readModel.delete(readModelKeyFor(oldBoardId, 'labels'));
+      await readModelStore.delete(readModelKeyFor(oldBoardId, 'tasks'));
+      await readModelStore.delete(readModelKeyFor(oldBoardId, 'columns'));
+      await readModelStore.delete(readModelKeyFor(oldBoardId, 'labels'));
       await store.delete(keyFor(oldBoardId, 'settings'));
     }
     if (oldBoardId) {
@@ -358,12 +356,12 @@ async function migrateFromLocalStorage(db) {
     boards = [{ id: DEFAULT_BOARD_ID, name: 'Default Board', createdAt: nowIso() }];
     const tx = db.transaction([KV_STORE, READ_MODEL_STORE], 'readwrite');
     const store = tx.objectStore(KV_STORE);
-    const readModel = tx.objectStore(READ_MODEL_STORE);
+    const readModelStore = tx.objectStore(READ_MODEL_STORE);
     await store.put(boards, BOARDS_KEY);
     await store.put(DEFAULT_BOARD_ID, ACTIVE_BOARD_KEY);
-    await readModel.put(legacyColumns || legacyDefaultColumns(), readModelKeyFor(DEFAULT_BOARD_ID, 'columns'));
-    await readModel.put(legacyTasks || defaultTasks(), readModelKeyFor(DEFAULT_BOARD_ID, 'tasks'));
-    await readModel.put(legacyLabels || defaultLabels(), readModelKeyFor(DEFAULT_BOARD_ID, 'labels'));
+    await readModelStore.put(legacyColumns || legacyDefaultColumns(), readModelKeyFor(DEFAULT_BOARD_ID, 'columns'));
+    await readModelStore.put(legacyTasks || defaultTasks(), readModelKeyFor(DEFAULT_BOARD_ID, 'tasks'));
+    await readModelStore.put(legacyLabels || defaultLabels(), readModelKeyFor(DEFAULT_BOARD_ID, 'labels'));
     await store.put(defaultSettings(), keyFor(DEFAULT_BOARD_ID, 'settings'));
     await tx.done;
 
@@ -380,7 +378,7 @@ async function migrateFromLocalStorage(db) {
   // Multi-board localStorage → IDB
   const tx = db.transaction([KV_STORE, READ_MODEL_STORE], 'readwrite');
   const store = tx.objectStore(KV_STORE);
-  const readModel = tx.objectStore(READ_MODEL_STORE);
+  const readModelStore = tx.objectStore(READ_MODEL_STORE);
 
   await store.put(boards, BOARDS_KEY);
   if (lsActiveId) await store.put(lsActiveId, ACTIVE_BOARD_KEY);
@@ -391,9 +389,9 @@ async function migrateFromLocalStorage(db) {
     const labels = safeParseArray(localStorage.getItem(keyFor(board.id, 'labels'))) || [];
     const settings = safeParseObject(localStorage.getItem(keyFor(board.id, 'settings')));
 
-    await readModel.put(tasks, readModelKeyFor(board.id, 'tasks'));
-    await readModel.put(columns, readModelKeyFor(board.id, 'columns'));
-    await readModel.put(labels, readModelKeyFor(board.id, 'labels'));
+    await readModelStore.put(tasks, readModelKeyFor(board.id, 'tasks'));
+    await readModelStore.put(columns, readModelKeyFor(board.id, 'columns'));
+    await readModelStore.put(labels, readModelKeyFor(board.id, 'labels'));
     if (settings) await store.put(settings, keyFor(board.id, 'settings'));
 
     localStorage.removeItem(keyFor(board.id, 'tasks'));
@@ -435,7 +433,7 @@ export async function initStorage() {
   for (const key of LEGACY_SYNC_KEYS) localStorage.removeItem(key);
 
   // Load everything into in-memory state.
-  await readModelProjector.load();
+  await readModel.load();
   activeBoardId = (await db.get(KV_STORE, ACTIVE_BOARD_KEY)) || null;
   defaultBoardDeferred = await isFirstPullPending();
 
@@ -456,7 +454,7 @@ export async function initStorage() {
   // read model is already loaded above, so projecting those events during boot
   // would trigger one DATA_CHANGED/full render per entity (hundreds for a
   // large board) before the initial render is even allowed to run.
-  readModelProjector.startProjecting();
+  readModel.startProjecting();
 
   // Non-blocking quota warning at 80%.
   if (typeof navigator !== 'undefined' && navigator.storage?.estimate) {
@@ -485,14 +483,14 @@ export function _resetStorageForTesting() {
   activeBoardId = null;
   syntheticDoneIdByBoard.clear();
   defaultBoardDeferred = false;
-  readModelProjector.reset();
+  readModel.reset();
   _resetSnapshotSchedulerForTesting();
 }
 
 // ── Boards ─────────────────────────────────────────────────────────────────────
 
 export function listBoards() {
-  const boards = readModelProjector.boards();
+  const boards = readModel.boards();
   if (!Array.isArray(boards)) return [];
   return boards
     // `deleted` is the reducer's soft-delete tombstone (applyBoardDeleted). Local
@@ -520,7 +518,7 @@ export function getActiveBoardName() {
 }
 
 function saveBoards(boards) {
-  readModelProjector.setBoards(boards);
+  readModel.setBoards(boards);
   schedulePersist(BOARDS_KEY, boards);
 }
 
@@ -545,7 +543,7 @@ export function ensureBoardsInitialized() {
   // synchronously (ADR-0005). Start projecting here so every storage entry point —
   // not just initStorage() — has the sole writer projecting (e.g. unit tests that
   // never call initStorage). Idempotent.
-  readModelProjector.startProjecting();
+  readModel.startProjecting();
   const boards = listBoards();
   if (boards.length > 0) {
     if (!getActiveBoardId()) setActiveBoardId(boards[0].id);
@@ -559,7 +557,7 @@ export function ensureBoardsInitialized() {
   const defaults = stableDefaultBoardData();
   if (defaultBoardDeferred) defaults.tasks = [];
   const board = { id: boardId, name: 'Default Board', createdAt: created };
-  readModelProjector.addBoard(board, defaults);
+  readModel.addBoard(board, defaults);
   activeBoardId = boardId;
   schedulePersist(ACTIVE_BOARD_KEY, boardId);
   if (defaultBoardDeferred) return;
@@ -605,7 +603,7 @@ export async function publishDeferredDefaultBoard() {
   if (!defaultBoardDeferred) return;
   ensureBoardsInitialized(); // going live can come before this page's first read of a board
   defaultBoardDeferred = false;
-  const board = readModelProjector.boards().find((b) => b.id === STABLE_DEFAULT_BOARD_ID);
+  const board = readModel.boards().find((b) => b.id === STABLE_DEFAULT_BOARD_ID);
   if (!board) return;
 
   const db = await openStore();
@@ -615,7 +613,7 @@ export async function publishDeferredDefaultBoard() {
   if (known) return;
   scheduleDomainEvent({ type: 'board.created', boardId: board.id, entityId: board.id, payload: { board } });
   const live = (items) => (items || []).filter((item) => !item.deleted);
-  const { columns, labels } = readModelProjector.board(board.id);
+  const { columns, labels } = readModel.board(board.id);
   emitBoardScaffoldEvents(board.id, { columns: live(columns), labels: live(labels) });
 }
 
@@ -632,7 +630,7 @@ export function createBoard(name, initialData = {}) {
     settings: { ...defaults.settings, ...initialData.settings }
   };
   const board = { id, name: boardName, createdAt: nowIso() };
-  readModelProjector.addBoard(board, data);
+  readModel.addBoard(board, data);
 
   activeBoardId = id;
   schedulePersist(ACTIVE_BOARD_KEY, id);
@@ -686,7 +684,7 @@ export function deleteBoard(boardId) {
     schedulePersist(ACTIVE_BOARD_KEY, remaining[0].id);
   }
 
-  readModelProjector.removeBoard(id, () => scheduleDomainEvent({
+  readModel.removeBoard(id, () => scheduleDomainEvent({
     type: 'board.deleted',
     boardId: id,
     entityId: id,
@@ -728,7 +726,7 @@ export function isDoneColumnId(columnId) {
 export function loadColumns() {
   ensureBoardsInitialized();
   const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
-  const parsed = readModelProjector.board(boardId).columns;
+  const parsed = readModel.board(boardId).columns;
   if (parsed) {
     // View-only fallback: a synced board's Done column may not have arrived yet,
     // and persisting a synthetic one here duplicates it once the real one lands.
@@ -740,7 +738,7 @@ export function loadColumns() {
 export function saveColumns(columns) {
   ensureBoardsInitialized();
   const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
-  readModelProjector.setBoardSlice(boardId, 'columns', columns);
+  readModel.setBoardSlice(boardId, 'columns', columns);
   scheduleReadModelPersist(boardId, 'columns', columns);
 }
 
@@ -753,7 +751,7 @@ function normalizePriority(value) {
 export function loadTasks() {
   ensureBoardsInitialized();
   const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
-  const parsed = readModelProjector.board(boardId).tasks;
+  const parsed = readModel.board(boardId).tasks;
 
   if (parsed) {
     let didChange = false;
@@ -841,20 +839,20 @@ export function loadTasks() {
     });
 
     if (didChange) {
-      readModelProjector.setBoardSlice(boardId, 'tasks', normalized);
+      readModel.setBoardSlice(boardId, 'tasks', normalized);
       scheduleReadModelPersist(boardId, 'tasks', normalized);
     }
 
-    readModelProjector.cacheTasks(boardId, normalized);
+    readModel.cacheTasks(boardId, normalized);
     return normalized.filter(t => !t.deleted);
   }
 
   // Empty state: return stable in-memory defaults for the session.
-  const cached = readModelProjector.cachedTasks(boardId);
+  const cached = readModel.cachedTasks(boardId);
   if (Array.isArray(cached)) return cached.filter(t => !t.deleted);
 
   const defaults = defaultTasks(loadColumns(), loadLabels());
-  readModelProjector.cacheTasks(boardId, defaults);
+  readModel.cacheTasks(boardId, defaults);
   return defaults;
 }
 
@@ -864,8 +862,8 @@ export function saveTasks(tasks) {
   const normalized = (Array.isArray(tasks) ? tasks : []).map((task) => ({
     ...task
   }));
-  readModelProjector.setBoardSlice(boardId, 'tasks', normalized);
-  readModelProjector.cacheTasks(boardId, normalized);
+  readModel.setBoardSlice(boardId, 'tasks', normalized);
+  readModel.cacheTasks(boardId, normalized);
   scheduleReadModelPersist(boardId, 'tasks', normalized);
 }
 
@@ -874,7 +872,7 @@ export function saveTasks(tasks) {
 export function loadLabels() {
   ensureBoardsInitialized();
   const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
-  const parsed = readModelProjector.board(boardId).labels;
+  const parsed = readModel.board(boardId).labels;
   if (parsed) {
     return parsed
       .filter(l => !l.deleted)
@@ -889,7 +887,7 @@ export function loadLabels() {
 export function saveLabels(labels) {
   ensureBoardsInitialized();
   const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
-  readModelProjector.setBoardSlice(boardId, 'labels', labels);
+  readModel.setBoardSlice(boardId, 'labels', labels);
   scheduleReadModelPersist(boardId, 'labels', labels);
 }
 
@@ -950,11 +948,11 @@ function normalizeSettings(raw) {
 export function loadSettings() {
   ensureBoardsInitialized();
   const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
-  const parsed = readModelProjector.board(boardId).settings;
+  const parsed = readModel.board(boardId).settings;
   if (parsed) return normalizeSettings(parsed);
 
   const defaults = defaultSettings();
-  readModelProjector.writeBoardSettings(boardId, defaults);
+  readModel.writeBoardSettings(boardId, defaults);
   return defaults;
 }
 
@@ -962,44 +960,44 @@ export function saveSettings(settings) {
   ensureBoardsInitialized();
   const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
   const normalized = normalizeSettings(settings);
-  readModelProjector.writeBoardSettings(boardId, normalized);
+  readModel.writeBoardSettings(boardId, normalized);
   emit(BOARD_SETTINGS_WRITTEN, { boardId });
 }
 
 // Another tab wrote settings no event carries (#222).
 export async function refreshBoardSettings(boardId) {
-  if (!(await readModelProjector.refreshBoardSettings(boardId))) return;
+  if (!(await readModel.refreshBoardSettings(boardId))) return;
   emit(DATA_CHANGED, { settings: boardId });
 }
 
 export function loadGlobalSettings() {
-  return readModelProjector.globalSettings();
+  return readModel.globalSettings();
 }
 
 export function loadTimeTracking() {
-  return readModelProjector.timeTracking();
+  return readModel.timeTracking();
 }
 
 export function saveGlobalSettings(settings) {
   const normalized = normalizeGlobalSettings(settings);
-  readModelProjector.setGlobalSettings(normalized);
+  readModel.setGlobalSettings(normalized);
   schedulePersist(GLOBAL_SETTINGS_KEY, normalized);
 }
 
 // ── Cross-board read helpers
 
 export function loadTasksForBoard(boardId) {
-  return (readModelProjector.board(boardId).tasks || []).filter(t => !t.deleted);
+  return (readModel.board(boardId).tasks || []).filter(t => !t.deleted);
 }
 
 export function loadColumnsForBoard(boardId) {
-  return (readModelProjector.board(boardId).columns || []).filter(c => !c.deleted);
+  return (readModel.board(boardId).columns || []).filter(c => !c.deleted);
 }
 
 export function loadLabelsForBoard(boardId) {
-  return (readModelProjector.board(boardId).labels || []).filter(l => !l.deleted);
+  return (readModel.board(boardId).labels || []).filter(l => !l.deleted);
 }
 
 export function loadSettingsForBoard(boardId) {
-  return readModelProjector.board(boardId).settings;
+  return readModel.board(boardId).settings;
 }

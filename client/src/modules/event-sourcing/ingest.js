@@ -9,33 +9,28 @@ import { EVENT_ORDER, createReadModelProjector, createSuperseded } from './read-
 
 export const EVENT_ORIGIN = Object.freeze({ LOCAL: 'local', REMOTE: 'remote' });
 
-// The Read Model's projector (ADR-0005) is private to ingest: made here, and driven only from here.
+// The one Read Model (ADR-0005). Storage gets its reads and the writes no event carries; only ingest projects into it.
 let readModel = null;
-// The same projector while it projects ingested events; until then events are only persisted, which boot-time backfill needs.
-let projector = null;
 const unpersisted = new Map();
 const committedDuringRebuild = new Map();
 const rebuilds = new Map();
 const superseded = new Map();
 const loggedDrops = new Set();
 
-// Storage gets the reads and the writes no event carries; one made later replaces this one.
+const STORAGE_SIDE = [
+  'load', 'startProjecting', 'reset', 'addBoard', 'removeBoard', 'boards', 'board', 'globalSettings', 'timeTracking',
+  'cachedTasks', 'cacheTasks', 'setBoards', 'setBoardSlice', 'setGlobalSettings', 'writeBoardSettings', 'refreshBoardSettings'
+];
+
 export function createReadModel(ctx) {
-  const created = createReadModelProjector(ctx);
-  readModel = created;
-  projector = null;
-  return {
-    ...created.readModel,
-    startProjecting() {
-      if (readModel !== created) return;
-      created.readModel.startProjecting();
-      projector = created;
-    },
-    reset() {
-      created.readModel.reset();
-      if (projector === created) projector = null;
-    }
-  };
+  if (readModel) throw new Error('[Kanvana] The Read Model is already created');
+  readModel = createReadModelProjector(ctx);
+  return Object.fromEntries(STORAGE_SIDE.map((name) => [name, readModel[name]]));
+}
+
+// Until storage starts projecting, ingested events are only persisted, which boot-time backfill needs.
+function projector() {
+  return readModel?.isProjecting() ? readModel : null;
 }
 
 // Local events project before this returns (ADR-0005 instant UI); the promise settles once persisted, or rebuilt if late.
@@ -47,7 +42,6 @@ export function ingestEvent(input, { origin = EVENT_ORIGIN.LOCAL, receivedAt } =
 }
 
 // One redraw and one write per slice for a user mutation (#142); synchronous, to stay in this tick's write batch (#256) and a drop's reconcile window.
-// The projector holds the scope state (#280); a nested commit joins the outer one, which alone closes it.
 export function commitTogether(mutation) {
   readModel?.beginCommit();
   try {
@@ -96,7 +90,6 @@ export async function ingestRemoteBatch(items) {
   return fresh;
 }
 
-// The projector holds the batch (#280) and says when the last overlapping batch closes.
 function endRemoteBatch() {
   if (readModel?.endBatch()) emit(DATA_CHANGED, { batch: true });
 }
@@ -104,7 +97,7 @@ function endRemoteBatch() {
 // Another tab stored these (#222); its read model is not copied, since it may lack this tab's newest edit.
 export async function ingestStoredEvents(ids) {
   const db = getDbRef();
-  if (!db || !projector) return;
+  if (!db || !projector()) return;
   const events = await Promise.all(ids.map((id) => db.get(EVENTS_STORE, id)));
   await foldStoredEvents(events.filter(Boolean));
 }
@@ -112,9 +105,9 @@ export async function ingestStoredEvents(ids) {
 // For a tab that may have missed notices: one opening, waking up or taking over. `scopes` limits it to those event scopes.
 export async function ingestMissedEvents({ scopes = null } = {}) {
   const db = getDbRef();
-  if (!db || !projector) return;
+  if (!db || !projector()) return;
   const stored = await db.getAll(EVENTS_STORE);
-  await foldStoredEvents(projector.missedEvents(scopes ? stored.filter((event) => scopes.includes(event.scope)) : stored));
+  await foldStoredEvents(projector().missedEvents(scopes ? stored.filter((event) => scopes.includes(event.scope)) : stored));
 }
 
 async function foldStoredEvents(events) {
@@ -124,9 +117,9 @@ async function foldStoredEvents(events) {
     for (const event of [...events].sort((a, b) => compareHlc(a.hlc, b.hlc))) {
       // Or the next local edit here could sort before an event this tab already shows.
       await observeRemote(event.hlc);
-      const order = projector?.classify(event);
+      const order = projector()?.classify(event);
       if (order === EVENT_ORDER.LATE) lateKeys.add(snapshotKeyForEvent(event));
-      else if (order === EVENT_ORDER.IN_ORDER && projector.project(event, { batched: true })) signalChanged({ event });
+      else if (order === EVENT_ORDER.IN_ORDER && readModel.project(event, { batched: true })) signalChanged({ event });
     }
   } finally {
     endRemoteBatch();
@@ -135,7 +128,7 @@ async function foldStoredEvents(events) {
 }
 
 function signalChanged(detail) {
-  if (!projector?.holdChange()) emit(DATA_CHANGED, detail);
+  if (!readModel?.holdChange()) emit(DATA_CHANGED, detail);
 }
 
 // The event store, unlike session memory, survives a reload (#178).
@@ -146,7 +139,7 @@ async function ingestRemote(event, receivedAt, stored, writes) {
     logDrop(event);
     return true;
   }
-  if (projector?.classify(event) === EVENT_ORDER.LATE && !await foldIntoCoveringSnapshot(event)) return true;
+  if (projector()?.classify(event) === EVENT_ORDER.LATE && !await foldIntoCoveringSnapshot(event)) return true;
   await observeRemote(event.hlc);
   const written = commit(event, EVENT_ORIGIN.REMOTE, { batched: Boolean(writes) });
   if (!writes) await written;
@@ -185,7 +178,7 @@ async function foldIntoCoveringSnapshot(event) {
   const key = snapshotKeyForEvent(event);
   const snapshot = await loadSnapshot(key);
   if (!snapshot || compareHlc(event.hlc, snapshot.hlc) > 0) return true;
-  const folded = projector.foldOntoSnapshot(key, snapshot, event);
+  const folded = readModel.foldOntoSnapshot(key, snapshot, event);
   if (!folded) return false;
   await saveSnapshot(key, folded, snapshot.hlc);
   return true;
@@ -193,10 +186,10 @@ async function foldIntoCoveringSnapshot(event) {
 
 function commit(event, origin, { batched = false } = {}) {
   const key = snapshotKeyForEvent(event);
-  const order = projector?.classify(event);
+  const order = projector()?.classify(event);
   // A late local edit still shows at once; the rebuild then puts it in order.
-  if (order !== EVENT_ORDER.LATE || origin === EVENT_ORIGIN.LOCAL) {
-    if (projector?.project(event, { batched }) && !projector.holdChange({ local: origin === EVENT_ORIGIN.LOCAL })) {
+  if (order && (order !== EVENT_ORDER.LATE || origin === EVENT_ORIGIN.LOCAL)) {
+    if (readModel.project(event, { batched }) && !readModel.holdChange({ local: origin === EVENT_ORIGIN.LOCAL })) {
       emit(DATA_CHANGED, { event });
     }
   }
@@ -213,7 +206,7 @@ function commit(event, origin, { batched = false } = {}) {
       if (!batched && !heldByCommit) emit(EVENTS_STORED, { ids: [event.id], local: origin === EVENT_ORIGIN.LOCAL });
     })
     .finally(() => unpersisted.delete(event.id));
-  heldByCommit = Boolean(projector?.holdStored(persisted, event.id));
+  heldByCommit = Boolean(readModel?.holdStored(persisted, event.id));
   return order === EVENT_ORDER.LATE ? persisted.then(() => rebuildScope(key)) : persisted;
 }
 
@@ -221,7 +214,7 @@ function commit(event, origin, { batched = false } = {}) {
 export async function adoptSnapshot(key, state, hlc) {
   const replaced = await loadSnapshot(key);
   const covered = (await loadEventsAfter(key, replaced?.hlc ?? null)).filter((event) => compareHlc(event.hlc, hlc) <= 0);
-  await saveSnapshot(key, projector?.snapshotToAdopt(key, state) ?? state, hlc);
+  await saveSnapshot(key, projector()?.snapshotToAdopt(key, state) ?? state, hlc);
   const entry = superseded.get(key) ?? createSuperseded();
   if (replaced) entry.snapshots.push(replaced);
   entry.events.push(...covered);
@@ -259,7 +252,7 @@ export function rebuildScope(key) {
 
 // Events committed while the store is read may be missing from the read; the reducer dedups by id.
 async function runRebuild(key) {
-  if (!projector) return;
+  if (!projector()) return;
   const collected = new Map([...unpersisted].filter(([, event]) => snapshotKeyForEvent(event) === key));
   const replaced = superseded.get(key);
   superseded.delete(key);
@@ -268,7 +261,7 @@ async function runRebuild(key) {
     const snapshot = await loadSnapshot(key);
     const stored = await loadEventsAfter(key, snapshot?.hlc ?? null);
     const pending = [...collected.values()].filter((event) => !snapshot || compareHlc(event.hlc, snapshot.hlc) > 0);
-    if (projector?.rebuild(key, snapshot, [...stored, ...pending], replaced)) signalChanged({ rebuilt: key });
+    if (projector()?.rebuild(key, snapshot, [...stored, ...pending], replaced)) signalChanged({ rebuilt: key });
   } finally {
     committedDuringRebuild.delete(key);
   }

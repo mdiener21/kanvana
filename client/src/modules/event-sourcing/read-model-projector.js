@@ -4,11 +4,12 @@ import { GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY, loadSnapshot, scopeForS
 import { EVENT_SCOPE } from '../constants.js';
 import { compareHlc, laterHlc } from './hlc.js';
 import { safeParseArray, safeParseObject } from '../utils.js';
+import { normalizeGlobalSettings } from '../normalize.js';
 
 // The Read Model: sole writer of the IDB read model (ADR-0005). It owns the in-memory
 // state, loads it from IDB and answers reads; storage.js hands it only schedulers and keys.
 // The reducer (applyEvent/createProjectionState) stays pure and is imported directly.
-// Private to ingest.js, which creates it and alone drives its projection side; storage gets its `readModel`.
+// Private to ingest.js, which makes the one instance and alone projects into it.
 
 export const EVENT_ORDER = Object.freeze({ APPLIED: 'applied', IN_ORDER: 'in-order', LATE: 'late' });
 
@@ -19,13 +20,6 @@ export function createSuperseded() {
 
 // What IDB stores per board. The board list is one key shared by every board, so it is tracked apart.
 const BOARD_SLICES = ['tasks', 'columns', 'labels', 'settings', 'taskTombstones', 'appliedEventIds'];
-
-const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
-
-export function normalizeGlobalSettings(raw) {
-  if (!isPlainObject(raw)) return {};
-  return isPlainObject(raw.timeTracking) ? { timeTracking: { ...raw.timeTracking } } : {};
-}
 
 function emptyState() {
   return {
@@ -480,9 +474,17 @@ export function createReadModelProjector(ctx) {
     return fold(key, snapshot, [event]);
   }
 
+  // Off during boot-time backfill, so its events are persisted without a render each.
+  let projecting = false;
+
   // Adding the same listener again is a no-op, so this is idempotent.
   function startProjecting() {
+    projecting = true;
     window.addEventListener('pagehide', persistBatchOnPageHide);
+  }
+
+  function isProjecting() {
+    return projecting;
   }
 
   // Devices from before #179 never recorded it, so it is derived once from the stored events and snapshots.
@@ -588,15 +590,14 @@ export function createReadModelProjector(ctx) {
     commit = null;
     unsavedSlices.clear();
     boardsUnsaved = false;
+    projecting = false;
     window.removeEventListener('pagehide', persistBatchOnPageHide);
   }
 
   return {
-    readModel: {
-      load, startProjecting, reset, applyAllPending, addBoard, removeBoard,
-      boards, board, globalSettings: loadGlobalSettings, timeTracking, cachedTasks, cacheTasks,
-      setBoards, setBoardSlice, setGlobalSettings, writeBoardSettings, refreshBoardSettings
-    },
+    load, startProjecting, isProjecting, reset, addBoard, removeBoard,
+    boards, board, globalSettings: loadGlobalSettings, timeTracking, cachedTasks, cacheTasks,
+    setBoards, setBoardSlice, setGlobalSettings, writeBoardSettings, refreshBoardSettings,
     classify, project, rebuild, snapshotToAdopt, foldOntoSnapshot, beginBatch, endBatch, beginCommit, endCommit, holdChange, holdStored, missedEvents
   };
 }
