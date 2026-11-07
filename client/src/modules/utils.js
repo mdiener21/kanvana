@@ -27,3 +27,28 @@ export const byOrder = (a, b) => (a.order ?? 0) - (b.order ?? 0);
 
 // Concurrent adds and reorders can tie on order; Done goes after its tie, on every device, without pinning it to the end (#259).
 export const byColumnOrder = (a, b) => byOrder(a, b) || Number(isDoneColumn(a)) - Number(isDoneColumn(b));
+
+// Handles both pre-parsed objects (from IDB) and JSON strings (from legacy localStorage).
+export function safeParseArray(value) {
+  if (!value) return null;
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : null;
+    } catch { return null; }
+  }
+  return null;
+}
+
+export function safeParseObject(value) {
+  if (!value) return null;
+  if (typeof value === 'object' && !Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+    } catch { return null; }
+  }
+  return null;
+}
