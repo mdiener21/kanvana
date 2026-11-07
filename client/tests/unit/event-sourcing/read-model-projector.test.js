@@ -120,7 +120,7 @@ async function countDataChanged(run) {
 
 const MEMORY = ['appliedEventIds', 'newestApplied'];
 
-describe('createReadModel', () => {
+describe('the Read Model', () => {
   let h;
   // A test needing another stored board starts the Read Model again on it.
   async function reloadWith(slices) {
@@ -140,7 +140,7 @@ describe('createReadModel', () => {
     _resetIdbForTesting();
   });
 
-  test('loads its own state from IndexedDB', () => {
+  test('reads back the boards IndexedDB holds once loaded', () => {
     expect(h.readModel.boards()).toEqual([{ id: BOARD_ID, name: 'A', createdAt: '2026-01-01T00:00:00.000Z' }]);
     expect(h.readModel.board(BOARD_ID)).toEqual(STORED_BOARD);
   });
@@ -222,14 +222,14 @@ describe('createReadModel', () => {
     expect(h.ctx.checkAndScheduleSnapshot).toHaveBeenCalledWith(TIMETRACKING_SNAPSHOT_KEY, { fold: expect.any(Function), onSaved: expect.any(Function) });
   });
 
-  test('startProjecting() is idempotent — a single ingest projects once', () => {
+  test('projects an ingested event once, however often projecting is started', () => {
     h.readModel.startProjecting();
     ingest(boardEvent({ id: 'once' }));
 
     expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(2);
   });
 
-  test('reset() stops projecting ingested events; applied ids are stored, so a reloaded Read Model skips them', async () => {
+  test('stops projecting once reset, and skips the events it applied after loading again', async () => {
     const ev = boardEvent({ id: 'seen' });
     ingest(ev);
     expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(2);
@@ -481,7 +481,7 @@ describe('createReadModel', () => {
   });
 
   describe('board settings written without an event (#279)', () => {
-    test('writeBoardSettings sets the board settings and stores them', async () => {
+    test('shows and stores board settings written without an event', async () => {
       h.readModel.writeBoardSettings(BOARD_ID, { swimLanesEnabled: true });
 
       expect(h.readModel.board(BOARD_ID).settings).toEqual({ swimLanesEnabled: true });
@@ -490,7 +490,7 @@ describe('createReadModel', () => {
       expect(await (await openStore()).get(KV_STORE, SETTINGS_KEY)).toEqual({ swimLanesEnabled: true });
     });
 
-    test('refreshBoardSettings takes settings another tab stored and stores nothing itself', async () => {
+    test('takes the board settings another tab stored without writing them again', async () => {
       await (await openStore()).put(KV_STORE, { showPriority: false }, SETTINGS_KEY);
 
       expect(await h.readModel.refreshBoardSettings(BOARD_ID)).toBe(true);
@@ -499,7 +499,7 @@ describe('createReadModel', () => {
       expect(persistCalls(h)).toEqual([]);
     });
 
-    test('refreshBoardSettings keeps the current settings when none are stored', async () => {
+    test('keeps its board settings when none are stored', async () => {
       await (await openStore()).delete(KV_STORE, SETTINGS_KEY);
 
       expect(await h.readModel.refreshBoardSettings(BOARD_ID)).toBe(false);

@@ -1,7 +1,7 @@
 // A created or seeded board is stored through the Read Model, which retries a failed save on the next edit (#278, #141).
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { deleteDB } from 'idb';
-import { resetLocalStorage } from '../setup.js';
+import { resetLocalStorage } from '../../unit/setup.js';
 import {
   initStorage,
   _resetStorageForTesting,
