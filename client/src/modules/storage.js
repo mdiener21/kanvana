@@ -51,7 +51,9 @@ const readModelProjector = createReadModelProjector({
   demoTasksForReplay,
   withoutUnheldDemoTasks,
   schedulePersist,
+  scheduleDelete,
   scheduleReadModelPersist,
+  scheduleReadModelDelete,
   checkAndScheduleSnapshot,
   boardsKey: BOARDS_KEY,
   globalSettingsKey: GLOBAL_SETTINGS_KEY,
@@ -549,23 +551,16 @@ export function ensureBoardsInitialized() {
     return;
   }
 
-  // First run: seed default board directly into state (IDB is either empty or
+  // First run: seed the default board through the Read Model (IDB is either empty or
   // not yet initialised — migration from localStorage is handled in initStorage()).
   const created = nowIso();
   const boardId = STABLE_DEFAULT_BOARD_ID;
   const defaults = stableDefaultBoardData();
   if (defaultBoardDeferred) defaults.tasks = [];
   const board = { id: boardId, name: 'Default Board', createdAt: created };
-  readModelProjector.setBoards([board]);
+  readModelProjector.addBoard(board, defaults);
   activeBoardId = boardId;
-  for (const slice of ['columns', 'tasks', 'labels', 'settings']) readModelProjector.setBoardSlice(boardId, slice, defaults[slice]);
-
-  schedulePersist(BOARDS_KEY, [board]);
   schedulePersist(ACTIVE_BOARD_KEY, boardId);
-  scheduleReadModelPersist(boardId, 'columns', defaults.columns);
-  scheduleReadModelPersist(boardId, 'tasks', defaults.tasks);
-  scheduleReadModelPersist(boardId, 'labels', defaults.labels);
-  schedulePersist(keyFor(boardId, 'settings'), defaults.settings);
   if (defaultBoardDeferred) return;
 
   // Emit the scaffold to the event log so a second device reconstructs the
@@ -627,8 +622,6 @@ export function createBoard(name, initialData = {}) {
   ensureBoardsInitialized();
   const trimmed = typeof name === 'string' ? name.trim() : '';
   const boardName = trimmed || 'Untitled board';
-  const boards = listBoards();
-
   const id = generateUUID();
   const defaults = defaultBoardData(false);
   const data = {
@@ -638,14 +631,7 @@ export function createBoard(name, initialData = {}) {
     settings: { ...defaults.settings, ...initialData.settings }
   };
   const board = { id, name: boardName, createdAt: nowIso() };
-  saveBoards([...boards, board]);
-
-  for (const slice of ['columns', 'tasks', 'labels', 'settings']) readModelProjector.setBoardSlice(id, slice, data[slice]);
-
-  scheduleReadModelPersist(id, 'columns', data.columns);
-  scheduleReadModelPersist(id, 'tasks', data.tasks);
-  scheduleReadModelPersist(id, 'labels', data.labels);
-  schedulePersist(keyFor(id, 'settings'), data.settings);
+  readModelProjector.addBoard(board, data);
 
   activeBoardId = id;
   schedulePersist(ACTIVE_BOARD_KEY, id);
@@ -694,24 +680,17 @@ export function deleteBoard(boardId) {
   if (boards.length <= 1) return false; // never delete last board
 
   const remaining = boards.filter((b) => b.id !== id);
-  saveBoards(remaining);
-
   if (activeBoardId === id) {
     activeBoardId = remaining[0].id;
     schedulePersist(ACTIVE_BOARD_KEY, remaining[0].id);
   }
 
-  scheduleDomainEvent({
+  readModelProjector.removeBoard(id, () => scheduleDomainEvent({
     type: 'board.deleted',
     boardId: id,
     entityId: id,
     payload: {}
-  });
-
-  // After the event: projecting it writes the board's read model once more.
-  readModelProjector.dropBoard(id);
-  for (const kind of ['tasks', 'columns', 'labels', 'taskTombstones', 'appliedEventIds']) scheduleReadModelDelete(id, kind);
-  scheduleDelete(keyFor(id, 'settings'));
+  }));
   return true;
 }
 

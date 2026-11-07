@@ -41,7 +41,9 @@ export function createReadModelProjector(ctx) {
     demoTasksForReplay,
     withoutUnheldDemoTasks,
     schedulePersist,
+    scheduleDelete,
     scheduleReadModelPersist,
+    scheduleReadModelDelete,
     checkAndScheduleSnapshot,
     boardsKey,
     globalSettingsKey,
@@ -213,18 +215,39 @@ export function createReadModelProjector(ctx) {
     if (batch) [...batch.pending.keys()].forEach(applyPending);
   }
 
-  // Forgets a deleted board's state; storage deletes its stored slices.
+  // Forgets a board's state and deletes its stored slices.
   function dropBoard(boardId) {
     for (const slot of [state.tasks, state.columns, state.labels, state.settings, state.taskTombstones, state.appliedEventIds, state.snapshotAppliedIds]) {
       delete slot[boardId];
     }
     taskCacheByBoard.delete(boardId);
     unsavedSlices.delete(boardId);
+    BOARD_SLICES.forEach((slice) => deleteSlice(boardId, slice));
     if (!batch) return;
     batch.pending.delete(boardId);
     batch.boards.delete(boardId);
     batch.saved.delete(boardId);
     batch.dropped.add(boardId);
+  }
+
+  // A board made without replaying events (created or seeded here) is stored like any projected change, so a failed save is retried.
+  function addBoard(newBoard, slices) {
+    state.boards = [...state.boards, newBoard];
+    boardsUnsaved = true;
+    for (const slice of ['tasks', 'columns', 'labels', 'settings']) {
+      state[slice][newBoard.id] = slices[slice];
+      markUnsaved(newBoard.id, slice);
+    }
+    saveBoard(newBoard.id);
+  }
+
+  // The board leaves the list before `announce` emits its board.deleted; projecting that writes its slices once more, so they go after.
+  function removeBoard(boardId, announce) {
+    state.boards = state.boards.filter((item) => item.id !== boardId);
+    boardsUnsaved = true;
+    persistBoards();
+    announce();
+    dropBoard(boardId);
   }
 
   function boardProjection(boardId) {
@@ -411,6 +434,12 @@ export function createReadModelProjector(ctx) {
     }
   }
 
+  // Board settings live in the key-value store, the other slices in the read-model store.
+  function deleteSlice(boardId, slice) {
+    if (slice === 'settings') scheduleDelete(keyFor(boardId, 'settings'));
+    else scheduleReadModelDelete(boardId, slice);
+  }
+
   // Null when the snapshot already holds the event.
   function foldOntoSnapshot(key, snapshot, event) {
     if (snapshot.state.appliedEventIds.has(event.id)) return null;
@@ -489,7 +518,7 @@ export function createReadModelProjector(ctx) {
     taskCacheByBoard.set(boardId, tasks);
   }
 
-  // ── Writes storage still makes without an event; #278 routes them through the Read Model.
+  // ── Writes storage still makes without an event (save* paths).
 
   function setBoards(next) {
     state.boards = next;
@@ -532,7 +561,7 @@ export function createReadModelProjector(ctx) {
   }
 
   return {
-    load, register, reset, applyAllPending, dropBoard,
+    load, register, reset, applyAllPending, addBoard, removeBoard,
     boards, board, globalSettings: loadGlobalSettings, timeTracking, cachedTasks, cacheTasks,
     setBoards, setBoardSlice, setGlobalSettings, writeBoardSettings, refreshBoardSettings
   };
