@@ -79,9 +79,7 @@ export function createReadModelProjector(ctx) {
     }]
   ]);
 
-  // The one copy of the scope state (#280). Each scope opens on its first begin and closes on its last end, however
-  // many callers nest or overlap. A remote catch-up batch keeps projecting in memory but saves each board it touched
-  // once, at its end (#237).
+  // The one copy of the scope state (#280); overlapping batches, or nested commits, share one.
   let batch = null;
   // What changed in memory since it was last stored. A save writes these and nothing else.
   const unsavedSlices = new Map();
@@ -172,15 +170,16 @@ export function createReadModelProjector(ctx) {
     batch.newestApplied = false;
   }
 
-  // Whether the closing batch changed anything a render would show; queued events only reveal that once applied.
+  // Each end stores what the batch touched so far (#237); true when the last one closes and a render would show a change.
   function endBatch() {
     if (!batch) return false;
     batch.depth -= 1;
-    if (batch.depth > 0) return false;
     persistBatch();
-    const { saved, changed } = batch;
+    batch.saved.forEach(scheduleBoardSnapshot);
+    batch.saved.clear();
+    if (batch.depth > 0) return false;
+    const { changed } = batch;
     batch = null;
-    saved.forEach(scheduleBoardSnapshot);
     return changed;
   }
 

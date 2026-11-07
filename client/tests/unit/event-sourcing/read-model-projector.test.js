@@ -2,6 +2,17 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { deleteDB } from 'idb';
 import { resetLocalStorage } from '../setup.js';
 
+// Event ids whose store write waits until the test lets it go.
+const heldWrites = vi.hoisted(() => new Map());
+vi.mock('../../../src/modules/idb-store.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  const persistEvent = async (event) => {
+    await heldWrites.get(event.id)?.();
+    return actual.persistEvent(event);
+  };
+  return { ...actual, persistEvent };
+});
+
 // The setup file's storage already made its Read Model; a fresh module graph gets one whose schedulers this test watches.
 vi.resetModules();
 const { DATA_CHANGED, emit, EVENT_EMITTED, EVENTS_STORED, off, on } = await import('../../../src/modules/events.js');
@@ -353,6 +364,26 @@ describe('createReadModel', () => {
       expect(writesFor('board-b')).toEqual(['appliedEventIds', 'columns', 'labels', 'tasks']);
       expect(h.ctx.checkAndScheduleSnapshot.mock.calls.map(([key]) => key).sort()).toEqual([BOARD_ID, 'board-b']);
       expect(h.readModel.board('board-b').tasks.map((task) => task.title)).toEqual(['B2']);
+    });
+    test('overlapping catch-up batches each store the boards touched so far when they end', async () => {
+      const at = (n) => ({ wallTime: 1000 + n, counter: 0, nodeId: 'node-a' });
+      let release;
+      const reached = new Promise((resolve) => {
+        heldWrites.set('slow', () => {
+          resolve();
+          return new Promise((done) => { release = done; });
+        });
+      });
+      const first = ingestRemoteBatch([{ event: boardEvent({ id: 'slow', hlc: at(1), payload: { fields: { title: 'First' } } }) }]);
+      await reached;
+
+      await ingestRemoteBatch([{ event: boardEvent({ id: 'fast', hlc: at(2), payload: { fields: { title: 'Second' } } }) }]);
+      const stored = await (await openStore()).get(READ_MODEL_STORE, readModelKeyFor(BOARD_ID, 'tasks'));
+      release();
+      await first;
+      heldWrites.clear();
+
+      expect(stored[0].title).toBe('Second');
     });
   });
 
