@@ -187,3 +187,18 @@ test('a form save with no changes emits nothing and keeps changeDate', async () 
   expect(events).toEqual([]);
   expect(loadTasks().find((task) => task.id === 'task-a').changeDate).toBe(OLD_CHANGE);
 });
+
+test('a form column change on a task that needs normalizing replays to the same task', async () => {
+  // An unknown priority makes loadTasks() normalize and store the tasks it returns.
+  const seed = [{ id: 'task-a', title: 'A', column: 'todo', priority: 'critical', labels: [], relationships: [], subTasks: [], columnHistory: [{ column: 'todo', at: OLD_CHANGE }], changeDate: OLD_CHANGE }];
+  saveTasks(clone(seed));
+  await _flushPersistsForTesting();
+  const before = [{ ...clone(seed[0]), priority: 'none' }];
+
+  const events = await collectEvents(() => updateTask('task-a', 'A', '', 'none', '', DONE_COLUMN_ID));
+
+  const live = loadTasks().find((task) => task.id === 'task-a');
+  const replayed = applyEvents(createProjectionState({ tasks: before, columns: COLUMNS }), events).tasks.find((task) => task.id === 'task-a');
+  expect(live.columnHistory.map((entry) => entry.column)).toEqual(['todo', DONE_COLUMN_ID]);
+  expect(live).toMatchObject({ column: DONE_COLUMN_ID, changeDate: replayed.changeDate, doneDate: replayed.doneDate, columnHistory: replayed.columnHistory });
+});

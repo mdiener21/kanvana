@@ -73,46 +73,6 @@ function relationshipKey(relationship) {
  * Diffs oldRelationships vs newRelationships for a given taskId and mutates
  * the target tasks in-place to keep inverses consistent.
  */
-function syncRelationshipInverses(tasks, taskId, oldRelationships, newRelationships, at) {
-  const oldMap = new Map(oldRelationships.map((r) => [r.targetTaskId, r.type]));
-  const newMap = new Map(newRelationships.map((r) => [r.targetTaskId, r.type]));
-  const sourceTask = tasks.find((t) => t.id === taskId);
-
-  for (const [targetId, newType] of newMap) {
-    const target = tasks.find((t) => t.id === targetId);
-    if (!target) continue;
-    if (!Array.isArray(target.relationships)) target.relationships = [];
-    const oldType = oldMap.get(targetId);
-    // Remove any existing entry pointing back at taskId, then add the correct inverse.
-    const inverseType = RELATIONSHIP_INVERSE[newType];
-    const targetIndex = tasks.findIndex((t) => t.id === targetId);
-    let nextTarget = {
-      ...target,
-      relationships: [
-        ...target.relationships.filter((r) => r.targetTaskId !== taskId),
-        { type: inverseType, targetTaskId: taskId }
-      ]
-    };
-
-    if (oldType && oldType !== newType) {
-    }
-    if (!oldType || oldType !== newType) {
-    }
-    tasks[targetIndex] = nextTarget;
-  }
-
-  for (const [targetId, oldType] of oldMap) {
-    if (newMap.has(targetId)) continue; // handled above
-    const target = tasks.find((t) => t.id === targetId);
-    if (!target || !Array.isArray(target.relationships)) continue;
-    const inverseType = RELATIONSHIP_INVERSE[oldType];
-    const targetIndex = tasks.findIndex((t) => t.id === targetId);
-    tasks[targetIndex] = {
-      ...target,
-      relationships: target.relationships.filter((r) => r.targetTaskId !== taskId)
-    };
-  }
-}
 
 // Add a new task
 export function addTask(title, description, priority, dueDate, columnName, labels = [], relationships = [], subTasks = []) {
@@ -161,7 +121,6 @@ function emitNewTask(title, description, priority, dueDate, columnName, labels, 
   };
 
   updatedTasks.push(newTask);
-  syncRelationshipInverses(updatedTasks, newTask.id, [], normalizedRelationships, nowIso);
   const activeBoardId = getActiveBoardId();
   scheduleDomainEvent({
     type: 'task.created',
@@ -191,13 +150,6 @@ function emitTaskEdit(taskId, title, description, priority, dueDate, columnName,
     const nextColumn = columnName;
     const nowIso = new Date().toISOString();
 
-    // Ensure we have a baseline history entry before appending transitions.
-    if (!Array.isArray(tasks[taskIndex].columnHistory) || tasks[taskIndex].columnHistory.length === 0) {
-      const seededAt = tasks[taskIndex].creationDate || tasks[taskIndex].changeDate || nowIso;
-      const seededColumn = typeof prevColumn === 'string' ? prevColumn : nextColumn;
-      tasks[taskIndex].columnHistory = [{ column: seededColumn, at: seededAt }];
-    }
-
     const oldRelationships = Array.isArray(tasks[taskIndex].relationships) ? tasks[taskIndex].relationships : [];
     const newRelationships = normalizeRelationships(relationships);
 
@@ -217,12 +169,6 @@ function emitTaskEdit(taskId, title, description, priority, dueDate, columnName,
     tasks[taskIndex].labels = [...labels];
     tasks[taskIndex].relationships = newRelationships;
     tasks[taskIndex].subTasks = nextSubTasks;
-
-    syncRelationshipInverses(tasks, taskId, oldRelationships, newRelationships, nowIso);
-
-    if (prevColumn !== nextColumn) {
-      tasks[taskIndex].columnHistory.push({ column: nextColumn, at: nowIso });
-    }
 
     if (previousTask.title !== nextTitle) {
       changedFields.title = nextTitle;
