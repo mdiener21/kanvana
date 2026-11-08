@@ -1,8 +1,26 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { createReadModelProjector } from '../../../src/modules/event-sourcing/read-model-projector.js';
-import { DATA_CHANGED, emit, EVENT_EMITTED, off, on } from '../../../src/modules/events.js';
-import { ingestEvent, ingestRemoteBatch } from '../../../src/modules/event-sourcing/ingest.js';
-import { GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY } from '../../../src/modules/event-sourcing/snapshot.js';
+import { deleteDB } from 'idb';
+import { resetLocalStorage } from '../setup.js';
+
+// Event ids whose store write waits until the test lets it go.
+const heldWrites = vi.hoisted(() => new Map());
+vi.mock('../../../src/modules/idb-store.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  const persistEvent = async (event) => {
+    await heldWrites.get(event.id)?.();
+    return actual.persistEvent(event);
+  };
+  return { ...actual, persistEvent };
+});
+
+// The setup file's storage already made its Read Model; a fresh module graph gets one whose schedulers this test watches.
+vi.resetModules();
+const { DATA_CHANGED, emit, EVENT_EMITTED, EVENTS_STORED, off, on } = await import('../../../src/modules/events.js');
+const { commitTogether, createReadModel, ingestEvent, ingestRemoteBatch } = await import('../../../src/modules/event-sourcing/ingest.js');
+const { GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY } = await import('../../../src/modules/event-sourcing/snapshot.js');
+const {
+  KV_STORE, READ_MODEL_STORE, keyFor, openStore, readModelKeyFor, schedulePersist, scheduleReadModelPersist, _flushPersistsForTesting, _resetIdbForTesting
+} = await import('../../../src/modules/idb-store.js');
 
 const BOARD_ID = 'board-a';
 const BOARDS_KEY = 'kanbanBoards';
@@ -10,13 +28,6 @@ const GLOBAL_SETTINGS_KEY = 'kanvana:settings:global';
 const TIME_TRACKING_KEY = 'kanvana:timetracking';
 const NEWEST_APPLIED_KEY = 'kanvana:ingest:newestAppliedHlc';
 const SETTINGS_KEY = `kanbanBoard:${BOARD_ID}:settings`;
-
-function safeParseArray(value) {
-  return Array.isArray(value) ? value : null;
-}
-function safeParseObject(value) {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
-}
 
 function boardEvent(overrides = {}) {
   return {
@@ -32,36 +43,49 @@ function boardEvent(overrides = {}) {
   };
 }
 
-function makeHarness() {
-  const state = {
-    boards: [{ id: BOARD_ID, name: 'A', createdAt: '2026-01-01T00:00:00.000Z' }],
-    activeBoardId: BOARD_ID,
-    tasks: { [BOARD_ID]: [{ id: 'task-a', title: 'Before', column: 'todo', columnHistory: [] }] },
-    columns: { [BOARD_ID]: [{ id: 'todo', name: 'To Do' }] },
-    labels: { [BOARD_ID]: [] },
-    settings: { [BOARD_ID]: {} },
-    taskTombstones: {},
-    appliedEventIds: {},
-    snapshotAppliedIds: {},
-    newestAppliedHlc: {},
-    globalSettings: null,
-    timeTracking: null
-  };
-  const ctx = {
-    state,
-    taskCacheByBoard: new Map(),
-    loadGlobalSettings: vi.fn(() => ({ theme: 'light' })),
-    safeParseArray,
-    safeParseObject,
-    schedulePersist: vi.fn(),
-    scheduleReadModelPersist: vi.fn(),
-    checkAndScheduleSnapshot: vi.fn(),
-    boardsKey: BOARDS_KEY,
-    globalSettingsKey: GLOBAL_SETTINGS_KEY,
-    timeTrackingKey: TIME_TRACKING_KEY,
-    newestAppliedKey: NEWEST_APPLIED_KEY
-  };
-  return { state, ctx, projector: createReadModelProjector(ctx) };
+const STORED_BOARD = {
+  tasks: [{ id: 'task-a', title: 'Before', column: 'todo', columnHistory: [] }],
+  columns: [{ id: 'todo', name: 'To Do' }],
+  labels: [],
+  settings: {}
+};
+
+// A board as IndexedDB holds it; a slice set to undefined was never stored.
+async function storeBoard(slices = {}) {
+  const board = { ...STORED_BOARD, ...slices };
+  const db = await openStore();
+  await db.put(KV_STORE, [{ id: BOARD_ID, name: 'A', createdAt: '2026-01-01T00:00:00.000Z' }], BOARDS_KEY);
+  for (const slice of ['tasks', 'columns', 'labels']) {
+    const key = readModelKeyFor(BOARD_ID, slice);
+    await (board[slice] === undefined ? db.delete(READ_MODEL_STORE, key) : db.put(READ_MODEL_STORE, board[slice], key));
+  }
+  const settingsKey = keyFor(BOARD_ID, 'settings');
+  await (board.settings === undefined ? db.delete(KV_STORE, settingsKey) : db.put(KV_STORE, board.settings, settingsKey));
+}
+
+// The real Read Model on fake-indexeddb; only its schedulers are watched, and they still write.
+const ctx = {
+  schedulePersist: vi.fn(schedulePersist),
+  scheduleReadModelPersist: vi.fn(scheduleReadModelPersist),
+  checkAndScheduleSnapshot: vi.fn(),
+  boardsKey: BOARDS_KEY,
+  globalSettingsKey: GLOBAL_SETTINGS_KEY,
+  timeTrackingKey: TIME_TRACKING_KEY,
+  newestAppliedKey: NEWEST_APPLIED_KEY
+};
+const readModel = createReadModel(ctx);
+
+async function loadReadModel(slices) {
+  await storeBoard(slices);
+  vi.clearAllMocks();
+  await readModel.load();
+  readModel.startProjecting();
+  return { ctx, readModel };
+}
+
+async function storedAppliedIds(key) {
+  await _flushPersistsForTesting();
+  return (await openStore()).get(READ_MODEL_STORE, readModelKeyFor(key, 'appliedEventIds'));
 }
 
 function ingest(event) {
@@ -96,22 +120,44 @@ async function countDataChanged(run) {
 
 const MEMORY = ['appliedEventIds', 'newestApplied'];
 
-describe('createReadModelProjector', () => {
+describe('the Read Model', () => {
   let h;
-  beforeEach(() => {
-    h = makeHarness();
-    h.projector.register();
+  // A test needing another stored board starts the Read Model again on it.
+  async function reloadWith(slices) {
+    h.readModel.reset();
+    await _flushPersistsForTesting();
+    h = await loadReadModel(slices);
+  }
+
+  beforeEach(async () => {
+    resetLocalStorage();
+    await deleteDB('kanvana-db');
+    h = await loadReadModel();
   });
-  afterEach(() => {
-    h.projector.reset();
+  afterEach(async () => {
+    h.readModel.reset();
+    await _flushPersistsForTesting();
+    _resetIdbForTesting();
+  });
+
+  test('reads back the boards IndexedDB holds once loaded', () => {
+    expect(h.readModel.boards()).toEqual([{ id: BOARD_ID, name: 'A', createdAt: '2026-01-01T00:00:00.000Z' }]);
+    expect(h.readModel.board(BOARD_ID)).toEqual(STORED_BOARD);
+  });
+
+  test('a board slice never stored reads as null', async () => {
+    await reloadWith({ labels: undefined, settings: undefined });
+
+    expect(h.readModel.board(BOARD_ID)).toMatchObject({ labels: null, settings: null });
   });
 
   test('an ingested board event projects into state and schedules read-model persist', () => {
     ingest(boardEvent());
 
-    expect(h.state.tasks[BOARD_ID][0].title).toBe('After');
-    expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledWith(BOARD_ID, 'tasks', h.state.tasks[BOARD_ID], expect.any(Function));
-    expect(h.ctx.taskCacheByBoard.get(BOARD_ID)).toBe(h.state.tasks[BOARD_ID]);
+    const { tasks } = h.readModel.board(BOARD_ID);
+    expect(tasks[0].title).toBe('After');
+    expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledWith(BOARD_ID, 'tasks', tasks, expect.any(Function));
+    expect(h.readModel.cachedTasks(BOARD_ID)).toBe(tasks);
   });
 
   test('an event emitted on the bus without ingest is not projected', () => {
@@ -145,14 +191,14 @@ describe('createReadModelProjector', () => {
       payload: { fields: { theme: 'dark' } }
     });
 
-    expect(h.ctx.schedulePersist).toHaveBeenCalledWith(GLOBAL_SETTINGS_KEY, h.state.globalSettings);
+    expect(h.ctx.schedulePersist).toHaveBeenCalledWith(GLOBAL_SETTINGS_KEY, expect.objectContaining({ theme: 'dark' }));
     // Only the global view's applied ids, written with it, so a gap stays detectable.
     expect(h.ctx.scheduleReadModelPersist.mock.calls).toEqual([[GLOBAL_SNAPSHOT_KEY, 'appliedEventIds', ['g1']]]);
   });
 
   test('timetracking-scope event is never routed into a board projection and lands in the time-tracking slot', () => {
-    const boardsBefore = h.state.boards;
-    const tasksBefore = h.state.tasks[BOARD_ID];
+    const boardsBefore = h.readModel.boards();
+    const tasksBefore = h.readModel.board(BOARD_ID).tasks;
     // Even a stray board_id must not pull a timetracking event into that board.
     ingest({
       id: 't1',
@@ -166,37 +212,53 @@ describe('createReadModelProjector', () => {
       payload: { customer: { name: 'Acme' } }
     });
 
-    expect(h.state.boards).toBe(boardsBefore);
-    expect(h.state.tasks[BOARD_ID]).toBe(tasksBefore);
-    expect(h.state.settings[BOARD_ID]).toEqual({});
-    expect(h.state.globalSettings).toBeNull();
-    expect(h.state.timeTracking.customers).toEqual([{ id: 'x', name: 'Acme' }]);
+    expect(h.readModel.boards()).toBe(boardsBefore);
+    expect(h.readModel.board(BOARD_ID).tasks).toBe(tasksBefore);
+    expect(h.readModel.board(BOARD_ID).settings).toEqual({});
+    expect(h.readModel.globalSettings()).toEqual({});
+    expect(h.readModel.timeTracking().customers).toEqual([{ id: 'x', name: 'Acme' }]);
     expect(h.ctx.scheduleReadModelPersist.mock.calls).toEqual([[TIMETRACKING_SNAPSHOT_KEY, 'appliedEventIds', ['t1']]]);
-    expect(h.ctx.schedulePersist).toHaveBeenCalledWith(TIME_TRACKING_KEY, h.state.timeTracking);
+    expect(h.ctx.schedulePersist).toHaveBeenCalledWith(TIME_TRACKING_KEY, h.readModel.timeTracking());
     expect(h.ctx.checkAndScheduleSnapshot).toHaveBeenCalledWith(TIMETRACKING_SNAPSHOT_KEY, { fold: expect.any(Function), onSaved: expect.any(Function) });
   });
 
-  test('register() is idempotent — a single ingest projects once', () => {
-    h.projector.register();
+  test('projects an ingested event once, however often projecting is started', () => {
+    h.readModel.startProjecting();
     ingest(boardEvent({ id: 'once' }));
 
     expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(2);
   });
 
-  test('reset() disconnects the projector from ingest; applied ids live in state, not the projector', () => {
+  test('stops projecting once reset, and skips the events it applied after loading again', async () => {
     const ev = boardEvent({ id: 'seen' });
     ingest(ev);
     expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(2);
 
-    h.projector.reset();
+    h.readModel.reset();
     ingest(boardEvent({ id: 'after-reset' }));
     expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(2);
 
-    // The board's applied ids are durable state, so a reconnected projector still skips the seen id.
-    h.projector.register();
+    // The board's applied ids are durable state, so a Read Model loaded again still skips the seen id.
+    expect(await storedAppliedIds(BOARD_ID)).toEqual(['seen']);
+    await reloadWith();
     ingest(ev);
-    expect(h.ctx.scheduleReadModelPersist).toHaveBeenCalledTimes(2);
-    expect(h.state.appliedEventIds[BOARD_ID]).toEqual(['seen']);
+    expect(h.ctx.scheduleReadModelPersist).not.toHaveBeenCalled();
+  });
+
+  test('a commit made before projecting starts still announces its stored events once', async () => {
+    h.readModel.reset();
+    const announced = [];
+    const handler = (e) => announced.push(e.detail.ids);
+    on(EVENTS_STORED, handler);
+    try {
+      const writes = commitTogether(() => [ingest(boardEvent({ id: 'early-1' })), ingest(boardEvent({ id: 'early-2' }))]);
+      await Promise.all(writes);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    } finally {
+      off(EVENTS_STORED, handler);
+    }
+
+    expect(announced).toEqual([['early-1', 'early-2']]);
   });
 
   describe('persists only the slices an event changed', () => {
@@ -221,8 +283,8 @@ describe('createReadModelProjector', () => {
       expect(persistCalls(h)).toEqual([...slices, ...MEMORY].sort());
     });
 
-    test('a label event writes the labels only', () => {
-      h.state.labels[BOARD_ID] = [{ id: 'label-a', name: 'A' }];
+    test('a label event writes the labels only', async () => {
+      await reloadWith({ labels: [{ id: 'label-a', name: 'A' }] });
       ingest(boardEvent({ type: 'label.updated', entity_id: 'label-a', payload: { fields: { name: 'B' } } }));
       expect(persistCalls(h)).toEqual(['labels', ...MEMORY].sort());
 
@@ -232,18 +294,20 @@ describe('createReadModelProjector', () => {
     });
 
     test('the slices an event leaves alone keep their references', () => {
-      const before = { boards: h.state.boards, columns: h.state.columns[BOARD_ID], labels: h.state.labels[BOARD_ID], settings: h.state.settings[BOARD_ID] };
+      const { columns, labels, settings } = h.readModel.board(BOARD_ID);
+      const before = { boards: h.readModel.boards(), columns, labels, settings };
 
       ingest(boardEvent());
 
-      expect(h.state.boards).toBe(before.boards);
-      expect(h.state.columns[BOARD_ID]).toBe(before.columns);
-      expect(h.state.labels[BOARD_ID]).toBe(before.labels);
-      expect(h.state.settings[BOARD_ID]).toBe(before.settings);
+      const after = h.readModel.board(BOARD_ID);
+      expect(h.readModel.boards()).toBe(before.boards);
+      expect(after.columns).toBe(before.columns);
+      expect(after.labels).toBe(before.labels);
+      expect(after.settings).toBe(before.settings);
     });
 
-    test('a slice the board has never stored is written, so a reload does not bring defaults back', () => {
-      delete h.state.labels[BOARD_ID];
+    test('a slice the board has never stored is written, so a reload does not bring defaults back', async () => {
+      await reloadWith({ labels: undefined });
 
       ingest(boardEvent());
 
@@ -253,14 +317,15 @@ describe('createReadModelProjector', () => {
     test('a local event is fully projected in memory before ingest returns', () => {
       ingest(boardEvent({ type: 'task.moved', payload: { order: [{ id: 'task-a', column: 'done', order: 9 }] } }));
 
-      expect(h.state.tasks[BOARD_ID][0]).toMatchObject({ column: 'done', order: 9 });
-      expect(h.ctx.taskCacheByBoard.get(BOARD_ID)).toBe(h.state.tasks[BOARD_ID]);
+      const { tasks } = h.readModel.board(BOARD_ID);
+      expect(tasks[0]).toMatchObject({ column: 'done', order: 9 });
+      expect(h.readModel.cachedTasks(BOARD_ID)).toBe(tasks);
     });
 
     test('a remote event takes the same selective path as a local one', async () => {
       await ingestEvent(boardEvent(), { origin: 'remote' });
 
-      expect(h.state.tasks[BOARD_ID][0].title).toBe('After');
+      expect(h.readModel.board(BOARD_ID).tasks[0].title).toBe('After');
       expect(persistCalls(h)).toEqual(['tasks', ...MEMORY].sort());
     });
 
@@ -269,7 +334,7 @@ describe('createReadModelProjector', () => {
         event: boardEvent({ id: `e-${n}`, hlc: { wallTime: 1000 + n, counter: 0, nodeId: 'node-a' }, payload: { fields: { title: `T${n}` } } })
       }))));
 
-      expect(h.state.tasks[BOARD_ID][0].title).toBe('T3');
+      expect(h.readModel.board(BOARD_ID).tasks[0].title).toBe('T3');
       expect(persistCalls(h)).toEqual(['tasks', ...MEMORY].sort());
       expect(changed).toBe(1);
     });
@@ -282,6 +347,44 @@ describe('createReadModelProjector', () => {
 
       expect(persistCalls(h)).toEqual(['columns', 'tasks', ...MEMORY].sort());
     });
+
+    test('a catch-up batch touching several boards saves each once and schedules one snapshot check per board, at its end', async () => {
+      const at = (n) => ({ wallTime: 1000 + n, counter: 0, nodeId: 'node-a' });
+      const otherBoard = (n, overrides) => ({ ...boardEvent({ hlc: at(n), ...overrides }), board_id: 'board-b' });
+      await ingestRemoteBatch([
+        { event: boardEvent({ id: 'a-1', hlc: at(1), payload: { fields: { title: 'A1' } } }) },
+        { event: otherBoard(2, { id: 'b-1', type: 'board.created', entity_id: 'board-b', payload: { board: { name: 'B' } } }) },
+        { event: otherBoard(3, { id: 'b-2', type: 'task.created', entity_id: 'task-b', payload: { task: { title: 'B1', column: 'todo' } } }) },
+        { event: boardEvent({ id: 'a-2', hlc: at(4), payload: { fields: { title: 'A2' } } }) },
+        { event: otherBoard(5, { id: 'b-3', type: 'task.updated', entity_id: 'task-b', payload: { fields: { title: 'B2' } } }) }
+      ]);
+
+      const writesFor = (boardId) => h.ctx.scheduleReadModelPersist.mock.calls.filter(([key]) => key === boardId).map(([, slice]) => slice).sort();
+      expect(writesFor(BOARD_ID)).toEqual(['appliedEventIds', 'tasks']);
+      expect(writesFor('board-b')).toEqual(['appliedEventIds', 'columns', 'labels', 'tasks']);
+      expect(h.ctx.checkAndScheduleSnapshot.mock.calls.map(([key]) => key).sort()).toEqual([BOARD_ID, 'board-b']);
+      expect(h.readModel.board('board-b').tasks.map((task) => task.title)).toEqual(['B2']);
+    });
+    test('overlapping catch-up batches each store the boards touched so far when they end', async () => {
+      const at = (n) => ({ wallTime: 1000 + n, counter: 0, nodeId: 'node-a' });
+      let release;
+      const reached = new Promise((resolve) => {
+        heldWrites.set('slow', () => {
+          resolve();
+          return new Promise((done) => { release = done; });
+        });
+      });
+      const first = ingestRemoteBatch([{ event: boardEvent({ id: 'slow', hlc: at(1), payload: { fields: { title: 'First' } } }) }]);
+      await reached;
+
+      await ingestRemoteBatch([{ event: boardEvent({ id: 'fast', hlc: at(2), payload: { fields: { title: 'Second' } } }) }]);
+      const stored = await (await openStore()).get(READ_MODEL_STORE, readModelKeyFor(BOARD_ID, 'tasks'));
+      release();
+      await first;
+      heldWrites.clear();
+
+      expect(stored[0].title).toBe('Second');
+    });
   });
 
   describe('a reducer no-op', () => {
@@ -293,14 +396,14 @@ describe('createReadModelProjector', () => {
     });
 
     test('writes only the applied-event memory and emits no DATA_CHANGED', async () => {
-      const tasksBefore = h.state.tasks[BOARD_ID];
+      const tasksBefore = h.readModel.board(BOARD_ID).tasks;
 
       const changed = await countDataChanged(() => ingest(duplicateCreate({ id: 'dup' })));
 
       expect(changed).toBe(0);
       expect(persistCalls(h)).toEqual(MEMORY);
-      expect(h.state.tasks[BOARD_ID]).toBe(tasksBefore);
-      expect(h.state.appliedEventIds[BOARD_ID]).toEqual(['dup']);
+      expect(h.readModel.board(BOARD_ID).tasks).toBe(tasksBefore);
+      expect(await storedAppliedIds(BOARD_ID)).toEqual(['dup']);
     });
 
     test('is remembered, so its next delivery writes nothing', () => {
@@ -326,7 +429,7 @@ describe('createReadModelProjector', () => {
     });
 
     test('adding a label or relationship a task already has changes nothing', async () => {
-      h.state.tasks[BOARD_ID] = [{ id: 'task-a', labels: ['l'], relationships: [{ targetTaskId: 't', type: 'blocks' }] }];
+      await reloadWith({ tasks: [{ id: 'task-a', labels: ['l'], relationships: [{ targetTaskId: 't', type: 'blocks' }] }] });
 
       const changed = await countDataChanged(() => {
         ingest(boardEvent({ type: 'label.added_to_task', payload: { label_id: 'l' } }));
@@ -344,7 +447,7 @@ describe('createReadModelProjector', () => {
 
       expect(changed).toBe(0);
       expect(persistCalls(h)).toEqual(MEMORY);
-      expect(h.state.appliedEventIds[BOARD_ID]).toEqual(['dup-1', 'dup-2']);
+      expect(await storedAppliedIds(BOARD_ID)).toEqual(['dup-1', 'dup-2']);
     });
 
     test('a board-less no-op writes nothing but its applied id and newest HLC and still counts towards the next snapshot', async () => {
@@ -374,6 +477,34 @@ describe('createReadModelProjector', () => {
       ingest(duplicateCreate());
 
       expect(h.ctx.checkAndScheduleSnapshot).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('board settings written without an event (#279)', () => {
+    test('shows and stores board settings written without an event', async () => {
+      h.readModel.writeBoardSettings(BOARD_ID, { swimLanesEnabled: true });
+
+      expect(h.readModel.board(BOARD_ID).settings).toEqual({ swimLanesEnabled: true });
+      expect(persistCalls(h)).toEqual(['settings']);
+      await _flushPersistsForTesting();
+      expect(await (await openStore()).get(KV_STORE, SETTINGS_KEY)).toEqual({ swimLanesEnabled: true });
+    });
+
+    test('takes the board settings another tab stored without writing them again', async () => {
+      await (await openStore()).put(KV_STORE, { showPriority: false }, SETTINGS_KEY);
+
+      expect(await h.readModel.refreshBoardSettings(BOARD_ID)).toBe(true);
+
+      expect(h.readModel.board(BOARD_ID).settings).toEqual({ showPriority: false });
+      expect(persistCalls(h)).toEqual([]);
+    });
+
+    test('keeps its board settings when none are stored', async () => {
+      await (await openStore()).delete(KV_STORE, SETTINGS_KEY);
+
+      expect(await h.readModel.refreshBoardSettings(BOARD_ID)).toBe(false);
+
+      expect(h.readModel.board(BOARD_ID).settings).toEqual({});
     });
   });
 });

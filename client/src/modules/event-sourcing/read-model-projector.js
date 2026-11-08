@@ -1,35 +1,66 @@
 import { applyEvent, applyEvents, createProjectionState, createTimeTrackingState } from '../reducer.js';
-import { keyFor } from '../idb-store.js';
-import { scopeForSnapshotKey, snapshotKeyForEvent } from './snapshot.js';
+import { EVENTS_STORE, KV_STORE, READ_MODEL_STORE, SNAPSHOTS_STORE, keyFor, openStore, readModelKeyFor, writeIfDataCurrent } from '../idb-store.js';
+import {
+  GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY, loadEventsAfter, loadSnapshot, saveSnapshot, scopeForSnapshotKey, snapshotKeyForEvent
+} from './snapshot.js';
 import { EVENT_SCOPE } from '../constants.js';
-import { EVENT_ORDER, connectProjector, createSuperseded } from './ingest.js';
 import { compareHlc, laterHlc } from './hlc.js';
+import { DATA_CHANGED, emit } from '../events.js';
+import { safeParseArray, safeParseObject } from '../utils.js';
+import { normalizeGlobalSettings } from '../normalize.js';
 
-// Sole writer of the IDB read model (ADR-0005). Extracted from storage.js so the
-// projection layer owns the read model independent of CRUD. storage.js wires the
-// closure `state` + schedulers in via createReadModelProjector(); the reducer
-// (applyEvent/createProjectionState) stays pure and is imported directly.
+// The Read Model, sole writer of the IDB read model (ADR-0005); ingest.js makes the one instance and alone projects into it.
+
+export const EVENT_ORDER = Object.freeze({ APPLIED: 'applied', IN_ORDER: 'in-order', LATE: 'late' });
+
+// What an adopted snapshot replaced: the old snapshots and the stored events the new one covers.
+function createSuperseded() {
+  return { snapshots: [], events: [] };
+}
 
 // What IDB stores per board. The board list is one key shared by every board, so it is tracked apart.
-const BOARD_SLICES = ['tasks', 'columns', 'labels', 'settings', 'taskTombstones', 'appliedEventIds'];
+const VIEW_SLICES = ['tasks', 'columns', 'labels', 'settings'];
+const BOARD_SLICES = [...VIEW_SLICES, 'taskTombstones', 'appliedEventIds'];
+
+function emptyState() {
+  return {
+    boards: [],
+    tasks: {},    // { [boardId]: task[] | null }
+    columns: {},  // { [boardId]: column[] | null }
+    labels: {},   // { [boardId]: label[] | null }
+    settings: {},  // { [boardId]: object | null }
+    taskTombstones: {},  // { [boardId]: taskId[] } — task delete records (#178)
+    appliedEventIds: {},  // { [boardId]: eventId[] } — applied ids not yet held by a snapshot (#178)
+    snapshotAppliedIds: {},  // { [boardId]: Set<eventId> } — applied ids held by the board's latest snapshot
+    newestAppliedHlc: {},  // { [scopeKey]: hlc } — newest event folded into each key's view (#179)
+    globalSettings: null,
+    timeTracking: null
+  };
+}
 
 export function createReadModelProjector(ctx) {
   const {
-    state,
-    taskCacheByBoard,
-    loadGlobalSettings,
-    safeParseArray,
-    safeParseObject,
     demoTasksForReplay,
     withoutUnheldDemoTasks,
     schedulePersist,
+    scheduleDelete,
     scheduleReadModelPersist,
+    scheduleReadModelDelete,
     checkAndScheduleSnapshot,
     boardsKey,
     globalSettingsKey,
     timeTrackingKey,
     newestAppliedKey
   } = ctx;
+
+  let state = emptyState();
+  // Per-board default-task cache (keeps defaults stable within a session).
+  const taskCacheByBoard = new Map();
+
+  function loadGlobalSettings() {
+    const parsed = safeParseObject(state.globalSettings);
+    return parsed ? normalizeGlobalSettings(parsed) : {};
+  }
 
   // With `live`, global settings (merged field by field) keep live fields under the snapshot's.
   const boardlessSlots = new Map([
@@ -49,14 +80,15 @@ export function createReadModelProjector(ctx) {
     }]
   ]);
 
-  let disconnect = null;
-  // A remote catch-up batch keeps projecting in memory but saves each board it touched once, at its end (#237).
+  // The one copy of the scope state (#280); overlapping batches, or nested commits, share one.
   let batch = null;
   // What changed in memory since it was last stored. A save writes these and nothing else.
   const unsavedSlices = new Map();
   let boardsUnsaved = false;
-  // A local commit scope (#142) projects each event at once and saves what they changed once, when it closes.
+  // A local commit scope (#142) projects each event at once; it saves, redraws and announces once, when it closes.
   let commit = null;
+  // Off during boot-time backfill, so its events are persisted without a render each.
+  let projecting = false;
 
   function classify(event) {
     if (hasApplied(event)) return EVENT_ORDER.APPLIED;
@@ -88,15 +120,38 @@ export function createReadModelProjector(ctx) {
   }
 
   function beginCommit() {
-    commit = { boards: new Set(), boardless: new Map(), newestApplied: false };
+    commit ??= { depth: 0, boards: new Set(), boardless: new Map(), newestApplied: false, changed: false, stored: [] };
+    commit.depth += 1;
   }
 
-  function endCommit() {
+  // `onClosed` gets what the closing commit changed and stored, even if saving it throws.
+  function endCommit(onClosed) {
     if (!commit) return;
+    commit.depth -= 1;
+    if (commit.depth > 0) return;
     const closing = commit;
     commit = null;
-    closing.boardless.forEach(({ slot, viewChanged }, key) => persistBoardless(slot, key, viewChanged));
-    persistTouched(closing);
+    try {
+      closing.boardless.forEach(({ slot, viewChanged }, key) => persistBoardless(slot, key, viewChanged));
+      persistTouched(closing);
+    } finally {
+      onClosed?.({ changed: closing.changed, stored: closing.stored });
+    }
+  }
+
+  // True when an open scope takes the change, to signal it once when it closes; a batch takes only remote changes.
+  function holdChange({ local = false } = {}) {
+    if (commit) commit.changed = true;
+    else if (batch && !local) batch.changed = true;
+    else return false;
+    return true;
+  }
+
+  // True when an open commit takes the event, to announce it with the commit's others once stored.
+  function holdStored(persisted, eventId) {
+    if (!commit) return false;
+    commit.stored.push(persisted.then(() => eventId));
+    return true;
   }
 
   function persistTouched({ boards, newestApplied }) {
@@ -106,7 +161,8 @@ export function createReadModelProjector(ctx) {
   }
 
   function beginBatch() {
-    batch ??= { boards: new Set(), saved: new Set(), dropped: new Set(), newestApplied: false, pending: new Map(), changed: false };
+    batch ??= { depth: 0, boards: new Set(), saved: new Set(), dropped: new Set(), newestApplied: false, pending: new Map(), changed: false };
+    batch.depth += 1;
   }
 
   function persistBatch() {
@@ -117,13 +173,16 @@ export function createReadModelProjector(ctx) {
     batch.newestApplied = false;
   }
 
-  // Whether the batch changed anything a render would show; queued events only reveal that once applied.
+  // Each end stores what the batch touched so far (#237); true when the last one closes and a render would show a change.
   function endBatch() {
     if (!batch) return false;
+    batch.depth -= 1;
     persistBatch();
-    const { saved, changed } = batch;
+    batch.saved.forEach(scheduleBoardSnapshot);
+    batch.saved.clear();
+    if (batch.depth > 0) return false;
+    const { changed } = batch;
     batch = null;
-    saved.forEach(scheduleBoardSnapshot);
     return changed;
   }
 
@@ -187,12 +246,35 @@ export function createReadModelProjector(ctx) {
   }
 
   function dropBoard(boardId) {
+    for (const slice of [...BOARD_SLICES, 'snapshotAppliedIds']) delete state[slice][boardId];
+    taskCacheByBoard.delete(boardId);
     unsavedSlices.delete(boardId);
+    BOARD_SLICES.forEach((slice) => deleteSlice(boardId, slice));
     if (!batch) return;
     batch.pending.delete(boardId);
     batch.boards.delete(boardId);
     batch.saved.delete(boardId);
     batch.dropped.add(boardId);
+  }
+
+  // A board made without replaying events (created or seeded here) is stored like any projected change, so a failed save is retried.
+  function addBoard(boards, boardId, slices) {
+    state.boards = boards;
+    boardsUnsaved = true;
+    for (const slice of VIEW_SLICES) {
+      state[slice][boardId] = slices[slice];
+      markUnsaved(boardId, slice);
+    }
+    saveBoard(boardId);
+  }
+
+  // The board leaves the list before `announce` emits its board.deleted; projecting that writes its slices once more, so they go after.
+  function removeBoard(boardId, boards, announce) {
+    state.boards = boards;
+    boardsUnsaved = true;
+    persistBoards();
+    announce();
+    dropBoard(boardId);
   }
 
   function boardProjection(boardId) {
@@ -242,7 +324,7 @@ export function createReadModelProjector(ctx) {
   }
 
   // Entities nothing in the event log knows of come from writes that emit no event yet (import), so they stay.
-  function rebuild(key, snapshot, events, superseded = createSuperseded()) {
+  function rebuild(key, snapshot, events, replaced = createSuperseded()) {
     applyPending(key);
     const projected = fold(key, snapshot, events, { live: true });
     const newest = [snapshot?.hlc, ...events.map((event) => event.hlc)].reduce(laterHlc, null);
@@ -256,8 +338,8 @@ export function createReadModelProjector(ctx) {
     }
 
     const live = liveBoard(key);
-    const mentioned = new Set([...events, ...superseded.events].map((event) => event.entity_id));
-    for (const { state: held } of superseded.snapshots) {
+    const mentioned = new Set([...events, ...replaced.events].map((event) => event.entity_id));
+    for (const { state: held } of replaced.snapshots) {
       for (const item of [...held.tasks, ...held.columns, ...held.labels]) mentioned.add(item?.id);
     }
     const taskTombstones = new Set([...boardMemory(key).taskTombstones, ...projected.taskTombstones]);
@@ -337,7 +419,7 @@ export function createReadModelProjector(ctx) {
   function writeBoard(boardId, projected) {
     const tombstonesBefore = (safeParseArray(state.taskTombstones[boardId]) || []).length;
     const appliedBefore = (safeParseArray(state.appliedEventIds[boardId]) || []).length;
-    const changed = ['tasks', 'columns', 'labels', 'settings'].filter((slice) => projected[slice] !== state[slice][boardId]);
+    const changed = VIEW_SLICES.filter((slice) => projected[slice] !== state[slice][boardId]);
     if (projected.taskTombstones.size !== tombstonesBefore) changed.push('taskTombstones');
     const boardsChanged = projected.boards !== state.boards;
 
@@ -379,27 +461,217 @@ export function createReadModelProjector(ctx) {
     }
   }
 
-  // Null when the snapshot already holds the event.
-  function foldOntoSnapshot(key, snapshot, event) {
-    if (snapshot.state.appliedEventIds.has(event.id)) return null;
-    return fold(key, snapshot, [event]);
+  // Board settings live in the key-value store, the other slices in the read-model store.
+  function deleteSlice(boardId, slice) {
+    if (slice === 'settings') scheduleDelete(keyFor(boardId, 'settings'));
+    else scheduleReadModelDelete(boardId, slice);
   }
 
-  function register() {
-    if (disconnect) return;
-    disconnect = connectProjector({ classify, project, rebuild, snapshotToAdopt, foldOntoSnapshot, beginBatch, endBatch, beginCommit, endCommit, missedEvents });
+  // ── Late events (CONTEXT.md §9): folded onto the snapshot that covers them, then put in order by a rebuild.
+
+  // Committed events the store may not hold yet, which a rebuild reading the store would miss.
+  const unstored = new Map();
+  const committedDuringRebuild = new Map();
+  const rebuilds = new Map();
+  const superseded = new Map();
+
+  function noteCommitted(event, stored) {
+    committedDuringRebuild.get(snapshotKeyForEvent(event))?.set(event.id, event);
+    if (!stored) return;
+    unstored.set(event.id, event);
+    const forget = () => unstored.delete(event.id);
+    stored.then(forget, forget);
+  }
+
+  // The events before a covered late event may be gone, so it folds onto the snapshot; false when that already holds it.
+  async function foldOntoCoveringSnapshot(event) {
+    if (!projecting || classify(event) !== EVENT_ORDER.LATE) return true;
+    const key = snapshotKeyForEvent(event);
+    const snapshot = await loadSnapshot(key);
+    if (!snapshot || compareHlc(event.hlc, snapshot.hlc) > 0) return true;
+    if (snapshot.state.appliedEventIds.has(event.id)) return false;
+    await saveSnapshot(key, fold(key, snapshot, [event]), snapshot.hlc);
+    return true;
+  }
+
+  // The rebuild keeps this device's newer stored events (#180) and drops what only the replaced history knew; resolves to what it forgot.
+  async function adoptSnapshot(key, snapshotState, hlc) {
+    const replaced = await loadSnapshot(key);
+    const covered = (await loadEventsAfter(key, replaced?.hlc ?? null)).filter((event) => compareHlc(event.hlc, hlc) <= 0);
+    await saveSnapshot(key, projecting ? snapshotToAdopt(key, snapshotState) : snapshotState, hlc);
+    const entry = superseded.get(key) ?? createSuperseded();
+    if (replaced) entry.snapshots.push(replaced);
+    entry.events.push(...covered);
+    superseded.set(key, entry);
+    await rebuildScope(key);
+    const held = replaced ? [...replaced.state.tasks, ...replaced.state.columns, ...replaced.state.labels] : [];
+    return [...covered.map((event) => event.entity_id), ...held.map((item) => item?.id)];
+  }
+
+  // Another tab adopted a snapshot (#222): only it knows what was replaced, and this rebuild must drop the same.
+  function rebuildAfterPeerAdoption(key, forgotten) {
+    const entry = superseded.get(key) ?? createSuperseded();
+    entry.events.push(...forgotten.map((entity_id) => ({ entity_id })));
+    superseded.set(key, entry);
+    return rebuildScope(key);
+  }
+
+  // Requests for a key that is already waiting to rebuild share that run.
+  function rebuildScope(key) {
+    const current = rebuilds.get(key);
+    if (current?.waiting) return current.promise;
+    const entry = { waiting: true };
+    entry.promise = (current?.promise ?? Promise.resolve())
+      .catch(() => {})
+      .then(() => {
+        entry.waiting = false;
+        return runRebuild(key);
+      })
+      .finally(() => {
+        if (rebuilds.get(key) === entry) rebuilds.delete(key);
+      });
+    rebuilds.set(key, entry);
+    return entry.promise;
+  }
+
+  // Events committed while the store is read may be missing from the read; the reducer dedups by id.
+  async function runRebuild(key) {
+    if (!projecting) return;
+    const collected = new Map([...unstored].filter(([, event]) => snapshotKeyForEvent(event) === key));
+    const replaced = superseded.get(key);
+    superseded.delete(key);
+    committedDuringRebuild.set(key, collected);
+    try {
+      const snapshot = await loadSnapshot(key);
+      const stored = await loadEventsAfter(key, snapshot?.hlc ?? null);
+      const pending = [...collected.values()].filter((event) => !snapshot || compareHlc(event.hlc, snapshot.hlc) > 0);
+      if (projecting && rebuild(key, snapshot, [...stored, ...pending], replaced) && !holdChange()) emit(DATA_CHANGED, { rebuilt: key });
+    } finally {
+      committedDuringRebuild.delete(key);
+    }
+  }
+
+  // Adding the same listener again is a no-op, so this is idempotent.
+  function startProjecting() {
+    projecting = true;
     window.addEventListener('pagehide', persistBatchOnPageHide);
   }
 
+  function isProjecting() {
+    return projecting;
+  }
+
+  // Devices from before #179 never recorded it, so it is derived once from the stored events and snapshots.
+  async function loadNewestAppliedHlc(db) {
+    const stored = safeParseObject(await db.get(KV_STORE, newestAppliedKey));
+    if (stored) return { ...stored };
+
+    const newest = {};
+    const note = (key, hlc) => {
+      if (key && hlc) newest[key] = laterHlc(newest[key], hlc);
+    };
+    for (const event of await db.getAll(EVENTS_STORE)) note(snapshotKeyForEvent(event), event.hlc);
+    for (const key of await db.getAllKeys(SNAPSHOTS_STORE)) note(key, (await db.get(SNAPSHOTS_STORE, key))?.hlc);
+    await writeIfDataCurrent(KV_STORE, (store) => store.put(newest, newestAppliedKey));
+    return newest;
+  }
+
+  async function load() {
+    const db = await openStore();
+    state.boards = safeParseArray(await db.get(KV_STORE, boardsKey)) || [];
+    state.globalSettings = normalizeGlobalSettings(await db.get(KV_STORE, globalSettingsKey));
+    state.timeTracking = createTimeTrackingState(await db.get(KV_STORE, timeTrackingKey));
+
+    const loadSlice = (key, slice) => (slice === 'settings'
+      ? db.get(KV_STORE, keyFor(key, slice))
+      : db.get(READ_MODEL_STORE, readModelKeyFor(key, slice)));
+    for (const board of state.boards) {
+      for (const slice of VIEW_SLICES) state[slice][board.id] = (await loadSlice(board.id, slice)) ?? null;
+      state.taskTombstones[board.id] = (await loadSlice(board.id, 'taskTombstones')) ?? [];
+    }
+    for (const key of [...state.boards.map((board) => board.id), GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY]) {
+      state.appliedEventIds[key] = (await loadSlice(key, 'appliedEventIds')) ?? [];
+      state.snapshotAppliedIds[key] = (await loadSnapshot(key))?.state.appliedEventIds ?? new Set();
+    }
+    state.newestAppliedHlc = await loadNewestAppliedHlc(db);
+  }
+
+  // ── Reads: queued catch-up events are applied first, so a read never sees a stale board.
+
+  function boards() {
+    applyAllPending();
+    return state.boards;
+  }
+
+  // Each slice parsed, or null when the board has never stored it.
+  function board(boardId) {
+    applyAllPending();
+    return {
+      tasks: safeParseArray(state.tasks[boardId]),
+      columns: safeParseArray(state.columns[boardId]),
+      labels: safeParseArray(state.labels[boardId]),
+      settings: safeParseObject(state.settings[boardId])
+    };
+  }
+
+  function timeTracking() {
+    return createTimeTrackingState(state.timeTracking);
+  }
+
+  function cachedTasks(boardId) {
+    return taskCacheByBoard.get(boardId);
+  }
+
+  function cacheTasks(boardId, tasks) {
+    taskCacheByBoard.set(boardId, tasks);
+  }
+
+  // ── Writes storage still makes without an event (save* paths).
+
+  function setBoards(next) {
+    state.boards = next;
+  }
+
+  function setBoardSlice(boardId, slice, value) {
+    state[slice][boardId] = value;
+  }
+
+  function setGlobalSettings(value) {
+    state.globalSettings = value;
+  }
+
+  // ── Board settings no event carries (swimlanes, display toggles); a rebuild keeps them (see fold).
+
+  function writeBoardSettings(boardId, settings) {
+    state.settings[boardId] = settings;
+    schedulePersist(keyFor(boardId, 'settings'), settings);
+  }
+
+  // Another tab stored them (#222); this tab's old copy would undo them on its next board save. True when taken.
+  async function refreshBoardSettings(boardId) {
+    const db = await openStore();
+    const stored = safeParseObject(await db.get(KV_STORE, keyFor(boardId, 'settings')));
+    if (!stored) return false;
+    state.settings[boardId] = stored;
+    return true;
+  }
+
   function reset() {
+    state = emptyState();
+    taskCacheByBoard.clear();
     batch = null;
     commit = null;
     unsavedSlices.clear();
     boardsUnsaved = false;
+    projecting = false;
     window.removeEventListener('pagehide', persistBatchOnPageHide);
-    disconnect?.();
-    disconnect = null;
   }
 
-  return { register, reset, applyAllPending, dropBoard };
+  return {
+    load, startProjecting, isProjecting, reset, addBoard, removeBoard,
+    boards, board, globalSettings: loadGlobalSettings, timeTracking, cachedTasks, cacheTasks,
+    setBoards, setBoardSlice, setGlobalSettings, writeBoardSettings, refreshBoardSettings,
+    classify, project, missedEvents, beginBatch, endBatch, beginCommit, endCommit, holdChange, holdStored,
+    noteCommitted, foldOntoCoveringSnapshot, adoptSnapshot, rebuildAfterPeerAdoption, rebuildScope
+  };
 }

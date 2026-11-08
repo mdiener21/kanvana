@@ -12,6 +12,9 @@ import {
   loadColumnsForBoard,
   loadGlobalSettings,
   loadTimeTracking,
+  listBoards,
+  loadSettingsForBoard,
+  saveSettings,
   saveTasks,
   setActiveBoardId
 } from '../../../src/modules/storage.js';
@@ -93,6 +96,20 @@ describe('rebuild', () => {
     const titles = loadTasksForBoard(boardId).map((t) => t.title);
     expect(titles).toContain('Imported');
     expect(titles).toContain('T2');
+  });
+
+  // The seeded board, since createBoard's settings.updated would hold the same fields (CONTEXT.md §9 known limit).
+  test('keeps swimlane settings written without an event', async () => {
+    boardId = listBoards()[0].id;
+    todoColumn = loadColumnsForBoard(boardId)[0].id;
+    setActiveBoardId(boardId);
+    saveSettings({ ...loadSettingsForBoard(boardId), swimLanesEnabled: true, swimLaneGroupBy: 'priority' });
+    const base = Date.now() + 1_000;
+    await ingestRemote(boardEvent('task.created', { id: 'e-create', wallTime: base, payload: { task: { title: 'T0', column: todoColumn } } }));
+    await ingestRemote(boardEvent('task.updated', { id: 'e-2', wallTime: base + 2, payload: { fields: { title: 'T2' } } }));
+    await ingestRemote(boardEvent('task.updated', { id: 'e-1', wallTime: base + 1, payload: { fields: { title: 'T1' } } }));
+
+    expect(loadSettingsForBoard(boardId)).toMatchObject({ swimLanesEnabled: true, swimLaneGroupBy: 'priority' });
   });
 });
 

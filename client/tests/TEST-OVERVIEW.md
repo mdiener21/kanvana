@@ -4,10 +4,10 @@ Generated from test source. Do not edit by hand; run `npm run test:overview` fro
 
 ## Fast Scan
 
-- Test files: 147
-- Test cases: 1371
+- Test files: 148
+- Test cases: 1385
 - Unit files: 50
-- DOM integration files: 45
+- DOM integration files: 46
 - E2E files: 50
 - Performance files: 1
 
@@ -279,38 +279,47 @@ These lists compare source/spec filenames against test file names and test title
 
 - Path: `tests/unit/event-sourcing/out-of-order-ingest.test.js`
 - Type: Unit
-- Test count: 3
+- Test count: 4
 
-- `tests/unit/event-sourcing/out-of-order-ingest.test.js:84` rebuild > keeps a task that no event knows of, such as an imported one
-- `tests/unit/event-sourcing/out-of-order-ingest.test.js:124` in-order ingest stays incremental > a stream of newer events never reads the event store in bulk and never rebuilds
-- `tests/unit/event-sourcing/out-of-order-ingest.test.js:140` in-order ingest stays incremental > a late event is the one that reads the store and rebuilds
+- `tests/unit/event-sourcing/out-of-order-ingest.test.js:87` rebuild > keeps a task that no event knows of, such as an imported one
+- `tests/unit/event-sourcing/out-of-order-ingest.test.js:102` rebuild > keeps swimlane settings written without an event
+- `tests/unit/event-sourcing/out-of-order-ingest.test.js:141` in-order ingest stays incremental > a stream of newer events never reads the event store in bulk and never rebuilds
+- `tests/unit/event-sourcing/out-of-order-ingest.test.js:157` in-order ingest stays incremental > a late event is the one that reads the store and rebuilds
 
 ### Read Model Projector
 
 - Path: `tests/unit/event-sourcing/read-model-projector.test.js`
 - Type: Unit
-- Test count: 20
+- Test count: 28
 
-- `tests/unit/event-sourcing/read-model-projector.test.js:109` createReadModelProjector > an ingested board event projects into state and schedules read-model persist
-- `tests/unit/event-sourcing/read-model-projector.test.js:117` createReadModelProjector > an event emitted on the bus without ingest is not projected
-- `tests/unit/event-sourcing/read-model-projector.test.js:122` createReadModelProjector > ingest is idempotent by event id (dedup) and announces DATA_CHANGED once
-- `tests/unit/event-sourcing/read-model-projector.test.js:135` createReadModelProjector > global-scope event projects globalSettings and persists the global key only
-- `tests/unit/event-sourcing/read-model-projector.test.js:152` createReadModelProjector > timetracking-scope event is never routed into a board projection and lands in the time-tracking slot
-- `tests/unit/event-sourcing/read-model-projector.test.js:178` createReadModelProjector > register() is idempotent — a single ingest projects once
-- `tests/unit/event-sourcing/read-model-projector.test.js:185` createReadModelProjector > reset() disconnects the projector from ingest; applied ids live in state, not the projector
-- `tests/unit/event-sourcing/read-model-projector.test.js:223` createReadModelProjector > persists only the slices an event changed > a label event writes the labels only
-- `tests/unit/event-sourcing/read-model-projector.test.js:233` createReadModelProjector > persists only the slices an event changed > the slices an event leaves alone keep their references
-- `tests/unit/event-sourcing/read-model-projector.test.js:244` createReadModelProjector > persists only the slices an event changed > a slice the board has never stored is written, so a reload does not bring defaults back
-- `tests/unit/event-sourcing/read-model-projector.test.js:252` createReadModelProjector > persists only the slices an event changed > a local event is fully projected in memory before ingest returns
-- `tests/unit/event-sourcing/read-model-projector.test.js:259` createReadModelProjector > persists only the slices an event changed > a remote event takes the same selective path as a local one
-- `tests/unit/event-sourcing/read-model-projector.test.js:266` createReadModelProjector > persists only the slices an event changed > a catch-up batch writes each changed slice once, however many events it holds
-- `tests/unit/event-sourcing/read-model-projector.test.js:276` createReadModelProjector > persists only the slices an event changed > a catch-up batch covering two kinds of slice writes both
-- `tests/unit/event-sourcing/read-model-projector.test.js:294` createReadModelProjector > a reducer no-op > writes only the applied-event memory and emits no DATA_CHANGED
-- `tests/unit/event-sourcing/read-model-projector.test.js:305` createReadModelProjector > a reducer no-op > is remembered, so its next delivery writes nothing
-- `tests/unit/event-sourcing/read-model-projector.test.js:327` createReadModelProjector > a reducer no-op > adding a label or relationship a task already has changes nothing
-- `tests/unit/event-sourcing/read-model-projector.test.js:338` createReadModelProjector > a reducer no-op > a catch-up batch of nothing but no-ops writes the memory and emits no DATA_CHANGED
-- `tests/unit/event-sourcing/read-model-projector.test.js:349` createReadModelProjector > a reducer no-op > a board-less no-op writes nothing but its newest HLC and still counts towards the next snapshot
-- `tests/unit/event-sourcing/read-model-projector.test.js:372` createReadModelProjector > a reducer no-op > still asks for a snapshot, since the stored event counts towards the next one
+- `tests/unit/event-sourcing/read-model-projector.test.js:143` the Read Model > reads back the boards IndexedDB holds once loaded
+- `tests/unit/event-sourcing/read-model-projector.test.js:148` the Read Model > a board slice never stored reads as null
+- `tests/unit/event-sourcing/read-model-projector.test.js:154` the Read Model > an ingested board event projects into state and schedules read-model persist
+- `tests/unit/event-sourcing/read-model-projector.test.js:163` the Read Model > an event emitted on the bus without ingest is not projected
+- `tests/unit/event-sourcing/read-model-projector.test.js:168` the Read Model > ingest is idempotent by event id (dedup) and announces DATA_CHANGED once
+- `tests/unit/event-sourcing/read-model-projector.test.js:181` the Read Model > global-scope event projects globalSettings and persists the global key only
+- `tests/unit/event-sourcing/read-model-projector.test.js:199` the Read Model > timetracking-scope event is never routed into a board projection and lands in the time-tracking slot
+- `tests/unit/event-sourcing/read-model-projector.test.js:225` the Read Model > projects an ingested event once, however often projecting is started
+- `tests/unit/event-sourcing/read-model-projector.test.js:232` the Read Model > stops projecting once reset, and skips the events it applied after loading again
+- `tests/unit/event-sourcing/read-model-projector.test.js:248` the Read Model > a commit made before projecting starts still announces its stored events once
+- `tests/unit/event-sourcing/read-model-projector.test.js:286` the Read Model > persists only the slices an event changed > a label event writes the labels only
+- `tests/unit/event-sourcing/read-model-projector.test.js:296` the Read Model > persists only the slices an event changed > the slices an event leaves alone keep their references
+- `tests/unit/event-sourcing/read-model-projector.test.js:309` the Read Model > persists only the slices an event changed > a slice the board has never stored is written, so a reload does not bring defaults back
+- `tests/unit/event-sourcing/read-model-projector.test.js:317` the Read Model > persists only the slices an event changed > a local event is fully projected in memory before ingest returns
+- `tests/unit/event-sourcing/read-model-projector.test.js:325` the Read Model > persists only the slices an event changed > a remote event takes the same selective path as a local one
+- `tests/unit/event-sourcing/read-model-projector.test.js:332` the Read Model > persists only the slices an event changed > a catch-up batch writes each changed slice once, however many events it holds
+- `tests/unit/event-sourcing/read-model-projector.test.js:342` the Read Model > persists only the slices an event changed > a catch-up batch covering two kinds of slice writes both
+- `tests/unit/event-sourcing/read-model-projector.test.js:351` the Read Model > persists only the slices an event changed > a catch-up batch touching several boards saves each once and schedules one snapshot check per board, at its end
+- `tests/unit/event-sourcing/read-model-projector.test.js:368` the Read Model > persists only the slices an event changed > overlapping catch-up batches each store the boards touched so far when they end
+- `tests/unit/event-sourcing/read-model-projector.test.js:398` the Read Model > a reducer no-op > writes only the applied-event memory and emits no DATA_CHANGED
+- `tests/unit/event-sourcing/read-model-projector.test.js:409` the Read Model > a reducer no-op > is remembered, so its next delivery writes nothing
+- `tests/unit/event-sourcing/read-model-projector.test.js:431` the Read Model > a reducer no-op > adding a label or relationship a task already has changes nothing
+- `tests/unit/event-sourcing/read-model-projector.test.js:442` the Read Model > a reducer no-op > a catch-up batch of nothing but no-ops writes the memory and emits no DATA_CHANGED
+- `tests/unit/event-sourcing/read-model-projector.test.js:453` the Read Model > a reducer no-op > a board-less no-op writes nothing but its applied id and newest HLC and still counts towards the next snapshot
+- `tests/unit/event-sourcing/read-model-projector.test.js:476` the Read Model > a reducer no-op > still asks for a snapshot, since the stored event counts towards the next one
+- `tests/unit/event-sourcing/read-model-projector.test.js:484` the Read Model > board settings written without an event (#279) > shows and stores board settings written without an event
+- `tests/unit/event-sourcing/read-model-projector.test.js:493` the Read Model > board settings written without an event (#279) > takes the board settings another tab stored without writing them again
+- `tests/unit/event-sourcing/read-model-projector.test.js:502` the Read Model > board settings written without an event (#279) > keeps its board settings when none are stored
 
 ### Reducer
 
@@ -1103,6 +1112,16 @@ _No executable test cases detected._
 - `tests/dom/event-sourcing/board-content-sync.test.js:55` a template board reaches a fresh device with its custom columns and tasks
 - `tests/dom/event-sourcing/board-content-sync.test.js:68` rendering a board while its columns are still arriving does not add a second Done column
 
+### Board Lifecycle Persist
+
+- Path: `tests/dom/event-sourcing/board-lifecycle-persist.test.js`
+- Type: DOM Integration
+- Test count: 3
+
+- `tests/dom/event-sourcing/board-lifecycle-persist.test.js:71` a created board whose save failed is stored whole by the next edit on it
+- `tests/dom/event-sourcing/board-lifecycle-persist.test.js:85` a seeded default board whose save failed is stored whole by the next edit on it
+- `tests/dom/event-sourcing/board-lifecycle-persist.test.js:98` creating or deleting a board stores the board list as listed, without a board deleted elsewhere
+
 ### Column Sort
 
 - Path: `tests/dom/event-sourcing/column-sort.test.js`
@@ -1149,23 +1168,25 @@ _No executable test cases detected._
 
 - Path: `tests/dom/event-sourcing/cross-tab-read-model.test.js`
 - Type: DOM Integration
-- Test count: 15
+- Test count: 17
 
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:126` a remote event the leader ingests > reaches the follower tab read model and re-renders it, with no reload
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:136` a remote event the leader ingests > is not stored again or queued by the follower
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:145` a remote event the leader ingests > moves the follower clock past it, so the next edit there wins everywhere
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:157` a remote event the leader ingests > renders a catch-up batch in the follower once
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:174` a follower edit right after a remote event > keeps both changes in every tab and in what a reload reads, when the edit beats the notice
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:193` a follower edit right after a remote event > orders the same field by clock, not by which tab heard first
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:209` a follower edit right after a remote event > does not bring back old data once the notice was applied
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:222` a local edit > is in the shared store before any tab hears of it
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:238` a local edit > shows in the other tab, with no reload, whichever tab made it
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:248` a local edit > stays queued for push after the other tab applied it
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:259` a board setting written without an event > survives the other tab writing out its copy of the board, and shows there
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:278` a snapshot the leader adopts > drops from the follower what it dropped itself
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:294` events a tab missed > a follower tab opening shows events stored before it could hear of them
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:308` events a tab missed > does not bring back a board deleted in this tab
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:323` events a tab missed > does not apply a time-tracking event twice after a reload
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:135` a remote event the leader ingests > reaches the follower tab read model and re-renders it, with no reload
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:145` a remote event the leader ingests > is not stored again or queued by the follower
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:154` a remote event the leader ingests > moves the follower clock past it, so the next edit there wins everywhere
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:166` a remote event the leader ingests > renders a catch-up batch in the follower once
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:183` a follower edit right after a remote event > keeps both changes in every tab and in what a reload reads, when the edit beats the notice
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:202` a follower edit right after a remote event > orders the same field by clock, not by which tab heard first
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:218` a follower edit right after a remote event > does not bring back old data once the notice was applied
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:231` a local edit > is in the shared store before any tab hears of it
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:247` a local edit > shows in the other tab, with no reload, whichever tab made it
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:257` a local edit > stays queued for push after the other tab applied it
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:268` a board setting written without an event > survives the other tab writing out its copy of the board, and shows there
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:287` a snapshot the leader adopts > drops from the follower what it dropped itself
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:303` events a tab missed > a follower tab opening shows events stored before it could hear of them
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:317` events a tab missed > does not bring back a board deleted in this tab
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:332` events a tab missed > a tab that opens alone repairs a time-tracking view a stale tab wrote over
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:356` events a tab missed > a tab that opens alone replays a view with no applied ids in clock order
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:377` events a tab missed > does not apply a time-tracking event twice after a reload
 
 ### Data Owner Stale Tab
 

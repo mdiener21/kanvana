@@ -143,3 +143,10 @@ export function normalizeStringKeys(keys) {
       return true;
     });
 }
+
+const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
+
+export function normalizeGlobalSettings(raw) {
+  if (!isPlainObject(raw)) return {};
+  return isPlainObject(raw.timeTracking) ? { timeTracking: { ...raw.timeTracking } } : {};
+}
