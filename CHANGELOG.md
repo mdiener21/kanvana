@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.12] - 2026-11-08
+
 ### Fixed
 
 - Editing a task in the form now updates its "Updated" date on every device: the date travels in the edit's events instead of being set on this device only, and a save with no changes leaves it alone.
