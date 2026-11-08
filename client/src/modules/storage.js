@@ -840,8 +840,10 @@ export function loadTasks() {
     });
 
     if (didChange) {
-      readModel.setBoardSlice(boardId, 'tasks', normalized);
-      scheduleReadModelPersist(boardId, 'tasks', normalized);
+      // Callers edit what this returns, so the stored slice gets its own copy (ADR-0005).
+      const stored = structuredClone(normalized);
+      readModel.setBoardSlice(boardId, 'tasks', stored);
+      scheduleReadModelPersist(boardId, 'tasks', stored);
     }
 
     readModel.cacheTasks(boardId, normalized);

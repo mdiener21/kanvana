@@ -154,3 +154,51 @@ test('swimlane drag across priority lanes replays the priority reassignment', as
   expect(replayedTask.priority).toBe(liveTask.priority);
   expect(liveTask.priority).toBe('high');
 });
+
+const OLD_CHANGE = '2020-01-01T00:00:00.000Z';
+
+function seedOne(extra = {}) {
+  return [{ id: 'task-a', title: 'A', column: 'todo', labels: [], relationships: [], subTasks: [], columnHistory: [], changeDate: OLD_CHANGE, ...extra }];
+}
+
+test.each([
+  ['a field change', (id) => updateTask(id, 'A renamed', '', 'none', '', 'todo')],
+  ['only a label change', (id) => updateTask(id, 'A', '', 'none', '', 'todo', ['label-1'])],
+  ['only a subtask change', (id) => updateTask(id, 'A', '', 'none', '', 'todo', [], [], [{ id: 's1', title: 'Step', completed: false }])]
+])('a form edit with %s stamps changeDate and replays it', async (_name, edit) => {
+  const seed = seedOne();
+  saveTasks(clone(seed));
+  await _flushPersistsForTesting();
+
+  const events = await collectEvents(() => edit('task-a'));
+
+  const live = loadTasks().find((task) => task.id === 'task-a');
+  expect(live.changeDate).not.toBe(OLD_CHANGE);
+  const replayed = applyEvents(createProjectionState({ tasks: clone(seed) }), events);
+  expect(replayed.tasks.find((task) => task.id === 'task-a').changeDate).toBe(live.changeDate);
+});
+
+test('a form save with no changes emits nothing and keeps changeDate', async () => {
+  saveTasks(clone(seedOne()));
+  await _flushPersistsForTesting();
+
+  const events = await collectEvents(() => updateTask('task-a', 'A', '', 'none', '', 'todo'));
+
+  expect(events).toEqual([]);
+  expect(loadTasks().find((task) => task.id === 'task-a').changeDate).toBe(OLD_CHANGE);
+});
+
+test('a form column change on a task that needs normalizing replays to the same task', async () => {
+  // An unknown priority makes loadTasks() normalize and store the tasks it returns.
+  const seed = [{ id: 'task-a', title: 'A', column: 'todo', priority: 'critical', labels: [], relationships: [], subTasks: [], columnHistory: [{ column: 'todo', at: OLD_CHANGE }], changeDate: OLD_CHANGE }];
+  saveTasks(clone(seed));
+  await _flushPersistsForTesting();
+  const before = [{ ...clone(seed[0]), priority: 'none' }];
+
+  const events = await collectEvents(() => updateTask('task-a', 'A', '', 'none', '', DONE_COLUMN_ID));
+
+  const live = loadTasks().find((task) => task.id === 'task-a');
+  const replayed = applyEvents(createProjectionState({ tasks: before, columns: COLUMNS }), events).tasks.find((task) => task.id === 'task-a');
+  expect(live.columnHistory.map((entry) => entry.column)).toEqual(['todo', DONE_COLUMN_ID]);
+  expect(live).toMatchObject({ column: DONE_COLUMN_ID, changeDate: replayed.changeDate, doneDate: replayed.doneDate, columnHistory: replayed.columnHistory });
+});

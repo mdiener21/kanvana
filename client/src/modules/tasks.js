@@ -73,46 +73,6 @@ function relationshipKey(relationship) {
  * Diffs oldRelationships vs newRelationships for a given taskId and mutates
  * the target tasks in-place to keep inverses consistent.
  */
-function syncRelationshipInverses(tasks, taskId, oldRelationships, newRelationships, at) {
-  const oldMap = new Map(oldRelationships.map((r) => [r.targetTaskId, r.type]));
-  const newMap = new Map(newRelationships.map((r) => [r.targetTaskId, r.type]));
-  const sourceTask = tasks.find((t) => t.id === taskId);
-
-  for (const [targetId, newType] of newMap) {
-    const target = tasks.find((t) => t.id === targetId);
-    if (!target) continue;
-    if (!Array.isArray(target.relationships)) target.relationships = [];
-    const oldType = oldMap.get(targetId);
-    // Remove any existing entry pointing back at taskId, then add the correct inverse.
-    const inverseType = RELATIONSHIP_INVERSE[newType];
-    const targetIndex = tasks.findIndex((t) => t.id === targetId);
-    let nextTarget = {
-      ...target,
-      relationships: [
-        ...target.relationships.filter((r) => r.targetTaskId !== taskId),
-        { type: inverseType, targetTaskId: taskId }
-      ]
-    };
-
-    if (oldType && oldType !== newType) {
-    }
-    if (!oldType || oldType !== newType) {
-    }
-    tasks[targetIndex] = nextTarget;
-  }
-
-  for (const [targetId, oldType] of oldMap) {
-    if (newMap.has(targetId)) continue; // handled above
-    const target = tasks.find((t) => t.id === targetId);
-    if (!target || !Array.isArray(target.relationships)) continue;
-    const inverseType = RELATIONSHIP_INVERSE[oldType];
-    const targetIndex = tasks.findIndex((t) => t.id === targetId);
-    tasks[targetIndex] = {
-      ...target,
-      relationships: target.relationships.filter((r) => r.targetTaskId !== taskId)
-    };
-  }
-}
 
 // Add a new task
 export function addTask(title, description, priority, dueDate, columnName, labels = [], relationships = [], subTasks = []) {
@@ -161,7 +121,6 @@ function emitNewTask(title, description, priority, dueDate, columnName, labels, 
   };
 
   updatedTasks.push(newTask);
-  syncRelationshipInverses(updatedTasks, newTask.id, [], normalizedRelationships, nowIso);
   const activeBoardId = getActiveBoardId();
   scheduleDomainEvent({
     type: 'task.created',
@@ -191,13 +150,6 @@ function emitTaskEdit(taskId, title, description, priority, dueDate, columnName,
     const nextColumn = columnName;
     const nowIso = new Date().toISOString();
 
-    // Ensure we have a baseline history entry before appending transitions.
-    if (!Array.isArray(tasks[taskIndex].columnHistory) || tasks[taskIndex].columnHistory.length === 0) {
-      const seededAt = tasks[taskIndex].creationDate || tasks[taskIndex].changeDate || nowIso;
-      const seededColumn = typeof prevColumn === 'string' ? prevColumn : nextColumn;
-      tasks[taskIndex].columnHistory = [{ column: seededColumn, at: seededAt }];
-    }
-
     const oldRelationships = Array.isArray(tasks[taskIndex].relationships) ? tasks[taskIndex].relationships : [];
     const newRelationships = normalizeRelationships(relationships);
 
@@ -217,12 +169,6 @@ function emitTaskEdit(taskId, title, description, priority, dueDate, columnName,
     tasks[taskIndex].labels = [...labels];
     tasks[taskIndex].relationships = newRelationships;
     tasks[taskIndex].subTasks = nextSubTasks;
-
-    syncRelationshipInverses(tasks, taskId, oldRelationships, newRelationships, nowIso);
-
-    if (prevColumn !== nextColumn) {
-      tasks[taskIndex].columnHistory.push({ column: nextColumn, at: nowIso });
-    }
 
     if (previousTask.title !== nextTitle) {
       changedFields.title = nextTitle;
@@ -250,10 +196,16 @@ function emitTaskEdit(taskId, title, description, priority, dueDate, columnName,
       delete tasks[taskIndex].doneDate;
     }
 
-    tasks[taskIndex].changeDate = nowIso;
     const boardId = getActiveBoardId();
+    // changeDate rides on the edit's events so it replays and syncs (ADR-0005); task.moved stamps its own.
+    let emitted = 0;
+    const emit = (input) => {
+      emitted += 1;
+      scheduleDomainEvent(input);
+    };
     if (Object.keys(changedFields).length > 0) {
-      scheduleDomainEvent({
+      changedFields.changeDate = nowIso;
+      emit({
         type: 'task.updated',
         boardId,
         entityId: taskId,
@@ -267,22 +219,22 @@ function emitTaskEdit(taskId, title, description, priority, dueDate, columnName,
     nextLabels
       .filter((labelId) => !previousLabels.includes(labelId))
       .forEach((labelId) => {
-        scheduleDomainEvent({ type: 'label.added_to_task', boardId, entityId: taskId, payload: { label_id: labelId } });
+        emit({ type: 'label.added_to_task', boardId, entityId: taskId, payload: { label_id: labelId } });
       });
     previousLabels
       .filter((labelId) => !nextLabels.includes(labelId))
       .forEach((labelId) => {
-        scheduleDomainEvent({ type: 'label.removed_from_task', boardId, entityId: taskId, payload: { label_id: labelId } });
+        emit({ type: 'label.removed_from_task', boardId, entityId: taskId, payload: { label_id: labelId } });
       });
     newRelationships
       .filter((relationship) => !previousRelationshipKeys.has(relationshipKey(relationship)))
       .forEach((relationship) => {
-        scheduleDomainEvent({ type: 'relationship.added', boardId, entityId: taskId, payload: { relationship } });
+        emit({ type: 'relationship.added', boardId, entityId: taskId, payload: { relationship } });
         // Emit the inverse on the target task so the bidirectional link replays
         // from events alone (the reducer is the sole read-model writer — ADR-0005).
         const inverseType = RELATIONSHIP_INVERSE[relationship.type];
         if (inverseType) {
-          scheduleDomainEvent({
+          emit({
             type: 'relationship.added',
             boardId,
             entityId: relationship.targetTaskId,
@@ -293,7 +245,7 @@ function emitTaskEdit(taskId, title, description, priority, dueDate, columnName,
     oldRelationships
       .filter((relationship) => !nextRelationshipKeys.has(relationshipKey(relationship)))
       .forEach((relationship) => {
-        scheduleDomainEvent({
+        emit({
           type: 'relationship.removed',
           boardId,
           entityId: taskId,
@@ -301,7 +253,7 @@ function emitTaskEdit(taskId, title, description, priority, dueDate, columnName,
         });
         const inverseType = RELATIONSHIP_INVERSE[relationship.type];
         if (inverseType) {
-          scheduleDomainEvent({
+          emit({
             type: 'relationship.removed',
             boardId,
             entityId: relationship.targetTaskId,
@@ -315,21 +267,24 @@ function emitTaskEdit(taskId, title, description, priority, dueDate, columnName,
     nextSubTasks.forEach((subtask) => {
       const previous = previousSubTasksById.get(subtask.id);
       if (!previous) {
-        scheduleDomainEvent({ type: 'subtask.added', boardId, entityId: taskId, payload: { subtask } });
+        emit({ type: 'subtask.added', boardId, entityId: taskId, payload: { subtask } });
         return;
       }
       if (previous.completed !== subtask.completed) {
-        scheduleDomainEvent({ type: 'subtask.toggled', boardId, entityId: taskId, payload: { subtask_id: subtask.id, completed: subtask.completed === true } });
+        emit({ type: 'subtask.toggled', boardId, entityId: taskId, payload: { subtask_id: subtask.id, completed: subtask.completed === true } });
       }
       if ((previous.title || '') !== (subtask.title || '')) {
-        scheduleDomainEvent({ type: 'subtask.text_changed', boardId, entityId: taskId, payload: { subtask_id: subtask.id, title: subtask.title || '' } });
+        emit({ type: 'subtask.text_changed', boardId, entityId: taskId, payload: { subtask_id: subtask.id, title: subtask.title || '' } });
       }
     });
     previousSubTasks
       .filter((subtask) => !nextSubTasksById.has(subtask.id))
       .forEach((subtask) => {
-        scheduleDomainEvent({ type: 'subtask.removed', boardId, entityId: taskId, payload: { subtask_id: subtask.id } });
+        emit({ type: 'subtask.removed', boardId, entityId: taskId, payload: { subtask_id: subtask.id } });
       });
+    if (emitted > 0 && !changedFields.changeDate && prevColumn === nextColumn) {
+      emit({ type: 'task.updated', boardId, entityId: taskId, payload: { fields: { changeDate: nowIso } } });
+    }
   }
 }
 
