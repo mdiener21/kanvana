@@ -10,7 +10,7 @@ import { entryFieldsHtml, wireEntryFields } from './timetracking-entry-fields.js
 import { filterEntries, mountEntryFilter } from './timetracking-filter.js';
 import { prefillProjectId, loadLastUsedProjectId, rememberLastUsedProject } from './timetracking-settings.js';
 import { WEEK_HEADER_HTML, mountWeekStrip } from './timetracking-week-strip.js';
-import { groupEntriesByDay, formatTime, formatDuration, plusDaysBetween, floorToMinute } from './timetracking-time.js';
+import { groupEntriesByDay, formatTime, formatDuration, plusDaysBetween, newEntryTimes } from './timetracking-time.js';
 import { colorDotHtml } from './timetracking-markup.js';
 import { dayCoverage, coverageBarHtml } from './timetracking-coverage.js';
 
@@ -29,8 +29,12 @@ ${WEEK_HEADER_HTML}
       ${entryFieldsHtml('tt-entry')}
       <button id="tt-entry-add" class="tt-btn-add" type="button" aria-label="Add entry">
         <span data-lucide="plus" aria-hidden="true"></span>
-        Add
+        Add <kbd class="tt-kbd">Enter</kbd>
       </button>
+      <p class="tt-entry-hint">
+        <span><kbd class="tt-kbd">930</kbd> <kbd class="tt-kbd">90m</kbd> <kbd class="tt-kbd">1.5</kbd> shorthand</span>
+        <span><kbd class="tt-kbd">Alt+↑/↓</kbd> ±15 min</span>
+      </p>
     </div>
     <div class="tt-list-toolbar">
       <div class="tt-list-filter"></div>
@@ -152,9 +156,9 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
   let lastPrefill = null;
 
   function reset() {
-    const now = floorToMinute(getPrefs().now);
+    const { now, tz } = getPrefs();
     lastPrefill = currentPrefill();
-    fields.setEntry({ projectId: lastPrefill, startMs: now, endMs: now });
+    fields.setEntry({ projectId: lastPrefill, ...newEntryTimes(loadTimeTracking().timeEntries, now, tz) });
   }
 
   // An untouched entry bar follows a changed prefill; a typed one is left alone.

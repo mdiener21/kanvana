@@ -301,10 +301,10 @@
   color: var(--text, #111);
 }
 
-/* Entry bar */
+/* Entry bar (and the edit modal, which shares its labelled fields) */
 .tt-entry-bar {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   flex-wrap: wrap;
   gap: 8px;
   padding: 12px;
@@ -312,13 +312,61 @@
   border-radius: 8px;
   background: var(--surface, #fff);
 }
-.tt-entry-bar .tt-entry-description { flex: 3 1 220px; }
-.tt-entry-bar .tt-entry-project { flex: 2 1 180px; }
-.tt-entry-bar .tt-entry-date { flex: 0 0 110px; text-align: center; }
-.tt-entry-bar .tt-entry-time { flex: 0 0 72px; text-align: center; }
-.tt-entry-bar .tt-entry-duration { flex: 0 0 72px; text-align: center; font-weight: 600; }
-.tt-entry-bar .tt-btn-add { text-transform: uppercase; }
-.tt-entry-sep { color: var(--text-muted, #6b7280); }
+.tt-field { display: grid; gap: 4px; min-width: 0; }
+.tt-field-head { display: flex; align-items: baseline; gap: 6px; min-height: 16px; }
+.tt-field-label { font-size: 11px; font-weight: 500; color: var(--text-muted, #6b7280); padding-left: 2px; }
+.tt-field .tt-input { width: 100%; box-sizing: border-box; height: 40px; }
+.tt-field-description { flex: 3 1 220px; }
+.tt-field-project { flex: 2 1 180px; }
+.tt-field-wrap { position: relative; }
+.tt-entry-project-dot { position: absolute; left: 10px; top: 50%; translate: 0 -50%; }
+.tt-entry-project-dot[hidden] { display: none; }
+.tt-field-wrap:has(.tt-entry-project-dot:not([hidden])) .tt-input { padding-left: 28px; }
+.tt-time-block {
+  display: flex;
+  align-items: flex-end;
+  padding-left: 8px;
+  border-left: 1px solid var(--border-subtle, #e5e7eb);
+}
+.tt-time-block .tt-input { text-align: center; padding-left: 6px; padding-right: 6px; font-variant-numeric: tabular-nums; }
+.tt-field-date { width: 108px; margin-right: 8px; }
+.tt-field-start, .tt-field-end { width: 68px; }
+.tt-field-duration { width: 72px; margin-left: 8px; }
+.tt-field-duration .tt-input { font-weight: 600; background: var(--surface-muted, #f9fafb); }
+.tt-entry-arrow { height: 40px; display: flex; align-items: center; padding: 0 4px; color: var(--text-muted, #6b7280); }
+.tt-entry-bar .tt-btn-add { height: 40px; min-height: 40px; gap: 8px; font-weight: 500; }
+.tt-kbd {
+  font: inherit;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 5px;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 4px;
+  background: var(--surface-muted, #f9fafb);
+  color: var(--text-muted, #6b7280);
+}
+.tt-btn-add .tt-kbd { background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 255, 255, 0.3); color: #fff; }
+.tt-entry-hint {
+  flex: 1 1 100%;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--text-muted, #6b7280);
+}
+.tt-entry-hint span { display: inline-flex; align-items: center; gap: 4px; }
+@media (max-width: 600px) {
+  .tt-field-description, .tt-field-project { flex: 1 1 100%; }
+  .tt-time-block { flex: 1 1 100%; border-left: 0; padding-left: 0; }
+  .tt-field-date { flex: 1.5 1 0; width: auto; min-width: 88px; margin-right: 6px; }
+  .tt-field-start, .tt-field-end, .tt-field-duration { flex: 1 1 0; width: auto; min-width: 58px; }
+  .tt-field-duration { margin-left: 6px; }
+  .tt-entry-arrow { padding: 0 2px; height: var(--tt-touch-target); }
+  .tt-field .tt-input { height: var(--tt-touch-target); }
+  .tt-entry-bar .tt-btn-add { flex: 1 1 100%; height: var(--tt-touch-target); min-height: var(--tt-touch-target); }
+  .tt-entry-bar .tt-btn-add .tt-kbd, .tt-entry-hint { display: none; }
+}
 .tt-plus-day {
   font-size: 11px;
   color: var(--accent);
@@ -427,12 +475,8 @@
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
 }
 .tt-edit-title { margin: 0 0 14px; font-size: 16px; font-weight: 600; color: var(--text, #111); }
-.tt-edit-fields { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.tt-edit-fields .tt-entry-description { flex: 1 1 100%; }
-.tt-edit-fields .tt-entry-project { flex: 1 1 100%; }
-.tt-edit-fields .tt-entry-date { flex: 0 0 110px; text-align: center; }
-.tt-edit-fields .tt-entry-time { flex: 0 0 72px; text-align: center; }
-.tt-edit-fields .tt-entry-duration { flex: 0 0 72px; text-align: center; font-weight: 600; }
+.tt-edit-fields { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.tt-edit-fields .tt-field-description, .tt-edit-fields .tt-field-project { flex: 1 1 100%; }
 .tt-edit-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .tt-entry-row > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tt-entry-desc-empty { color: var(--text-muted, #6b7280); font-style: italic; }
