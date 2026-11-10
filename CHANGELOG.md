@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Rename a Time Tracker entry in place: click its description (or press `F2` on the selected row), then `Enter` or click away to save and `Esc` to cancel. Clicking an entry's project or customer opens the edit dialog (#287).
+
 ### Changed
 
 - Time Tracker entries use the Ledger layout: each row shows its project colour as a left rail and a dot while project and customer names stay readable in every theme, durations line up with the day total, and phones get a two-line row. Each day heading gains a bar showing when you tracked time, with a marker for now on today (#286).

@@ -32,7 +32,7 @@ test('a light project colour shows only on the rail and dot; names meet 4.5:1 in
   for (const theme of ['light', 'dark']) {
     await page.evaluate((t) => { document.documentElement.dataset.theme = t; }, theme);
     for (const selected of [false, true]) {
-      if (selected) await row.click();
+      if (selected) await row.locator('.tt-entry-range').click();
       for (const name of [row.locator('.tt-entry-project'), row.locator('.tt-entry-customer')]) {
         await expect(name).not.toHaveCSS('color', 'rgb(139, 195, 74)');
         expect(await contrastOf(name), `${theme} theme, selected ${selected}`).toBeGreaterThanOrEqual(4.5);

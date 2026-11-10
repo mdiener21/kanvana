@@ -503,6 +503,47 @@
   .tt-entry-row .tt-entry-customer:not(:empty)::before { content: "· "; }
 }
 
+/* Inline rename and the project / customer button (#287) */
+.tt-entry-row .tt-entry-desc[data-rename] { justify-self: start; max-width: 100%; margin-left: -6px; padding: 3px 6px; border-radius: 4px; cursor: text; }
+.tt-entry-row .tt-entry-desc[data-rename]:hover { background: var(--surface, #fff); box-shadow: inset 0 0 0 1px var(--border, #e5e7eb); }
+.tt-entry-row button.tt-entry-meta {
+  justify-self: stretch;
+  margin: 0 0 0 -6px;
+  padding: 3px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tt-entry-row button.tt-entry-meta:hover { background: var(--surface, #fff); box-shadow: inset 0 0 0 1px var(--border, #e5e7eb); }
+.tt-entry-row button.tt-entry-meta:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.tt-rename { position: relative; display: block; min-width: 0; margin-left: -7px; }
+.tt-rename-input { display: block; width: 100%; box-sizing: border-box; padding: 4px 128px 4px 6px; border-color: var(--accent); }
+.tt-rename-hint {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  translate: 0 -50%;
+  font-size: 11px;
+  color: var(--text-muted, #6b7280);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.tt-rename-hint kbd { font-size: 10px; padding: 1px 4px; }
+.tt-entry-row .tt-entry-actions[hidden] { display: inline-flex; visibility: hidden; }
+@media (pointer: coarse) {
+  .tt-entry-row button.tt-entry-meta,
+  .tt-rename-input { min-height: var(--tt-touch-target); }
+}
+@media (max-width: 600px) {
+  .tt-entry-row .tt-rename { grid-column: 1; grid-row: 1; }
+  .tt-rename-input { padding-right: 6px; }
+  .tt-rename-hint { display: none; }
+}
+
 /* Toast */
 #tt-toast {
   position: fixed;

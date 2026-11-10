@@ -40,6 +40,7 @@ export const DEFAULT_APP_KEYBINDINGS = {
   ttSelectNext: { key: 'j', ...NO_MODIFIERS },
   ttSelectPrev: { key: 'k', ...NO_MODIFIERS },
   ttEditEntry: { key: 'e', ...NO_MODIFIERS },
+  ttRenameEntry: { key: 'F2', ...NO_MODIFIERS },
   ttDuplicateEntry: { key: 'd', ...NO_MODIFIERS },
   ttDeleteEntry: { key: 'Delete', ...NO_MODIFIERS },
   ttConfirmDelete: { key: 'y', ...NO_MODIFIERS },
