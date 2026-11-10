@@ -56,7 +56,7 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow).toBeLessThanOrEqual(0);
 }
 
-test('on a phone a time entry can be edited and deleted by tapping its always-visible row actions', async ({ page }) => {
+test('on a phone a time entry can be edited and deleted from its row menu', async ({ page }) => {
   await page.goto('/timetracking.html');
   expect(await page.evaluate(() => matchMedia('(hover: none)').matches)).toBe(true);
   await page.locator('#tt-nav-projects').tap();
@@ -80,13 +80,21 @@ test('on a phone a time entry can be edited and deleted by tapping its always-vi
   const row = page.locator('.tt-entry-row', { hasText: 'Call' });
   await expect(row).toBeVisible();
   await expect(row).not.toHaveClass(/is-selected/);
+  // Touch rows keep one always-visible ⋯ menu instead of three icon actions
   for (const name of ['Edit entry', 'Duplicate entry', 'Delete entry']) {
-    await expect(row.getByRole('button', { name })).toBeVisible();
+    await expect(row.getByRole('button', { name })).toBeHidden();
   }
-  await expectTouchSized(row.locator('.tt-entry-action'));
+  const more = row.getByRole('button', { name: 'More actions' });
+  await expect(more).toBeVisible();
+  await expectTouchSized(more);
   await expectNoHorizontalOverflow(page);
 
-  await row.getByRole('button', { name: 'Edit entry' }).tap();
+  await more.tap();
+  const menu = page.getByRole('menu', { name: 'Entry actions' });
+  await expect(menu.getByRole('menuitem')).toHaveText(['Edit', 'Duplicate', 'Delete']);
+  await expectTouchSized(menu.getByRole('menuitem'));
+  await expectNoHorizontalOverflow(page);
+  await menu.getByRole('menuitem', { name: 'Edit' }).tap();
   const dialog = page.getByRole('dialog', { name: 'Edit entry' });
   await expect(dialog).toBeVisible();
   await expectTouchSized(dialog.getByRole('button'));
@@ -96,7 +104,8 @@ test('on a phone a time entry can be edited and deleted by tapping its always-vi
   const edited = page.locator('.tt-entry-row', { hasText: 'Client call' });
   await expect(edited).toBeVisible();
 
-  await edited.getByRole('button', { name: 'Delete entry' }).tap();
+  await edited.getByRole('button', { name: 'More actions' }).tap();
+  await page.getByRole('menu', { name: 'Entry actions' }).getByRole('menuitem', { name: 'Delete' }).tap();
   const confirm = page.locator('.tt-entry-confirm');
   await expect(confirm).toContainText('Delete “Client call”');
   await expectTouchSized(confirm.getByRole('button'));
