@@ -262,6 +262,18 @@ export function groupEntriesByDay(entries, prefs) {
   return [...groups.values()];
 }
 
+// A new entry continues from the last one: Start = the latest End among today's entries
+// (Attribution day) when that is earlier than now, otherwise Start = End = now.
+export function newEntryTimes(entries, now, tz) {
+  const endMs = floorToMinute(now);
+  const today = dayKey(endMs, tz);
+  const todayEnds = entries
+    .filter((entry) => dayKey(Date.parse(entry.start), tz) === today)
+    .map((entry) => Date.parse(entry.end));
+  const lastEndMs = Math.max(...todayEnds);
+  return { startMs: todayEnds.length && lastEndMs < endMs ? lastEndMs : endMs, endMs };
+}
+
 export function adjustLinkedField(values, field, deltaMinutes, prefs) {
   const current = resolveLinkedFields(values, field, prefs);
   if (!current) return null;

@@ -254,6 +254,9 @@ function createNavigator(root, onShow) {
   return {
     show(id, { focus = false } = {}) {
       showSection(root, id);
+      // A section opens at its top, not at the scroll position the previous section left behind.
+      const main = root.getElementById('tt-main');
+      if (main && id !== current) main.scrollTop = 0;
       current = id;
       onShow[id]?.();
       if (focus) focusSectionHeading(root, id);

@@ -31,19 +31,34 @@ export function resolveProjectLabel(label, tt) {
 
 // ── Markup ─────────────────────────────────────────────────────────────────────
 
+const fieldHtml = (prefix, field, label, inputHtml, head = '') => `
+    <div class="tt-field tt-field-${field}">
+      <div class="tt-field-head"><label class="tt-field-label" for="${prefix}-${field}">${label}</label>${head}</div>
+      ${inputHtml}
+    </div>`;
+
+const textInput = (prefix, field, cls, attrs = '') =>
+  `<input id="${prefix}-${field}" class="tt-input ${cls}" data-tt-field="${field}" type="text" autocomplete="off"${attrs}>`;
+
+// Shared by the entry bar and the edit modal, so both show the same labelled fields.
 export function entryFieldsHtml(prefix) {
   return `
-    <input id="${prefix}-description" class="tt-input tt-entry-description" data-tt-field="description" type="text"
-      placeholder="What are you working on?" aria-label="Description" autocomplete="off" maxlength="500">
-    <input id="${prefix}-project" class="tt-input tt-entry-project" data-tt-field="project" type="text"
-      list="${prefix}-project-options" placeholder="Customer / Project" aria-label="Project" autocomplete="off">
-    <datalist id="${prefix}-project-options"></datalist>
-    <input id="${prefix}-date" class="tt-input tt-entry-date" data-tt-field="date" type="text" aria-label="Date" autocomplete="off">
-    <input id="${prefix}-start" class="tt-input tt-entry-time" data-tt-field="start" type="text" aria-label="Start" autocomplete="off">
-    <span class="tt-entry-sep" aria-hidden="true">–</span>
-    <input id="${prefix}-end" class="tt-input tt-entry-time" data-tt-field="end" type="text" aria-label="End" autocomplete="off">
-    <span class="tt-plus-day" data-tt-plus-day hidden>+1 day</span>
-    <input id="${prefix}-duration" class="tt-input tt-entry-duration" data-tt-field="duration" type="text" aria-label="Duration" autocomplete="off">
+    ${fieldHtml(prefix, 'description', 'Description',
+      textInput(prefix, 'description', 'tt-entry-description', ' placeholder="What did you work on?" maxlength="500"'))}
+    ${fieldHtml(prefix, 'project', 'Project', `
+      <div class="tt-field-wrap">
+        <span class="tt-color-dot tt-entry-project-dot" data-tt-project-dot aria-hidden="true" hidden></span>
+        ${textInput(prefix, 'project', 'tt-entry-project', ` list="${prefix}-project-options" placeholder="Customer / Project"`)}
+      </div>
+      <datalist id="${prefix}-project-options"></datalist>`)}
+    <div class="tt-time-block">
+      ${fieldHtml(prefix, 'date', 'Date', textInput(prefix, 'date', 'tt-entry-date'))}
+      ${fieldHtml(prefix, 'start', 'Start', textInput(prefix, 'start', 'tt-entry-time'))}
+      <span class="tt-entry-arrow" aria-hidden="true">→</span>
+      ${fieldHtml(prefix, 'end', 'End', textInput(prefix, 'end', 'tt-entry-time'),
+        '<span class="tt-plus-day" data-tt-plus-day hidden>+1 day</span>')}
+      ${fieldHtml(prefix, 'duration', 'Duration', textInput(prefix, 'duration', 'tt-entry-duration'))}
+    </div>
   `;
 }
 
@@ -54,6 +69,7 @@ export function wireEntryFields(root, { getPrefs, getTimeTracking, onSubmit }) {
     [...root.querySelectorAll('[data-tt-field]')].map((input) => [input.dataset.ttField, input])
   );
   const plusDay = root.querySelector('[data-tt-plus-day]');
+  const projectDot = root.querySelector('[data-tt-project-dot]');
   const projectOptions = root.querySelector('datalist');
   let lastValid = null;
 
@@ -66,10 +82,18 @@ export function wireEntryFields(root, { getPrefs, getTimeTracking, onSubmit }) {
     plusDay.textContent = resolved.plusDays > 1 ? `+${resolved.plusDays} days` : '+1 day';
   }
 
+  function showProjectDot() {
+    const tt = getTimeTracking();
+    const project = projectById(tt, resolveProjectLabel(inputs.project.value, tt));
+    projectDot.hidden = !project;
+    projectDot.style.background = project?.color ?? '';
+  }
+
   function setProject(projectId) {
     const tt = getTimeTracking();
     const project = projectById(tt, projectId);
     inputs.project.value = project ? projectLabel(project, tt) : '';
+    showProjectDot();
   }
 
   function normalise(field) {
@@ -116,6 +140,7 @@ export function wireEntryFields(root, { getPrefs, getTimeTracking, onSubmit }) {
   const blurHandlers = LINKED_FIELDS.map((f) => [inputs[f], () => normalise(f)]);
   for (const [input, handler] of blurHandlers) input.addEventListener('blur', handler);
   root.addEventListener('keydown', onKeyDown);
+  inputs.project.addEventListener('input', showProjectDot);
 
   return {
     setEntry({ description = '', projectId = null, startMs, endMs }) {
@@ -144,6 +169,7 @@ export function wireEntryFields(root, { getPrefs, getTimeTracking, onSubmit }) {
     unwire() {
       for (const [input, handler] of blurHandlers) input.removeEventListener('blur', handler);
       root.removeEventListener('keydown', onKeyDown);
+      inputs.project.removeEventListener('input', showProjectDot);
     }
   };
 }
