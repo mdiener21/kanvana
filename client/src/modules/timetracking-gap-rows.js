@@ -34,13 +34,13 @@ export const gapBefore = (gaps, entry) => gaps.find((gap) => gap.endMs === Date.
 
 export const gapOfFillButton = (button) => ({ startMs: Number(button.dataset.gapStart), endMs: Number(button.dataset.gapEnd) });
 
-// Day rows newest first: a gap goes right below the entries that start at or after its end.
+// Day rows newest first: a gap sits directly above the entry it follows (whose End is its Start).
 export function dayRowsHtml(entries, gaps, entryHtml, prefs) {
-  const pending = [...gaps].sort((a, b) => b.startMs - a.startMs);
+  const pending = [...gaps];
   return entries.map((entry) => {
-    const startMs = Date.parse(entry.start);
-    let html = '';
-    while (pending.length > 0 && pending[0].endMs > startMs) html += gapRowHtml(pending.shift(), prefs);
-    return html + entryHtml(entry);
+    const endMs = Date.parse(entry.end);
+    const following = pending.filter((gap) => gap.startMs === endMs);
+    for (const gap of following) pending.splice(pending.indexOf(gap), 1);
+    return following.map((gap) => gapRowHtml(gap, prefs)).join('') + entryHtml(entry);
   }).join('');
 }

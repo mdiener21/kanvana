@@ -112,6 +112,14 @@ describe('week strip', () => {
     expect(fill('Wed')).toBe('0%');
   });
 
+  test('a future day has no Target yet, so its meter stays empty however much is logged', () => {
+    withWeeklyHours(40);
+    mount([...WEEK_ENTRIES, entry('fri', '2026-11-13T07:00:00.000Z', '2026-11-13T09:00:00.000Z')]); // tomorrow, 2:00
+    expect(hours('Fri')).toBe('2:00');
+    expect(fill('Fri')).toBe('0%');
+    expect(meter('Fri').classList.contains('is-met')).toBe(false);
+  });
+
   test('with Weekly hours unset day totals show without meters and the header shows the week total without a Balance', () => {
     mount();
     expect(hours('Mon')).toBe('8:15');

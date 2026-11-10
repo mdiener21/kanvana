@@ -113,7 +113,7 @@ const EDITOR_HTML = `
   </div>
 `;
 
-function entryListHtml(tt, prefs, groups, view, gaps) {
+function entryListHtml(tt, prefs, groups, view, gaps, dayEntries) {
   if (tt.timeEntries.length === 0) return '<p class="tt-empty">No time entries yet.</p>';
   if (groups.length === 0) return '<p class="tt-empty">No entries match the filter.</p>';
   return groups.map((group) => {
@@ -122,7 +122,7 @@ function entryListHtml(tt, prefs, groups, view, gaps) {
       <div class="tt-day" data-day="${escapeHtml(group.key)}">
         <div class="tt-day-header">
           <h3 class="tt-day-heading">${heading}</h3>
-          ${coverageBarHtml(dayCoverage(group.entries, prefs, (entry) => projectById(tt, entry.projectId)?.color ?? 'var(--text-muted)'))}
+          ${coverageBarHtml(dayCoverage(dayEntries.get(group.key), prefs, (entry) => projectById(tt, entry.projectId)?.color ?? 'var(--text-muted)'))}
           <span class="tt-day-total" aria-label="Total for ${heading}">${formatDuration(group.totalMs, prefs.durationFormat)}</span>
         </div>
         <ul class="tt-day-entries" aria-label="${heading}">
@@ -214,7 +214,10 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     filter.refresh();
     const activeFilter = filter.getFilter();
     const groups = groupEntriesByDay(filterEntries(tt, activeFilter), prefs);
-    gaps = untrackedGaps(tt.timeEntries, prefs.tz);
+    // A gap in a filtered list would hide other projects' entries: no gap rows, chips or f there.
+    const isFiltered = Boolean(activeFilter.customerId || activeFilter.projectId);
+    gaps = isFiltered ? [] : untrackedGaps(tt.timeEntries, prefs.tz);
+    const dayEntries = new Map(groupEntriesByDay(tt.timeEntries, prefs).map((group) => [group.key, group.entries]));
     chipBox.innerHTML = fillChipsHtml(gaps, prefs);
     chipBox.hidden = chipBox.childElementCount === 0;
     visibleIds = groups.flatMap((group) => group.entries.map((e) => e.id));
@@ -223,8 +226,7 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     fields.refreshProjects();
     count.textContent = `${visibleIds.length} ${visibleIds.length === 1 ? 'entry' : 'entries'}`;
     rename.beforeRender();
-    // A gap in a filtered list would hide other projects' entries, so gap rows show unfiltered only.
-    list.innerHTML = entryListHtml(tt, prefs, groups, view, activeFilter.customerId || activeFilter.projectId ? [] : gaps);
+    list.innerHTML = entryListHtml(tt, prefs, groups, view, gaps, dayEntries);
     renderIcons(list);
     rename.afterRender();
   }
