@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The Time Tracker header shows the ISO week and a strip of seven day cells with each day's logged time and, when Weekly hours is set, a meter against the day's Target; clicking a day jumps to its entries, and the week's total now sits beside the "This week" Balance. Switching Time Tracking sections now opens each at its top (#291).
+
 ### Changed
 
 - Time Tracker entries use the Ledger layout: each row shows its project colour as a left rail and a dot while project and customer names stay readable in every theme, durations line up with the day total, and phones get a two-line row. Each day heading gains a bar showing when you tracked time, with a marker for now on today (#286).

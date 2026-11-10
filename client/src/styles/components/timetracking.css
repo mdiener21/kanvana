@@ -807,3 +807,66 @@
 .tt-week-balance-value { font-weight: 700; font-variant-numeric: tabular-nums; }
 .tt-week-balance.is-surplus .tt-week-balance-value { color: var(--color-success, #16a34a); }
 .tt-week-balance.is-deficit .tt-week-balance-value { color: var(--color-danger, #dc2626); }
+
+/* Week strip: ISO week label, day cells with meters, week total beside the Balance badge (#291) */
+.tt-tracker-header { align-items: flex-end; margin-bottom: 12px; }
+.tt-week-label { margin: 2px 0 0; font-size: 13px; color: var(--text-muted, #6b7280); }
+.tt-week-summary { display: flex; align-items: center; gap: 8px; max-width: 100%; }
+.tt-week-total {
+  min-height: var(--tt-touch-target);
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--text, #111);
+  font: inherit;
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.tt-week-total:hover { background: var(--surface-hover, #f3f4f6); }
+.tt-week-total:focus-visible { outline: 2px solid var(--accent, #3b82f6); outline-offset: 2px; }
+.tt-week-strip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  margin: 0 0 20px;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border-subtle, #e5e7eb);
+  border-radius: 8px;
+}
+.tt-week-day {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  min-height: var(--tt-touch-target);
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text, #111);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tt-week-day:hover { background: var(--surface-hover, #f3f4f6); }
+.tt-week-day:focus-visible { outline: 2px solid var(--accent, #3b82f6); outline-offset: -2px; }
+.tt-week-day[aria-current="date"] { background: color-mix(in srgb, var(--color-primary) 12%, transparent); }
+.tt-week-day.is-future { opacity: 0.55; }
+.tt-week-day-top { display: flex; justify-content: space-between; gap: 4px; font-size: 12px; color: var(--text-muted, #6b7280); }
+.tt-week-day[aria-current="date"] .tt-week-day-top { color: var(--accent, #3b82f6); font-weight: 600; }
+.tt-week-day-hours { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tt-week-day-hours.is-empty { color: var(--text-muted, #6b7280); font-weight: 400; }
+.tt-week-meter { display: flex; height: 4px; border-radius: 2px; background: var(--border-subtle, #e5e7eb); overflow: hidden; }
+.tt-week-meter-fill { height: 100%; background: var(--color-primary, #3b82f6); }
+.tt-week-meter.is-met .tt-week-meter-fill { background: var(--color-success, #16a34a); }
+@media (max-width: 600px) {
+  .tt-week-strip { gap: 2px; padding: 3px; }
+  .tt-week-day { gap: 4px; padding: 6px 2px; text-align: center; }
+  .tt-week-day-top { justify-content: center; }
+  .tt-week-day-date { display: none; }
+  .tt-week-day-hours { font-size: 12px; }
+}
