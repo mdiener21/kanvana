@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Time Tracker: the entry bar labels every field, groups Date, Start, End and Duration into one time block, shows the project's colour dot and a shorthand hint, and a new entry's Start now continues from the last entry today.
+
 ## [3.4.12] - 2026-11-08
 
 ### Fixed

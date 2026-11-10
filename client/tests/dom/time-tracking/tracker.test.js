@@ -80,11 +80,11 @@ afterEach(() => {
 });
 
 describe('entry bar', () => {
-  test('opens on the Time Tracker with defaults: today, start = now, end = start, 0:00, no project', () => {
+  test('opens on the Time Tracker with defaults (no entry today): today, start = end = now, 0:00, no project', () => {
     mount();
     expect(document.getElementById('tt-section-tracker').hidden).toBe(false);
     expect(field('Description').value).toBe('');
-    expect(field('Description').placeholder).toBe('What are you working on?');
+    expect(field('Description').placeholder).toBe('What did you work on?');
     expect(field('Project').value).toBe('');
     expect(values()).toEqual(['08.10.2026', '12:00', '12:00', '0:00']);
   });
