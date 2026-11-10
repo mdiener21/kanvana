@@ -13,6 +13,7 @@ import { WEEK_HEADER_HTML, mountWeekStrip } from './timetracking-week-strip.js';
 import { groupEntriesByDay, formatTime, formatDuration, plusDaysBetween, newEntryTimes } from './timetracking-time.js';
 import { colorDotHtml } from './timetracking-markup.js';
 import { dayCoverage, coverageBarHtml } from './timetracking-coverage.js';
+import { createInlineRename } from './timetracking-rename.js';
 
 export const ENTRY_ERROR_MESSAGES = {
   [CRUD_ERROR.NO_PROJECT]: 'Select a project.',
@@ -65,6 +66,7 @@ function entryRowHtml(entry, tt, prefs, view) {
   const project = projectById(tt, entry.projectId);
   const customer = project && customerById(tt, project.customerId);
   const plusDays = plusDaysBetween(startMs, endMs, prefs.tz);
+  const projectName = project?.name ?? 'Unknown project';
   const isSelected = entry.id === view.selectedId;
   const attrs = `data-entry-id="${escapeHtml(entry.id)}" aria-current="${isSelected}"`;
   if (entry.id === view.confirmingId) {
@@ -78,11 +80,12 @@ function entryRowHtml(entry, tt, prefs, view) {
   }
   return `
     <li class="tt-entry-row${isSelected ? ' is-selected' : ''}" ${attrs}${project ? ` style="--tt-project-color:${escapeHtml(project.color)};"` : ''}>
-      <span class="tt-entry-desc${entry.description ? '' : ' tt-entry-desc-empty'}">${escapeHtml(descriptionText(entry))}</span>
-      <span class="tt-entry-meta">
-        <span class="tt-entry-project">${project ? colorDotHtml(project.color) : ''}${escapeHtml(project?.name ?? 'Unknown project')}</span>
+      <span class="tt-entry-desc${entry.description ? '' : ' tt-entry-desc-empty'}" data-rename title="Click to rename">${escapeHtml(descriptionText(entry))}</span>
+      <button type="button" class="tt-entry-meta" data-action="edit" title="Open editor"
+        aria-label="${escapeHtml([projectName, customer?.name].filter(Boolean).join(' · '))}, open editor">
+        <span class="tt-entry-project">${project ? colorDotHtml(project.color) : ''}${escapeHtml(projectName)}</span>
         <span class="tt-entry-customer">${escapeHtml(customer?.name ?? '')}</span>
-      </span>
+      </button>
       <span class="tt-entry-range"><span>${formatTime(startMs, prefs)} – ${formatTime(endMs, prefs)}</span>${plusDays > 0 ? `<sup class="tt-entry-plus" title="Ends ${plusDays} day(s) later">+${plusDays}</sup>` : ''}</span>
       <span class="tt-entry-end">
         <span class="tt-entry-actions">
@@ -200,8 +203,10 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     if (!visibleIds.includes(view.confirmingId)) view.confirmingId = null;
     fields.refreshProjects();
     count.textContent = `${visibleIds.length} ${visibleIds.length === 1 ? 'entry' : 'entries'}`;
+    renaming?.editor.detach();
     list.innerHTML = entryListHtml(tt, prefs, groups, view);
     renderIcons(list);
+    if (renaming) placeRename();
   }
 
   const rowOf = (id) => [...list.querySelectorAll('[data-entry-id]')].find((r) => r.dataset.entryId === id);
@@ -292,11 +297,37 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     select(reportFailure(deleteTimeEntry(id)) ? neighbour : id);
   }
 
+  let renaming = null;
+
+  function startRename(id) {
+    const entry = loadTimeTracking().timeEntries.find((e) => e.id === id);
+    if (!entry || renaming || editor || view.confirmingId) return;
+    const renameEditor = createInlineRename(container.ownerDocument, entry.description, (save, value) => finishRename(id, save, value));
+    renaming = { id, editor: renameEditor };
+    select(id);
+  }
+
+  // Runs after each render while renaming: the editor takes the description's place.
+  function placeRename() {
+    const row = rowOf(renaming.id);
+    if (!row) { renaming = null; return; }
+    row.classList.add('is-renaming');
+    row.querySelector('.tt-entry-actions').hidden = true;
+    renaming.editor.place(row.querySelector('[data-rename]'));
+  }
+
+  function finishRename(id, save, value) {
+    renaming = null;
+    const entry = loadTimeTracking().timeEntries.find((e) => e.id === id);
+    if (save && entry) reportFailure(updateTimeEntry(id, { ...entry, description: value }));
+    refresh();
+  }
+
   const ROW_ACTION_HANDLERS = { edit: openEditor, duplicate, delete: askDelete };
 
   list.addEventListener('click', (ev) => {
     const row = ev.target.closest('[data-entry-id]');
-    if (!row) return;
+    if (!row || ev.target.closest('.tt-rename')) return;
     if (view.confirmingId) {
       const answer = ev.target.closest('[data-confirm]')?.dataset.confirm;
       if (answer === 'yes') confirmDelete();
@@ -306,12 +337,13 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     const id = row.dataset.entryId;
     const action = ev.target.closest('[data-action]')?.dataset.action;
     select(id);
-    ROW_ACTION_HANDLERS[action]?.(id);
+    if (ev.target.closest('[data-rename]')) startRename(id);
+    else ROW_ACTION_HANDLERS[action]?.(id);
   });
 
   list.addEventListener('dblclick', (ev) => {
     const row = ev.target.closest('[data-entry-id]');
-    if (row && !view.confirmingId) openEditor(row.dataset.entryId);
+    if (row && !view.confirmingId && !ev.target.closest('[data-rename], .tt-rename')) openEditor(row.dataset.entryId);
   });
 
   container.querySelector('#tt-entry-add').addEventListener('click', () => fields.submit());
@@ -325,6 +357,7 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     selectNext: () => moveSelection(1),
     selectPrev: () => moveSelection(-1),
     editSelected: () => view.selectedId && openEditor(view.selectedId),
+    renameSelected: () => view.selectedId && startRename(view.selectedId),
     duplicateSelected: () => view.selectedId && duplicate(view.selectedId),
     deleteSelected: () => view.selectedId && askDelete(view.selectedId),
     confirmDelete,
@@ -337,6 +370,7 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
       return true;
     },
     unmount() {
+      renaming?.editor.detach();
       closeEditor();
       off(DATA_CHANGED, refresh);
       fields.unwire();

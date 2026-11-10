@@ -421,7 +421,7 @@ describe('selection', () => {
     mount({ timeEntries: THREE_ENTRIES });
     key('j');
     const actions = within(row('late')).getAllByRole('button').map((b) => b.getAttribute('aria-label'));
-    expect(actions).toEqual(['Edit entry', 'Duplicate entry', 'Delete entry']);
+    expect(actions).toEqual([expect.stringMatching(/, open editor$/), 'Edit entry', 'Duplicate entry', 'Delete entry']);
   });
 });
 
