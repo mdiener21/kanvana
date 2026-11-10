@@ -254,6 +254,9 @@ function createNavigator(root, onShow) {
   return {
     show(id, { focus = false } = {}) {
       showSection(root, id);
+      // A section opens at its top, not at the scroll position the previous section left behind.
+      const main = root.getElementById('tt-main');
+      if (main && id !== current) main.scrollTop = 0;
       current = id;
       onShow[id]?.();
       if (focus) focusSectionHeading(root, id);
@@ -286,7 +289,7 @@ function wireSidebar(root, nav) {
 const {
   ttHelp, ttCloseModal, ttGotoTracker, ttGotoReports, ttGotoProjects, ttGotoSettings,
   ttNewEntry, ttFocusFilter, ttSubmitInline, ttAdjustUp, ttAdjustDown,
-  ttSelectNext, ttSelectPrev, ttEditEntry, ttDuplicateEntry, ttDeleteEntry, ttConfirmDelete,
+  ttSelectNext, ttSelectPrev, ttEditEntry, ttRenameEntry, ttFillGap, ttDuplicateEntry, ttDeleteEntry, ttConfirmDelete,
   ttPrevMonth, ttNextMonth
 } = DEFAULT_APP_KEYBINDINGS;
 
@@ -306,6 +309,8 @@ const HELP_ROWS = [
   { binding: ttSelectNext, label: 'Select next entry' },
   { binding: ttSelectPrev, label: 'Select previous entry' },
   { binding: ttEditEntry, label: 'Edit selected entry' },
+  { binding: ttRenameEntry, label: 'Rename selected entry' },
+  { binding: ttFillGap, label: 'Fill the gap before the selected entry' },
   { binding: ttDuplicateEntry, label: 'Duplicate selected entry' },
   { binding: ttDeleteEntry, label: 'Delete selected entry' },
   { binding: ttConfirmDelete, label: 'Confirm delete' },
@@ -328,6 +333,8 @@ const ENTRY_COMMANDS = [
   { binding: ttSelectNext, command: 'selectNext' },
   { binding: ttSelectPrev, command: 'selectPrev' },
   { binding: ttEditEntry, command: 'editSelected' },
+  { binding: ttRenameEntry, command: 'renameSelected' },
+  { binding: ttFillGap, command: 'fillGapBeforeSelected' },
   { binding: ttDuplicateEntry, command: 'duplicateSelected' },
   { binding: ttDeleteEntry, command: 'deleteSelected' }
 ];

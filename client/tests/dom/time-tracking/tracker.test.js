@@ -80,11 +80,11 @@ afterEach(() => {
 });
 
 describe('entry bar', () => {
-  test('opens on the Time Tracker with defaults: today, start = now, end = start, 0:00, no project', () => {
+  test('opens on the Time Tracker with defaults (no entry today): today, start = end = now, 0:00, no project', () => {
     mount();
     expect(document.getElementById('tt-section-tracker').hidden).toBe(false);
     expect(field('Description').value).toBe('');
-    expect(field('Description').placeholder).toBe('What are you working on?');
+    expect(field('Description').placeholder).toBe('What did you work on?');
     expect(field('Project').value).toBe('');
     expect(values()).toEqual(['08.10.2026', '12:00', '12:00', '0:00']);
   });
@@ -305,11 +305,11 @@ describe('entry list', () => {
     expect(within(entryList()).getByLabelText('Total for Today').textContent).toBe('1:30');
   });
 
-  test('a row shows description, project in its colour, customer and duration', () => {
+  test('a row shows description, project with its colour dot, customer and duration', () => {
     mount({ timeEntries: [entry('e1', '2026-10-08T07:00:00.000Z', '2026-10-08T08:30:00.000Z', { description: '' })] });
     const row = within(entryList()).getByRole('listitem');
     expect(within(row).getByText('(no description)')).toBeTruthy();
-    expect(within(row).getByText('Website').style.color).toBe('rgb(3, 169, 244)');
+    expect(within(row).getByText('Website').querySelector('.tt-color-dot').style.background).toBe('rgb(3, 169, 244)');
     expect(within(row).getByText('Acme')).toBeTruthy();
     expect(within(row).getByText('1:30')).toBeTruthy();
   });
@@ -345,7 +345,7 @@ const THREE_ENTRIES = [
   entry('late', '2026-10-08T08:00:00.000Z', '2026-10-08T09:30:00.000Z'),
   entry('yesterday', '2026-10-07T07:00:00.000Z', '2026-10-07T08:00:00.000Z')
 ];
-const rows = () => within(entryList()).getAllByRole('listitem');
+const rows = () => within(entryList()).getAllByRole('listitem').filter((li) => li.dataset.entryId); // gap rows aside
 const row = (description) => rows().find((r) => within(r).queryByText(description));
 const selected = () => rows().filter((r) => r.getAttribute('aria-current') === 'true')
   .map((r) => r.querySelector('.tt-entry-desc').textContent);
@@ -417,11 +417,14 @@ describe('selection', () => {
     expect(rows()).toHaveLength(3);
   });
 
-  test('a selected row shows edit, duplicate and delete actions', () => {
+  test('a selected row shows edit, duplicate and delete actions, plus the touch ⋯ menu', () => {
     mount({ timeEntries: THREE_ENTRIES });
     key('j');
     const actions = within(row('late')).getAllByRole('button').map((b) => b.getAttribute('aria-label'));
-    expect(actions).toEqual(['Edit entry', 'Duplicate entry', 'Delete entry']);
+    expect(actions).toEqual([
+      expect.stringMatching(/, open editor$/), expect.stringMatching(/, edit times$/),
+      'Edit entry', 'Duplicate entry', 'Delete entry', 'More actions'
+    ]);
   });
 });
 
@@ -825,8 +828,10 @@ describe('"This week" Balance badge', () => {
 
   afterEach(() => vi.mocked(loadGlobalSettings).mockImplementation(() => ({})));
 
-  test('is hidden when Weekly hours is unset', () => {
+  // The header block shows the week total without a Balance (#291).
+  test('shows the week total without a Balance when Weekly hours is unset', () => {
     mount({ timeEntries: THREE_ENTRIES });
+    expect(screen.getByTestId('tt-week-total').textContent).toBe('3:30');
     expect(badge().hidden).toBe(true);
   });
 

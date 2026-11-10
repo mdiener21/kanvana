@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Rename a Time Tracker entry in place: click its description (or press `F2` on the selected row), then `Enter` or click away to save and `Esc` to cancel. Clicking an entry's project or customer opens the edit dialog (#287).
+- The Time Tracker header shows the ISO week and a strip of seven day cells with each day's logged time and, when Weekly hours is set, a meter against the day's Target; clicking a day jumps to its entries, and the week's total now sits beside the "This week" Balance. Switching Time Tracking sections now opens each at its top (#291).
+- Time Tracker: Fill chips below the entry bar offer today's three newest untracked gaps (e.g. `Fill 12:45 – 13:00`), and `f` fills the gap before the selected entry; both pre-fill the entry bar without saving (#290).
+- The Time Tracker list shows untracked gaps of 5 minutes or more between a day's entries as slim hatched rows, e.g. `10:30 – 10:45 · 15 min untracked`. **Fill** puts the gap's date and times into the entry bar, keeps the project and description, and saves nothing until you press Enter or Add. Gaps are hidden while a customer or project filter is active (#289).
+- Time Tracker on phones: tap an entry's start – end to change its times (Start is selected, with the number pad up), or its project to change the project; each row's edit, duplicate and delete now sit in one ⋯ menu.
+
+### Changed
+
+- Time Tracker entries use the Ledger layout: each row shows its project colour as a left rail and a dot while project and customer names stay readable in every theme, durations line up with the day total, and phones get a two-line row. Each day heading gains a bar showing when you tracked time, with a marker for now on today (#286).
+- Time Tracker: the entry bar labels every field, groups Date, Start, End and Duration into one time block, shows the project's colour dot and a shorthand hint, and a new entry's Start now continues from the last entry today (#288).
+- Time Tracker on phones: Start and End open the number pad and every field has a Done key; time, date and project values are selected when you tap them, so you type straight over them; saving or filling a gap no longer pops the keyboard back up; the page fits a 360px screen, the top bar takes one line and Add stays above the keyboard.
+- Time Tracker: Fill chips and `f` are off while a customer or project filter is active, like gap rows, and the day's coverage bar always shows the whole day.
+
+### Fixed
+
+- Time Tracker: a page left open no longer saves a stale End time; an untouched entry bar moves its default times to now when you come back to it or save.
+- Time Tracker: a future day in the week strip no longer shows a full meter for time logged ahead, and a gap after a long entry that contains a shorter one now shows right above that long entry.
+- Time Tracker: muted labels, future days, today's label and Fill buttons meet 4.5:1 contrast.
+
 ## [3.4.12] - 2026-11-08
 
 ### Fixed

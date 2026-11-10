@@ -161,7 +161,7 @@ export function parseDate(input, { dateFormat, tz, now }) {
 
 // ── Formatting ─────────────────────────────────────────────────────────────────
 
-const pad2 = (n) => String(n).padStart(2, '0');
+export const pad2 = (n) => String(n).padStart(2, '0');
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const shortMonthFormat = new Intl.DateTimeFormat('en-US', { month: 'short', timeZone: 'UTC' });
@@ -260,6 +260,18 @@ export function groupEntriesByDay(entries, prefs) {
     group.totalMs += Date.parse(entry.end) - startMs;
   }
   return [...groups.values()];
+}
+
+// A new entry continues from the last one: Start = the latest End among today's entries
+// (Attribution day) when that is earlier than now, otherwise Start = End = now.
+export function newEntryTimes(entries, now, tz) {
+  const endMs = floorToMinute(now);
+  const today = dayKey(endMs, tz);
+  const todayEnds = entries
+    .filter((entry) => dayKey(Date.parse(entry.start), tz) === today)
+    .map((entry) => Date.parse(entry.end));
+  const lastEndMs = Math.max(...todayEnds);
+  return { startMs: todayEnds.length && lastEndMs < endMs ? lastEndMs : endMs, endMs };
 }
 
 export function adjustLinkedField(values, field, deltaMinutes, prefs) {

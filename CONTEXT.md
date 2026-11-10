@@ -56,6 +56,10 @@ in-use delete archives instead, and a reference arriving after the delete restor
 **Attribution** — a Time Entry's whole Duration counts toward the day and month of its **start**,
 in the user's timezone. Entries are never split at midnight or month boundaries.
 
+**Untracked gap** — a span of at least 5 minutes inside one day, between that day's first start and
+last end, that no Time Entry covers. Derived for display only, never stored and never an event;
+"filling" a gap only pre-fills the entry bar, it does not create a Time Entry by itself.
+
 **Time Tracking settings** live in the global settings layer (`globalSettings.timeTracking`, synced
 via `settings.updated` with `global` scope). Only values the user explicitly chose are stored; an
 unset timezone resolves to each device's browser timezone.
