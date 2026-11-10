@@ -8,6 +8,7 @@ const { ttSubmitInline, ttAdjustUp, ttAdjustDown } = DEFAULT_APP_KEYBINDINGS;
 const LINKED_FIELDS = ['date', 'start', 'end', 'duration'];
 const ADJUSTABLE_FIELDS = ['start', 'end', 'duration'];
 const ADJUST_STEP_MINUTES = 15;
+const SELECT_ON_FOCUS_FIELDS = ['project', ...LINKED_FIELDS];
 
 // ── Project labels ─────────────────────────────────────────────────────────────
 
@@ -38,7 +39,10 @@ const fieldHtml = (prefix, field, label, inputHtml, head = '') => `
     </div>`;
 
 const textInput = (prefix, field, cls, attrs = '') =>
-  `<input id="${prefix}-${field}" class="tt-input ${cls}" data-tt-field="${field}" type="text" autocomplete="off"${attrs}>`;
+  `<input id="${prefix}-${field}" class="tt-input ${cls}" data-tt-field="${field}" type="text" autocomplete="off" enterkeyhint="done"${attrs}>`;
+
+// Digits are enough for `930` / `1430`; letter forms (`2p`) stay typeable on a full keyboard.
+const TIME_INPUT_ATTRS = ' inputmode="numeric"';
 
 // Shared by the entry bar and the edit modal, so both show the same labelled fields.
 export function entryFieldsHtml(prefix) {
@@ -53,9 +57,9 @@ export function entryFieldsHtml(prefix) {
       <datalist id="${prefix}-project-options"></datalist>`)}
     <div class="tt-time-block">
       ${fieldHtml(prefix, 'date', 'Date', textInput(prefix, 'date', 'tt-entry-date'))}
-      ${fieldHtml(prefix, 'start', 'Start', textInput(prefix, 'start', 'tt-entry-time'))}
+      ${fieldHtml(prefix, 'start', 'Start', textInput(prefix, 'start', 'tt-entry-time', TIME_INPUT_ATTRS))}
       <span class="tt-entry-arrow" aria-hidden="true">→</span>
-      ${fieldHtml(prefix, 'end', 'End', textInput(prefix, 'end', 'tt-entry-time'),
+      ${fieldHtml(prefix, 'end', 'End', textInput(prefix, 'end', 'tt-entry-time', TIME_INPUT_ATTRS),
         '<span class="tt-plus-day" data-tt-plus-day hidden>+1 day</span>')}
       ${fieldHtml(prefix, 'duration', 'Duration', textInput(prefix, 'duration', 'tt-entry-duration'))}
     </div>
@@ -64,7 +68,7 @@ export function entryFieldsHtml(prefix) {
 
 // ── Behaviour ──────────────────────────────────────────────────────────────────
 
-export function wireEntryFields(root, { getPrefs, getTimeTracking, onSubmit }) {
+export function wireEntryFields(root, { getPrefs, getTimeTracking, onSubmit, beforeSubmit = () => {} }) {
   const inputs = Object.fromEntries(
     [...root.querySelectorAll('[data-tt-field]')].map((input) => [input.dataset.ttField, input])
   );
@@ -103,6 +107,7 @@ export function wireEntryFields(root, { getPrefs, getTimeTracking, onSubmit }) {
   }
 
   function submit(field) {
+    beforeSubmit();
     const changed = LINKED_FIELDS.includes(field) ? field : null;
     const resolved = resolveLinkedFields(typedValues(), changed, getPrefs());
     if (!resolved) {
@@ -142,6 +147,14 @@ export function wireEntryFields(root, { getPrefs, getTimeTracking, onSubmit }) {
   root.addEventListener('keydown', onKeyDown);
   inputs.project.addEventListener('input', showProjectDot);
 
+  // Typing replaces the value instead of appending to it; deferred so a tap's mouseup keeps it.
+  function onFocusIn(ev) {
+    const input = ev.target;
+    if (!SELECT_ON_FOCUS_FIELDS.includes(input.dataset?.ttField)) return;
+    setTimeout(() => { if (input.ownerDocument.activeElement === input) input.select(); }, 0);
+  }
+  root.addEventListener('focusin', onFocusIn);
+
   return {
     setEntry({ description = '', projectId = null, startMs, endMs }) {
       inputs.description.value = description;
@@ -152,6 +165,7 @@ export function wireEntryFields(root, { getPrefs, getTimeTracking, onSubmit }) {
       show(describeEntryTimes(startMs, endMs, getPrefs()));
     },
     setProject,
+    timeValues: typedValues,
     projectId: () => resolveProjectLabel(inputs.project.value, getTimeTracking()),
     redisplay() {
       if (lastValid) show(describeEntryTimes(lastValid.startMs, lastValid.endMs, getPrefs()));
@@ -162,13 +176,14 @@ export function wireEntryFields(root, { getPrefs, getTimeTracking, onSubmit }) {
         .map((p) => `<option value="${escapeHtml(projectLabel(p, tt))}"></option>`)
         .join('');
     },
-    focus() {
-      inputs.description.focus();
+    focus(field = 'description') {
+      inputs[field].focus();
     },
     submit,
     unwire() {
       for (const [input, handler] of blurHandlers) input.removeEventListener('blur', handler);
       root.removeEventListener('keydown', onKeyDown);
+      root.removeEventListener('focusin', onFocusIn);
       inputs.project.removeEventListener('input', showProjectDot);
     }
   };

@@ -75,8 +75,8 @@ const chipButtons = () => within(chipGroup()).queryAllByRole('button');
 const chips = () => (screen.queryByRole('group', { name: 'Fill untracked gaps' }) ? chipButtons().map((chip) => chip.textContent.trim()) : []);
 const key = (k) => fireEvent.keyDown(document.body, { key: k });
 const select = (description) => {
-  fireEvent.click([...entryList().querySelectorAll('.tt-entry-range')]
-    .find((range) => range.closest('[data-entry-id]').textContent.includes(description)));
+  fireEvent.click([...entryList().querySelectorAll('.tt-entry-duration')]
+    .find((duration) => duration.closest('[data-entry-id]').textContent.includes(description)));
 };
 
 beforeEach(() => {
