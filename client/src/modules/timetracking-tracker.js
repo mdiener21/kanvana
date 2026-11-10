@@ -15,7 +15,7 @@ import { colorDotHtml } from './timetracking-markup.js';
 import { dayCoverage, coverageBarHtml } from './timetracking-coverage.js';
 import { createInlineRename } from './timetracking-rename.js';
 import { untrackedGaps } from './timetracking-gaps.js';
-import { dayRowsHtml, gapOfFillButton } from './timetracking-gap-rows.js';
+import { dayRowsHtml, fillChipsHtml, gapBefore, gapOfFillButton } from './timetracking-gap-rows.js';
 
 export const ENTRY_ERROR_MESSAGES = {
   [CRUD_ERROR.NO_PROJECT]: 'Select a project.',
@@ -39,6 +39,7 @@ ${WEEK_HEADER_HTML}
         <span><kbd class="tt-kbd">Alt+↑/↓</kbd> ±15 min</span>
       </p>
     </div>
+    <div class="tt-fill-chips" role="group" aria-label="Fill untracked gaps" hidden></div>
     <div class="tt-list-toolbar">
       <div class="tt-list-filter"></div>
       <span class="tt-entry-count" aria-label="Entry count" aria-live="polite"></span>
@@ -176,7 +177,9 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
 
   const view = { selectedId: null, confirmingId: null };
   let visibleIds = [];
+  let gaps = [];
   let displayedPrefs = null;
+  const chipBox = container.querySelector('.tt-fill-chips');
 
   function redisplayOnFormatChange(prefs) {
     if (displayedPrefs && !sameDisplayPrefs(displayedPrefs, prefs)) {
@@ -201,15 +204,17 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     filter.refresh();
     const { customerId, projectId } = filter.getFilter();
     const groups = groupEntriesByDay(filterEntries(tt, filter.getFilter()), prefs);
-    // A gap in a filtered list would hide other projects' entries, so gaps show unfiltered only.
-    const gaps = customerId || projectId ? [] : untrackedGaps(tt.timeEntries, prefs.tz);
+    gaps = untrackedGaps(tt.timeEntries, prefs.tz);
+    chipBox.innerHTML = fillChipsHtml(gaps, prefs);
+    chipBox.hidden = chipBox.childElementCount === 0;
     visibleIds = groups.flatMap((group) => group.entries.map((e) => e.id));
     if (!visibleIds.includes(view.selectedId)) view.selectedId = null;
     if (!visibleIds.includes(view.confirmingId)) view.confirmingId = null;
     fields.refreshProjects();
     count.textContent = `${visibleIds.length} ${visibleIds.length === 1 ? 'entry' : 'entries'}`;
     renaming?.editor.detach();
-    list.innerHTML = entryListHtml(tt, prefs, groups, view, gaps);
+    // A gap in a filtered list would hide other projects' entries, so gap rows show unfiltered only.
+    list.innerHTML = entryListHtml(tt, prefs, groups, view, customerId || projectId ? [] : gaps);
     renderIcons(list);
     if (renaming) placeRename();
   }
@@ -336,6 +341,17 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     fields.focus();
   }
 
+  chipBox.addEventListener('click', (ev) => {
+    const chip = ev.target.closest('.tt-fill-chip');
+    if (chip) fillGap(gapOfFillButton(chip));
+  });
+
+  function fillGapBeforeSelected() {
+    const entry = loadTimeTracking().timeEntries.find((e) => e.id === view.selectedId);
+    const gap = entry && gapBefore(gaps, entry);
+    if (gap) fillGap(gap);
+  }
+
   list.addEventListener('click', (ev) => {
     const fillButton = ev.target.closest('.tt-gap-fill');
     if (fillButton) {
@@ -371,6 +387,7 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     focusNewEntry: () => fields.focus(),
     focusFilter: () => filter.focus(),
     fillGap,
+    fillGapBeforeSelected,
     selectNext: () => moveSelection(1),
     selectPrev: () => moveSelection(-1),
     editSelected: () => view.selectedId && openEditor(view.selectedId),

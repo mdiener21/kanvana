@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Rename a Time Tracker entry in place: click its description (or press `F2` on the selected row), then `Enter` or click away to save and `Esc` to cancel. Clicking an entry's project or customer opens the edit dialog (#287).
 - The Time Tracker header shows the ISO week and a strip of seven day cells with each day's logged time and, when Weekly hours is set, a meter against the day's Target; clicking a day jumps to its entries, and the week's total now sits beside the "This week" Balance. Switching Time Tracking sections now opens each at its top (#291).
+- Time Tracker: Fill chips below the entry bar offer today's three newest untracked gaps (e.g. `Fill 12:45 – 13:00`), and `f` fills the gap before the selected entry; both pre-fill the entry bar without saving (#290).
 
 ### Changed
 
