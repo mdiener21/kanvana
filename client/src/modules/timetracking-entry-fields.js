@@ -147,11 +147,16 @@ export function wireEntryFields(root, { getPrefs, getTimeTracking, onSubmit, bef
   root.addEventListener('keydown', onKeyDown);
   inputs.project.addEventListener('input', showProjectDot);
 
-  // Typing replaces the value instead of appending to it; deferred so a tap's mouseup keeps it.
+  // Typing replaces the value instead of appending to it. Selected again after a tick, since a
+  // tap's mouseup can drop the selection, unless typing has already begun.
   function onFocusIn(ev) {
     const input = ev.target;
     if (!SELECT_ON_FOCUS_FIELDS.includes(input.dataset?.ttField)) return;
-    setTimeout(() => { if (input.ownerDocument.activeElement === input) input.select(); }, 0);
+    const focusedValue = input.value;
+    input.select();
+    setTimeout(() => {
+      if (input.ownerDocument.activeElement === input && input.value === focusedValue) input.select();
+    }, 0);
   }
   root.addEventListener('focusin', onFocusIn);
 

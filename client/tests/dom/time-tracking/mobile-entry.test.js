@@ -170,6 +170,18 @@ describe('focus after saving and filling', () => {
     expect(document.activeElement).not.toBe(field('Description'));
   });
 
+  test('on a touch device focusing a bar field scrolls the bar to the top; focusing Add does not move it', () => {
+    onTouchDevice();
+    const scrolled = [];
+    Element.prototype.scrollIntoView = vi.fn(function scrollIntoView(options) { scrolled.push([this, options]); });
+    mount();
+    field('Description').focus();
+    expect(scrolled).toEqual([[bar(), { block: 'start' }]]);
+    screen.getByRole('button', { name: 'Add entry' }).focus();
+    expect(scrolled).toHaveLength(1);
+    delete Element.prototype.scrollIntoView;
+  });
+
   test('with a mouse and keyboard Add still returns focus to Description', () => {
     mount();
     fireEvent.input(field('Project'), { target: { value: 'Acme / Alpha' } });

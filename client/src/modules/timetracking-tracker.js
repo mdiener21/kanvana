@@ -178,8 +178,9 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
       else fields.focus();
     }
   });
-  bar.addEventListener('focusin', () => {
-    if (isTouch()) bar.scrollIntoView?.({ block: 'start' });
+  // Room for the soft keyboard; a button is left alone, or the scroll would move it under the tap.
+  bar.addEventListener('focusin', (ev) => {
+    if (isTouch() && ev.target.matches('input')) bar.scrollIntoView?.({ block: 'start' });
   });
 
   const currentPrefill = () => prefillProjectId(loadTimeTracking(), getSettings(), loadLastUsedProjectId());
