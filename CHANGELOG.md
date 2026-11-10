@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The Time Tracker header shows the ISO week and a strip of seven day cells with each day's logged time and, when Weekly hours is set, a meter against the day's Target; clicking a day jumps to its entries, and the week's total now sits beside the "This week" Balance. Switching Time Tracking sections now opens each at its top (#291).
+
 ## [3.4.12] - 2026-11-08
 
 ### Fixed

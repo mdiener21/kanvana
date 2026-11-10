@@ -9,8 +9,7 @@ import { showToast } from './timetracking-toast.js';
 import { entryFieldsHtml, wireEntryFields } from './timetracking-entry-fields.js';
 import { filterEntries, mountEntryFilter } from './timetracking-filter.js';
 import { prefillProjectId, loadLastUsedProjectId, rememberLastUsedProject } from './timetracking-settings.js';
-import { periodBalance, showBalance } from './timetracking-balance.js';
-import { currentPeriod, WEEK } from './timetracking-report.js';
+import { WEEK_HEADER_HTML, mountWeekStrip } from './timetracking-week-strip.js';
 import { groupEntriesByDay, formatTime, formatDuration, plusDaysBetween, floorToMinute } from './timetracking-time.js';
 
 export const ENTRY_ERROR_MESSAGES = {
@@ -23,13 +22,7 @@ export const ENTRY_ERROR_MESSAGES = {
 
 const PANEL_HTML = `
   <div class="tt-tracker-panel">
-    <div class="tt-tracker-header">
-      <h2 class="tt-section-title">Time Tracker</h2>
-      <button type="button" class="tt-week-balance" data-testid="tt-week-balance" title="Open this week in Reports" hidden>
-        <span class="tt-week-balance-label">This week</span>
-        <span class="tt-week-balance-value"></span>
-      </button>
-    </div>
+${WEEK_HEADER_HTML}
     <div class="tt-entry-bar" role="group" aria-label="New time entry">
       ${entryFieldsHtml('tt-entry')}
       <button id="tt-entry-add" class="tt-btn-add" type="button" aria-label="Add entry">
@@ -110,7 +103,7 @@ function entryListHtml(tt, prefs, groups, view) {
   return groups.map((group) => {
     const heading = escapeHtml(group.heading);
     return `
-      <div class="tt-day">
+      <div class="tt-day" data-day="${group.key}">
         <div class="tt-day-header">
           <h3 class="tt-day-heading">${heading}</h3>
           <span class="tt-day-total" aria-label="Total for ${heading}">${formatDuration(group.totalMs, prefs.durationFormat)}</span>
@@ -177,24 +170,16 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     displayedPrefs = prefs;
   }
 
-  const weekBadge = container.querySelector('[data-testid="tt-week-balance"]');
-  weekBadge.addEventListener('click', () => onOpenCurrentWeek());
-
-  function refreshWeekBadge(tt, prefs) {
-    const { weeklyHours, workdays } = getSettings();
-    const { balanceMs } = periodBalance(tt.timeEntries, currentPeriod(WEEK, prefs.now, prefs.tz), {
-      now: prefs.now, tz: prefs.tz, weeklyHours, workdays
-    });
-    weekBadge.hidden = balanceMs === null;
-    if (balanceMs === null) return;
-    const value = showBalance(weekBadge.querySelector('.tt-week-balance-value'), balanceMs, prefs.durationFormat, weekBadge);
-    weekBadge.setAttribute('aria-label', `This week balance ${value}`);
-  }
+  const weekStrip = mountWeekStrip(container, {
+    getSettings,
+    onOpenCurrentWeek,
+    onSelectDay: (key) => list.querySelector(`[data-day="${key}"]`)?.scrollIntoView?.({ block: 'start' })
+  });
 
   function refresh() {
     const tt = loadTimeTracking();
     const prefs = getPrefs();
-    refreshWeekBadge(tt, prefs);
+    weekStrip.refresh(tt, prefs);
     redisplayOnFormatChange(prefs);
     followPrefill();
     filter.refresh();

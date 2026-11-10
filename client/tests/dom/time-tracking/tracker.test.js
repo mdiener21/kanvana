@@ -825,8 +825,10 @@ describe('"This week" Balance badge', () => {
 
   afterEach(() => vi.mocked(loadGlobalSettings).mockImplementation(() => ({})));
 
-  test('is hidden when Weekly hours is unset', () => {
+  // The header block shows the week total without a Balance (#291).
+  test('shows the week total without a Balance when Weekly hours is unset', () => {
     mount({ timeEntries: THREE_ENTRIES });
+    expect(screen.getByTestId('tt-week-total').textContent).toBe('3:30');
     expect(badge().hidden).toBe(true);
   });
 
