@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Time Tracker: the entry bar labels every field, groups Date, Start, End and Duration into one time block, shows the project's colour dot and a shorthand hint, and a new entry's Start now continues from the last entry today.
+- Time Tracker entries use the Ledger layout: each row shows its project colour as a left rail and a dot while project and customer names stay readable in every theme, durations line up with the day total, and phones get a two-line row. Each day heading gains a bar showing when you tracked time, with a marker for now on today (#286).
+- Time Tracker: the entry bar labels every field, groups Date, Start, End and Duration into one time block, shows the project's colour dot and a shorthand hint, and a new entry's Start now continues from the last entry today (#288).
 
 ## [3.4.12] - 2026-11-08
 

@@ -305,11 +305,11 @@ describe('entry list', () => {
     expect(within(entryList()).getByLabelText('Total for Today').textContent).toBe('1:30');
   });
 
-  test('a row shows description, project in its colour, customer and duration', () => {
+  test('a row shows description, project with its colour dot, customer and duration', () => {
     mount({ timeEntries: [entry('e1', '2026-10-08T07:00:00.000Z', '2026-10-08T08:30:00.000Z', { description: '' })] });
     const row = within(entryList()).getByRole('listitem');
     expect(within(row).getByText('(no description)')).toBeTruthy();
-    expect(within(row).getByText('Website').style.color).toBe('rgb(3, 169, 244)');
+    expect(within(row).getByText('Website').querySelector('.tt-color-dot').style.background).toBe('rgb(3, 169, 244)');
     expect(within(row).getByText('Acme')).toBeTruthy();
     expect(within(row).getByText('1:30')).toBeTruthy();
   });

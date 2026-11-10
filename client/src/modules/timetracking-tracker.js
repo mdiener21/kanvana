@@ -12,6 +12,8 @@ import { prefillProjectId, loadLastUsedProjectId, rememberLastUsedProject } from
 import { periodBalance, showBalance } from './timetracking-balance.js';
 import { currentPeriod, WEEK } from './timetracking-report.js';
 import { groupEntriesByDay, formatTime, formatDuration, plusDaysBetween, newEntryTimes } from './timetracking-time.js';
+import { colorDotHtml } from './timetracking-markup.js';
+import { dayCoverage, coverageBarHtml } from './timetracking-coverage.js';
 
 export const ENTRY_ERROR_MESSAGES = {
   [CRUD_ERROR.NO_PROJECT]: 'Select a project.',
@@ -82,17 +84,21 @@ function entryRowHtml(entry, tt, prefs, view) {
     </li>`;
   }
   return `
-    <li class="tt-entry-row${isSelected ? ' is-selected' : ''}" ${attrs}>
+    <li class="tt-entry-row${isSelected ? ' is-selected' : ''}" ${attrs}${project ? ` style="--tt-project-color:${escapeHtml(project.color)};"` : ''}>
       <span class="tt-entry-desc${entry.description ? '' : ' tt-entry-desc-empty'}">${escapeHtml(descriptionText(entry))}</span>
-      <span class="tt-entry-project"${project ? ` style="color:${escapeHtml(project.color)};"` : ''}>${escapeHtml(project?.name ?? 'Unknown project')}</span>
-      <span class="tt-entry-customer">${escapeHtml(customer?.name ?? '')}</span>
+      <span class="tt-entry-meta">
+        <span class="tt-entry-project">${project ? colorDotHtml(project.color) : ''}${escapeHtml(project?.name ?? 'Unknown project')}</span>
+        <span class="tt-entry-customer">${escapeHtml(customer?.name ?? '')}</span>
+      </span>
       <span class="tt-entry-range"><span>${formatTime(startMs, prefs)} – ${formatTime(endMs, prefs)}</span>${plusDays > 0 ? `<sup class="tt-entry-plus" title="Ends ${plusDays} day(s) later">+${plusDays}</sup>` : ''}</span>
-      <span class="tt-entry-duration">${formatDuration(endMs - startMs, prefs.durationFormat)}</span>
-      <span class="tt-entry-actions">
-        ${ROW_ACTIONS.map(({ action, icon, label }) => `
-        <button type="button" class="tt-entry-action" data-action="${action}" aria-label="${label}" title="${label}">
-          <span data-lucide="${icon}" aria-hidden="true"></span>
-        </button>`).join('')}
+      <span class="tt-entry-end">
+        <span class="tt-entry-actions">
+          ${ROW_ACTIONS.map(({ action, icon, label }) => `
+          <button type="button" class="tt-entry-action" data-action="${action}" aria-label="${label}" title="${label}">
+            <span data-lucide="${icon}" aria-hidden="true"></span>
+          </button>`).join('')}
+        </span>
+        <span class="tt-entry-duration">${formatDuration(endMs - startMs, prefs.durationFormat)}</span>
       </span>
     </li>`;
 }
@@ -117,6 +123,7 @@ function entryListHtml(tt, prefs, groups, view) {
       <div class="tt-day">
         <div class="tt-day-header">
           <h3 class="tt-day-heading">${heading}</h3>
+          ${coverageBarHtml(dayCoverage(group.entries, prefs, (entry) => projectById(tt, entry.projectId)?.color ?? 'var(--text-muted)'))}
           <span class="tt-day-total" aria-label="Total for ${heading}">${formatDuration(group.totalMs, prefs.durationFormat)}</span>
         </div>
         <ul class="tt-day-entries" aria-label="${heading}">
