@@ -1,13 +1,18 @@
+import { escapeHtml } from './security.js';
 import { dayKey, formatTime, MINUTE_MS } from './timetracking-time.js';
 
+const gapSpan = (gap, prefs) => `${formatTime(gap.startMs, prefs)} – ${formatTime(gap.endMs, prefs)}`;
+
+const gapAttrs = (gap) => `data-gap-start="${escapeHtml(gap.startMs)}" data-gap-end="${escapeHtml(gap.endMs)}"`;
+
 export function gapRowHtml(gap, prefs) {
-  const span = `${formatTime(gap.startMs, prefs)} – ${formatTime(gap.endMs, prefs)}`;
+  const span = escapeHtml(gapSpan(gap, prefs));
   const minutes = Math.round((gap.endMs - gap.startMs) / MINUTE_MS);
   return `
     <li class="tt-gap-row" aria-label="${minutes} minutes untracked">
       <span class="tt-gap-span">${span}</span>
       <span class="tt-gap-minutes">· ${minutes} min untracked</span>
-      <button type="button" class="tt-gap-fill" data-gap-start="${gap.startMs}" data-gap-end="${gap.endMs}" aria-label="Fill ${span}">Fill</button>
+      <button type="button" class="tt-gap-fill" ${gapAttrs(gap)} aria-label="Fill ${span}">Fill</button>
     </li>`;
 }
 
@@ -20,14 +25,14 @@ export function fillChipsHtml(gaps, prefs) {
     .filter((gap) => gap.dayKey === today)
     .sort((a, b) => b.startMs - a.startMs)
     .slice(0, MAX_FILL_CHIPS)
-    .map((gap) => `<button type="button" class="tt-fill-chip" data-gap-start="${gap.startMs}" data-gap-end="${gap.endMs}">Fill ${formatTime(gap.startMs, prefs)} – ${formatTime(gap.endMs, prefs)}</button>`)
+    .map((gap) => `<button type="button" class="tt-fill-chip" ${gapAttrs(gap)}>Fill ${escapeHtml(gapSpan(gap, prefs))}</button>`)
     .join('');
 }
 
 // The gap directly before an entry: between it and the previous entry of the same day.
 export const gapBefore = (gaps, entry) => gaps.find((gap) => gap.endMs === Date.parse(entry.start)) ?? null;
 
-export const gapOfFillButton =(button) => ({ startMs: Number(button.dataset.gapStart), endMs: Number(button.dataset.gapEnd) });
+export const gapOfFillButton = (button) => ({ startMs: Number(button.dataset.gapStart), endMs: Number(button.dataset.gapEnd) });
 
 // Day rows newest first: a gap goes right below the entries that start at or after its end.
 export function dayRowsHtml(entries, gaps, entryHtml, prefs) {

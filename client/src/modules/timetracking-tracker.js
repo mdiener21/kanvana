@@ -13,7 +13,7 @@ import { WEEK_HEADER_HTML, mountWeekStrip } from './timetracking-week-strip.js';
 import { groupEntriesByDay, formatTime, formatDuration, plusDaysBetween, newEntryTimes } from './timetracking-time.js';
 import { colorDotHtml } from './timetracking-markup.js';
 import { dayCoverage, coverageBarHtml } from './timetracking-coverage.js';
-import { createInlineRename } from './timetracking-rename.js';
+import { mountRowRename } from './timetracking-rename.js';
 import { untrackedGaps } from './timetracking-gaps.js';
 import { dayRowsHtml, fillChipsHtml, gapBefore, gapOfFillButton } from './timetracking-gap-rows.js';
 
@@ -119,7 +119,7 @@ function entryListHtml(tt, prefs, groups, view, gaps) {
   return groups.map((group) => {
     const heading = escapeHtml(group.heading);
     return `
-      <div class="tt-day" data-day="${group.key}">
+      <div class="tt-day" data-day="${escapeHtml(group.key)}">
         <div class="tt-day-header">
           <h3 class="tt-day-heading">${heading}</h3>
           ${coverageBarHtml(dayCoverage(group.entries, prefs, (entry) => projectById(tt, entry.projectId)?.color ?? 'var(--text-muted)'))}
@@ -175,7 +175,17 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     lastPrefill = prefill;
   }
 
+  const entryById = (id) => loadTimeTracking().timeEntries.find((e) => e.id === id);
+  const rowOf = (id) => [...list.querySelectorAll('[data-entry-id]')].find((r) => r.dataset.entryId === id);
   const view = { selectedId: null, confirmingId: null };
+  const rename = mountRowRename({
+    rowOf,
+    onDone(id, save, value) {
+      const entry = entryById(id);
+      if (save && entry) reportFailure(updateTimeEntry(id, { ...entry, description: value }));
+      refresh();
+    }
+  });
   let visibleIds = [];
   let gaps = [];
   let displayedPrefs = null;
@@ -202,8 +212,8 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     redisplayOnFormatChange(prefs);
     followPrefill();
     filter.refresh();
-    const { customerId, projectId } = filter.getFilter();
-    const groups = groupEntriesByDay(filterEntries(tt, filter.getFilter()), prefs);
+    const activeFilter = filter.getFilter();
+    const groups = groupEntriesByDay(filterEntries(tt, activeFilter), prefs);
     gaps = untrackedGaps(tt.timeEntries, prefs.tz);
     chipBox.innerHTML = fillChipsHtml(gaps, prefs);
     chipBox.hidden = chipBox.childElementCount === 0;
@@ -212,14 +222,12 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     if (!visibleIds.includes(view.confirmingId)) view.confirmingId = null;
     fields.refreshProjects();
     count.textContent = `${visibleIds.length} ${visibleIds.length === 1 ? 'entry' : 'entries'}`;
-    renaming?.editor.detach();
+    rename.beforeRender();
     // A gap in a filtered list would hide other projects' entries, so gap rows show unfiltered only.
-    list.innerHTML = entryListHtml(tt, prefs, groups, view, customerId || projectId ? [] : gaps);
+    list.innerHTML = entryListHtml(tt, prefs, groups, view, activeFilter.customerId || activeFilter.projectId ? [] : gaps);
     renderIcons(list);
-    if (renaming) placeRename();
+    rename.afterRender();
   }
-
-  const rowOf = (id) => [...list.querySelectorAll('[data-entry-id]')].find((r) => r.dataset.entryId === id);
 
   function select(id) {
     view.selectedId = id;
@@ -244,7 +252,7 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
   }
 
   function openEditor(id) {
-    const entry = loadTimeTracking().timeEntries.find((e) => e.id === id);
+    const entry = entryById(id);
     if (!entry || editor) return;
     const element = container.ownerDocument.createElement('div');
     element.id = 'tt-edit-modal';
@@ -307,30 +315,11 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     select(reportFailure(deleteTimeEntry(id)) ? neighbour : id);
   }
 
-  let renaming = null;
-
   function startRename(id) {
-    const entry = loadTimeTracking().timeEntries.find((e) => e.id === id);
-    if (!entry || renaming || editor || view.confirmingId) return;
-    const renameEditor = createInlineRename(container.ownerDocument, entry.description, (save, value) => finishRename(id, save, value));
-    renaming = { id, editor: renameEditor };
+    const entry = entryById(id);
+    if (!entry || rename.isActive() || editor || view.confirmingId) return;
+    rename.start(id, entry.description);
     select(id);
-  }
-
-  // Runs after each render while renaming: the editor takes the description's place.
-  function placeRename() {
-    const row = rowOf(renaming.id);
-    if (!row) { renaming = null; return; }
-    row.classList.add('is-renaming');
-    row.querySelector('.tt-entry-actions').hidden = true;
-    renaming.editor.place(row.querySelector('[data-rename]'));
-  }
-
-  function finishRename(id, save, value) {
-    renaming = null;
-    const entry = loadTimeTracking().timeEntries.find((e) => e.id === id);
-    if (save && entry) reportFailure(updateTimeEntry(id, { ...entry, description: value }));
-    refresh();
   }
 
   const ROW_ACTION_HANDLERS = { edit: openEditor, duplicate, delete: askDelete };
@@ -347,7 +336,7 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
   });
 
   function fillGapBeforeSelected() {
-    const entry = loadTimeTracking().timeEntries.find((e) => e.id === view.selectedId);
+    const entry = entryById(view.selectedId);
     const gap = entry && gapBefore(gaps, entry);
     if (gap) fillGap(gap);
   }
@@ -386,7 +375,6 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
   return {
     focusNewEntry: () => fields.focus(),
     focusFilter: () => filter.focus(),
-    fillGap,
     fillGapBeforeSelected,
     selectNext: () => moveSelection(1),
     selectPrev: () => moveSelection(-1),
@@ -404,7 +392,7 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
       return true;
     },
     unmount() {
-      renaming?.editor.detach();
+      rename.beforeRender();
       closeEditor();
       off(DATA_CHANGED, refresh);
       fields.unwire();

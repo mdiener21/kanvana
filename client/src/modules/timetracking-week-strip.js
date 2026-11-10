@@ -63,8 +63,8 @@ function dayCellHtml(day, { durationFormat, showMeter }) {
   const logged = day.loggedMs > 0 ? formatDuration(day.loggedMs, durationFormat) : null;
   const label = `${day.weekday} ${day.date} ${formatShortMonth(day.ymd)}, ${logged ? `${logged} logged` : 'nothing logged'}`;
   return `
-      <li><button type="button" class="tt-week-day${day.isFuture ? ' is-future' : ''}" data-day="${day.key}" aria-label="${escapeHtml(label)}"${day.isToday ? ' aria-current="date"' : ''}>
-        <span class="tt-week-day-top"><span class="tt-week-day-name">${day.weekday}</span><span class="tt-week-day-date">${day.date}</span></span>
+      <li><button type="button" class="tt-week-day${day.isFuture ? ' is-future' : ''}" data-day="${escapeHtml(day.key)}" aria-label="${escapeHtml(label)}"${day.isToday ? ' aria-current="date"' : ''}>
+        <span class="tt-week-day-top"><span class="tt-week-day-name">${escapeHtml(day.weekday)}</span><span class="tt-week-day-date">${escapeHtml(day.date)}</span></span>
         <span class="tt-week-day-hours${logged ? '' : ' is-empty'}">${escapeHtml(logged ?? '–')}</span>
         ${showMeter ? meterHtml(day) : ''}
       </button></li>`;

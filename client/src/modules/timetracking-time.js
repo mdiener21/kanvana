@@ -161,7 +161,7 @@ export function parseDate(input, { dateFormat, tz, now }) {
 
 // ── Formatting ─────────────────────────────────────────────────────────────────
 
-const pad2 = (n) => String(n).padStart(2, '0');
+export const pad2 = (n) => String(n).padStart(2, '0');
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const shortMonthFormat = new Intl.DateTimeFormat('en-US', { month: 'short', timeZone: 'UTC' });
