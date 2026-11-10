@@ -1,5 +1,5 @@
 import { escapeHtml } from './security.js';
-import { dayKey, zonedParts, MINUTE_MS } from './timetracking-time.js';
+import { dayKey, zonedParts, pad2, MINUTE_MS } from './timetracking-time.js';
 
 const DAY_START_MINUTES = 7 * 60;
 const DAY_END_MINUTES = 19 * 60;
@@ -26,8 +26,6 @@ export function dayCoverage(entries, prefs, colorOf) {
     nowMinutes
   };
 }
-
-const pad2 = (n) => String(n).padStart(2, '0');
 
 export function coverageBarHtml({ startMinutes, endMinutes, blocks, nowMinutes }) {
   const span = endMinutes - startMinutes;

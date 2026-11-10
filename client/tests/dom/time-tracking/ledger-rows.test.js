@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, test, expect, vi } from 'vitest';
-import { screen, within } from '@testing-library/dom';
+import { screen, within, fireEvent } from '@testing-library/dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { mountToBody } from '../setup.js';
@@ -96,6 +96,16 @@ describe('day coverage bar', () => {
     const bar = coverageOf('Yesterday');
     expect(bar.querySelector('.tt-coverage-scale').textContent).toBe('0519');
     expect(bar.querySelector('.tt-coverage-block').style.left).toBe('3.57%');
+  });
+
+  test('under a project filter the bar still shows all of the day, like its gaps', () => {
+    mount([
+      entry('a', '2026-10-08T06:00:00.000Z', '2026-10-08T07:00:00.000Z', 'p1'),
+      entry('b', '2026-10-08T08:00:00.000Z', '2026-10-08T09:30:00.000Z', 'p2')
+    ]);
+    fireEvent.change(screen.getByLabelText('Filter by project'), { target: { value: 'p2' } });
+    expect(within(entryList()).getAllByRole('listitem')).toHaveLength(1);
+    expect(coverageOf('Today').querySelectorAll('.tt-coverage-block')).toHaveLength(2);
   });
 
   test('the bar is not a list item, so rows stay the only list entries', () => {

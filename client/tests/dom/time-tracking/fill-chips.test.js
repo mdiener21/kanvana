@@ -75,8 +75,8 @@ const chipButtons = () => within(chipGroup()).queryAllByRole('button');
 const chips = () => (screen.queryByRole('group', { name: 'Fill untracked gaps' }) ? chipButtons().map((chip) => chip.textContent.trim()) : []);
 const key = (k) => fireEvent.keyDown(document.body, { key: k });
 const select = (description) => {
-  fireEvent.click([...entryList().querySelectorAll('.tt-entry-range')]
-    .find((range) => range.closest('[data-entry-id]').textContent.includes(description)));
+  fireEvent.click([...entryList().querySelectorAll('.tt-entry-duration')]
+    .find((duration) => duration.closest('[data-entry-id]').textContent.includes(description)));
 };
 
 beforeEach(() => {
@@ -125,6 +125,17 @@ describe('fill chips below the entry bar', () => {
     expect(['Date', 'Start', 'End', 'Duration', 'Project', 'Description'].map((name) => field(name).value)).toEqual(viaChip);
     expect(scheduleDomainEvent).not.toHaveBeenCalled();
     expect(state.timeEntries).toHaveLength(3);
+  });
+
+  test('chips hide while a customer or project filter is active, like gap rows', () => {
+    mount(today());
+    fireEvent.change(screen.getByLabelText('Filter by project'), { target: { value: 'p1' } });
+    expect(chips()).toEqual([]);
+    fireEvent.change(screen.getByLabelText('Filter by project'), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText('Filter by customer'), { target: { value: 'c1' } });
+    expect(chips()).toEqual([]);
+    fireEvent.change(screen.getByLabelText('Filter by customer'), { target: { value: '' } });
+    expect(chips()).toEqual(['Fill 12:45 – 13:00', 'Fill 10:30 – 10:45']);
   });
 
   test('chips are keyboard-focusable buttons', () => {
@@ -178,6 +189,20 @@ describe('f fills the gap before the selected entry', () => {
     key('f');
     expect(['Date', 'Start', 'End', 'Duration'].map((name) => field(name).value)).toEqual(before);
     expect(document.activeElement).not.toBe(field('Description'));
+  });
+
+  test('f does nothing while a customer or project filter is active', () => {
+    mount(today());
+    fireEvent.change(screen.getByLabelText('Filter by customer'), { target: { value: 'c1' } });
+    select('08 13:00');
+    const before = ['Date', 'Start', 'End', 'Duration'].map((name) => field(name).value);
+    key('f');
+    expect(['Date', 'Start', 'End', 'Duration'].map((name) => field(name).value)).toEqual(before);
+  });
+
+  test('f is listed in the cheat-sheet', () => {
+    mount(today());
+    expect(document.getElementById('tt-help-rows').textContent).toMatch(/f\s*Fill the gap before the selected entry/);
   });
 
   test('f does nothing without a selection or while an input has focus', () => {

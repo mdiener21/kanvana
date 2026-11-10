@@ -52,9 +52,10 @@ export const WEEK_HEADER_HTML = `
     <ol class="tt-week-strip" aria-label="This week"></ol>
 `;
 
-// Full at or above the day's Target; a day without Target (a weekend) is full once anything is logged.
+// Full at or above the day's Target; a Target of 0 (a weekend) is full once anything is logged;
+// no Target yet (a future day) leaves the meter empty.
 function meterHtml({ loggedMs, targetMs }) {
-  const ratio = targetMs > 0 ? Math.min(loggedMs / targetMs, 1) : Number(loggedMs > 0);
+  const ratio = targetMs === null ? 0 : targetMs > 0 ? Math.min(loggedMs / targetMs, 1) : Number(loggedMs > 0);
   const isMet = targetMs !== null && loggedMs > 0 && loggedMs >= targetMs;
   return `<span class="tt-week-meter${isMet ? ' is-met' : ''}" aria-hidden="true"><span class="tt-week-meter-fill" style="width:${Math.round(ratio * 100)}%"></span></span>`;
 }
@@ -63,8 +64,8 @@ function dayCellHtml(day, { durationFormat, showMeter }) {
   const logged = day.loggedMs > 0 ? formatDuration(day.loggedMs, durationFormat) : null;
   const label = `${day.weekday} ${day.date} ${formatShortMonth(day.ymd)}, ${logged ? `${logged} logged` : 'nothing logged'}`;
   return `
-      <li><button type="button" class="tt-week-day${day.isFuture ? ' is-future' : ''}" data-day="${day.key}" aria-label="${escapeHtml(label)}"${day.isToday ? ' aria-current="date"' : ''}>
-        <span class="tt-week-day-top"><span class="tt-week-day-name">${day.weekday}</span><span class="tt-week-day-date">${day.date}</span></span>
+      <li><button type="button" class="tt-week-day${day.isFuture ? ' is-future' : ''}" data-day="${escapeHtml(day.key)}" aria-label="${escapeHtml(label)}"${day.isToday ? ' aria-current="date"' : ''}>
+        <span class="tt-week-day-top"><span class="tt-week-day-name">${escapeHtml(day.weekday)}</span><span class="tt-week-day-date">${escapeHtml(day.date)}</span></span>
         <span class="tt-week-day-hours${logged ? '' : ' is-empty'}">${escapeHtml(logged ?? '–')}</span>
         ${showMeter ? meterHtml(day) : ''}
       </button></li>`;

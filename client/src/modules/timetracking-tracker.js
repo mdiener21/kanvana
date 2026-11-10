@@ -13,7 +13,7 @@ import { WEEK_HEADER_HTML, mountWeekStrip } from './timetracking-week-strip.js';
 import { groupEntriesByDay, formatTime, formatDuration, plusDaysBetween, newEntryTimes } from './timetracking-time.js';
 import { colorDotHtml } from './timetracking-markup.js';
 import { dayCoverage, coverageBarHtml } from './timetracking-coverage.js';
-import { createInlineRename } from './timetracking-rename.js';
+import { mountRowRename } from './timetracking-rename.js';
 import { untrackedGaps } from './timetracking-gaps.js';
 import { dayRowsHtml, fillChipsHtml, gapBefore, gapOfFillButton } from './timetracking-gap-rows.js';
 
@@ -49,10 +49,19 @@ ${WEEK_HEADER_HTML}
 `;
 
 const ROW_ACTIONS = [
-  { action: 'edit', icon: 'pencil', label: 'Edit entry' },
-  { action: 'duplicate', icon: 'copy', label: 'Duplicate entry' },
-  { action: 'delete', icon: 'trash-2', label: 'Delete entry' }
+  { action: 'edit', icon: 'pencil', label: 'Edit entry', menuLabel: 'Edit' },
+  { action: 'duplicate', icon: 'copy', label: 'Duplicate entry', menuLabel: 'Duplicate' },
+  { action: 'delete', icon: 'trash-2', label: 'Delete entry', menuLabel: 'Delete' }
 ];
+
+// Touch devices get the row actions as one ⋯ menu (CSS swaps the icon buttons for it).
+const rowMenuHtml = () => `
+      <div class="tt-row-menu" role="menu" aria-label="Entry actions">
+        ${ROW_ACTIONS.map(({ action, icon, menuLabel }) => `
+        <button type="button" class="tt-row-menu-item" role="menuitem" data-action="${action}">
+          <span data-lucide="${icon}" aria-hidden="true"></span>${menuLabel}
+        </button>`).join('')}
+      </div>`;
 
 const descriptionText = (entry) => entry.description || '(no description)';
 
@@ -71,6 +80,8 @@ function entryRowHtml(entry, tt, prefs, view) {
   const plusDays = plusDaysBetween(startMs, endMs, prefs.tz);
   const projectName = project?.name ?? 'Unknown project';
   const isSelected = entry.id === view.selectedId;
+  const isMenuOpen = entry.id === view.menuId;
+  const range = escapeHtml(`${formatTime(startMs, prefs)} – ${formatTime(endMs, prefs)}`);
   const attrs = `data-entry-id="${escapeHtml(entry.id)}" aria-current="${isSelected}"`;
   if (entry.id === view.confirmingId) {
     return `
@@ -84,21 +95,25 @@ function entryRowHtml(entry, tt, prefs, view) {
   return `
     <li class="tt-entry-row${isSelected ? ' is-selected' : ''}" ${attrs}${project ? ` style="--tt-project-color:${escapeHtml(project.color)};"` : ''}>
       <span class="tt-entry-desc${entry.description ? '' : ' tt-entry-desc-empty'}" data-rename title="Click to rename">${escapeHtml(descriptionText(entry))}</span>
-      <button type="button" class="tt-entry-meta" data-action="edit" title="Open editor"
+      <button type="button" class="tt-entry-meta" data-action="edit-project" title="Open editor"
         aria-label="${escapeHtml([projectName, customer?.name].filter(Boolean).join(' · '))}, open editor">
         <span class="tt-entry-project">${project ? colorDotHtml(project.color) : ''}${escapeHtml(projectName)}</span>
         <span class="tt-entry-customer">${escapeHtml(customer?.name ?? '')}</span>
       </button>
-      <span class="tt-entry-range"><span>${formatTime(startMs, prefs)} – ${formatTime(endMs, prefs)}</span>${plusDays > 0 ? `<sup class="tt-entry-plus" title="Ends ${plusDays} day(s) later">+${plusDays}</sup>` : ''}</span>
+      <button type="button" class="tt-entry-range" data-action="edit-times" title="Edit times" aria-label="${range}${plusDays > 0 ? ` +${plusDays}` : ''}, edit times"><span>${range}</span>${plusDays > 0 ? `<sup class="tt-entry-plus" title="Ends ${plusDays} day(s) later">+${plusDays}</sup>` : ''}</button>
       <span class="tt-entry-end">
         <span class="tt-entry-actions">
           ${ROW_ACTIONS.map(({ action, icon, label }) => `
           <button type="button" class="tt-entry-action" data-action="${action}" aria-label="${label}" title="${label}">
             <span data-lucide="${icon}" aria-hidden="true"></span>
           </button>`).join('')}
+          <button type="button" class="tt-entry-action tt-entry-more" data-action="more" aria-label="More actions" title="More actions"
+            aria-haspopup="menu" aria-expanded="${isMenuOpen}">
+            <span data-lucide="ellipsis-vertical" aria-hidden="true"></span>
+          </button>
         </span>
         <span class="tt-entry-duration">${formatDuration(endMs - startMs, prefs.durationFormat)}</span>
-      </span>
+      </span>${isMenuOpen ? rowMenuHtml() : ''}
     </li>`;
 }
 
@@ -113,16 +128,16 @@ const EDITOR_HTML = `
   </div>
 `;
 
-function entryListHtml(tt, prefs, groups, view, gaps) {
+function entryListHtml(tt, prefs, groups, view, gaps, dayEntries) {
   if (tt.timeEntries.length === 0) return '<p class="tt-empty">No time entries yet.</p>';
   if (groups.length === 0) return '<p class="tt-empty">No entries match the filter.</p>';
   return groups.map((group) => {
     const heading = escapeHtml(group.heading);
     return `
-      <div class="tt-day" data-day="${group.key}">
+      <div class="tt-day" data-day="${escapeHtml(group.key)}">
         <div class="tt-day-header">
           <h3 class="tt-day-heading">${heading}</h3>
-          ${coverageBarHtml(dayCoverage(group.entries, prefs, (entry) => projectById(tt, entry.projectId)?.color ?? 'var(--text-muted)'))}
+          ${coverageBarHtml(dayCoverage(dayEntries.get(group.key), prefs, (entry) => projectById(tt, entry.projectId)?.color ?? 'var(--text-muted)'))}
           <span class="tt-day-total" aria-label="Total for ${heading}">${formatDuration(group.totalMs, prefs.durationFormat)}</span>
         </div>
         <ul class="tt-day-entries" aria-label="${heading}">
@@ -139,6 +154,9 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
   container.innerHTML = PANEL_HTML;
   renderIcons(container);
 
+  const doc = container.ownerDocument;
+  const win = doc.defaultView;
+  const isTouch = () => win.matchMedia?.('(pointer: coarse)').matches ?? false;
   const bar = container.querySelector('.tt-entry-bar');
   const list = container.querySelector('.tt-entry-list');
   const count = container.querySelector('.tt-entry-count');
@@ -150,22 +168,48 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
   const fields = wireEntryFields(bar, {
     getPrefs,
     getTimeTracking: loadTimeTracking,
+    beforeSubmit: () => refreshDefaultTimes(),
     onSubmit(result) {
       if (!saveSubmitted(result, addTimeEntry)) return;
       rememberLastUsedProject(result.entry.projectId);
       reset();
-      fields.focus();
+      // On touch, focusing Description would reopen the soft keyboard over the new row.
+      if (isTouch()) doc.activeElement?.blur();
+      else fields.focus();
     }
+  });
+  // Room for the soft keyboard; a button is left alone, or the scroll would move it under the tap.
+  bar.addEventListener('focusin', (ev) => {
+    if (isTouch() && ev.target.matches('input')) bar.scrollIntoView?.({ block: 'start' });
   });
 
   const currentPrefill = () => prefillProjectId(loadTimeTracking(), getSettings(), loadLastUsedProjectId());
   let lastPrefill = null;
 
+  let defaultTimeValues = null;
+  const sameTimeValues = (a, b) => Object.keys(a).every((key) => a[key] === b?.[key]);
+
   function reset() {
     const { now, tz } = getPrefs();
     lastPrefill = currentPrefill();
     fields.setEntry({ projectId: lastPrefill, ...newEntryTimes(loadTimeTracking().timeEntries, now, tz) });
+    defaultTimeValues = fields.timeValues();
   }
+
+  // An open page goes stale: untouched default times move to now; typed or filled ones stay.
+  function refreshDefaultTimes() {
+    if (!sameTimeValues(fields.timeValues(), defaultTimeValues)) return;
+    const { now, tz } = getPrefs();
+    const { startMs, endMs } = newEntryTimes(loadTimeTracking().timeEntries, now, tz);
+    fields.setTimes(startMs, endMs);
+    defaultTimeValues = fields.timeValues();
+  }
+
+  const onPageReturn = () => {
+    if (doc.visibilityState !== 'hidden') refreshDefaultTimes();
+  };
+  const PAGE_RETURN_EVENTS = [[doc, 'visibilitychange'], [win, 'focus'], [win, 'pageshow']];
+  for (const [target, type] of PAGE_RETURN_EVENTS) target.addEventListener(type, onPageReturn);
 
   // An untouched entry bar follows a changed prefill; a typed one is left alone.
   function followPrefill() {
@@ -175,7 +219,17 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     lastPrefill = prefill;
   }
 
-  const view = { selectedId: null, confirmingId: null };
+  const entryById = (id) => loadTimeTracking().timeEntries.find((e) => e.id === id);
+  const rowOf = (id) => [...list.querySelectorAll('[data-entry-id]')].find((r) => r.dataset.entryId === id);
+  const view = { selectedId: null, confirmingId: null, menuId: null };
+  const rename = mountRowRename({
+    rowOf,
+    onDone(id, save, value) {
+      const entry = entryById(id);
+      if (save && entry) reportFailure(updateTimeEntry(id, { ...entry, description: value }));
+      refresh();
+    }
+  });
   let visibleIds = [];
   let gaps = [];
   let displayedPrefs = null;
@@ -202,24 +256,25 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     redisplayOnFormatChange(prefs);
     followPrefill();
     filter.refresh();
-    const { customerId, projectId } = filter.getFilter();
-    const groups = groupEntriesByDay(filterEntries(tt, filter.getFilter()), prefs);
-    gaps = untrackedGaps(tt.timeEntries, prefs.tz);
+    const activeFilter = filter.getFilter();
+    const groups = groupEntriesByDay(filterEntries(tt, activeFilter), prefs);
+    // A gap in a filtered list would hide other projects' entries: no gap rows, chips or f there.
+    const isFiltered = Boolean(activeFilter.customerId || activeFilter.projectId);
+    gaps = isFiltered ? [] : untrackedGaps(tt.timeEntries, prefs.tz);
+    const dayEntries = new Map(groupEntriesByDay(tt.timeEntries, prefs).map((group) => [group.key, group.entries]));
     chipBox.innerHTML = fillChipsHtml(gaps, prefs);
     chipBox.hidden = chipBox.childElementCount === 0;
     visibleIds = groups.flatMap((group) => group.entries.map((e) => e.id));
     if (!visibleIds.includes(view.selectedId)) view.selectedId = null;
     if (!visibleIds.includes(view.confirmingId)) view.confirmingId = null;
+    if (!visibleIds.includes(view.menuId)) view.menuId = null;
     fields.refreshProjects();
     count.textContent = `${visibleIds.length} ${visibleIds.length === 1 ? 'entry' : 'entries'}`;
-    renaming?.editor.detach();
-    // A gap in a filtered list would hide other projects' entries, so gap rows show unfiltered only.
-    list.innerHTML = entryListHtml(tt, prefs, groups, view, customerId || projectId ? [] : gaps);
+    rename.beforeRender();
+    list.innerHTML = entryListHtml(tt, prefs, groups, view, gaps, dayEntries);
     renderIcons(list);
-    if (renaming) placeRename();
+    rename.afterRender();
   }
-
-  const rowOf = (id) => [...list.querySelectorAll('[data-entry-id]')].find((r) => r.dataset.entryId === id);
 
   function select(id) {
     view.selectedId = id;
@@ -243,16 +298,16 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     editor = null;
   }
 
-  function openEditor(id) {
-    const entry = loadTimeTracking().timeEntries.find((e) => e.id === id);
+  function openEditor(id, focusField = 'description') {
+    const entry = entryById(id);
     if (!entry || editor) return;
-    const element = container.ownerDocument.createElement('div');
+    const element = doc.createElement('div');
     element.id = 'tt-edit-modal';
     element.setAttribute('role', 'dialog');
     element.setAttribute('aria-modal', 'true');
     element.setAttribute('aria-labelledby', 'tt-edit-title');
     element.innerHTML = EDITOR_HTML;
-    container.ownerDocument.body.appendChild(element);
+    doc.body.appendChild(element);
 
     const editorFields = wireEntryFields(element.querySelector('.tt-edit-fields'), {
       getPrefs,
@@ -277,7 +332,7 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
       if (action === 'save') editorFields.submit();
       else if (action === 'cancel' || ev.target === element) closeEditor();
     });
-    editorFields.focus();
+    editorFields.focus(focusField);
   }
 
   function duplicate(id) {
@@ -307,55 +362,56 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     select(reportFailure(deleteTimeEntry(id)) ? neighbour : id);
   }
 
-  let renaming = null;
-
   function startRename(id) {
-    const entry = loadTimeTracking().timeEntries.find((e) => e.id === id);
-    if (!entry || renaming || editor || view.confirmingId) return;
-    const renameEditor = createInlineRename(container.ownerDocument, entry.description, (save, value) => finishRename(id, save, value));
-    renaming = { id, editor: renameEditor };
+    const entry = entryById(id);
+    if (!entry || rename.isActive() || editor || view.confirmingId) return;
+    rename.start(id, entry.description);
     select(id);
   }
 
-  // Runs after each render while renaming: the editor takes the description's place.
-  function placeRename() {
-    const row = rowOf(renaming.id);
-    if (!row) { renaming = null; return; }
-    row.classList.add('is-renaming');
-    row.querySelector('.tt-entry-actions').hidden = true;
-    renaming.editor.place(row.querySelector('[data-rename]'));
-  }
-
-  function finishRename(id, save, value) {
-    renaming = null;
-    const entry = loadTimeTracking().timeEntries.find((e) => e.id === id);
-    if (save && entry) reportFailure(updateTimeEntry(id, { ...entry, description: value }));
+  function toggleMenu(id) {
+    view.menuId = view.menuId === id ? null : id;
     refresh();
   }
 
-  const ROW_ACTION_HANDLERS = { edit: openEditor, duplicate, delete: askDelete };
+  function closeMenu() {
+    view.menuId = null;
+    refresh();
+  }
+
+  const ROW_ACTION_HANDLERS = {
+    edit: (id) => openEditor(id),
+    'edit-project': (id) => openEditor(id, 'project'),
+    'edit-times': (id) => openEditor(id, 'start'),
+    duplicate,
+    delete: askDelete,
+    more: toggleMenu
+  };
 
   // Fill: the gap's Date/Start/End go into the entry bar; Project and Description stay.
-  function fillGap({ startMs, endMs }) {
+  function fillGap({ startMs, endMs }, { focus }) {
     fields.setTimes(startMs, endMs);
-    fields.focus();
+    if (focus) fields.focus();
+    else bar.scrollIntoView?.({ block: 'nearest' });
   }
+
+  const fillTapped = (button) => fillGap(gapOfFillButton(button), { focus: !isTouch() });
 
   chipBox.addEventListener('click', (ev) => {
     const chip = ev.target.closest('.tt-fill-chip');
-    if (chip) fillGap(gapOfFillButton(chip));
+    if (chip) fillTapped(chip);
   });
 
   function fillGapBeforeSelected() {
-    const entry = loadTimeTracking().timeEntries.find((e) => e.id === view.selectedId);
+    const entry = entryById(view.selectedId);
     const gap = entry && gapBefore(gaps, entry);
-    if (gap) fillGap(gap);
+    if (gap) fillGap(gap, { focus: true });
   }
 
   list.addEventListener('click', (ev) => {
     const fillButton = ev.target.closest('.tt-gap-fill');
     if (fillButton) {
-      fillGap(gapOfFillButton(fillButton));
+      fillTapped(fillButton);
       return;
     }
     const row = ev.target.closest('[data-entry-id]');
@@ -368,6 +424,7 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     }
     const id = row.dataset.entryId;
     const action = ev.target.closest('[data-action]')?.dataset.action;
+    if (action !== 'more') view.menuId = null;
     select(id);
     if (ev.target.closest('[data-rename]')) startRename(id);
     else ROW_ACTION_HANDLERS[action]?.(id);
@@ -380,13 +437,18 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
 
   container.querySelector('#tt-entry-add').addEventListener('click', () => fields.submit());
 
+  // A tap outside the list closes an open row menu (the path survives the list re-rendering).
+  const onDocumentClick = (ev) => {
+    if (view.menuId && !ev.composedPath().includes(list)) closeMenu();
+  };
+  doc.addEventListener('click', onDocumentClick);
+
   reset();
   refresh();
   on(DATA_CHANGED, refresh);
   return {
     focusNewEntry: () => fields.focus(),
     focusFilter: () => filter.focus(),
-    fillGap,
     fillGapBeforeSelected,
     selectNext: () => moveSelection(1),
     selectPrev: () => moveSelection(-1),
@@ -399,14 +461,17 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     isConfirming: () => view.confirmingId !== null,
     cancel() {
       if (view.confirmingId) cancelDelete();
+      else if (view.menuId) closeMenu();
       else if (editor) closeEditor();
       else return false;
       return true;
     },
     unmount() {
-      renaming?.editor.detach();
+      rename.beforeRender();
       closeEditor();
       off(DATA_CHANGED, refresh);
+      doc.removeEventListener('click', onDocumentClick);
+      for (const [target, type] of PAGE_RETURN_EVENTS) target.removeEventListener(type, onPageReturn);
       fields.unwire();
       filter.unmount();
     }

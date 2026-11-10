@@ -417,11 +417,14 @@ describe('selection', () => {
     expect(rows()).toHaveLength(3);
   });
 
-  test('a selected row shows edit, duplicate and delete actions', () => {
+  test('a selected row shows edit, duplicate and delete actions, plus the touch ⋯ menu', () => {
     mount({ timeEntries: THREE_ENTRIES });
     key('j');
     const actions = within(row('late')).getAllByRole('button').map((b) => b.getAttribute('aria-label'));
-    expect(actions).toEqual([expect.stringMatching(/, open editor$/), 'Edit entry', 'Duplicate entry', 'Delete entry']);
+    expect(actions).toEqual([
+      expect.stringMatching(/, open editor$/), expect.stringMatching(/, edit times$/),
+      'Edit entry', 'Duplicate entry', 'Delete entry', 'More actions'
+    ]);
   });
 });
 

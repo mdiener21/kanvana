@@ -93,6 +93,16 @@ describe('untracked gap rows', () => {
     expect(text(within(row).getByRole('button', { name: 'Fill 10:30 – 10:45' }))).toBe('Fill');
   });
 
+  test('a gap after a long entry with a nested one sits directly above the entry it follows', () => {
+    // 09:00–17:00 contains 10:00–11:00; then 18:00–19:00 → gap 17:00–18:00 follows the long entry.
+    mount([
+      entry('long', '2026-10-08T07:00:00.000Z', '2026-10-08T15:00:00.000Z'),
+      entry('nested', '2026-10-08T08:00:00.000Z', '2026-10-08T09:00:00.000Z'),
+      entry('late', '2026-10-08T16:00:00.000Z', '2026-10-08T17:00:00.000Z')
+    ]);
+    expect(rowOrder()).toEqual(['late', 'nested', 'gap 17:00 – 18:00', 'long']);
+  });
+
   test('gap rows are hidden while a customer or project filter is active', () => {
     mount([MORNING, MIDDAY]);
     const customer = screen.getByLabelText('Filter by customer');

@@ -55,6 +55,6 @@ export async function expectRowsAtLeast44pxWithRangeOnOneLine(page: Page) {
   for (let i = 0; i < count; i += 1) {
     const row = rows(page).nth(i);
     expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-    await expectSingleLine(row.locator('.tt-entry-range'));
+    await expectSingleLine(row.locator('.tt-entry-range > span'));
   }
 }

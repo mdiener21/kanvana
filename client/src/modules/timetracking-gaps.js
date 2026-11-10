@@ -29,9 +29,7 @@ function gapsOfDay(key, spans) {
   return gaps;
 }
 
-// Untracked gaps: per attribution day (the zoned day of an entry's start), the spans
-// between the day's first Start and last End that no entry covers. An entry crossing
-// midnight covers its own day only up to midnight. Derived only, never stored.
+// Per attribution day: uncovered spans between first Start and last End (entries stop at midnight).
 export function untrackedGaps(entries, tz) {
   return [...spansByDay(entries, tz)]
     .flatMap(([key, spans]) => gapsOfDay(key, spans))
