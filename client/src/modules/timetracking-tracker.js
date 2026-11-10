@@ -14,6 +14,8 @@ import { currentPeriod, WEEK } from './timetracking-report.js';
 import { groupEntriesByDay, formatTime, formatDuration, plusDaysBetween, floorToMinute } from './timetracking-time.js';
 import { colorDotHtml } from './timetracking-markup.js';
 import { dayCoverage, coverageBarHtml } from './timetracking-coverage.js';
+import { untrackedGaps } from './timetracking-gaps.js';
+import { dayRowsHtml, gapOfFillButton } from './timetracking-gap-rows.js';
 
 export const ENTRY_ERROR_MESSAGES = {
   [CRUD_ERROR.NO_PROJECT]: 'Select a project.',
@@ -110,7 +112,7 @@ const EDITOR_HTML = `
   </div>
 `;
 
-function entryListHtml(tt, prefs, groups, view) {
+function entryListHtml(tt, prefs, groups, view, gaps) {
   if (tt.timeEntries.length === 0) return '<p class="tt-empty">No time entries yet.</p>';
   if (groups.length === 0) return '<p class="tt-empty">No entries match the filter.</p>';
   return groups.map((group) => {
@@ -123,7 +125,7 @@ function entryListHtml(tt, prefs, groups, view) {
           <span class="tt-day-total" aria-label="Total for ${heading}">${formatDuration(group.totalMs, prefs.durationFormat)}</span>
         </div>
         <ul class="tt-day-entries" aria-label="${heading}">
-          ${group.entries.map((entry) => entryRowHtml(entry, tt, prefs, view)).join('')}
+          ${dayRowsHtml(group.entries, gaps.filter((gap) => gap.dayKey === group.key), (entry) => entryRowHtml(entry, tt, prefs, view), prefs)}
         </ul>
       </div>`;
   }).join('');
@@ -205,13 +207,16 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     redisplayOnFormatChange(prefs);
     followPrefill();
     filter.refresh();
+    const { customerId, projectId } = filter.getFilter();
     const groups = groupEntriesByDay(filterEntries(tt, filter.getFilter()), prefs);
+    // A gap in a filtered list would hide other projects' entries, so gaps show unfiltered only.
+    const gaps = customerId || projectId ? [] : untrackedGaps(tt.timeEntries, prefs.tz);
     visibleIds = groups.flatMap((group) => group.entries.map((e) => e.id));
     if (!visibleIds.includes(view.selectedId)) view.selectedId = null;
     if (!visibleIds.includes(view.confirmingId)) view.confirmingId = null;
     fields.refreshProjects();
     count.textContent = `${visibleIds.length} ${visibleIds.length === 1 ? 'entry' : 'entries'}`;
-    list.innerHTML = entryListHtml(tt, prefs, groups, view);
+    list.innerHTML = entryListHtml(tt, prefs, groups, view, gaps);
     renderIcons(list);
   }
 
@@ -305,7 +310,18 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
 
   const ROW_ACTION_HANDLERS = { edit: openEditor, duplicate, delete: askDelete };
 
+  // Fill: the gap's Date/Start/End go into the entry bar; Project and Description stay.
+  function fillGap({ startMs, endMs }) {
+    fields.setTimes(startMs, endMs);
+    fields.focus();
+  }
+
   list.addEventListener('click', (ev) => {
+    const fillButton = ev.target.closest('.tt-gap-fill');
+    if (fillButton) {
+      fillGap(gapOfFillButton(fillButton));
+      return;
+    }
     const row = ev.target.closest('[data-entry-id]');
     if (!row) return;
     if (view.confirmingId) {
@@ -333,6 +349,7 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
   return {
     focusNewEntry: () => fields.focus(),
     focusFilter: () => filter.focus(),
+    fillGap,
     selectNext: () => moveSelection(1),
     selectPrev: () => moveSelection(-1),
     editSelected: () => view.selectedId && openEditor(view.selectedId),

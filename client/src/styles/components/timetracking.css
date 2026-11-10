@@ -439,6 +439,35 @@
 .tt-entry-project { font-weight: 600; }
 .tt-entry-customer { color: var(--text-muted, #6b7280); }
 .tt-entry-range { font-variant-numeric: tabular-nums; color: var(--text-muted, #6b7280); }
+
+/* Untracked gap: a slim, hatched row between the entries it separates */
+.tt-gap-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 28px;
+  padding: 0 12px 0 15px;
+  border-bottom: 1px solid var(--border-subtle, #e5e7eb);
+  font-size: 12px;
+  color: var(--text-muted, #6b7280);
+  background: repeating-linear-gradient(-45deg, transparent 0 6px, var(--surface-hover, #f3f4f6) 6px 7px);
+}
+.tt-gap-span { font-variant-numeric: tabular-nums; }
+.tt-gap-fill {
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tt-gap-fill:hover { text-decoration: underline; }
+.tt-gap-fill:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (hover: none) {
+  .tt-gap-fill { min-height: var(--tt-touch-target); }
+}
 .tt-entry-plus { margin-left: 2px; font-size: 10px; color: var(--accent); }
 .tt-entry-row .tt-entry-duration { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
 

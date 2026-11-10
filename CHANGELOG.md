@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Time Tracker entries use the Ledger layout: each row shows its project colour as a left rail and a dot while project and customer names stay readable in every theme, durations line up with the day total, and phones get a two-line row. Each day heading gains a bar showing when you tracked time, with a marker for now on today (#286).
 
+### Added
+
+- The Time Tracker list shows untracked gaps of 5 minutes or more between a day's entries as slim hatched rows, e.g. `10:30 – 10:45 · 15 min untracked`. **Fill** puts the gap's date and times into the entry bar, keeps the project and description, and saves nothing until you press Enter or Add. Gaps are hidden while a customer or project filter is active (#289).
+
 ## [3.4.12] - 2026-11-08
 
 ### Fixed

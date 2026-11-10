@@ -345,7 +345,7 @@ const THREE_ENTRIES = [
   entry('late', '2026-10-08T08:00:00.000Z', '2026-10-08T09:30:00.000Z'),
   entry('yesterday', '2026-10-07T07:00:00.000Z', '2026-10-07T08:00:00.000Z')
 ];
-const rows = () => within(entryList()).getAllByRole('listitem');
+const rows = () => within(entryList()).getAllByRole('listitem').filter((li) => li.dataset.entryId); // gap rows aside
 const row = (description) => rows().find((r) => within(r).queryByText(description));
 const selected = () => rows().filter((r) => r.getAttribute('aria-current') === 'true')
   .map((r) => r.querySelector('.tt-entry-desc').textContent);

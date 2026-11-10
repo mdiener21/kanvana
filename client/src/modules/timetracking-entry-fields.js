@@ -123,6 +123,9 @@ export function wireEntryFields(root, { getPrefs, getTimeTracking, onSubmit }) {
       setProject(projectId);
       show(describeEntryTimes(startMs, endMs, getPrefs()));
     },
+    setTimes(startMs, endMs) {
+      show(describeEntryTimes(startMs, endMs, getPrefs()));
+    },
     setProject,
     projectId: () => resolveProjectLabel(inputs.project.value, getTimeTracking()),
     redisplay() {
