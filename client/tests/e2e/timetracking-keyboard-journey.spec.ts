@@ -128,6 +128,17 @@ test('the whole time-tracking flow works with the keyboard only', async ({ page 
   await press(page, 'k', 'k');
   await expect(selected).toContainText('Review');
 
+  // f fills the untracked gap before the selected entry into the entry bar; nothing is saved
+  await expect(page.getByRole('group', { name: 'Fill untracked gaps' }).getByRole('button')).toHaveText(['Fill 10:30 – 11:00']);
+  await press(page, 'f');
+  await expect(description).toBeFocused();
+  await expect(page.getByLabel('Start', { exact: true })).toHaveValue('10:30');
+  await expect(page.getByLabel('End', { exact: true })).toHaveValue('11:00');
+  await expect(page.getByLabel('Duration', { exact: true })).toHaveValue('0:30');
+  await expect(rows).toHaveCount(3);
+  await press(page, 'Escape');
+  await expect(selected).toContainText('Review');
+
   // e edit and save
   await press(page, 'e');
   const dialog = page.getByRole('dialog', { name: 'Edit entry' });

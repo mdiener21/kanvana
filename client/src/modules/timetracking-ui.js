@@ -289,7 +289,7 @@ function wireSidebar(root, nav) {
 const {
   ttHelp, ttCloseModal, ttGotoTracker, ttGotoReports, ttGotoProjects, ttGotoSettings,
   ttNewEntry, ttFocusFilter, ttSubmitInline, ttAdjustUp, ttAdjustDown,
-  ttSelectNext, ttSelectPrev, ttEditEntry, ttRenameEntry, ttDuplicateEntry, ttDeleteEntry, ttConfirmDelete,
+  ttSelectNext, ttSelectPrev, ttEditEntry, ttRenameEntry, ttFillGap, ttDuplicateEntry, ttDeleteEntry, ttConfirmDelete,
   ttPrevMonth, ttNextMonth
 } = DEFAULT_APP_KEYBINDINGS;
 
@@ -310,6 +310,7 @@ const HELP_ROWS = [
   { binding: ttSelectPrev, label: 'Select previous entry' },
   { binding: ttEditEntry, label: 'Edit selected entry' },
   { binding: ttRenameEntry, label: 'Rename selected entry' },
+  { binding: ttFillGap, label: 'Fill the gap before the selected entry' },
   { binding: ttDuplicateEntry, label: 'Duplicate selected entry' },
   { binding: ttDeleteEntry, label: 'Delete selected entry' },
   { binding: ttConfirmDelete, label: 'Confirm delete' },
@@ -333,6 +334,7 @@ const ENTRY_COMMANDS = [
   { binding: ttSelectPrev, command: 'selectPrev' },
   { binding: ttEditEntry, command: 'editSelected' },
   { binding: ttRenameEntry, command: 'renameSelected' },
+  { binding: ttFillGap, command: 'fillGapBeforeSelected' },
   { binding: ttDuplicateEntry, command: 'duplicateSelected' },
   { binding: ttDeleteEntry, command: 'deleteSelected' }
 ];

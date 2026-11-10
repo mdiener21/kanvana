@@ -10,7 +10,7 @@ test('filling an untracked gap pre-fills the entry bar and Enter closes the gap'
 
   await page.getByLabel('Description', { exact: true }).fill('Planning');
   await page.getByLabel('Project', { exact: true }).fill('Alpha');
-  await page.getByRole('button', { name: 'Fill 10:30 – 11:00' }).click();
+  await gaps.getByRole('button', { name: 'Fill 10:30 – 11:00' }).click();
   await expect(page.getByLabel('Start', { exact: true })).toHaveValue('10:30');
   await expect(page.getByLabel('End', { exact: true })).toHaveValue('11:00');
   await expect(page.getByLabel('Duration', { exact: true })).toHaveValue('0:30');
