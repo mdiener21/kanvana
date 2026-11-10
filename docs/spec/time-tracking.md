@@ -15,6 +15,9 @@ Terms (Customer, Project, Time Entry, Duration, Archived, Attribution) are defin
 - Layout follows prototype **Variant A ("Clockify classic")**: top bar, left sidebar nav with collapse function and mobile ui, entry bar above a day-grouped entry list, summary-style month report
 - Prototype source (removed after the MVP shipped): `client/src/prototype-timetracker.html` + `client/src/prototypes/timetracker/` as of v3.2.0
   (throwaway — rewrite, do not promote)
+- **Ledger refresh (post-MVP):** the Time Tracker page follows prototype **A · Ledger**,
+  `docs/prototypes/timetracker/a-ledger.html`. Throwaway like the first prototype: rewrite, do not
+  promote. The rejected alternative `b-day-canvas.html` (hour-grid timeline) is kept for reference only
 
 ## Page and Navigation
 
@@ -44,11 +47,19 @@ Constructed through factories in `schema.js`; IDs via `generateUUID()`.
 
 ### Entry bar
 
-- Fields in order: Description, Project, Date, Start, End, Duration, `ADD` button
-- Description is optional free text (placeholder `What are you working on?`)
+- Fields in order: Description, Project, Date, Start, End, Duration, `Add` button
+- Every field has a visible label above it (Description, Project, Date, Start, End, Duration); Date,
+  Start, End and Duration form one visually grouped time block, with an arrow between Start and End;
+  Duration is styled as the computed result of the block
+- The Project field shows the selected project's colour dot
+- Description is optional free text (placeholder `What did you work on?`)
 - Project is a type-ahead picker over `Customer / Project` labels; archived projects and projects of
   archived customers are not offered
-- Defaults for a new entry: Date = today, Start = now, End = Start, Duration = `0:00`
+- Defaults for a new entry: Date = today, End = now, Start = the latest End among today's entries
+  when that is earlier than now (so a new entry continues from the last one), otherwise Start = now;
+  Duration is derived. With no entry today, Start = End = now and Duration = `0:00`
+- A muted hint below the fields shows the shorthand (`930`, `90m`, `1.5`) and `Alt+↑` / `Alt+↓`
+  ±15 min; hidden on narrow screens
 - **Project prefill:** the last project used to save an entry; falls back to the default project from
   Settings when there is no last-used project or it has been archived
 - Last-used project is remembered per device (local storage), not synced
@@ -83,8 +94,25 @@ Constructed through factories in `schema.js`; IDs via `generateUUID()`.
 
 - Entries grouped by day (attribution day), newest first; headings `Today`, `Yesterday`, then
   `Ddd, <date>`; each group shows its total
-- Row: description (or `(no description)`), project name in project colour, customer name,
-  `start – end` (with `+1` for overnight), duration
+- Row: description (or `(no description)`), project name with its colour dot, customer name,
+  `start – end` (with `+1` for overnight), duration. The project colour also shows as a 3px rail at
+  the row's left edge; project and customer names are in text colours, never in the project colour,
+  so they meet 4.5:1 contrast for any project colour
+- Rows are at least 44px tall; `start – end` never wraps; numbers use tabular figures
+- Each row's duration and its day group's total share one right-aligned column
+- Day group header: day heading, a **coverage bar** (07:00–19:00, widening to include any entry
+  outside that span) with one block per entry in its project colour, a now-marker on today's bar,
+  and the day total. The bar is decorative (`aria-hidden`); hidden on narrow screens
+- **Click the description to rename it in place:** the description becomes a text input with the
+  current text, caret at the end, and an `Enter save · Esc cancel` hint inside the input on wide
+  screens. `Enter` or leaving the field saves; `Esc` restores the old text. Saving an unchanged text
+  emits no event; saving an empty text stores no description. The rename emits the same
+  `time_entry.updated` event as the edit modal. Row actions hide while renaming. `F2` renames the
+  selected row
+- **Click the project or customer to edit:** the project / customer cell is a button that opens the
+  edit modal, the same as the pencil action and `e`
+- On narrow screens a row has two lines: description and duration on the first, project · customer
+  and `start – end` on the second
 - Row actions: edit, duplicate, delete. On hover-capable devices they appear on hover, selection or
   focus within the row; on touch devices (`(hover: none)`, by input capability, not screen width)
   they are always visible
@@ -104,6 +132,40 @@ Constructed through factories in `schema.js`; IDs via `generateUUID()`.
 - Delete asks for confirmation inline (`y` confirms, `Esc` cancels) and is permanent; any other key
   cancels the confirmation and then does what it normally does (e.g. `Tab` moves focus, `j` / `k`
   move the selection)
+
+### Untracked gaps
+
+See the [glossary](../../CONTEXT.md#time-tracking-glossary) for Untracked gap.
+
+- Computed per attribution day from **all** of that day's entries (ignoring the list filter), as the
+  time between the day's first Start and its last End that no entry covers. Overlapping entries
+  merge; only gaps of **5 minutes or more** are shown. An entry crossing midnight covers only up to
+  midnight on its own day for this purpose
+- In the entry list a gap shows as a slim, hatched row between the two entries it separates:
+  `10:30 – 10:45 · 15 min untracked` and a **Fill** button. Gap rows are not selectable with
+  `j` / `k` and are not counted in the entry count
+- Gap rows are hidden while a customer or project filter is active (a gap in a filtered list would
+  hide entries of other projects)
+- **Fill** pre-fills the entry bar with the gap's Date, Start and End (Duration derived), keeps the
+  current Project and Description, and focuses Description. Nothing is saved until the user presses
+  `Enter` / `Add`
+- Below the entry bar, a **Fill** chip appears for each of today's gaps (newest first, at most three),
+  e.g. `Fill 12:45 – 13:00`; it does the same as the row's Fill button
+- `f` with an entry selected fills the gap directly before that entry (between it and the previous
+  entry of the same day); no gap means no-op
+- Gaps are recomputed live on create / edit / delete, including from sync
+
+### Week strip
+
+- The Tracker header shows the ISO week (`Week 46 · 9 – 15 Nov 2026`) and a strip of seven day cells,
+  Monday to Sunday. Each cell shows the weekday, date, the day's logged Duration (`–` when none) and,
+  when Weekly hours is set, a meter of that Duration against the day's Target; it turns success-green
+  at or above Target. Today is highlighted; future days are muted
+- Clicking a day cell scrolls the list to that day's group (no-op when the day has no entries)
+- The week's logged total and its Balance (same rules as the "This week" badge) sit at the header's
+  right; that block is the "This week" badge and keeps its behaviour (opens the current week in
+  Reports, hidden Balance when there is no Target)
+- The strip ignores the entry list filter
 
 ## Reports (Week / Month / Year)
 
@@ -214,6 +276,8 @@ ignored while an input is focused.
 | `/` | Focus filter |
 | `j` / `k` | Select next / previous entry |
 | `e` | Edit selected entry |
+| `F2` | Rename selected entry's description in place |
+| `f` | Fill the untracked gap before the selected entry |
 | `d` | Duplicate selected entry |
 | `Del` | Delete selected entry → `y` confirm / `Esc` cancel |
 | `g t` / `g r` / `g p` / `g s` | Go to Tracker / Reports / Projects / Settings |
@@ -246,6 +310,12 @@ ignored while an input is focused.
   badge visibility and live updates; Reports Week | Month switch, navigation and persisted choice,
   week chart and table, balance card values, sign / colour and visibility rules; badge opens the
   current week
+- Unit (Ledger): untracked gaps per day (overlaps merge, < 5 min dropped, midnight-crossing entry,
+  single entry, no entries); entry bar Start default continuing from today's latest End
+- DOM (Ledger): inline rename saves on `Enter` and blur, `Esc` restores, unchanged text emits no
+  event, `F2` starts it; project / customer click opens the edit modal; gap rows render, hide under
+  a filter and Fill pre-fills the entry bar without saving; `f` fills the gap before the selection;
+  week strip totals, meters and day-cell scroll
 - E2E: full keyboard-only flow (add → select → edit → duplicate → delete → reports month switch) playwright-cli, playwright tests.
 - E2E (desktop): set Weekly hours → log entries → correct Balance for week and month; a Monday at
   40h shows an 8h Target, and unticking Friday raises it to 10h
