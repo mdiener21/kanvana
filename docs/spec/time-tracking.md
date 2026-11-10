@@ -58,12 +58,19 @@ Constructed through factories in `schema.js`; IDs via `generateUUID()`.
 - Defaults for a new entry: Date = today, End = now, Start = the latest End among today's entries
   when that is earlier than now (so a new entry continues from the last one), otherwise Start = now;
   Duration is derived. With no entry today, Start = End = now and Duration = `0:00`
+- An untouched bar keeps these defaults current: on returning to the page (visibility, focus,
+  `pageshow`) and on save its times move to now's defaults; typed or filled times are never replaced
+- Phone keyboards: Start and End open the number pad (`inputmode="numeric"`), Duration keeps the text
+  keyboard (for `90m`, `1h30`), and every field's action key is Done (`enterkeyhint="done"`).
+  Project, Date, Start, End and Duration select their value on focus, so typing replaces it
 - A muted hint below the fields shows the shorthand (`930`, `90m`, `1.5`) and `Alt+↑` / `Alt+↓`
   ±15 min; hidden on narrow screens
 - **Project prefill:** the last project used to save an entry; falls back to the default project from
   Settings when there is no last-used project or it has been archived
 - Last-used project is remembered per device (local storage), not synced
-- `Enter` in any field saves; after saving, fields reset to defaults and focus returns to Description
+- `Enter` in any field saves; after saving, fields reset to defaults and focus returns to Description.
+  On touch devices (`(pointer: coarse)`) focus is not restored, so the soft keyboard closes over the
+  new row; focusing a field there scrolls the bar to the top so `Add` stays above the keyboard
 
 ### Linked Start / End / Duration
 
@@ -102,7 +109,8 @@ Constructed through factories in `schema.js`; IDs via `generateUUID()`.
 - Each row's duration and its day group's total share one right-aligned column
 - Day group header: day heading, a **coverage bar** (07:00–19:00, widening to include any entry
   outside that span) with one block per entry in its project colour, a now-marker on today's bar,
-  and the day total. The bar is decorative (`aria-hidden`); hidden on narrow screens
+  and the day total. Like gaps, the bar shows all of the day's entries, ignoring the list filter. The
+  bar is decorative (`aria-hidden`); hidden on narrow screens
 - **Click the description to rename it in place:** the description becomes a text input with the
   current text, caret at the end, and an `Enter save · Esc cancel` hint inside the input on wide
   screens. `Enter` or leaving the field saves; `Esc` restores the old text. Saving an unchanged text
@@ -110,12 +118,16 @@ Constructed through factories in `schema.js`; IDs via `generateUUID()`.
   `time_entry.updated` event as the edit modal. Row actions hide while renaming. `F2` renames the
   selected row
 - **Click the project or customer to edit:** the project / customer cell is a button that opens the
-  edit modal, the same as the pencil action and `e`
+  edit modal with Project focused and selected (the pencil action and `e` open it on Description)
+- **Click `start – end` to change times:** the range is a button that opens the edit modal with Start
+  focused and selected
 - On narrow screens a row has two lines: description and duration on the first, project · customer
-  and `start – end` on the second
+  and `start – end` on the second; on touch devices the description, project / customer and range
+  cells are each at least 44px tall and the whole description cell starts the rename
 - Row actions: edit, duplicate, delete. On hover-capable devices they appear on hover, selection or
   focus within the row; on touch devices (`(hover: none)`, by input capability, not screen width)
-  they are always visible
+  they sit in one always-visible, 44px `⋯` **More actions** menu per row (Edit, Duplicate, Delete;
+  Delete still asks inline). `Esc` or a tap outside closes the menu
 - Rows fit a narrow phone screen (Pixel 5) without horizontal overflow
 - Filter by customer and/or project; the project filter lists only the selected customer's projects;
   archived customers/projects remain selectable as filters
@@ -141,18 +153,21 @@ See the [glossary](../../CONTEXT.md#time-tracking-glossary) for Untracked gap.
   time between the day's first Start and its last End that no entry covers. Overlapping entries
   merge; only gaps of **5 minutes or more** are shown. An entry crossing midnight covers only up to
   midnight on its own day for this purpose
-- In the entry list a gap shows as a slim, hatched row between the two entries it separates:
+- In the entry list a gap shows as a slim, hatched row directly above the entry it follows (the one
+  whose End is the gap's Start), so it sits between the two entries it separates:
   `10:30 – 10:45 · 15 min untracked` and a **Fill** button. Gap rows are not selectable with
   `j` / `k` and are not counted in the entry count
 - Gap rows are hidden while a customer or project filter is active (a gap in a filtered list would
   hide entries of other projects)
 - **Fill** pre-fills the entry bar with the gap's Date, Start and End (Duration derived), keeps the
-  current Project and Description, and focuses Description. Nothing is saved until the user presses
+  current Project and Description, and focuses Description (on touch devices it does not, so the
+  keyboard stays closed and `Add` stays in reach). Nothing is saved until the user presses
   `Enter` / `Add`
 - Below the entry bar, a **Fill** chip appears for each of today's gaps (newest first, at most three),
-  e.g. `Fill 12:45 – 13:00`; it does the same as the row's Fill button
+  e.g. `Fill 12:45 – 13:00`; it does the same as the row's Fill button. Chips are hidden, and `f` is a
+  no-op, while a customer or project filter is active (same rule as gap rows)
 - `f` with an entry selected fills the gap directly before that entry (between it and the previous
-  entry of the same day); no gap means no-op
+  entry of the same day) and focuses Description; no gap means no-op
 - Gaps are recomputed live on create / edit / delete, including from sync
 
 ### Week strip
@@ -160,7 +175,9 @@ See the [glossary](../../CONTEXT.md#time-tracking-glossary) for Untracked gap.
 - The Tracker header shows the ISO week (`Week 46 · 9 – 15 Nov 2026`) and a strip of seven day cells,
   Monday to Sunday. Each cell shows the weekday, date, the day's logged Duration (`–` when none) and,
   when Weekly hours is set, a meter of that Duration against the day's Target; it turns success-green
-  at or above Target. Today is highlighted; future days are muted
+  at or above Target; a day with a Target of 0 (a weekend) fills once anything is logged, and a day
+  with no Target yet (a future day) keeps an empty meter. Today is highlighted; future days are muted
+  (in a text colour that still meets 4.5:1)
 - Clicking a day cell scrolls the list to that day's group (no-op when the day has no entries)
 - The week's logged total and its Balance (same rules as the "This week" badge) sit at the header's
   right; that block is the "This week" badge and keeps its behaviour (opens the current week in
@@ -321,6 +338,10 @@ ignored while an input is focused.
   40h shows an 8h Target, and unticking Friday raises it to 10h
 - E2E (Pixel 5): tap edit and delete on a row without hover; controls measure at least 44×44px; tap
   the badge to land on the current week with touch-sized period controls and no horizontal overflow
+- E2E (Pixel 5 tap budgets, taps and keys counted, no `fill()`): continue from the last entry ≤ 2
+  taps (≤ 1 with no description) after the page sat open; fill a gap ≤ 2; change Start / End ≤ 3
+  taps and ≤ 8 keys; rename ≤ 2; change project ≤ 2 taps and ≤ 4 keys; at 360px and Pixel 5 in light
+  and dark: no horizontal overflow, controls ≥ 44×44px, text ≥ 4.5:1
 
 ## Later (not in MVP)
 
