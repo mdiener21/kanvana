@@ -253,6 +253,8 @@ function createNavigator(root, onShow) {
   let current = null;
   return {
     show(id, { focus = false } = {}) {
+      // A section opens at its top; the taller Tracker header would otherwise leave Reports scrolled (#291).
+      if (id !== current) root.getElementById('tt-main')?.scrollTo?.(0, 0);
       showSection(root, id);
       current = id;
       onShow[id]?.();
