@@ -115,6 +115,15 @@ describe('entry bar layout', () => {
   });
 });
 
+test('switching section starts the new section at the top, so the taller entry bar never hides the header', () => {
+  mount();
+  const main = document.getElementById('tt-main');
+  fireEvent.click(document.getElementById('tt-nav-settings'));
+  main.scrollTop = 47;
+  fireEvent.click(document.getElementById('tt-nav-tracker'));
+  expect(main.scrollTop).toBe(0);
+});
+
 describe('Start continues from the last entry', () => {
   test('today has an entry ending at 14:45 and it is 15:20 → Start 14:45, End 15:20, 0:35', () => {
     mount([
