@@ -1,5 +1,5 @@
 import { escapeHtml } from './security.js';
-import { periodBalance, showBalance } from './timetracking-balance.js';
+import { periodBalance, showBalance, hasTarget } from './timetracking-balance.js';
 import { currentPeriod, WEEK } from './timetracking-report.js';
 import {
   zonedParts, addDays, dayNumber, dayKey, ymdToUtcMs, isoWeek, formatShortWeekday, formatShortMonth, formatDuration
@@ -15,11 +15,12 @@ function weekStripLabel(start, end) {
 // The week's days and its Balance over all entries (the strip ignores the list filter).
 export function summarizeWeekStrip(entries, now, { tz, weeklyHours = null, workdays }) {
   const week = currentPeriod(WEEK, now, tz);
-  const options = { now, tz, weeklyHours, workdays };
+  const workWeek = { weeklyHours, workdays };
+  const options = { now, tz };
   const today = dayNumber(zonedParts(now, tz));
   const days = Array.from({ length: 7 }, (_, i) => {
     const ymd = addDays(week.start, i);
-    const { loggedMs, targetMs } = periodBalance(entries, { start: ymd, end: ymd }, options);
+    const { loggedMs, targetMs } = periodBalance(entries, { start: ymd, end: ymd }, workWeek, options);
     return {
       key: dayKey(ymdToUtcMs(ymd), 'UTC'),
       ymd,
@@ -31,7 +32,7 @@ export function summarizeWeekStrip(entries, now, { tz, weeklyHours = null, workd
       isFuture: dayNumber(ymd) > today
     };
   });
-  const { loggedMs, balanceMs } = periodBalance(entries, week, options);
+  const { loggedMs, balanceMs } = periodBalance(entries, week, workWeek, options);
   return { label: weekStripLabel(week.start, week.end), days, loggedMs, balanceMs };
 }
 
@@ -94,7 +95,7 @@ export function mountWeekStrip(panel, { getSettings, onOpenCurrentWeek, onSelect
     const totalText = formatDuration(week.loggedMs, prefs.durationFormat);
     total.textContent = totalText;
     total.setAttribute('aria-label', `This week ${totalText} logged`);
-    const cellOptions = { durationFormat: prefs.durationFormat, showMeter: weeklyHours > 0 };
+    const cellOptions = { durationFormat: prefs.durationFormat, showMeter: hasTarget({ weeklyHours }) };
     strip.innerHTML = week.days.map((day) => dayCellHtml(day, cellOptions)).join('');
 
     badge.hidden = week.balanceMs === null;

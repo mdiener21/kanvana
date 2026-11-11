@@ -297,6 +297,12 @@ describe('Target and Balance', () => {
     expect(s.totalMs).toBe(2 * H);
   });
 
+  test('the Balance counts every Time Entry in the period, whatever entries are summarised', () => {
+    const s = summarizePeriod(withEntries, [oct20], OCT, { tz: TZ, now: NOW, weeklyHours: 40 });
+    expect(s.balanceLogged).toBe(10 * H);
+    expect(s.balance).toBe(10 * H - 22 * 8 * H);
+  });
+
   test('future periods and periods before the first entry have no Target', () => {
     const options = { tz: TZ, now: NOW, weeklyHours: 40 };
     expect(summarizePeriod(withEntries, withEntries.timeEntries, month(2026, 12), options)).toMatchObject({ target: null, balance: null });

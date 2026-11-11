@@ -220,9 +220,9 @@ See the [glossary](../../CONTEXT.md#time-tracking-glossary) for Untracked gap.
   - Year: 1 January to 31 December, one bucket per month, labelled `2026`
   - Previous / next shift by one period of the same kind; an entry counts wholly toward the week,
     month and year of its start
-  - Given `now` and `weeklyHours`, the summary fills `target` (from `periodBalance` over all Time
-    Entries, so the first-ever entry sets the start) and `balance` (summarised total − Target);
-    both are null when Weekly hours is unset or the period has no Target
+  - Given `now` and `weeklyHours`, the summary fills `balanceLogged`, `target` and `balance` from
+    `periodBalance` over all Time Entries (so the first-ever entry sets the start), whatever entries
+    are summarised; Target and Balance are null when Weekly hours is unset or the period has no Target
 
 ## Projects and Customers
 
@@ -275,8 +275,11 @@ Balance.
   start (Attribution)
 - Balance = logged − Target; Target and Balance are absent when Weekly hours is unset, for future
   periods and for periods entirely before the first Time Entry
-- The maths lives in one domain module (`timetracking-balance.js`: `periodBalance`) consumed by
-  every view that shows a Balance
+- The maths lives in one domain module with one entry point, `periodBalance(entries, period,
+  workWeek, { now, tz })` in `timetracking-balance.js`: it takes the Time Entries to count, a Work
+  week (`{ weeklyHours, workdays }`, Workdays defaulting to Mon–Fri) and returns `{ loggedMs,
+  targetMs, balanceMs }`. The badge, the week-strip meters and header Balance, and the Reports
+  Balance card all consume it
 - **"This week" badge** in the Time Tracker header: `This week ±h:mm`, the current week's Balance in
   the duration format, green for a surplus and red for a deficit, sign always shown. It ignores the
   entry list filter, is hidden when there is no Balance (Weekly hours unset, or no entry yet this

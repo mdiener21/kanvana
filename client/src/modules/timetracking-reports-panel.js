@@ -221,7 +221,7 @@ export function mountReportsPanel(container, {
     const show = !filtered && summary.target !== null;
     balanceCard.hidden = !show;
     if (!show) return;
-    balanceValues.logged.textContent = formatDuration(summary.totalMs, prefs.durationFormat);
+    balanceValues.logged.textContent = formatDuration(summary.balanceLogged, prefs.durationFormat);
     balanceValues.target.textContent = formatDuration(summary.target, prefs.durationFormat);
     showBalance(balanceValues.balance, summary.balance, prefs.durationFormat);
   }

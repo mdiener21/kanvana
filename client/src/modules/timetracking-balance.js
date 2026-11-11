@@ -38,8 +38,8 @@ function workdaysBefore(day, workdays) {
 const targetBefore = (day, weeklyHours, workdays) =>
   Math.round((weeklyHours * HOUR_MS * workdaysBefore(day, workdays)) / workdays.length);
 
-// Counted days: from the later of period start and first-ever entry day, to the earlier of period end and today.
-export function periodTarget(entries, period, { now, tz, weeklyHours, workdays = DEFAULT_WORKDAYS }) {
+// Counted days: from the later of period start and first entry day, to the earlier of period end and today.
+function periodTarget(entries, period, { weeklyHours, workdays = DEFAULT_WORKDAYS }, { now, tz }) {
   if (!(weeklyHours > 0) || entries.length === 0) return null;
   const firstEntryDay = Math.min(...entries.map((e) => startDay(e, tz)));
   const first = Math.max(dayNumber(period.start), firstEntryDay);
@@ -49,10 +49,16 @@ export function periodTarget(entries, period, { now, tz, weeklyHours, workdays =
     : null;
 }
 
-export const balanceOf = (loggedMs, targetMs) => (targetMs === null ? null : loggedMs - targetMs);
+// A Work week with Weekly hours has a Target; without, it doesn't.
+export const hasTarget = (workWeek) => workWeek.weeklyHours > 0;
 
-export function periodBalance(entries, period, options) {
-  const loggedMs = loggedIn(entries, dayNumber(period.start), dayNumber(period.end), options.tz);
-  const targetMs = periodTarget(entries, period, options);
-  return { loggedMs, targetMs, balanceMs: balanceOf(loggedMs, targetMs) };
+/**
+ * The one entry point for every Balance view: Logged, Target and Balance of `entries` over
+ * `period` against a Work week ({ weeklyHours, workdays }). Target and Balance are null when the
+ * Work week has no Weekly hours, or no counted day falls in the period.
+ */
+export function periodBalance(entries, period, workWeek, { now, tz }) {
+  const loggedMs = loggedIn(entries, dayNumber(period.start), dayNumber(period.end), tz);
+  const targetMs = periodTarget(entries, period, workWeek, { now, tz });
+  return { loggedMs, targetMs, balanceMs: targetMs === null ? null : loggedMs - targetMs };
 }

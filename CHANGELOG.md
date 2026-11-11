@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Time Tracking: the "This week" badge, week-strip meters and Reports Balance card now share one Balance entry point; no visible change (#300).
+
 ## [3.4.13] - 2026-11-11
 
 ### Added
