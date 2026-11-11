@@ -62,3 +62,9 @@ test('createProject generates unique ids', () => {
   const ids = Array.from({ length: 20 }, () => createProject().id);
   expect(new Set(ids).size).toBe(20);
 });
+
+test('createCustomer has a Work week with no Weekly hours over Mon–Fri by default', () => {
+  const c = createCustomer();
+  expect(c.weeklyHours).toBeNull();
+  expect(c.workdays).toEqual([1, 2, 3, 4, 5]);
+});

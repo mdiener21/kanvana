@@ -51,16 +51,21 @@ const WEEK_ENTRIES = [
 let unmount = null;
 const fakeChart = () => ({ setOption() {}, resize() {}, dispose() {} });
 
+let customers = [ACME, GLOBEX];
+
 function mount(timeEntries = WEEK_ENTRIES) {
-  state.customers = [ACME, GLOBEX];
+  state.customers = customers;
   state.projects = [WEBSITE, SUPPORT];
   state.timeEntries = timeEntries;
   mountToBody(bodyHtml);
   unmount = mountTimeTracking(document, { getPrefs: prefs, createChart: fakeChart });
 }
 
-const withWeeklyHours = (weeklyHours) => vi.mocked(loadGlobalSettings)
-  .mockImplementation(() => ({ timeTracking: { weeklyHours } }));
+// Acme, the Default customer, gets the Work week.
+function withWorkWeek(weeklyHours, workdays = [1, 2, 3, 4, 5]) {
+  customers = [{ ...ACME, weeklyHours, workdays }, GLOBEX];
+  vi.mocked(loadGlobalSettings).mockImplementation(() => ({ timeTracking: { defaultCustomerId: 'c1' } }));
+}
 
 const strip = () => screen.getByRole('list', { name: 'This week' });
 const cells = () => within(strip()).getAllByRole('button');
@@ -82,6 +87,7 @@ afterEach(() => {
   unmount = null;
   vi.useRealTimers();
   vi.mocked(loadGlobalSettings).mockImplementation(() => ({}));
+  customers = [ACME, GLOBEX];
 });
 
 describe('week strip', () => {
@@ -102,8 +108,8 @@ describe('week strip', () => {
     expect(cell('Fri').getAttribute('aria-label')).toBe('Fri 13 Nov, nothing logged');
   });
 
-  test('with Weekly hours 40 a day at or above Target has a full success meter, a half day a half primary meter', () => {
-    withWeeklyHours(40);
+  test("with the Default customer's Weekly hours 40 a day at or above Target has a full success meter, a half day a half primary meter", () => {
+    withWorkWeek(40);
     mount();
     expect(fill('Mon')).toBe('100%');
     expect(meter('Mon').classList.contains('is-met')).toBe(true);
@@ -113,14 +119,14 @@ describe('week strip', () => {
   });
 
   test('a future day has no Target yet, so its meter stays empty however much is logged', () => {
-    withWeeklyHours(40);
+    withWorkWeek(40);
     mount([...WEEK_ENTRIES, entry('fri', '2026-11-13T07:00:00.000Z', '2026-11-13T09:00:00.000Z')]); // tomorrow, 2:00
     expect(hours('Fri')).toBe('2:00');
     expect(fill('Fri')).toBe('0%');
     expect(meter('Fri').classList.contains('is-met')).toBe(false);
   });
 
-  test('with Weekly hours unset day totals show without meters and the header shows the week total without a Balance', () => {
+  test('without a Default customer day totals show without meters and the header shows the week total without a Balance', () => {
     mount();
     expect(hours('Mon')).toBe('8:15');
     expect(cells().every((c) => c.querySelector('.tt-week-meter') === null)).toBe(true);
@@ -129,12 +135,46 @@ describe('week strip', () => {
     expect(badge().hidden).toBe(true);
   });
 
-  test('the header shows the week total beside its Balance when Weekly hours is set', () => {
-    withWeeklyHours(40);
+  test('a Default customer without a Work week shows no meters and no Balance', () => {
+    vi.mocked(loadGlobalSettings).mockImplementation(() => ({ timeTracking: { defaultCustomerId: 'c1' } }));
+    mount();
+    expect(cells().every((c) => c.querySelector('.tt-week-meter') === null)).toBe(true);
+    expect(badge().hidden).toBe(true);
+  });
+
+  test("the header shows the all-Customer week total beside the Default customer's Balance", () => {
+    withWorkWeek(40);
     mount();
     expect(weekTotal().textContent).toBe('13:45');
     expect(badge().hidden).toBe(false);
-    expect(badge().querySelector('.tt-week-balance-value').textContent).toBe('−18:15');
+    // Acme only: 8:15 + 4:00 logged against Mon–Thu = 32h.
+    expect(badge().querySelector('.tt-week-balance-value').textContent).toBe('−19:45');
+  });
+
+  test("another Customer's entries fill neither its day meter nor the Balance, but count in the day total", () => {
+    withWorkWeek(40);
+    mount([...WEEK_ENTRIES, entry('globex-wed', '2026-11-11T07:00:00.000Z', '2026-11-11T15:00:00.000Z', { projectId: 'p2' })]);
+    expect(hours('Wed')).toBe('8:00');
+    expect(fill('Wed')).toBe('0%');
+    expect(fill('Thu')).toBe('0%');
+    expect(badge().querySelector('.tt-week-balance-value').textContent).toBe('−19:45');
+  });
+
+  test('Workdays Mon–Wed give Thu–Sun a Target of 0, so logged time there fills the meter', () => {
+    withWorkWeek(24, [1, 2, 3]);
+    mount([...WEEK_ENTRIES, entry('acme-thu', '2026-11-12T06:00:00.000Z', '2026-11-12T07:00:00.000Z')]);
+    expect(fill('Mon')).toBe('100%');
+    expect(fill('Tue')).toBe('50%');
+    expect(fill('Thu')).toBe('100%');
+    // 8:15 + 4:00 + 1:00 against Mon–Wed = 24h.
+    expect(badge().querySelector('.tt-week-balance-value').textContent).toBe('−10:45');
+  });
+
+  test('a stored legacy global Weekly hours gives a Default customer without a Work week no meters or Balance', () => {
+    vi.mocked(loadGlobalSettings).mockImplementation(() => ({ timeTracking: { defaultCustomerId: 'c1', weeklyHours: 40 } }));
+    mount();
+    expect(cells().every((c) => c.querySelector('.tt-week-meter') === null)).toBe(true);
+    expect(badge().hidden).toBe(true);
   });
 
   test('highlights today and mutes future days', () => {
@@ -165,7 +205,7 @@ describe('week strip', () => {
   });
 
   test('totals still count all entries under an active list filter', () => {
-    withWeeklyHours(40);
+    withWorkWeek(40);
     mount();
     fireEvent.change(screen.getByLabelText('Filter by customer'), { target: { value: 'c2' } });
     expect(within(screen.getByRole('region', { name: 'Time entries' })).getAllByRole('listitem')).toHaveLength(1);

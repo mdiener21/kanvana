@@ -170,127 +170,36 @@ describe('Settings section', () => {
   });
 });
 
-describe('Weekly hours (contract) setting', () => {
-  const weeklyHours = () => setting('Weekly hours (contract)');
-  const enter = (value) => fireEvent.change(weeklyHours(), { target: { value } });
-  const savedTimeTracking = () => vi.mocked(scheduleDomainEvent).mock.calls.at(-1)[0].payload.fields.timeTracking;
-
-  test('is an empty decimal number input with step 0.5 by default', () => {
-    mount();
-    expect(weeklyHours().type).toBe('number');
-    expect(weeklyHours().getAttribute('inputmode')).toBe('decimal');
-    expect(weeklyHours().getAttribute('step')).toBe('0.5');
-    expect(weeklyHours().hasAttribute('max')).toBe(false);
-    expect(weeklyHours().value).toBe('');
-  });
-
-  test('marks zero as out of range but accepts the smallest step and empty', () => {
-    mount();
-    weeklyHours().value = '0';
-    expect(weeklyHours().validity.rangeUnderflow).toBe(true);
-    weeklyHours().value = '0.5';
-    expect(weeklyHours().validity.valid).toBe(true);
-    weeklyHours().value = '38.5';
-    expect(weeklyHours().validity.valid).toBe(true);
-    weeklyHours().value = '';
-    expect(weeklyHours().validity.valid).toBe(true);
-  });
-
-  test('a decimal value is saved through the global settings event', () => {
-    mount();
-    enter('38.5');
-    expect(scheduleDomainEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'settings.updated', scope: 'global' }));
-    expect(savedTimeTracking().weeklyHours).toBe(38.5);
-    expect(weeklyHours().value).toBe('38.5');
-  });
-
-  test('clearing the field switches the feature off', () => {
-    mount({ settings: { timezone: 'Europe/Berlin', weeklyHours: 40 } });
-    expect(weeklyHours().value).toBe('40');
-    enter('');
-    expect(savedTimeTracking()).not.toHaveProperty('weeklyHours');
-    expect(weeklyHours().value).toBe('');
-  });
-
-  test.each(['0', '-4'])('a value that is not above zero (%s) is not saved and the field reverts', (value) => {
-    mount({ settings: { timezone: 'Europe/Berlin', weeklyHours: 40 } });
-    enter(value);
-    expect(scheduleDomainEvent).not.toHaveBeenCalled();
-    expect(weeklyHours().value).toBe('40');
-  });
-
-  test('follows a value synced from another device, but not while the user is typing in it', async () => {
-    mount();
-    const { emit, DATA_CHANGED } = await import('../../../src/modules/events.js');
-    global.settings = { timeTracking: { timezone: 'Europe/Berlin', weeklyHours: 20 } };
-    emit(DATA_CHANGED);
-    expect(weeklyHours().value).toBe('20');
-
-    weeklyHours().focus();
-    weeklyHours().value = '3';
-    global.settings = { timeTracking: { timezone: 'Europe/Berlin', weeklyHours: 25 } };
-    emit(DATA_CHANGED);
-    expect(weeklyHours().value).toBe('3');
-  });
-});
-
-describe('Workdays setting', () => {
-  const workdays = () => within(settingsSection()).getByRole('group', { name: 'Workdays' });
-  const day = (name) => within(workdays()).getByRole('checkbox', { name });
-  const checked = () => within(workdays()).getAllByRole('checkbox').filter((c) => c.checked).map((c) => c.labels[0].textContent.trim());
-  const savedTimeTracking = () => vi.mocked(scheduleDomainEvent).mock.calls.at(-1)[0].payload.fields.timeTracking;
-
-  test('offers Monday to Sunday with Monday to Friday ticked by default', () => {
-    mount();
-    expect(within(workdays()).getAllByRole('checkbox').map((c) => c.labels[0].textContent.trim()))
-      .toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
-    expect(checked()).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri']);
-  });
-
-  test('ticking and unticking a day saves the workdays through the global settings event', () => {
-    mount();
-    fireEvent.click(day('Sat'));
-    expect(savedTimeTracking().workdays).toEqual([1, 2, 3, 4, 5, 6]);
-    fireEvent.click(day('Mon'));
-    expect(savedTimeTracking().workdays).toEqual([2, 3, 4, 5, 6]);
-    expect(checked()).toEqual(['Tue', 'Wed', 'Thu', 'Fri', 'Sat']);
-  });
-
-  test('the last ticked day cannot be unticked', () => {
-    mount({ settings: { timezone: 'Europe/Berlin', workdays: [3] } });
-    expect(checked()).toEqual(['Wed']);
-    expect(day('Wed').disabled).toBe(true);
-    expect(day('Thu').disabled).toBe(false);
-    fireEvent.click(day('Thu'));
-    expect(day('Wed').disabled).toBe(false);
-  });
-
-  test('follows workdays synced from another device', async () => {
-    mount();
-    const { emit, DATA_CHANGED } = await import('../../../src/modules/events.js');
-    global.settings = { timeTracking: { timezone: 'Europe/Berlin', workdays: [1, 2, 3, 4] } };
-    emit(DATA_CHANGED);
-    expect(checked()).toEqual(['Mon', 'Tue', 'Wed', 'Thu']);
+describe('no global Work week', () => {
+  test('the Settings panel renders neither Weekly hours nor Workdays: the Work week is per Customer', () => {
+    mount({ settings: { timezone: 'Europe/Berlin', weeklyHours: 40, workdays: [1, 2, 3] } });
+    expect(within(settingsSection()).queryByLabelText(/Weekly hours/)).toBeNull();
+    expect(within(settingsSection()).queryByRole('group', { name: 'Workdays' })).toBeNull();
+    expect(within(settingsSection()).queryAllByRole('checkbox')).toEqual([]);
   });
 });
 
 describe('the page follows the settings', () => {
-  test('setting Weekly hours shows the "This week" badge on the tracker; clearing it hides the badge', () => {
+  test(`a stored legacy global Weekly hours gives a Default customer without a Work week no "This week" badge`, () => {
     const monday = { ...LATE, id: 'e2', start: '2026-10-05T06:00:00.000Z', end: '2026-10-05T14:00:00.000Z' };
-    mount({ timeEntries: [monday] });
-    const badge = () => document.querySelector('[data-testid="tt-week-balance"]');
-    expect(badge().hidden).toBe(true);
+    mount({ settings: { timezone: 'Europe/Berlin', defaultCustomerId: 'c1', weeklyHours: 25 }, timeEntries: [monday] });
+    expect(document.querySelector('[data-testid="tt-week-balance"]').hidden).toBe(true);
+  });
 
-    // Mon 5 – Thu 8 Oct so far at 25h over Mon–Fri: Target 20h, logged 8h
-    fireEvent.change(setting('Weekly hours (contract)'), { target: { value: '25' } });
-    expect(badge().hidden).toBe(false);
-    expect(badge().textContent).toContain('−12:00');
-
-    choose('Duration format', 'decimal');
-    expect(badge().textContent).toContain('−12.00 h');
-
-    fireEvent.change(setting('Weekly hours (contract)'), { target: { value: '' } });
-    expect(badge().hidden).toBe(true);
+  test('the badge follows a change of Default customer live', () => {
+    const onApp = { ...LATE, id: 'e3', projectId: 'p4', start: '2026-10-05T06:00:00.000Z', end: '2026-10-05T16:00:00.000Z' };
+    const onWebsite = { ...LATE, id: 'e2', start: '2026-10-05T06:00:00.000Z', end: '2026-10-05T14:00:00.000Z' };
+    mount({ timeEntries: [onWebsite, onApp] });
+    state.customers = [{ ...ACME, weeklyHours: 25 }, { ...BETA, weeklyHours: 10, workdays: [1] }, GONE];
+    choose('Default customer', 'c1');
+    const value = () => document.querySelector('.tt-week-balance-value').textContent;
+    // Acme: Mon–Thu so far at 25h = 20h Target, 8h logged.
+    expect(value()).toBe('−12:00');
+    // Beta: Mondays only at 10h = 10h Target, 10h logged.
+    choose('Default customer', 'c2');
+    expect(value()).toBe('+0:00');
+    choose('Default customer', '');
+    expect(document.querySelector('[data-testid="tt-week-balance"]').hidden).toBe(true);
   });
 
   test('changing a format re-renders the entry list, day totals and entry bar', () => {
