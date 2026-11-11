@@ -79,6 +79,23 @@ describe('legacyWorkWeekMigration', () => {
     expect(legacyWorkWeekMigration(after.globalSettings.timeTracking, after.timeTracking)).toEqual([]);
   });
 
+  // settings.updated replaces globalSettings.timeTracking as a whole, so the clear can only be
+  // narrow by writing every other setting back exactly as this device has it.
+  test('the clear drops only the legacy fields and writes every other setting back as stored', () => {
+    const stored = {
+      ...LEGACY, defaultProjectId: 'p1', timezone: 'Europe/Vienna', durationFormat: 'decimal', futureSetting: { a: 1 }
+    };
+    const { weeklyHours, workdays, ...rest } = stored;
+    expect(legacyWorkWeekMigration(stored, ttOf()).at(-1)).toEqual(settingsClear(rest));
+  });
+
+  test('a settings edit ordered after the clear survives it', () => {
+    const before = createProjectionState({ timeTracking: ttOf(), globalSettings: { timeTracking: LEGACY } });
+    const otherDevice = { ...CLEARED, defaultCustomerId: 'c2' };
+    const events = asEvents([...legacyWorkWeekMigration(LEGACY, before.timeTracking), settingsClear(otherDevice)]);
+    expect(applyEvents(before, events).globalSettings.timeTracking).toEqual(otherDevice);
+  });
+
   test('two devices running it on the same state emit the same events', () => {
     expect(legacyWorkWeekMigration(LEGACY, ttOf())).toEqual(legacyWorkWeekMigration(structuredClone(LEGACY), ttOf()));
   });

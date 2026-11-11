@@ -286,6 +286,10 @@ separate from board settings.
     a device whose default customer already has Weekly hours (from sync) only clears the legacy
     fields. A user with a default customer sees the same Balance before and after the upgrade;
     without one, the legacy values are dropped and no customer gets a Target
+  - `settings.updated` replaces `globalSettings.timeTracking` as a whole (the reducer merges global
+    settings per top-level key only), so the clear writes every other setting back exactly as the
+    device has it. Like any Time Tracking settings save, it wins over a concurrent settings edit
+    from another device that it orders after but had not yet received
 
 ## Weekly hours, Target and Balance
 
