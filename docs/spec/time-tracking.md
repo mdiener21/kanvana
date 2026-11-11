@@ -274,9 +274,10 @@ separate from board settings.
 - There is no global Weekly hours or Workdays: the Work week is per customer (Projects and
   Customers), and resolved settings expose neither field
 - **Legacy migration.** Older versions stored a global `weeklyHours` / `workdays` in
-  `globalSettings.timeTracking`. Once the read model is loaded on the Time Tracking page, a pure
-  migration (`legacyWorkWeekMigration` in `timetracking-legacy-work-week.js`) decides the events,
-  emitted through the normal emitter with the user's actor:
+  `globalSettings.timeTracking`. Once the read model is loaded on the Time Tracking page, and
+  before the page first renders, a pure migration (`legacyWorkWeekMigration` in
+  `timetracking-legacy-work-week.js`) decides the events, emitted through the normal emitter with
+  the user's actor. A failed migration is logged once (`[Kanvana]`) and the page still opens:
   - legacy Weekly hours, a default customer set and that customer has no Weekly hours → one
     `customer.updated` with the legacy Weekly hours and Workdays (Mon–Fri when none were stored)
   - any legacy field present → one global `settings.updated` without `weeklyHours` and `workdays`
