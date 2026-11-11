@@ -19,8 +19,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Time Tracker: the "This week" badge and week-strip meters now show the Default customer's Balance, counting only its entries against its Work week from its first entry (and up to its last while archived); day and week totals still count every customer. With no Default customer, or one without a Work week, the badge is hidden (#301).
 
-- Time Tracking: the "This week" badge, week-strip meters and Reports Balance card now share one Balance entry point; no visible change (#300).
-
 ## [3.4.13] - 2026-11-11
 
 ### Added
