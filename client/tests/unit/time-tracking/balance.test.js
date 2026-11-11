@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { periodBalance, formatBalance } from '../../../src/modules/timetracking-balance.js';
+import { periodBalance, customerBalance, customerWorkWeek, formatBalance } from '../../../src/modules/timetracking-balance.js';
 import { currentPeriod } from '../../../src/modules/timetracking-report.js';
 import { formatDuration } from '../../../src/modules/timetracking-time.js';
 
@@ -169,6 +169,107 @@ describe('periodBalance — one entry point: Time Entries, a Work week and { now
   test('a Work week without Weekly hours gives no Target or Balance', () => {
     const result = periodBalance(first, W42, { weeklyHours: null, workdays: [1, 2, 3, 4, 5] }, after2026);
     expect(result).toEqual({ loggedMs: 0, targetMs: null, balanceMs: null });
+  });
+});
+
+describe('customerBalance — a Customer\'s Balance against its own Work week', () => {
+  const ACME = { id: 'c1', name: 'Acme', color: '#000000', archived: false, weeklyHours: 40, workdays: [1, 2, 3, 4, 5] };
+  const GLOBEX = { id: 'c2', name: 'Globex', color: '#111111', archived: false, weeklyHours: 16, workdays: [4, 5] };
+  const PROJECTS = [
+    { id: 'p1', customerId: 'c1', name: 'Website', color: '#000000', archived: false },
+    { id: 'p2', customerId: 'c2', name: 'Support', color: '#000000', archived: false }
+  ];
+  const onAcme = (id, start, hours) => entry(id, start, hours);
+  const onGlobex = (id, start, hours) => ({ ...entry(id, start, hours), projectId: 'p2' });
+  const ttOf = (timeEntries, customers = [ACME, GLOBEX]) => ({ customers, projects: PROJECTS, timeEntries });
+  const finished = { now: at('2027-02-01T10:00:00Z'), tz: TZ };
+
+  test('counts only Time Entries booked to that Customer\'s Projects', () => {
+    const tt = ttOf([onAcme('a', '2026-10-12T07:00:00.000Z', 30), onGlobex('g', '2026-10-15T07:00:00.000Z', 9)]);
+    expect(customerBalance(tt, 'c1', W42, finished)).toEqual({ loggedMs: 30 * H, targetMs: 40 * H, balanceMs: -10 * H });
+    expect(customerBalance(tt, 'c2', W42, finished)).toEqual({ loggedMs: 9 * H, targetMs: 16 * H, balanceMs: -7 * H });
+  });
+
+  test('another Customer\'s entries change neither its Logged nor its Target', () => {
+    const own = [onAcme('a', '2026-10-14T07:00:00.000Z', 8)];
+    const before = customerBalance(ttOf(own), 'c1', W42, finished);
+    const after = customerBalance(ttOf([...own, onGlobex('early', '2026-10-12T07:00:00.000Z', 5)]), 'c1', W42, finished);
+    expect(after).toEqual(before);
+  });
+
+  test('its Target starts on its own first entry day, ignoring another Customer\'s earlier entries', () => {
+    // Acme first books Wed 14 Oct: Wed–Fri = 24h; Globex booked Mon 12 Oct.
+    const tt = ttOf([onGlobex('g', '2026-10-12T07:00:00.000Z', 2), onAcme('a', '2026-10-14T07:00:00.000Z', 8)]);
+    expect(customerBalance(tt, 'c1', W42, finished).targetMs).toBe(24 * H);
+  });
+
+  test('a Customer without Weekly hours has no Target or Balance', () => {
+    const tt = ttOf([onAcme('a', '2026-10-12T07:00:00.000Z', 8)], [{ ...ACME, weeklyHours: null }, GLOBEX]);
+    expect(customerBalance(tt, 'c1', W42, finished)).toEqual({ loggedMs: 8 * H, targetMs: null, balanceMs: null });
+  });
+
+  test('an unknown or missing Customer has nothing logged and no Target', () => {
+    const tt = ttOf([onAcme('a', '2026-10-12T07:00:00.000Z', 8)]);
+    expect(customerBalance(tt, null, W42, finished)).toEqual({ loggedMs: 0, targetMs: null, balanceMs: null });
+    expect(customerBalance(tt, 'gone', W42, finished)).toEqual({ loggedMs: 0, targetMs: null, balanceMs: null });
+  });
+
+  test('an archived Customer\'s Target stops at its last entry, and unarchiving resumes it to today', () => {
+    // Entries Mon 12 and Tue 13 Oct; today Fri 16 Oct.
+    const entries = [onAcme('mon', '2026-10-12T07:00:00.000Z', 8), onAcme('tue', '2026-10-13T07:00:00.000Z', 8)];
+    const friday = { now: at('2026-10-16T15:00:00Z'), tz: TZ };
+    const archived = customerBalance(ttOf(entries, [{ ...ACME, archived: true }]), 'c1', W42, friday);
+    expect(archived).toEqual({ loggedMs: 16 * H, targetMs: 16 * H, balanceMs: 0 });
+    const unarchived = customerBalance(ttOf(entries, [ACME]), 'c1', W42, friday);
+    expect(unarchived).toEqual({ loggedMs: 16 * H, targetMs: 40 * H, balanceMs: -24 * H });
+  });
+
+  test('an archived Customer has no Target in a period after its last entry', () => {
+    const tt = ttOf([onAcme('a', '2026-10-05T07:00:00.000Z', 8)], [{ ...ACME, archived: true }]);
+    expect(customerBalance(tt, 'c1', W42, finished)).toMatchObject({ targetMs: null, balanceMs: null });
+  });
+
+  test('Workdays Mon–Wed give a Target of 0 on Thu–Sun', () => {
+    const tt = ttOf([onAcme('a', '2026-10-12T07:00:00.000Z', 8)], [{ ...ACME, weeklyHours: 24, workdays: [1, 2, 3] }]);
+    const day = (d) => ({ start: { y: 2026, m: 10, d }, end: { y: 2026, m: 10, d } });
+    expect([12, 13, 14, 15, 16, 17, 18].map((d) => customerBalance(tt, 'c1', day(d), finished).targetMs))
+      .toEqual([8 * H, 8 * H, 8 * H, 0, 0, 0, 0]);
+  });
+
+  test.each([
+    ['week 42', W42, '40:00'],
+    ['October 2026', { start: { y: 2026, m: 10, d: 1 }, end: { y: 2026, m: 10, d: 31 } }, '176:00'],
+    ['2026', { start: { y: 2026, m: 1, d: 1 }, end: { y: 2026, m: 12, d: 31 } }, '2088:00']
+  ])('40h over Mon–Fri still gives %s a Target of %s per Customer', (_name, period, expected) => {
+    const tt = ttOf([onGlobex('g', '2024-01-02T08:00:00.000Z', 1), onAcme('first', '2025-06-02T08:00:00.000Z', 1)]);
+    expect(formatDuration(customerBalance(tt, 'c1', period, finished).targetMs, 'hm')).toBe(expected);
+  });
+
+  test('a Customer stored before Work weeks resolves to no Weekly hours over Mon–Fri', () => {
+    const legacy = { id: 'c1', name: 'Acme', color: '#000000', archived: false };
+    expect(customerWorkWeek(ttOf([], [legacy]), 'c1')).toEqual({ weeklyHours: null, workdays: [1, 2, 3, 4, 5] });
+    const tt = ttOf([onAcme('a', '2026-10-12T07:00:00.000Z', 8)], [{ ...legacy, weeklyHours: 40 }]);
+    expect(customerBalance(tt, 'c1', W42, finished).targetMs).toBe(40 * H);
+  });
+
+  describe('temporary legacy fallback (until the migration)', () => {
+    const legacyWorkWeek = { weeklyHours: 20, workdays: [1, 2] };
+
+    test('a Customer without Weekly hours uses the legacy global Weekly hours and Workdays', () => {
+      const tt = ttOf([onAcme('a', '2026-10-12T07:00:00.000Z', 8)], [{ ...ACME, weeklyHours: null }]);
+      expect(customerWorkWeek(tt, 'c1', legacyWorkWeek)).toEqual(legacyWorkWeek);
+      expect(customerBalance(tt, 'c1', W42, { ...finished, legacyWorkWeek }).targetMs).toBe(20 * H);
+    });
+
+    test('a Customer with its own Weekly hours ignores the legacy value', () => {
+      const tt = ttOf([onAcme('a', '2026-10-12T07:00:00.000Z', 8)]);
+      expect(customerBalance(tt, 'c1', W42, { ...finished, legacyWorkWeek }).targetMs).toBe(40 * H);
+    });
+
+    test('without a Customer the legacy value gives no Target', () => {
+      const tt = ttOf([onAcme('a', '2026-10-12T07:00:00.000Z', 8)]);
+      expect(customerBalance(tt, null, W42, { ...finished, legacyWorkWeek })).toMatchObject({ targetMs: null });
+    });
   });
 });
 

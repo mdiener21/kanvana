@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Time Tracking: each customer in Projects & Customers has a **Work week** (Weekly hours and Workdays), edited in a collapsible row editor that summarises it as e.g. `40h · Mon–Fri` or `No target`; archived customers stay editable (#301).
+
 ### Changed
+
+- Time Tracker: the "This week" badge and week-strip meters now show the Default customer's Balance, counting only its entries against its Work week from its first entry (and up to its last while archived); day and week totals still count every customer. With no Default customer the badge is hidden; a Default customer without a Work week uses the global Weekly hours until those settings are migrated (#301).
 
 - Time Tracking: the "This week" badge, week-strip meters and Reports Balance card now share one Balance entry point; no visible change (#300).
 

@@ -1,4 +1,4 @@
-import { beforeEach, test, expect, vi } from 'vitest';
+import { beforeEach, describe, test, expect, vi } from 'vitest';
 import { resetLocalStorage } from '../setup.js';
 
 // Mock scheduleDomainEvent so tests don't need a real DB
@@ -16,8 +16,9 @@ vi.mock('../../../src/modules/storage.js', async (importOriginal) => {
 });
 
 // Import the pure CRUD module — no DOM/icons dependency
-const { addCustomer, addProject, CRUD_ERROR } = await import('../../../src/modules/timetracking-crud.js');
+const { addCustomer, addProject, updateCustomerWorkWeek, CRUD_ERROR } = await import('../../../src/modules/timetracking-crud.js');
 const { loadTimeTracking } = await import('../../../src/modules/storage.js');
+const { scheduleDomainEvent } = await import('../../../src/modules/event-sourcing/emitter.js');
 
 beforeEach(() => {
   resetLocalStorage();
@@ -145,4 +146,42 @@ test('addProject assigns a color from the palette', () => {
   });
   const result = addProject('c1', 'MVP');
   expect(result.project.color).toMatch(/^#/);
+});
+
+// ── updateCustomerWorkWeek ─────────────────────────────────────────────────────
+
+describe('updateCustomerWorkWeek', () => {
+  const legacyCustomer = { id: 'c1', name: 'Acme', color: '#000000', archived: true };
+  const events = () => vi.mocked(scheduleDomainEvent).mock.calls.map(([event]) => event);
+
+  beforeEach(() => {
+    vi.mocked(scheduleDomainEvent).mockClear();
+    vi.mocked(loadTimeTracking).mockReturnValue({ customers: [legacyCustomer], projects: [], timeEntries: [] });
+  });
+
+  test('emits a customer.updated patch of only the changed fields, with their before values', () => {
+    expect(updateCustomerWorkWeek('c1', { weeklyHours: 24, workdays: [3, 1, 2, 2] })).toEqual({ ok: true, changed: true });
+    expect(events()).toEqual([expect.objectContaining({
+      type: 'customer.updated', scope: 'timetracking', entityId: 'c1',
+      payload: { fields: { weeklyHours: 24, workdays: [1, 2, 3] }, before: { weeklyHours: null, workdays: [1, 2, 3, 4, 5] } }
+    })]);
+  });
+
+  test('an unchanged value emits nothing', () => {
+    expect(updateCustomerWorkWeek('c1', { weeklyHours: null, workdays: [1, 2, 3, 4, 5] })).toEqual({ ok: true, changed: false });
+    expect(events()).toEqual([]);
+  });
+
+  test.each([[0], [-1], [Number.NaN], [Infinity], ['40']])('rejects Weekly hours %s', (weeklyHours) => {
+    expect(updateCustomerWorkWeek('c1', { weeklyHours })).toEqual({ ok: false, reason: CRUD_ERROR.INVALID_WORK_WEEK });
+    expect(events()).toEqual([]);
+  });
+
+  test.each([[[]], [[0]], [[8]], [[1.5]], [null]])('rejects Workdays %j', (workdays) => {
+    expect(updateCustomerWorkWeek('c1', { workdays })).toEqual({ ok: false, reason: CRUD_ERROR.INVALID_WORK_WEEK });
+  });
+
+  test('an unknown Customer is not found', () => {
+    expect(updateCustomerWorkWeek('nope', { weeklyHours: 8 })).toEqual({ ok: false, reason: CRUD_ERROR.NOT_FOUND });
+  });
 });

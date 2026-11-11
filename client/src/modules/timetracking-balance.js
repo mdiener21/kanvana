@@ -38,12 +38,15 @@ function workdaysBefore(day, workdays) {
 const targetBefore = (day, weeklyHours, workdays) =>
   Math.round((weeklyHours * HOUR_MS * workdaysBefore(day, workdays)) / workdays.length);
 
-// Counted days: from the later of period start and first entry day, to the earlier of period end and today.
-function periodTarget(entries, period, { weeklyHours, workdays = DEFAULT_WORKDAYS }, { now, tz }) {
+// Counted days: from the later of period start and first entry day, to the earliest of period end,
+// today and (with `endsAtLastEntry`, for an archived Customer) the last entry day.
+function periodTarget(entries, period, { weeklyHours, workdays = DEFAULT_WORKDAYS }, { now, tz, endsAtLastEntry = false }) {
   if (!(weeklyHours > 0) || entries.length === 0) return null;
-  const firstEntryDay = Math.min(...entries.map((e) => startDay(e, tz)));
-  const first = Math.max(dayNumber(period.start), firstEntryDay);
-  const last = Math.min(dayNumber(period.end), dayNumber(zonedParts(now, tz)));
+  const entryDays = entries.map((e) => startDay(e, tz));
+  const first = Math.max(dayNumber(period.start), Math.min(...entryDays));
+  const last = Math.min(
+    dayNumber(period.end), dayNumber(zonedParts(now, tz)), endsAtLastEntry ? Math.max(...entryDays) : Infinity
+  );
   return last >= first
     ? targetBefore(last + 1, weeklyHours, workdays) - targetBefore(first, weeklyHours, workdays)
     : null;
@@ -52,13 +55,49 @@ function periodTarget(entries, period, { weeklyHours, workdays = DEFAULT_WORKDAY
 // A Work week with Weekly hours has a Target; without, it doesn't.
 export const hasTarget = (workWeek) => workWeek.weeklyHours > 0;
 
+const positiveOrNull = (value) => (typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null);
+
+function workdaysOf(value) {
+  const days = Array.isArray(value) ? value.filter((d) => Number.isInteger(d) && d >= 1 && d <= 7) : [];
+  return days.length ? [...new Set(days)].sort((a, b) => a - b) : [...DEFAULT_WORKDAYS];
+}
+
+// Anything stored, including a Customer from before Work weeks, resolves to a valid Work week.
+export const resolveWorkWeek = (raw) => ({ weeklyHours: positiveOrNull(raw?.weeklyHours), workdays: workdaysOf(raw?.workdays) });
+
+const customerOf = (tt, customerId) => tt.customers.find((c) => c.id === customerId) ?? null;
+
+/**
+ * A Customer's Work week. `legacyWorkWeek` is the temporary fallback to the global Time Tracking
+ * setting for a Customer without Weekly hours; the legacy migration removes it.
+ */
+export function customerWorkWeek(tt, customerId, legacyWorkWeek = null) {
+  const customer = customerOf(tt, customerId);
+  const own = resolveWorkWeek(customer);
+  if (!customer || hasTarget(own) || !legacyWorkWeek || !hasTarget(legacyWorkWeek)) return own;
+  return resolveWorkWeek(legacyWorkWeek);
+}
+
 /**
  * The one entry point for every Balance view: Logged, Target and Balance of `entries` over
  * `period` against a Work week ({ weeklyHours, workdays }). Target and Balance are null when the
  * Work week has no Weekly hours, or no counted day falls in the period.
  */
-export function periodBalance(entries, period, workWeek, { now, tz }) {
+export function periodBalance(entries, period, workWeek, { now, tz, endsAtLastEntry = false }) {
   const loggedMs = loggedIn(entries, dayNumber(period.start), dayNumber(period.end), tz);
-  const targetMs = periodTarget(entries, period, workWeek, { now, tz });
+  const targetMs = periodTarget(entries, period, workWeek, { now, tz, endsAtLastEntry });
   return { loggedMs, targetMs, balanceMs: targetMs === null ? null : loggedMs - targetMs };
+}
+
+/**
+ * A Customer's Balance over `period`: only Time Entries booked to its Projects, against its Work
+ * week. Its Target starts on its own first entry day and, while it is archived, stops at its last.
+ */
+export function customerBalance(tt, customerId, period, { now, tz, legacyWorkWeek = null }) {
+  const customer = customerOf(tt, customerId);
+  const projectIds = new Set(tt.projects.filter((p) => p.customerId === customer?.id).map((p) => p.id));
+  const entries = customer ? (tt.timeEntries ?? []).filter((e) => projectIds.has(e.projectId)) : [];
+  return periodBalance(entries, period, customerWorkWeek(tt, customerId, legacyWorkWeek), {
+    now, tz, endsAtLastEntry: !!customer?.archived
+  });
 }

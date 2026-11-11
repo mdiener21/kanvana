@@ -275,10 +275,13 @@ describe('Workdays setting', () => {
 });
 
 describe('the page follows the settings', () => {
-  test('setting Weekly hours shows the "This week" badge on the tracker; clearing it hides the badge', () => {
+  // Temporary legacy fallback: the global value applies to a Default customer without a Work week.
+  test(`setting Weekly hours shows the Default customer's "This week" badge on the tracker; clearing it hides the badge`, () => {
     const monday = { ...LATE, id: 'e2', start: '2026-10-05T06:00:00.000Z', end: '2026-10-05T14:00:00.000Z' };
     mount({ timeEntries: [monday] });
     const badge = () => document.querySelector('[data-testid="tt-week-balance"]');
+    expect(badge().hidden).toBe(true);
+    choose('Default customer', 'c1');
     expect(badge().hidden).toBe(true);
 
     // Mon 5 – Thu 8 Oct so far at 25h over Mon–Fri: Target 20h, logged 8h
@@ -291,6 +294,22 @@ describe('the page follows the settings', () => {
 
     fireEvent.change(setting('Weekly hours (contract)'), { target: { value: '' } });
     expect(badge().hidden).toBe(true);
+  });
+
+  test('the badge follows a change of Default customer live', () => {
+    const onApp = { ...LATE, id: 'e3', projectId: 'p4', start: '2026-10-05T06:00:00.000Z', end: '2026-10-05T16:00:00.000Z' };
+    const onWebsite = { ...LATE, id: 'e2', start: '2026-10-05T06:00:00.000Z', end: '2026-10-05T14:00:00.000Z' };
+    mount({ timeEntries: [onWebsite, onApp] });
+    state.customers = [{ ...ACME, weeklyHours: 25 }, { ...BETA, weeklyHours: 10, workdays: [1] }, GONE];
+    choose('Default customer', 'c1');
+    const value = () => document.querySelector('.tt-week-balance-value').textContent;
+    // Acme: Mon–Thu so far at 25h = 20h Target, 8h logged.
+    expect(value()).toBe('−12:00');
+    // Beta: Mondays only at 10h = 10h Target, 10h logged.
+    choose('Default customer', 'c2');
+    expect(value()).toBe('+0:00');
+    choose('Default customer', '');
+    expect(document.querySelector('[data-testid="tt-week-balance"]').hidden).toBe(true);
   });
 
   test('changing a format re-renders the entry list, day totals and entry bar', () => {
