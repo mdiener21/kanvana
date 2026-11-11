@@ -198,13 +198,22 @@ See the [glossary](../../CONTEXT.md#time-tracking-glossary) for Untracked gap.
 - Year view: label `2026`, one stacked bar per month (`Jan` … `Dec`, tooltip `October 2026`) and the
   customer / project table for the calendar year; the chart is described as "Monthly hours by
   project, 2026"
-- **Balance card** above the KPIs: `Logged · Target · Balance`, Target and Balance in the duration
-  format, Balance with an explicit sign and green (surplus) / red (deficit). Target is the full
-  Target for finished periods and "so far" including today for the current one. Hidden when Weekly
-  hours is unset, while a customer or project filter is active, and when the period has no Target
-  (future, or entirely before the first Time Entry). For the year this is the year Target and
-  Balance (2026 at 40h over Mon–Fri: Target 2088h 00m when finished); it resets on 1 January and nothing carries
-  across years
+- **Balance card** above the KPIs: `Logged · Target · Balance` of one customer, Target and Balance
+  in the duration format, Balance with an explicit sign and green (surplus) / red (deficit). Target
+  is the full Target for finished periods and "so far" including today for the current one
+  - Filtered to a customer: that customer's Balance, by the same rules as the main screen (only its
+    entries, against its Work week, from its first entry, stopping at its last while archived)
+  - Unfiltered: the default customer's Balance, matching the "This week" badge; hidden with no
+    default customer
+  - Hidden while a project filter is active (a Target belongs to a customer's whole Work week), when
+    the customer shown has no Weekly hours (until the migration, #303, a customer without Weekly
+    hours uses the legacy global Work week), and when the period has no Target (future, or entirely
+    before the customer's first Time Entry)
+  - Logged on the card is the customer's, so with no filter it can differ from the Total KPI, which
+    counts every customer
+  - For the year this is the year Target and Balance (2026 at 40h over Mon–Fri: Target 2088h 00m
+    when finished); it resets on 1 January and nothing carries across years
+  - Switching the customer filter updates the card at once
 - Activating the Time Tracker's "This week" badge opens Reports with Week selected on the current week
 - The switch, previous / next and the badge are at least 44×44px; Reports has no horizontal overflow
   on a phone (Pixel 5)
@@ -222,9 +231,10 @@ See the [glossary](../../CONTEXT.md#time-tracking-glossary) for Untracked gap.
   - Year: 1 January to 31 December, one bucket per month, labelled `2026`
   - Previous / next shift by one period of the same kind; an entry counts wholly toward the week,
     month and year of its start
-  - Given `now` and `weeklyHours`, the summary fills `balanceLogged`, `target` and `balance` from
-    `periodBalance` over all Time Entries (so the first-ever entry sets the start), whatever entries
-    are summarised; Target and Balance are null when Weekly hours is unset or the period has no Target
+  - Given `now` and `balanceCustomerId`, the summary fills `balanceLogged`, `target` and `balance`
+    from `customerBalance` for that customer, whatever entries are summarised; Target and Balance are
+    null with no (or an unknown) customer, a customer without Weekly hours, or a period with no
+    Target. `legacyWorkWeek` passes the temporary global Work week fallback (removed in #303)
 
 ## Projects and Customers
 
@@ -266,7 +276,7 @@ separate from board settings.
 - The default customer also picks whose Balance the Tracker main screen shows (badge, meters)
 - Weekly hours and Workdays here are the legacy global Work week: until the migration (#303) they
   apply to the main screen only as the fallback for a default customer without Weekly hours of its
-  own, and they still drive the Reports Balance card until it goes per customer (#302)
+  own, on the main screen and the Reports Balance card alike
 - Weekly hours is a number input (`inputmode="decimal"`); clearing it switches Target and Balance
   off and removes the value from the stored settings. A value of zero or below is not saved.
 - Workdays is a group of seven checkboxes (`Mon` … `Sun`); each tick saves immediately. The last
@@ -297,9 +307,9 @@ Target and Balance.
   workWeek, { now, tz })` in `timetracking-balance.js`: it takes the Time Entries to count, a Work
   week (`{ weeklyHours, workdays }`, Workdays defaulting to Mon–Fri) and returns `{ loggedMs,
   targetMs, balanceMs }`. `customerBalance(tt, customerId, period, { now, tz })` wraps it for one
-  customer (its entries, its Work week, the archived stop). The badge and week-strip meters use
-  `customerBalance` for the default customer; the Reports Balance card still calls `periodBalance`
-  with the legacy global Work week until #302
+  customer (its entries, its Work week, the archived stop). The badge, week-strip meters and Reports Balance card
+  all use `customerBalance`: the main screen for the default customer, Reports for the filtered
+  customer or else the default customer
 - **"This week" badge** in the Time Tracker header: `This week ±h:mm`, the current week's Balance in
   the duration format, green for a surplus and red for a deficit, sign always shown. It shows the
   default customer's Balance (only its entries, against its Work week), ignores the entry list
@@ -349,13 +359,16 @@ ignored while an input is focused.
   finished, current, future and pre-first-entry weeks, decimal Weekly hours and Monday week start
   across DST; Workdays (default Mon–Fri, weekends add no Target, custom sets, invalid values);
   per-customer Balance (only its entries, own first entry, archived stop / unarchive, Mon–Wed gives
-  Thu–Sun 0, additivity per customer, legacy fallback); `customer.updated` Work week patch
+  Thu–Sun 0, additivity per customer, legacy fallback); the period summary's Balance for one
+  customer in week, month and year (own Work week, own first entry, archived stop, year reset,
+  additivity, no customer / no Weekly hours); `customer.updated` Work week patch
   validation and snapshot replay
 - DOM: entry bar save flow, filters, edit modal, delete confirmation; Weekly hours input; Workdays
   checkboxes (default, save, last day locked, sync); "This week"
   badge visibility and live updates; Reports Week | Month switch, navigation and persisted choice,
-  week chart and table, balance card values, sign / colour and visibility rules; badge opens the
-  current week
+  week chart and table, balance card values, sign / colour and visibility rules (default customer
+  unfiltered, the filtered customer live, hidden under a project filter, without a default customer
+  or Weekly hours); badge opens the current week
 - Unit (Ledger): untracked gaps per day (overlaps merge, < 5 min dropped, midnight-crossing entry,
   single entry, no entries); entry bar Start default continuing from today's latest End
 - DOM (Ledger): inline rename saves on `Enter` and blur, `Esc` restores, unchanged text emits no
@@ -366,8 +379,11 @@ ignored while an input is focused.
   editable, labelled controls; badge and meters count only the default customer, hidden cases, live
   update on default customer and Work week change
 - E2E: full keyboard-only flow (add → select → edit → duplicate → delete → reports month switch) playwright-cli, playwright tests.
-- E2E (desktop): set Weekly hours → log entries → correct Balance for week and month; a Monday at
-  40h shows an 8h Target, and unticking Friday raises it to 10h
+- E2E (desktop): set the default customer's Work week → log entries → correct Balance for week,
+  month and year; a Monday at 40h shows an 8h Target, and unticking Friday raises it to 10h
+- E2E (desktop, Reports): two customers with different Work weeks; unfiltered the card shows the
+  default customer's Balance, the customer filter switches it to that customer's, and a project
+  filter hides it
 - E2E (desktop, Work week): two customers with different Work weeks; the badge follows the default
   customer and its Work week, another customer's entry changes totals only; an archived customer's
   Work week stays editable

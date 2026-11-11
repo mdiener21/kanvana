@@ -960,9 +960,8 @@ describe('"This week" Balance badge', () => {
     expect(badge().hidden).toBe(true);
   });
 
-  // Legacy global Weekly hours: the Reports Balance card goes per Customer in #302.
-  test('activating it shows Reports with Week selected on the current week and its Balance', () => {
-    asDefault({ weeklyHours: 5 });
+  test("activating it shows Reports with Week selected on the current week and the Default customer's Balance", () => {
+    withWeeklyHours(5);
     mount({ timeEntries: THREE_ENTRIES });
     fireEvent.click(badge());
     expect(document.getElementById('tt-section-reports').hidden).toBe(false);

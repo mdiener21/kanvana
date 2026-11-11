@@ -46,15 +46,21 @@ function fakeChart() {
   return { setOption: vi.fn(), resize: vi.fn(), dispose: vi.fn() };
 }
 
-function mount({ durationFormat = 'h:mm', weeklyHours = null, workdays = [1, 2, 3, 4, 5] } = {}) {
+// `weeklyHours` / `workdays` are the Default customer's (Acme's) Work week; `workWeeks` sets any Customer's.
+function mount({
+  durationFormat = 'h:mm', weeklyHours = null, workdays = [1, 2, 3, 4, 5], workWeeks = {},
+  defaultCustomerId = 'c1', legacyWorkWeek = { weeklyHours: null, workdays: [1, 2, 3, 4, 5] }
+} = {}) {
   state = makeState();
+  const weeks = { c1: { weeklyHours, workdays }, ...workWeeks };
+  state.customers = state.customers.map((c) => ({ ...c, ...(weeks[c.id] ?? {}) }));
   prefs = { tz: 'Europe/Berlin', dateFormat: 'DD.MM.YYYY', timeFormat: '24h', durationFormat, now: Date.parse('2026-10-12T10:00:00Z') };
   const host = mountToBody('<section id="host"></section>').querySelector('#host');
   const charts = [];
   panel = mountReportsPanel(host, {
     getPrefs: () => prefs,
     getTimeTracking: () => state,
-    getSettings: () => ({ weeklyHours, workdays }),
+    getSettings: () => ({ defaultCustomerId, ...legacyWorkWeek }),
     createChart: () => { const chart = fakeChart(); charts.push(chart); return chart; }
   });
   panel.show();
@@ -358,15 +364,16 @@ describe('week view', () => {
 });
 
 describe('balance card', () => {
-  test('a finished month at 40h shows Logged, the full Target and a signed Balance (October: 22 workdays, 176h)', () => {
+  test('unfiltered, a finished month at 40h shows the Default customer\'s Logged, full Target and signed Balance (October: 22 workdays, 176h)', () => {
     mount({ weeklyHours: 40 });
     prefs.now = Date.parse('2026-11-16T10:00:00Z');
     panel.show();
     panel.prevPeriod();
     expect(periodLabel().textContent).toBe('October 2026');
-    expect(cardValue('Logged').textContent).toBe('8:30');
+    expect(kpi('Total')).toBe('8:30'); // every Customer
+    expect(cardValue('Logged').textContent).toBe('5:30'); // Acme only
     expect(cardValue('Target').textContent).toBe('176:00');
-    expect(cardValue('Balance').textContent).toBe('−167:30');
+    expect(cardValue('Balance').textContent).toBe('−170:30');
     expect(cardValue('Balance').classList.contains('is-deficit')).toBe(true);
   });
 
@@ -407,18 +414,64 @@ describe('balance card', () => {
     expect(cardValue('Balance').textContent).toBe('−40.00 h');
   });
 
-  test('is hidden when Weekly hours is unset', () => {
+  test('is hidden when the Default customer has no Weekly hours', () => {
     mount();
     expect(card().hidden).toBe(true);
   });
 
-  test('is hidden while a customer or project filter is active, and the logged total still respects the filter', () => {
-    mount({ weeklyHours: 40 });
-    expect(card().hidden).toBe(false);
-    choose(screen.getByLabelText('Filter report by customer'), 'c1');
+  test('is hidden without a Default customer', () => {
+    mount({ weeklyHours: 40, defaultCustomerId: null });
     expect(card().hidden).toBe(true);
-    expect(kpi('Total')).toBe('5:30');
-    choose(screen.getByLabelText('Filter report by customer'), '');
+  });
+
+  test('a Customer filter shows that Customer\'s Balance against its own Work week, live as the filter changes', () => {
+    mount({ weeklyHours: 40, workWeeks: { c2: { weeklyHours: 20, workdays: [1, 2, 3, 4, 5] } } });
+    expect(cardValue('Logged').textContent).toBe('5:30'); // Acme's October
+    expect(cardValue('Target').textContent).toBe('64:00'); // 1–12 Oct: 8 workdays × 8h
+    choose(screen.getByLabelText('Filter report by customer'), 'c2');
+    expect(kpi('Total')).toBe('3:00');
+    expect(cardValue('Logged').textContent).toBe('3:00'); // Globex's October
+    expect(cardValue('Target').textContent).toBe('32:00'); // 8 workdays × 4h
+    expect(cardValue('Balance').textContent).toBe('−29:00');
+    choose(screen.getByLabelText('Filter report by customer'), 'c1');
+    expect(cardValue('Logged').textContent).toBe('5:30');
+    expect(cardValue('Balance').textContent).toBe('−58:30');
+  });
+
+  test.each([
+    ['Week', '0:00', '4:00', '−4:00'], // Mon 12 Oct so far
+    ['Year', '4:15', '92:00', '−87:45'] // 10 Sep (Globex's first entry) – 12 Oct: 23 workdays × 4h
+  ])('a Customer filter works in the %s view', (view, logged, target, balance) => {
+    mount({ workWeeks: { c2: { weeklyHours: 20, workdays: [1, 2, 3, 4, 5] } } });
+    choose(screen.getByLabelText('Filter report by customer'), 'c2');
+    fireEvent.click(periodButton(view));
+    expect(cardValue('Logged').textContent).toBe(logged);
+    expect(cardValue('Target').textContent).toBe(target);
+    expect(cardValue('Balance').textContent).toBe(balance);
+  });
+
+  test('is hidden when the filtered Customer has no Weekly hours, even if the Default customer has', () => {
+    mount({ weeklyHours: 40 });
+    choose(screen.getByLabelText('Filter report by customer'), 'c2');
+    expect(card().hidden).toBe(true);
+    expect(kpi('Total')).toBe('3:00');
+  });
+
+  test('a Customer without Weekly hours uses the legacy Weekly hours while they exist', () => {
+    mount({ legacyWorkWeek: { weeklyHours: 40, workdays: [1, 2, 3, 4, 5] } });
+    choose(screen.getByLabelText('Filter report by customer'), 'c2');
+    expect(cardValue('Logged').textContent).toBe('3:00');
+    expect(cardValue('Target').textContent).toBe('64:00');
+  });
+
+  test('a Project filter hides the card', () => {
+    mount({ weeklyHours: 40 });
+    choose(screen.getByLabelText('Filter report by customer'), 'c1');
+    expect(card().hidden).toBe(false);
+    choose(screen.getByLabelText('Filter report by project'), 'p1');
+    expect(card().hidden).toBe(true);
+    expect(kpi('Total')).toBe('5:00');
+    choose(screen.getByLabelText('Filter report by project'), '');
     expect(card().hidden).toBe(false);
   });
 
@@ -428,10 +481,13 @@ describe('balance card', () => {
     expect(card().hidden).toBe(true);
   });
 
-  test('is hidden for a period before the first entry', () => {
-    mount({ weeklyHours: 40 });
+  test('is hidden for a period before the Customer\'s first entry', () => {
+    mount({ weeklyHours: 40, workWeeks: { c2: { weeklyHours: 40, workdays: [1, 2, 3, 4, 5] } } });
     panel.prevPeriod();
-    expect(card().hidden).toBe(false);
+    expect(periodLabel().textContent).toBe('September 2026');
+    expect(card().hidden).toBe(true); // Acme starts 1 Oct
+    choose(screen.getByLabelText('Filter report by customer'), 'c2');
+    expect(card().hidden).toBe(false); // Globex starts 10 Sep
     panel.prevPeriod();
     expect(periodLabel().textContent).toBe('August 2026');
     expect(card().hidden).toBe(true);
@@ -518,18 +574,18 @@ describe('year balance card', () => {
     fireEvent.click(periodButton('Year'));
     panel.prevPeriod();
     expect(periodLabel().textContent).toBe('2026');
-    expect(cardValue('Logged').textContent).toBe('11:45');
+    expect(cardValue('Logged').textContent).toBe('7:30'); // Acme only
     expect(cardValue('Target').textContent).toBe('2088:00');
-    expect(cardValue('Balance').textContent).toBe('−2076:15');
+    expect(cardValue('Balance').textContent).toBe('−2080:30');
     expect(cardValue('Balance').classList.contains('is-deficit')).toBe(true);
   });
 
-  test('the current year counts so far, from the first entry when that falls mid-year', () => {
+  test('the current year counts so far, from the Customer\'s first entry when that falls mid-year', () => {
     mount({ weeklyHours: 40 });
     fireEvent.click(periodButton('Year'));
-    // 10 Sep (first entry) – 12 Oct (today) = 23 workdays × 8h
-    expect(cardValue('Target').textContent).toBe('184:00');
-    expect(cardValue('Balance').textContent).toBe('−174:15');
+    // 1 Oct (Acme's first entry) – 12 Oct (today) = 8 workdays × 8h
+    expect(cardValue('Target').textContent).toBe('64:00');
+    expect(cardValue('Balance').textContent).toBe('−58:30');
   });
 
   test('the Balance resets on 1 January', () => {
@@ -543,11 +599,12 @@ describe('year balance card', () => {
     expect(cardValue('Balance').textContent).toBe('−7:00');
   });
 
-  test('is hidden when filtered, for a future year and for a year before the first entry', () => {
+  test('is hidden for a Project filter, a future year and a year before the first entry', () => {
     mount({ weeklyHours: 40 });
     fireEvent.click(periodButton('Year'));
     expect(card().hidden).toBe(false);
     choose(screen.getByLabelText('Filter report by customer'), 'c1');
+    choose(screen.getByLabelText('Filter report by project'), 'p2');
     expect(card().hidden).toBe(true);
     choose(screen.getByLabelText('Filter report by customer'), '');
     panel.nextPeriod();

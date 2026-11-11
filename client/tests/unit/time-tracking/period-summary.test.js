@@ -254,23 +254,56 @@ describe('year period', () => {
   });
 });
 
-describe('Target and Balance', () => {
+describe('Customer Balance', () => {
   const NOW = Date.parse('2026-11-16T10:00:00.000Z');
-  const oct1 = entry('oct1', 'p1', '2026-10-01T07:00:00.000Z', '2026-10-01T15:00:00.000Z');
-  const oct20 = entry('oct20', 'p3', '2026-10-20T07:00:00.000Z', '2026-10-20T09:00:00.000Z');
-  const withEntries = { ...tt, timeEntries: [oct1, oct20] };
+  const oct1 = entry('oct1', 'p1', '2026-10-01T07:00:00.000Z', '2026-10-01T15:00:00.000Z'); // Acme 8h
+  const oct20 = entry('oct20', 'p3', '2026-10-20T07:00:00.000Z', '2026-10-20T09:00:00.000Z'); // Globex 2h
+  const withWorkWeeks = (data, weeks) => ({
+    ...data, customers: data.customers.map((c) => ({ ...c, ...(weeks[c.id] ?? {}) }))
+  });
+  const twoCustomers = withWorkWeeks({ ...tt, timeEntries: [oct1, oct20] }, { c1: { weeklyHours: 40 }, c2: { weeklyHours: 20 } });
+  const acme = { tz: TZ, now: NOW, balanceCustomerId: 'c1' };
+  const globex = { tz: TZ, now: NOW, balanceCustomerId: 'c2' };
 
-  test('stay null when Weekly hours are unset', () => {
-    for (const kind of ['week', 'month', 'year']) {
-      const s = summarizePeriod(withEntries, withEntries.timeEntries, periodOf(kind, { y: 2026, m: 10, d: 12 }), { tz: TZ, now: NOW });
-      expect(s).toMatchObject({ target: null, balance: null });
+  test.each([
+    ['week', 4],
+    ['month', 9],
+    ['year', 20]
+  ])('a %s shows only that Customer\'s Logged, Target and Balance', (kind, workdays) => {
+    const period = periodOf(kind, { y: 2026, m: 10, d: 20 });
+    const s = summarizePeriod(twoCustomers, [oct20], period, globex);
+    // Globex: 20h a week (4h a workday) from its first entry, Tue 20 Oct, to today (Mon 16 Nov)
+    expect(s).toMatchObject({ balanceLogged: 2 * H, target: workdays * 4 * H, balance: 2 * H - workdays * 4 * H });
+  });
+
+  test('each Customer is judged against its own Work week, while the KPIs sum the summarised entries', () => {
+    const s = summarizePeriod(twoCustomers, twoCustomers.timeEntries, OCT, acme);
+    expect(s).toMatchObject({ balanceLogged: 8 * H, target: 22 * 8 * H, balance: 8 * H - 22 * 8 * H });
+    expect(s.totalMs).toBe(10 * H);
+  });
+
+  test('the Target follows the Customer\'s Workdays', () => {
+    const data = withWorkWeeks(twoCustomers, { c1: { weeklyHours: 40, workdays: [1, 2, 3, 4] } });
+    expect(summarizePeriod(data, [], OCT, acme).target).toBe(17 * 10 * H); // 17 Mon–Thu in October
+  });
+
+  test('no Customer, an unknown Customer or one without Weekly hours has no Target', () => {
+    const data = withWorkWeeks(twoCustomers, { c2: { weeklyHours: null } });
+    for (const balanceCustomerId of [null, 'gone', 'c2']) {
+      expect(summarizePeriod(data, data.timeEntries, OCT, { tz: TZ, now: NOW, balanceCustomerId }))
+        .toMatchObject({ target: null, balance: null });
     }
   });
 
-  test('a finished month at 40h has the full Target and Balance = logged − Target', () => {
-    const s = summarizePeriod(withEntries, withEntries.timeEntries, OCT, { tz: TZ, now: NOW, weeklyHours: 40 });
-    expect(s.target).toBe(22 * 8 * H); // 22 workdays Mon–Fri
-    expect(s.balance).toBe(10 * H - s.target);
+  test('a Customer without Weekly hours falls back to the legacy Work week while it exists', () => {
+    const data = withWorkWeeks(twoCustomers, { c2: { weeklyHours: null } });
+    const s = summarizePeriod(data, [], OCT, { ...globex, legacyWorkWeek: { weeklyHours: 10, workdays: [1, 2, 3, 4, 5] } });
+    expect(s).toMatchObject({ balanceLogged: 2 * H, target: 9 * 2 * H });
+  });
+
+  test('an archived Customer\'s Target stops at its last entry', () => {
+    const data = withWorkWeeks(twoCustomers, { c2: { weeklyHours: 20, archived: true } });
+    expect(summarizePeriod(data, [], OCT, globex).target).toBe(4 * H); // Tue 20 Oct only
   });
 
   test.each([
@@ -279,43 +312,35 @@ describe('Target and Balance', () => {
     ['30-day November 2026 (21 workdays)', 2026, 11, '168:00'],
     ['31-day October 2026 (22 workdays)', 2026, 10, '176:00']
   ])('a finished %s at 40h has a Target of %s', (_, y, m, expected) => {
-    const data = { ...tt, timeEntries: [entry('first', 'p1', `${y - 1}-06-01T08:00:00.000Z`, `${y - 1}-06-01T09:00:00.000Z`)] };
-    const s = summarizePeriod(data, [], month(y, m), { tz: TZ, now: Date.parse(`${y + 1}-01-15T10:00:00Z`), weeklyHours: 40 });
+    const data = withWorkWeeks(
+      { ...tt, timeEntries: [entry('first', 'p1', `${y - 1}-06-01T08:00:00.000Z`, `${y - 1}-06-01T09:00:00.000Z`)] },
+      { c1: { weeklyHours: 40 } }
+    );
+    const s = summarizePeriod(data, [], month(y, m), { ...acme, now: Date.parse(`${y + 1}-01-15T10:00:00Z`) });
     expect(formatDuration(s.target, 'hm')).toBe(expected);
     expect(s.balance).toBe(-s.target);
   });
 
   test('a finished week at 40h has a Target of exactly 40h', () => {
-    const week = periodOf('week', { y: 2026, m: 10, d: 20 });
-    const s = summarizePeriod(withEntries, withEntries.timeEntries, week, { tz: TZ, now: NOW, weeklyHours: 40 });
-    expect(s).toMatchObject({ target: 40 * H, balance: 2 * H - 40 * H });
+    const data = withWorkWeeks(twoCustomers, { c2: { weeklyHours: 40 } });
+    const s = summarizePeriod(data, data.timeEntries, periodOf('week', { y: 2026, m: 10, d: 27 }), globex);
+    expect(s).toMatchObject({ target: 40 * H, balance: -40 * H });
   });
 
-  test('the Target starts at the first-ever Time Entry even when only some entries are summarised', () => {
-    const s = summarizePeriod(withEntries, [oct20], OCT, { tz: TZ, now: NOW, weeklyHours: 40 });
-    expect(s.target).toBe(22 * 8 * H);
-    expect(s.totalMs).toBe(2 * H);
-  });
-
-  test('the Balance counts every Time Entry in the period, whatever entries are summarised', () => {
-    const s = summarizePeriod(withEntries, [oct20], OCT, { tz: TZ, now: NOW, weeklyHours: 40 });
-    expect(s.balanceLogged).toBe(10 * H);
-    expect(s.balance).toBe(10 * H - 22 * 8 * H);
-  });
-
-  test('future periods and periods before the first entry have no Target', () => {
-    const options = { tz: TZ, now: NOW, weeklyHours: 40 };
-    expect(summarizePeriod(withEntries, withEntries.timeEntries, month(2026, 12), options)).toMatchObject({ target: null, balance: null });
-    expect(summarizePeriod(withEntries, withEntries.timeEntries, month(2026, 9), options)).toMatchObject({ target: null, balance: null });
+  test('future periods and periods before the Customer\'s first entry have no Target', () => {
+    expect(summarizePeriod(twoCustomers, [], month(2026, 12), acme)).toMatchObject({ target: null, balance: null });
+    expect(summarizePeriod(twoCustomers, [], month(2026, 9), acme)).toMatchObject({ target: null, balance: null });
   });
 
   describe('year Target', () => {
-    const allYear = (y) => ({ ...tt, timeEntries: [entry('first', 'p1', `${y - 1}-06-01T08:00:00.000Z`, `${y - 1}-06-01T09:00:00.000Z`)] });
+    const allYear = (y, weeklyHours) => withWorkWeeks(
+      { ...tt, timeEntries: [entry('first', 'p3', `${y - 1}-06-01T08:00:00.000Z`, `${y - 1}-06-01T09:00:00.000Z`)] },
+      { c2: { weeklyHours } }
+    );
     const yearOf = (y) => periodOf('year', { y, m: 1, d: 1 });
 
     test('a finished 2026 at 40h is 2088h (261 workdays)', () => {
-      const data = allYear(2026);
-      const s = summarizePeriod(data, [], yearOf(2026), { tz: TZ, now: Date.parse('2027-02-01T10:00:00Z'), weeklyHours: 40 });
+      const s = summarizePeriod(allYear(2026, 40), [], yearOf(2026), { ...globex, now: Date.parse('2027-02-01T10:00:00Z') });
       expect(formatDuration(s.target, 'hm')).toBe('2088:00');
       expect(s.balance).toBe(-s.target);
     });
@@ -325,9 +350,9 @@ describe('Target and Balance', () => {
       ['leap 2028', 2028, 40, 260],
       ['non-leap 2027 with decimal hours', 2027, 38.5, 261],
       ['leap 2024 with odd hours', 2024, 37.3, 262]
-    ])('the month Targets of %s add up exactly to the year Target', (_, y, weeklyHours, workdays) => {
-      const data = allYear(y);
-      const options = { tz: TZ, now: Date.parse(`${y + 1}-03-01T10:00:00Z`), weeklyHours };
+    ])('the month Targets of %s add up exactly to the Customer\'s year Target', (_, y, weeklyHours, workdays) => {
+      const data = allYear(y, weeklyHours);
+      const options = { ...globex, now: Date.parse(`${y + 1}-03-01T10:00:00Z`) };
       const yearTarget = summarizePeriod(data, [], yearOf(y), options).target;
       const monthTargets = Array.from({ length: 12 }, (_, i) => summarizePeriod(data, [], month(y, i + 1), options).target);
       expect(monthTargets.reduce((a, b) => a + b, 0)).toBe(yearTarget);
@@ -335,31 +360,38 @@ describe('Target and Balance', () => {
     });
 
     test('the current year counts "so far", including today', () => {
-      const data = allYear(2026);
       // Thu 12 Nov 2026 in Berlin: 1 Jan – 12 Nov = 226 workdays
-      const s = summarizePeriod(data, [], yearOf(2026), { tz: TZ, now: Date.parse('2026-11-12T10:00:00Z'), weeklyHours: 35 });
+      const s = summarizePeriod(allYear(2026, 35), [], yearOf(2026), { ...globex, now: Date.parse('2026-11-12T10:00:00Z') });
       expect(s.target).toBe(226 * 7 * H);
     });
 
-    test('a year counts from the first-ever entry when that falls mid-year', () => {
-      const data = { ...tt, timeEntries: [entry('first', 'p1', '2026-11-01T23:30:00.000Z', '2026-11-02T01:00:00.000Z')] }; // Mon 2 Nov 00:30 CET
-      const s = summarizePeriod(data, data.timeEntries, yearOf(2026), { tz: TZ, now: Date.parse('2027-01-05T10:00:00Z'), weeklyHours: 35 });
+    test('a year counts from the Customer\'s own first entry, not another Customer\'s', () => {
+      const data = withWorkWeeks({
+        ...tt,
+        timeEntries: [
+          entry('other', 'p1', '2026-01-05T08:00:00.000Z', '2026-01-05T09:00:00.000Z'),
+          entry('first', 'p3', '2026-11-01T23:30:00.000Z', '2026-11-02T01:00:00.000Z') // Mon 2 Nov 00:30 CET
+        ]
+      }, { c2: { weeklyHours: 35 } });
+      const s = summarizePeriod(data, data.timeEntries, yearOf(2026), { ...globex, now: Date.parse('2027-01-05T10:00:00Z') });
       expect(s.target).toBe(44 * 7 * H); // 2 Nov – 31 Dec: 44 workdays
       expect(s.balance).toBe(1.5 * H - 44 * 7 * H);
     });
 
     test('the Balance resets on 1 January: a new year counts only its own days and entries', () => {
-      const data = { ...tt, timeEntries: [entry('old', 'p1', '2026-03-02T08:00:00.000Z', '2026-03-02T18:00:00.000Z')] };
-      const s = summarizePeriod(data, data.timeEntries, yearOf(2027), { tz: TZ, now: Date.parse('2027-01-02T10:00:00Z'), weeklyHours: 35 });
+      const data = withWorkWeeks(
+        { ...tt, timeEntries: [entry('old', 'p3', '2026-03-02T08:00:00.000Z', '2026-03-02T18:00:00.000Z')] },
+        { c2: { weeklyHours: 35 } }
+      );
+      const s = summarizePeriod(data, data.timeEntries, yearOf(2027), { ...globex, now: Date.parse('2027-01-02T10:00:00Z') });
       // Fri 1 – Sat 2 Jan 2027: one workday
-      expect(s).toMatchObject({ totalMs: 0, target: 7 * H, balance: -7 * H });
+      expect(s).toMatchObject({ totalMs: 0, balanceLogged: 0, target: 7 * H, balance: -7 * H });
     });
 
     test('future years and years before the first entry have no Target', () => {
-      const data = allYear(2026);
-      const options = { tz: TZ, now: Date.parse('2026-11-12T10:00:00Z'), weeklyHours: 40 };
-      expect(summarizePeriod(data, [], yearOf(2027), options)).toMatchObject({ target: null, balance: null });
-      expect(summarizePeriod(data, [], yearOf(2024), options)).toMatchObject({ target: null, balance: null });
+      const options = { ...globex, now: Date.parse('2026-11-12T10:00:00Z') };
+      expect(summarizePeriod(allYear(2026, 40), [], yearOf(2027), options)).toMatchObject({ target: null, balance: null });
+      expect(summarizePeriod(allYear(2026, 40), [], yearOf(2024), options)).toMatchObject({ target: null, balance: null });
     });
   });
 });

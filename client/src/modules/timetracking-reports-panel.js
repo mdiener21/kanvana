@@ -164,7 +164,10 @@ const createEChart = (element) => echarts.init(element);
 
 const isVisible = (element) => !element.closest('[hidden]');
 
-const isFiltered = ({ customerId, projectId }) => !!(customerId || projectId);
+// The Customer whose Balance the card shows: the filtered one, else the Default customer. A Project
+// filter has none: a Target belongs to a Customer's whole Work week, not to one of its Projects.
+const balanceCustomerOf = ({ customerId, projectId }, { defaultCustomerId }) =>
+  projectId ? null : customerId || defaultCustomerId || null;
 
 export function mountReportsPanel(container, {
   getPrefs,
@@ -216,9 +219,8 @@ export function mountReportsPanel(container, {
     empty.textContent = `No time tracked this ${kind}`;
   }
 
-  // Target / Balance compare against the whole contract, so a filtered report shows none.
-  function renderBalance(filtered) {
-    const show = !filtered && summary.target !== null;
+  function renderBalance() {
+    const show = summary.target !== null;
     balanceCard.hidden = !show;
     if (!show) return;
     balanceValues.logged.textContent = formatDuration(summary.balanceLogged, prefs.durationFormat);
@@ -232,14 +234,17 @@ export function mountReportsPanel(container, {
     if (followsCurrentPeriod) period = currentPeriod(kind, prefs.now, prefs.tz);
     filter.refresh();
     const activeFilter = filter.getFilter();
-    const { weeklyHours, workdays } = getSettings();
+    const settings = getSettings();
     summary = summarizePeriod(tt, filterEntries(tt, activeFilter), period, {
-      tz: prefs.tz, now: prefs.now, weeklyHours, workdays
+      tz: prefs.tz,
+      now: prefs.now,
+      balanceCustomerId: balanceCustomerOf(activeFilter, settings),
+      legacyWorkWeek: { weeklyHours: settings.weeklyHours, workdays: settings.workdays }
     });
     const name = summary.label;
     label.textContent = name;
     renderPeriodControls();
-    renderBalance(isFiltered(activeFilter));
+    renderBalance();
     chartElement.setAttribute('aria-label', `${PERIOD_VIEWS[kind].chartName} hours by project, ${name}`);
     kpis.total.textContent = formatDuration(summary.totalMs, prefs.durationFormat);
     kpis.entries.textContent = String(summary.entryCount);

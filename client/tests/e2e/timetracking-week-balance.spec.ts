@@ -108,10 +108,12 @@ test('on a phone, the Year view with 12 monthly bars and its Balance fit the scr
   await page.clock.install({ time: new Date('2026-10-15T12:00:00+02:00') });
   await page.goto('/timetracking.html');
   await logTodayOnPhone(page, '6h');
-  await page.locator('#tt-nav-settings').tap();
-  const weeklyHours = page.locator('#tt-section-settings').getByLabel('Weekly hours (contract)');
+  await page.locator('#tt-nav-projects').tap();
+  await page.getByRole('group', { name: 'Work week for Acme' }).locator('summary').tap();
+  const weeklyHours = page.getByLabel('Weekly hours for Acme');
   await weeklyHours.fill('25');
   await weeklyHours.press('Tab');
+  await chooseDefaultCustomer(page, 'Acme');
 
   await page.locator('#tt-nav-reports').tap();
   const reports = page.locator('#tt-section-reports');
