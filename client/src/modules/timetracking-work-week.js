@@ -32,7 +32,7 @@ export function workWeekEditorHtml(customer) {
   const name = escapeHtml(customer.name);
   const hoursId = `tt-work-week-hours-${id}`;
   return `
-        <details class="tt-work-week" role="group" aria-label="Work week for ${name}" data-work-week="${id}">
+        <details class="tt-work-week" aria-label="Work week for ${name}" data-work-week="${id}">
           <summary class="tt-work-week-summary">
             <span class="tt-work-week-title">Work week</span>
             <span class="tt-work-week-value">${escapeHtml(workWeekSummary(customer))}</span>
