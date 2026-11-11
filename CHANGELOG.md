@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Time Tracker: a page left open no longer saves a stale End time; an untouched entry bar moves its default times to now when you come back to it or save.
 - Time Tracker: a future day in the week strip no longer shows a full meter for time logged ahead, and a gap after a long entry that contains a shorter one now shows right above that long entry.
 - Time Tracker: muted labels, future days, today's label and Fill buttons meet 4.5:1 contrast.
+- Time Tracker on phones: the Date field in the entry bar no longer truncates its value on Pixel 5, so the full date stays readable while keeping the layout overflow-free.
 
 ## [3.4.12] - 2026-11-08
 
