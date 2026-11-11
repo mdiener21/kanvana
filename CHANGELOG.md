@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.14] - 2026-11-11
+
 ### Added
 
 - Time Tracking: each customer in Projects & Customers has a **Work week** (Weekly hours and Workdays), edited in a collapsible row editor that summarises it as e.g. `40h · Mon–Fri` or `No target`; archived customers stay editable (#301).
