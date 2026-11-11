@@ -349,3 +349,109 @@ describe('archive and delete', () => {
     expect(customerRow()).toBeNull();
   });
 });
+
+describe('Work week editor', () => {
+  const ACME = { id: 'c1', name: 'Acme', color: '#000000', archived: false };
+  const editor = (name = 'Acme') => within(list()).getByRole('group', { name: `Work week for ${name}` });
+  const summary = (name) => editor(name).querySelector('summary');
+  const hours = (name = 'Acme') => within(list()).getByLabelText(`Weekly hours for ${name}`);
+  const day = (dayName, name = 'Acme') => within(within(list()).getByRole('group', { name: `Workdays for ${name}` }))
+    .getByRole('checkbox', { name: dayName });
+  const lastEvent = () => vi.mocked(scheduleDomainEvent).mock.lastCall[0];
+
+  test('is collapsed by default and summarises a Customer stored before Work weeks as "No target"', () => {
+    mount({ customers: [ACME] });
+    expect(editor().open).toBe(false);
+    expect(summary().textContent.replace(/\s+/g, ' ').trim()).toBe('Work week No target');
+    fireEvent.click(summary());
+    expect(day('Mon').checked).toBe(true);
+    expect(day('Fri').checked).toBe(true);
+    expect(day('Sat').checked).toBe(false);
+    expect(hours().value).toBe('');
+  });
+
+  test('summarises Weekly hours and Workdays', () => {
+    mount({ customers: [
+      { ...ACME, weeklyHours: 40, workdays: [1, 2, 3, 4, 5] },
+      { id: 'c2', name: 'Beta', color: '#111111', archived: false, weeklyHours: 24, workdays: [1, 2, 3] },
+      { id: 'c3', name: 'Gamma', color: '#222222', archived: false, weeklyHours: 7.5, workdays: [1, 3, 4, 5] }
+    ] });
+    expect(summary('Acme').textContent).toContain('40h · Mon–Fri');
+    expect(summary('Beta').textContent).toContain('24h · Mon–Wed');
+    expect(summary('Gamma').textContent).toContain('7.5h · Mon, Wed–Fri');
+  });
+
+  test('Weekly hours is a decimal input with step 0.5, above 0 and no maximum, and saves on change', () => {
+    mount({ customers: [ACME] });
+    expect(hours().type).toBe('number');
+    expect(hours().getAttribute('inputmode')).toBe('decimal');
+    expect(hours().getAttribute('step')).toBe('0.5');
+    expect(hours().hasAttribute('max')).toBe(false);
+    fireEvent.change(hours(), { target: { value: '37.5' } });
+    expect(lastEvent()).toMatchObject({
+      type: 'customer.updated', scope: 'timetracking', entityId: 'c1',
+      payload: { fields: { weeklyHours: 37.5 }, before: { weeklyHours: null } }
+    });
+    expect(summary().textContent).toContain('37.5h · Mon–Fri');
+  });
+
+  test('keeps the editor open and focus on the input across the re-render a save causes', () => {
+    mount({ customers: [ACME] });
+    fireEvent.click(summary());
+    editor().open = true;
+    hours().focus();
+    fireEvent.change(hours(), { target: { value: '40' } });
+    expect(editor().open).toBe(true);
+    expect(document.activeElement).toBe(hours());
+  });
+
+  test('clearing Weekly hours removes them, switching the Target off', () => {
+    mount({ customers: [{ ...ACME, weeklyHours: 40, workdays: [1, 2, 3, 4, 5] }] });
+    expect(hours().value).toBe('40');
+    fireEvent.change(hours(), { target: { value: '' } });
+    expect(lastEvent().payload).toEqual({ fields: { weeklyHours: null }, before: { weeklyHours: 40 } });
+    expect(summary().textContent).toContain('No target');
+  });
+
+  test('a zero or negative value is not saved', () => {
+    mount({ customers: [{ ...ACME, weeklyHours: 40 }] });
+    fireEvent.change(hours(), { target: { value: '0' } });
+    fireEvent.change(hours(), { target: { value: '-5' } });
+    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(hours().value).toBe('40');
+  });
+
+  test('each Workday tick saves, and the last ticked day is disabled', () => {
+    mount({ customers: [{ ...ACME, weeklyHours: 16, workdays: [4, 5] }] });
+    fireEvent.click(day('Fri'));
+    expect(lastEvent()).toMatchObject({
+      type: 'customer.updated', entityId: 'c1', payload: { fields: { workdays: [4] }, before: { workdays: [4, 5] } }
+    });
+    expect(day('Thu').checked).toBe(true);
+    expect(day('Thu').disabled).toBe(true);
+    fireEvent.click(day('Mon'));
+    expect(lastEvent().payload.fields).toEqual({ workdays: [1, 4] });
+    expect(day('Thu').disabled).toBe(false);
+    expect(summary().textContent).toContain('16h · Mon, Thu');
+  });
+
+  test('an archived Customer\'s Work week stays editable', () => {
+    mount({ customers: [{ ...ACME, archived: true }] });
+    expect(hours().disabled).toBe(false);
+    fireEvent.change(hours(), { target: { value: '20' } });
+    expect(lastEvent()).toMatchObject({ type: 'customer.updated', payload: { fields: { weeklyHours: 20 } } });
+    fireEvent.click(day('Wed'));
+    expect(lastEvent().payload.fields).toEqual({ workdays: [1, 2, 4, 5] });
+  });
+
+  test('is keyboard operable with labelled controls', () => {
+    mount({ customers: [ACME] });
+    expect(summary().tagName).toBe('SUMMARY');
+    for (const control of [hours(), day('Mon'), day('Sun')]) {
+      expect(control.tabIndex).toBe(0);
+      expect(control.labels.length).toBeGreaterThan(0);
+    }
+    expect(day('Sun').labels[0].textContent.trim()).toBe('Sun');
+    expect(hours().labels[0].textContent).toContain('Weekly hours');
+  });
+});

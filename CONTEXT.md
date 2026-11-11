@@ -62,7 +62,8 @@ last end, that no Time Entry covers. Derived for display only, never stored and 
 
 **Time Tracking settings** live in the global settings layer (`globalSettings.timeTracking`, synced
 via `settings.updated` with `global` scope). Only values the user explicitly chose are stored; an
-unset timezone resolves to each device's browser timezone.
+unset timezone resolves to each device's browser timezone. They hold no Work week: Weekly hours and
+Workdays belong to each Customer (see Work week).
 
 **Last-used project** — the project of the last saved or duplicated Time Entry, pre-filled in the
 entry bar ahead of the default project. It is **per-device** state in `localStorage`
@@ -75,22 +76,31 @@ Reports Week | Month | Year switch. Like the last-used project it is **per-devic
 settings, and never emits an event. Only the switch writes it; opening this week from the "This
 week" badge does not. An unknown or missing value falls back to `month`.
 
-**Weekly hours** — the user's contractual hours per week; an optional Time Tracking setting
-(`weeklyHours`, a number > 0, decimals allowed, no maximum). Unset means off: no Target or Balance
-anywhere. The current value applies to every period; there is no history of earlier values.
+**Work week** — a Customer's contract: its **Weekly hours** and **Workdays**, stored on the Customer
+(`weeklyHours`, `workdays`) and edited in Projects & Customers as `customer.updated` field patches.
+A Customer without Weekly hours has no Target. Customers stored before Work weeks resolve to no
+Weekly hours over Mon–Fri. The current Work week applies to every period; there is no history of
+earlier values. The **Default customer** setting also picks whose Balance the Tracker main screen
+shows. There is no global Work week: older versions' global Time Tracking `weeklyHours` /
+`workdays` are moved onto the Default customer (if it has no Weekly hours yet) and removed from the
+settings by a one-off migration on the Time Tracking page; nothing reads them any more.
 
-**Workdays** — the weekdays the Weekly hours are spread over; a Time Tracking setting (`workdays`,
-ISO weekday numbers 1 = Monday … 7 = Sunday, at least one). Default Monday to Friday. Like Weekly
-hours, the current value applies to every period. Time logged on a non-workday still counts as
-logged; it just adds no Target.
+**Weekly hours** — a Customer's contractual hours per week; part of its Work week (`weeklyHours`, a
+number > 0, decimals allowed, no maximum). Unset means off: no Target or Balance for that Customer.
 
-**Target** — the Duration a period should contain: Weekly hours ÷ number of Workdays × counted
-workdays. Counted days run from the later of the period start and the day of the first-ever Time
-Entry, up to the earlier of the period end and today (inclusive), in the Time Tracking timezone; of
+**Workdays** — the weekdays a Customer's Weekly hours are spread over; part of its Work week
+(`workdays`, ISO weekday numbers 1 = Monday … 7 = Sunday, at least one). Default Monday to Friday.
+Time logged on a non-workday still counts as logged; it just adds no Target.
+
+**Target** — the Duration a period should contain for one Customer: its Weekly hours ÷ number of
+Workdays × counted workdays. Only Time Entries booked to the Customer's Projects count. Counted days
+run from the later of the period start and the day of that Customer's first Time Entry, up to the
+earliest of the period end, today (inclusive) and, for an archived Customer, its last Time Entry
+day (unarchiving resumes counting to today), in the Time Tracking timezone; of
 those, only Workdays add Target. There are no holidays or absences. A finished week's Target is
 exactly the Weekly hours (40h over Mon–Fri: 8h each weekday, a Monday so far is 8h, the weekend
 adds nothing); the current period gets a "so far" Target. Future periods and periods entirely
-before the first Time Entry have no Target. Weeks start Monday.
+before the Customer's first Time Entry have no Target. Weeks start Monday.
 
 **Balance** — logged Duration minus Target for one period, shown with an explicit sign (`+` surplus,
 `−` deficit). No Target means no Balance. "Overtime" is deliberately not used.

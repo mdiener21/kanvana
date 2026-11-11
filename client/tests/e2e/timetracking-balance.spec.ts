@@ -24,23 +24,34 @@ async function logEntry(page: Page, description: string, date: string, start: st
   await page.keyboard.press('Escape');
 }
 
+async function setWorkWeek(page: Page, customer: string, hours: string): Promise<void> {
+  await page.locator('#tt-nav-projects').click();
+  const details = page.getByRole('group', { name: `Work week for ${customer}` });
+  if (!(await details.evaluate((el: HTMLDetailsElement) => el.open))) await details.locator('summary').click();
+  const weeklyHours = page.getByLabel(`Weekly hours for ${customer}`);
+  await weeklyHours.fill(hours);
+  await weeklyHours.press('Tab');
+}
+
+async function chooseDefaultCustomer(page: Page, name: string): Promise<void> {
+  await page.locator('#tt-nav-settings').click();
+  await page.locator('#tt-section-settings').getByLabel('Default customer').selectOption({ label: name });
+  await page.locator('#tt-nav-tracker').click();
+}
+
 const cardValue = (page: Page, name: string) =>
   page.getByTestId('tt-balance-card').locator('.tt-balance-item', { hasText: name }).locator('dd');
 
-test('Weekly hours → logged entries → Reports shows the Balance for the week, the month and the year', async ({ page }) => {
+test("the Default customer's Work week → logged entries → Reports shows its Balance for the week, the month and the year", async ({ page }) => {
   // Thursday 12 Nov 2026. Advancing clock so successive events get distinct timestamps.
   await page.clock.install({ time: new Date('2026-11-12T10:00:00+01:00') });
   await page.goto('/timetracking.html');
   await expect(page.getByLabel('Description', { exact: true })).toBeVisible();
 
-  await page.locator('#tt-nav-settings').click();
-  const weeklyHours = page.locator('#tt-section-settings').getByLabel('Weekly hours (contract)');
-  await weeklyHours.fill('40');
-  await weeklyHours.press('Tab');
-
   await page.locator('#tt-nav-projects').click();
   await addProject(page, 'Acme', 'Website');
-  await page.keyboard.press('Escape');
+  await setWorkWeek(page, 'Acme', '40');
+  await chooseDefaultCustomer(page, 'Acme');
 
   await logEntry(page, 'Kick-off', '02.11.2026', '9:00', '8h');
   await logEntry(page, 'Build', '10.11.2026', '9:00', '9h');
@@ -123,18 +134,13 @@ test('Workdays: a Monday at 40h is an 8h Target over Mon–Fri, and 10h after un
   await page.goto('/timetracking.html');
   await expect(page.getByLabel('Description', { exact: true })).toBeVisible();
 
-  await page.locator('#tt-nav-settings').click();
-  const settings = page.locator('#tt-section-settings');
-  const weeklyHours = settings.getByLabel('Weekly hours (contract)');
-  await weeklyHours.fill('40');
-  await weeklyHours.press('Tab');
-  const workdays = settings.getByRole('group', { name: 'Workdays' });
-  await expect(workdays.getByRole('checkbox', { name: 'Fri' })).toBeChecked();
-  await expect(workdays.getByRole('checkbox', { name: 'Sat' })).not.toBeChecked();
-
   await page.locator('#tt-nav-projects').click();
   await addProject(page, 'Acme', 'Website');
-  await page.keyboard.press('Escape');
+  await setWorkWeek(page, 'Acme', '40');
+  const workdays = page.getByRole('group', { name: 'Workdays for Acme' });
+  await expect(workdays.getByRole('checkbox', { name: 'Fri' })).toBeChecked();
+  await expect(workdays.getByRole('checkbox', { name: 'Sat' })).not.toBeChecked();
+  await chooseDefaultCustomer(page, 'Acme');
   await logEntry(page, 'Monday', '09.11.2026', '9:00', '7h 35m');
 
   await page.locator('#tt-nav-reports').click();
@@ -143,7 +149,7 @@ test('Workdays: a Monday at 40h is an 8h Target over Mon–Fri, and 10h after un
   await expect(cardValue(page, 'Target')).toHaveText('8:00');
   await expect(cardValue(page, 'Balance')).toHaveText('−0:25');
 
-  await page.locator('#tt-nav-settings').click();
+  await page.locator('#tt-nav-projects').click();
   await workdays.getByRole('checkbox', { name: 'Fri' }).uncheck();
   await page.reload();
   await page.locator('#tt-nav-reports').click();

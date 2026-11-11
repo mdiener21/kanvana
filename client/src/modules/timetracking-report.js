@@ -1,5 +1,5 @@
 import { projectById, customerById } from './timetracking-crud.js';
-import { periodTarget, balanceOf } from './timetracking-balance.js';
+import { customerBalance } from './timetracking-balance.js';
 import {
   zonedParts, addDays, daysInMonth, daysBetween, startOfIsoWeek, isoWeek, ymdToUtcMs, formatShortMonth as shortMonth, formatMonthYear
 } from './timetracking-time.js';
@@ -74,8 +74,8 @@ function bucketFor(map, item, extra) {
   return map.get(item.id);
 }
 
-// Target counts from the first-ever entry, so it reads all of tt.timeEntries, not just `entries`.
-export function summarizePeriod(tt, entries, period, { tz, now, weeklyHours = null, workdays }) {
+// The Balance is `balanceCustomerId`'s (see customerBalance), whatever `entries` are summarised.
+export function summarizePeriod(tt, entries, period, { tz, now, balanceCustomerId = null }) {
   const kind = KINDS[period.kind];
   const buckets = kind.buckets(period).map((start) => ({ start, totalMs: 0, byProject: {} }));
   const customers = new Map();
@@ -103,7 +103,7 @@ export function summarizePeriod(tt, entries, period, { tz, now, weeklyHours = nu
     entryCount += 1;
   }
 
-  const target = periodTarget(tt.timeEntries, period, { now, tz, weeklyHours, workdays });
+  const balance = customerBalance(tt, balanceCustomerId, period, { now, tz });
   const withShare = (bucket) => ({ ...bucket, share: totalMs > 0 ? bucket.totalMs / totalMs : 0 });
   return {
     period,
@@ -117,7 +117,8 @@ export function summarizePeriod(tt, entries, period, { tz, now, weeklyHours = nu
       ...customer,
       projects: [...customer.projects.values()].sort(byTotalThenName).map(withShare)
     })),
-    target,
-    balance: balanceOf(totalMs, target)
+    customerLoggedMs: balance.loggedMs,
+    target: balance.targetMs,
+    balance: balance.balanceMs
   };
 }

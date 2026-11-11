@@ -2,7 +2,7 @@ import { loadGlobalSettings, loadTimeTracking } from './storage.js';
 import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 import { EVENT_SCOPE } from './constants.js';
 import { isProjectActive, projectById } from './timetracking-crud.js';
-import { DATE_FORMATS, TIME_FORMATS, DURATION_FORMATS, DEFAULT_WORKDAYS, browserTimezone } from './timetracking-time.js';
+import { DATE_FORMATS, TIME_FORMATS, DURATION_FORMATS, browserTimezone } from './timetracking-time.js';
 
 export function isValidTimezone(tz) {
   if (typeof tz !== 'string' || !tz) return false;
@@ -20,12 +20,6 @@ const oneOf = (value, formats) => {
   return options.includes(value) ? value : options[0];
 };
 const idOrNull = (value) => (typeof value === 'string' && value ? value : null);
-const positiveOrNull = (value) => (typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null);
-
-function workdaysOf(value) {
-  const days = Array.isArray(value) ? value.filter((d) => Number.isInteger(d) && d >= 1 && d <= 7) : [];
-  return days.length ? [...new Set(days)].sort((a, b) => a - b) : [...DEFAULT_WORKDAYS];
-}
 
 export function resolveTimeTrackingSettings(raw) {
   const s = raw && typeof raw === 'object' ? raw : {};
@@ -35,9 +29,7 @@ export function resolveTimeTrackingSettings(raw) {
     dateFormat: oneOf(s.dateFormat, DATE_FORMATS),
     timeFormat: oneOf(s.timeFormat, TIME_FORMATS),
     timezone: isValidTimezone(s.timezone) ? s.timezone : browserTimezone(),
-    durationFormat: oneOf(s.durationFormat, DURATION_FORMATS),
-    weeklyHours: positiveOrNull(s.weeklyHours),
-    workdays: workdaysOf(s.workdays)
+    durationFormat: oneOf(s.durationFormat, DURATION_FORMATS)
   };
 }
 
@@ -60,7 +52,6 @@ export function saveTimeTrackingSettings(patch) {
       ? activeProjectsOf(loadTimeTracking(), next.defaultCustomerId)[0]?.id ?? null
       : null;
   }
-  if (next.weeklyHours === null) delete next.weeklyHours;
   scheduleDomainEvent({
     type: 'settings.updated',
     scope: EVENT_SCOPE.GLOBAL,

@@ -24,16 +24,14 @@ beforeEach(async () => {
 });
 
 describe('resolveTimeTrackingSettings (spec defaults and options)', () => {
-  test('defaults: no default customer/project, DD.MM.YYYY, 24-hour, browser zone, h:mm, no Weekly hours, Mon–Fri', () => {
+  test('defaults: no default customer/project, DD.MM.YYYY, 24-hour, browser zone, h:mm', () => {
     expect(resolveTimeTrackingSettings(undefined)).toEqual({
       defaultCustomerId: null,
       defaultProjectId: null,
       dateFormat: 'DD.MM.YYYY',
       timeFormat: '24h',
       timezone: browserZone,
-      durationFormat: 'h:mm',
-      weeklyHours: null,
-      workdays: [1, 2, 3, 4, 5]
+      durationFormat: 'h:mm'
     });
   });
 
@@ -46,11 +44,16 @@ describe('resolveTimeTrackingSettings (spec defaults and options)', () => {
   test('keeps valid choices', () => {
     const chosen = {
       defaultCustomerId: 'c1', defaultProjectId: 'p1', dateFormat: 'YYYY-MM-DD',
-      timeFormat: '12h', timezone: 'America/New_York', durationFormat: 'decimal', weeklyHours: 38.5,
-      workdays: [1, 2, 3, 4, 6]
+      timeFormat: '12h', timezone: 'America/New_York', durationFormat: 'decimal'
     };
     expect(resolveTimeTrackingSettings(chosen)).toEqual(chosen);
     expect(resolveTimeTrackingSettings({ dateFormat: 'MM/DD/YYYY' }).dateFormat).toBe('MM/DD/YYYY');
+  });
+
+  test('legacy global Weekly hours and Workdays are not exposed: the Work week is per Customer', () => {
+    const resolved = resolveTimeTrackingSettings({ weeklyHours: 40, workdays: [1, 2, 3] });
+    expect(resolved).not.toHaveProperty('weeklyHours');
+    expect(resolved).not.toHaveProperty('workdays');
   });
 
   test('unknown options fall back to defaults', () => {
@@ -60,22 +63,6 @@ describe('resolveTimeTrackingSettings (spec defaults and options)', () => {
     expect(r).toMatchObject({
       dateFormat: 'DD.MM.YYYY', timeFormat: '24h', timezone: browserZone, durationFormat: 'h:mm', defaultProjectId: null
     });
-  });
-
-  test.each([0, -5, '40', NaN, Infinity, null])('Weekly hours %s is treated as off', (weeklyHours) => {
-    expect(resolveTimeTrackingSettings({ weeklyHours }).weeklyHours).toBeNull();
-  });
-
-  test('Weekly hours has no upper limit', () => {
-    expect(resolveTimeTrackingSettings({ weeklyHours: 168.5 }).weeklyHours).toBe(168.5);
-  });
-
-  test('Workdays are kept as sorted, unique ISO weekdays', () => {
-    expect(resolveTimeTrackingSettings({ workdays: [7, 2, 2, 6] }).workdays).toEqual([2, 6, 7]);
-  });
-
-  test.each([[[]], [[0, 8]], [['1']], ['1,2'], [null]])('Workdays %j fall back to Mon–Fri', (workdays) => {
-    expect(resolveTimeTrackingSettings({ workdays }).workdays).toEqual([1, 2, 3, 4, 5]);
   });
 });
 
@@ -147,32 +134,6 @@ describe('persistence in the global settings layer', () => {
     saveTimeTrackingSettings({ timezone: 'Asia/Tokyo' });
     saveTimeTrackingSettings({ timeFormat: '12h' });
     expect(loadGlobalSettings().timeTracking).toMatchObject({ timezone: 'Asia/Tokyo', timeFormat: '12h' });
-  });
-
-  test('Weekly hours is saved through the global settings event and synced from another device', () => {
-    const events = [];
-    const listener = (ev) => events.push(ev.detail);
-    on(EVENT_EMITTED, listener);
-    saveTimeTrackingSettings({ weeklyHours: 38.5 });
-    off(EVENT_EMITTED, listener);
-    expect(events[0]).toMatchObject({ type: 'settings.updated', scope: 'global' });
-    expect(events[0].payload.fields.timeTracking.weeklyHours).toBe(38.5);
-    expect(loadTimeTrackingSettings().weeklyHours).toBe(38.5);
-
-    scheduleDomainEvent({
-      type: 'settings.updated',
-      scope: 'global',
-      entityId: 'global',
-      payload: { fields: { timeTracking: { weeklyHours: 20 } } }
-    });
-    expect(loadTimeTrackingSettings().weeklyHours).toBe(20);
-  });
-
-  test('clearing Weekly hours removes it from the stored settings (off)', () => {
-    saveTimeTrackingSettings({ weeklyHours: 40, timeFormat: '12h' });
-    saveTimeTrackingSettings({ weeklyHours: null });
-    expect(loadGlobalSettings().timeTracking).not.toHaveProperty('weeklyHours');
-    expect(loadTimeTrackingSettings()).toMatchObject({ weeklyHours: null, timeFormat: '12h' });
   });
 
   test('saving one setting keeps the others', () => {

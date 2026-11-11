@@ -1,5 +1,7 @@
 import { test, expect } from 'vitest';
 import { applyEvent, applyEvents, createProjectionState } from '../../../src/modules/reducer.js';
+import { validateEvent } from '../../../src/modules/event-sourcing/event-validation.js';
+import { saveSnapshot, loadSnapshot, TIMETRACKING_SNAPSHOT_KEY } from '../../../src/modules/event-sourcing/snapshot.js';
 
 function event(overrides) {
   return {
@@ -266,4 +268,28 @@ test('a delete that raced a new reference converges to the item archived, whatev
   expect(createdFirst.timeTracking).toEqual(replayed.timeTracking);
   expect(deletedFirst.timeTracking).toEqual(replayed.timeTracking);
   expect(replayed.timeTracking.customers).toEqual([{ ...ACME_C, archived: true }]);
+});
+
+// ── Work week ──────────────────────────────────────────────────────────────────
+
+test('customer.updated with Weekly hours and Workdays passes validation and patches only those fields', () => {
+  const raw = event({ type: 'customer.updated', entity_id: 'c1', payload: { fields: { weeklyHours: 24, workdays: [1, 2, 3], bogus: 1 } } });
+  const validated = validateEvent(raw);
+  expect(validated.payload.fields).toEqual({ weeklyHours: 24, workdays: [1, 2, 3] });
+  const next = applyEvent(baseState({ customers: [ACME_C], projects: [WEBSITE_P] }), validated);
+  expect(next.timeTracking.customers).toEqual([{ ...ACME_C, weeklyHours: 24, workdays: [1, 2, 3] }]);
+  expect(next.timeTracking.projects).toEqual([WEBSITE_P]);
+});
+
+test('a Work week patch replays the same from a snapshot', async () => {
+  const created = event({ id: 'e1', type: 'customer.created', entity_id: 'c1', payload: { customer: { name: 'Acme', color: '#000000', archived: false } } });
+  const patched = event({ id: 'e2', type: 'customer.updated', entity_id: 'c1', payload: { fields: { weeklyHours: 24, workdays: [1, 2, 3] } } });
+  const cleared = event({ id: 'e3', type: 'customer.updated', entity_id: 'c1', payload: { fields: { weeklyHours: null } } });
+  const full = applyEvents(baseState(), [created, patched, cleared].map(validateEvent));
+
+  await saveSnapshot(TIMETRACKING_SNAPSHOT_KEY, applyEvents(baseState(), [created, patched].map(validateEvent)), patched.hlc);
+  const snapshot = await loadSnapshot(TIMETRACKING_SNAPSHOT_KEY);
+  const replayed = applyEvents(snapshot.state, [validateEvent(cleared)]);
+  expect(replayed.timeTracking.customers).toEqual(full.timeTracking.customers);
+  expect(replayed.timeTracking.customers[0]).toMatchObject({ weeklyHours: null, workdays: [1, 2, 3] });
 });

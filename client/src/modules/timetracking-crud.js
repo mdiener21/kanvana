@@ -4,6 +4,7 @@ import { createCustomer, createProject, createTimeEntry } from './schema.js';
 import { EVENT_SCOPE, TT_COLOR_PALETTE } from './constants.js';
 import { floorToMinute } from './timetracking-time.js';
 import { isCustomerInUse, isProjectInUse } from './timetracking-references.js';
+import { WORK_WEEK_FIELDS, resolveWorkWeek, patchWorkWeek } from './timetracking-work-week-model.js';
 
 export const CRUD_ERROR = Object.freeze({
   EMPTY_NAME: 'EMPTY_NAME',
@@ -14,7 +15,8 @@ export const CRUD_ERROR = Object.freeze({
   INVALID_TIME: 'INVALID_TIME',
   ZERO_DURATION: 'ZERO_DURATION',
   NOT_FOUND: 'NOT_FOUND',
-  IN_USE: 'IN_USE'
+  IN_USE: 'IN_USE',
+  INVALID_WORK_WEEK: 'INVALID_WORK_WEEK'
 });
 
 const EDITABLE_ENTRY_FIELDS = ['projectId', 'description', 'start', 'end'];
@@ -105,6 +107,25 @@ function updateName(entity, item, validation) {
 export function updateCustomerName(id, rawName) {
   const tt = loadTimeTracking();
   return updateName('customer', customerById(tt, id), validateCustomerName(rawName, tt.customers, id));
+}
+
+// Archived Customers stay editable: their Work week still shapes their past Balance.
+export function updateCustomerWorkWeek(id, patch) {
+  const customer = customerById(loadTimeTracking(), id);
+  if (!customer) return { ok: false, reason: CRUD_ERROR.NOT_FOUND };
+  const current = resolveWorkWeek(customer);
+  const next = patchWorkWeek(current, patch);
+  if (!next) return { ok: false, reason: CRUD_ERROR.INVALID_WORK_WEEK };
+  const changed = WORK_WEEK_FIELDS.filter((key) => JSON.stringify(next[key]) !== JSON.stringify(current[key]));
+  if (changed.length === 0) return { ok: true, changed: false };
+  scheduleDomainEvent({
+    type: 'customer.updated', scope: EVENT_SCOPE.TIMETRACKING, entityId: id,
+    payload: {
+      fields: Object.fromEntries(changed.map((key) => [key, next[key]])),
+      before: Object.fromEntries(changed.map((key) => [key, current[key]]))
+    }
+  });
+  return { ok: true, changed: true };
 }
 
 export function addProject(customerId, rawName) {

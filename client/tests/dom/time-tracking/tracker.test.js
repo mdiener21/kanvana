@@ -24,6 +24,9 @@ vi.mock('../../../src/modules/event-sourcing/emitter.js', async () => {
         state.timeEntries = state.timeEntries.map((e) => (e.id === event.entityId ? { ...e, ...event.payload.fields } : e));
       }
       if (event.type === 'time_entry.deleted') state.timeEntries = state.timeEntries.filter((e) => e.id !== event.entityId);
+      if (event.type === 'customer.updated') {
+        state.customers = state.customers.map((c) => (c.id === event.entityId ? { ...c, ...event.payload.fields } : c));
+      }
       emit(DATA_CHANGED);
       return Promise.resolve();
     })
@@ -50,9 +53,10 @@ const SUPPORT = { id: 'p3', customerId: 'c2', name: 'Support', color: '#8bc34a',
 
 let unmount = null;
 const fakeChart = () => ({ setOption() {}, resize() {}, dispose() {} });
+let customers = [ACME, OLD_CO];
 
 function mount({ timeEntries = [], extraProjects = [] } = {}) {
-  state.customers = [ACME, OLD_CO];
+  state.customers = customers;
   state.projects = [WEBSITE, LEGACY, SUPPORT, ...extraProjects];
   state.timeEntries = timeEntries;
   mountToBody(bodyHtml);
@@ -823,15 +827,30 @@ describe('last-used project', () => {
 describe('"This week" Balance badge', () => {
   const badge = () => screen.getByTestId('tt-week-balance');
   const value = () => badge().querySelector('.tt-week-balance-value').textContent;
-  const withWeeklyHours = (weeklyHours) => vi.mocked(loadGlobalSettings)
-    .mockImplementation(() => ({ timeTracking: { weeklyHours } }));
+  const asDefault = (timeTracking = {}) => vi.mocked(loadGlobalSettings)
+    .mockImplementation(() => ({ timeTracking: { defaultCustomerId: 'c1', ...timeTracking } }));
+  // Acme, the Default customer, gets the Work week.
+  function withWeeklyHours(weeklyHours, workdays = [1, 2, 3, 4, 5]) {
+    customers = [{ ...ACME, weeklyHours, workdays }, OLD_CO];
+    asDefault();
+  }
 
-  afterEach(() => vi.mocked(loadGlobalSettings).mockImplementation(() => ({})));
+  afterEach(() => {
+    vi.mocked(loadGlobalSettings).mockImplementation(() => ({}));
+    customers = [ACME, OLD_CO];
+  });
 
   // The header block shows the week total without a Balance (#291).
-  test('shows the week total without a Balance when Weekly hours is unset', () => {
+  test('shows the week total without a Balance when no Default customer is set', () => {
+    customers = [{ ...ACME, weeklyHours: 5 }, OLD_CO];
     mount({ timeEntries: THREE_ENTRIES });
     expect(screen.getByTestId('tt-week-total').textContent).toBe('3:30');
+    expect(badge().hidden).toBe(true);
+  });
+
+  test('is hidden for a Default customer without a Work week, even with a stored legacy global Weekly hours', () => {
+    asDefault({ weeklyHours: 5 });
+    mount({ timeEntries: THREE_ENTRIES });
     expect(badge().hidden).toBe(true);
   });
 
@@ -880,12 +899,46 @@ describe('"This week" Balance badge', () => {
     expect(value()).toBe('+2:00');
   });
 
-  test('ignores the entry list filter', () => {
+  test("ignores the entry list filter and another Customer's entries", () => {
     withWeeklyHours(5);
     mount({ timeEntries: [...THREE_ENTRIES, entry('other', '2026-10-08T05:00:00.000Z', '2026-10-08T06:00:00.000Z', { projectId: 'p3' })] });
+    expect(screen.getByTestId('tt-week-total').textContent).toBe('4:30');
+    expect(value()).toBe('+1:30');
     fireEvent.change(screen.getByLabelText('Filter by customer'), { target: { value: 'c2' } });
     expect(rows()).toHaveLength(1);
-    expect(value()).toBe('+2:30');
+    expect(value()).toBe('+1:30');
+  });
+
+  test("updates live when the Default customer's Work week is edited in Projects & Customers", () => {
+    withWeeklyHours(5);
+    mount({ timeEntries: THREE_ENTRIES });
+    expect(value()).toBe('+1:30');
+    fireEvent.click(document.getElementById('tt-nav-projects'));
+    const projects = document.getElementById('tt-section-projects');
+    fireEvent.change(within(projects).getByLabelText('Weekly hours for Acme'), { target: { value: '15' } });
+    expect(value()).toBe('−2:30');
+    // Only Wednesday left: today (Thursday) adds no Target, 15h / 1 day.
+    for (const day of ['Mon', 'Tue', 'Thu', 'Fri']) {
+      fireEvent.click(within(within(projects).getByRole('group', { name: 'Workdays for Acme' })).getByRole('checkbox', { name: day }));
+    }
+    expect(value()).toBe('−11:30');
+    fireEvent.change(within(projects).getByLabelText('Weekly hours for Acme'), { target: { value: '' } });
+    expect(badge().hidden).toBe(true);
+  });
+
+  test("another Customer's earlier entries do not start the Default customer's Target", () => {
+    withWeeklyHours(5);
+    // Old Co logged Monday; Acme first logs Wednesday: Wed–Thu = 2h Target.
+    mount({ timeEntries: [entry('old-mon', '2026-10-05T06:00:00.000Z', '2026-10-05T07:00:00.000Z', { projectId: 'p3' }), ...THREE_ENTRIES] });
+    expect(value()).toBe('+1:30');
+  });
+
+  test('an archived Default customer keeps a Balance frozen at its last entry', () => {
+    // Acme last logged Wed 7 Oct; today is Thu 8 Oct: only Wed counts (1h Target, 1h logged).
+    customers = [{ ...ACME, archived: true, weeklyHours: 5 }, OLD_CO];
+    asDefault();
+    mount({ timeEntries: [entry('yesterday', '2026-10-07T07:00:00.000Z', '2026-10-07T08:00:00.000Z')] });
+    expect(value()).toBe('+0:00');
   });
 
   test('is hidden while the current week precedes the first-ever Time Entry', () => {
@@ -894,7 +947,7 @@ describe('"This week" Balance badge', () => {
     expect(badge().hidden).toBe(true);
   });
 
-  test('activating it shows Reports with Week selected on the current week and its Balance', () => {
+  test("activating it shows Reports with Week selected on the current week and the Default customer's Balance", () => {
     withWeeklyHours(5);
     mount({ timeEntries: THREE_ENTRIES });
     fireEvent.click(badge());

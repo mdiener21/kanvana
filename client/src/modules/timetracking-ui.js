@@ -8,6 +8,7 @@ import {
 import { isCustomerInUse, isProjectInUse } from './timetracking-references.js';
 import { escapeHtml } from './security.js';
 import { colorDotHtml } from './timetracking-markup.js';
+import { workWeekEditorHtml, bindWorkWeekEditors, captureWorkWeekState } from './timetracking-work-week.js';
 import { showToast } from './timetracking-toast.js';
 import { mountTrackerPanel } from './timetracking-tracker.js';
 import { timeTrackingPrefs } from './timetracking-time.js';
@@ -104,6 +105,7 @@ function customerListHtml(tt) {
           <span class="tt-count">${projs.length} project${projs.length !== 1 ? 's' : ''}</span>
           ${itemActionsHtml('customer', customer, isCustomerInUse(tt, customer.id))}
         </div>
+        ${workWeekEditorHtml(customer)}
         ${projs.length > 0 ? `
         <ul class="tt-project-list" aria-label="Projects for ${escapeHtml(customer.name)}">
           ${projs.map((project) => `
@@ -144,7 +146,9 @@ export function mountProjectsPanel(container) {
     const selected = customerSelect.value;
     customerSelect.innerHTML = customerOptionsHtml(tt);
     customerSelect.value = [...customerSelect.options].some((o) => o.value === selected) ? selected : '';
+    const restoreWorkWeeks = captureWorkWeekState(list);
     list.innerHTML = customerListHtml(tt);
+    restoreWorkWeeks();
     for (const draft of drafts) {
       const button = [...$$('[data-action="edit"]', list)].find((item) => item.dataset.kind === draft.kind && item.dataset.id === draft.id);
       if (!button) continue;
@@ -177,6 +181,8 @@ export function mountProjectsPanel(container) {
   });
   container.querySelector('#tt-add-customer-btn').addEventListener('click', submitCustomer);
   container.querySelector('#tt-add-project-btn').addEventListener('click', submitProject);
+
+  bindWorkWeekEditors(list, refresh);
 
   list.addEventListener('click', (ev) => {
     const btn = ev.target.closest('button[data-action]');
