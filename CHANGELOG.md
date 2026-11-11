@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.13] - 2026-11-11
+
 ### Added
 
 - Rename a Time Tracker entry in place: click its description (or press `F2` on the selected row), then `Enter` or click away to save and `Esc` to cancel. Clicking an entry's project or customer opens the edit dialog (#287).
