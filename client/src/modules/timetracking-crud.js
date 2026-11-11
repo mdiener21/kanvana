@@ -4,7 +4,7 @@ import { createCustomer, createProject, createTimeEntry } from './schema.js';
 import { EVENT_SCOPE, TT_COLOR_PALETTE } from './constants.js';
 import { floorToMinute } from './timetracking-time.js';
 import { isCustomerInUse, isProjectInUse } from './timetracking-references.js';
-import { resolveWorkWeek } from './timetracking-balance.js';
+import { WORK_WEEK_FIELDS, resolveWorkWeek, patchWorkWeek } from './timetracking-work-week-model.js';
 
 export const CRUD_ERROR = Object.freeze({
   EMPTY_NAME: 'EMPTY_NAME',
@@ -109,29 +109,14 @@ export function updateCustomerName(id, rawName) {
   return updateName('customer', customerById(tt, id), validateCustomerName(rawName, tt.customers, id));
 }
 
-/**
- * Patches a Customer's Work week: `weeklyHours` (> 0, or null to switch its Target off) and/or
- * `workdays` (a non-empty set of ISO weekdays 1–7). Archived Customers stay editable.
- */
+// Archived Customers stay editable: their Work week still shapes their past Balance.
 export function updateCustomerWorkWeek(id, patch) {
   const customer = customerById(loadTimeTracking(), id);
   if (!customer) return { ok: false, reason: CRUD_ERROR.NOT_FOUND };
   const current = resolveWorkWeek(customer);
-  const next = { ...current };
-  if ('weeklyHours' in patch) {
-    if (patch.weeklyHours !== null && !(Number.isFinite(patch.weeklyHours) && patch.weeklyHours > 0)) {
-      return { ok: false, reason: CRUD_ERROR.INVALID_WORK_WEEK };
-    }
-    next.weeklyHours = patch.weeklyHours;
-  }
-  if ('workdays' in patch) {
-    const days = Array.isArray(patch.workdays) ? patch.workdays : [];
-    if (days.length === 0 || !days.every((d) => Number.isInteger(d) && d >= 1 && d <= 7)) {
-      return { ok: false, reason: CRUD_ERROR.INVALID_WORK_WEEK };
-    }
-    next.workdays = [...new Set(days)].sort((a, b) => a - b);
-  }
-  const changed = ['weeklyHours', 'workdays'].filter((key) => JSON.stringify(next[key]) !== JSON.stringify(current[key]));
+  const next = patchWorkWeek(current, patch);
+  if (!next) return { ok: false, reason: CRUD_ERROR.INVALID_WORK_WEEK };
+  const changed = WORK_WEEK_FIELDS.filter((key) => JSON.stringify(next[key]) !== JSON.stringify(current[key]));
   if (changed.length === 0) return { ok: true, changed: false };
   scheduleDomainEvent({
     type: 'customer.updated', scope: EVENT_SCOPE.TIMETRACKING, entityId: id,

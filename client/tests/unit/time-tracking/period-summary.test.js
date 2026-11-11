@@ -273,12 +273,12 @@ describe('Customer Balance', () => {
     const period = periodOf(kind, { y: 2026, m: 10, d: 20 });
     const s = summarizePeriod(twoCustomers, [oct20], period, globex);
     // Globex: 20h a week (4h a workday) from its first entry, Tue 20 Oct, to today (Mon 16 Nov)
-    expect(s).toMatchObject({ balanceLogged: 2 * H, target: workdays * 4 * H, balance: 2 * H - workdays * 4 * H });
+    expect(s).toMatchObject({ customerLoggedMs: 2 * H, target: workdays * 4 * H, balance: 2 * H - workdays * 4 * H });
   });
 
   test('each Customer is judged against its own Work week, while the KPIs sum the summarised entries', () => {
     const s = summarizePeriod(twoCustomers, twoCustomers.timeEntries, OCT, acme);
-    expect(s).toMatchObject({ balanceLogged: 8 * H, target: 22 * 8 * H, balance: 8 * H - 22 * 8 * H });
+    expect(s).toMatchObject({ customerLoggedMs: 8 * H, target: 22 * 8 * H, balance: 8 * H - 22 * 8 * H });
     expect(s.totalMs).toBe(10 * H);
   });
 
@@ -379,7 +379,7 @@ describe('Customer Balance', () => {
       );
       const s = summarizePeriod(data, data.timeEntries, yearOf(2027), { ...globex, now: Date.parse('2027-01-02T10:00:00Z') });
       // Fri 1 – Sat 2 Jan 2027: one workday
-      expect(s).toMatchObject({ totalMs: 0, balanceLogged: 0, target: 7 * H, balance: -7 * H });
+      expect(s).toMatchObject({ totalMs: 0, customerLoggedMs: 0, target: 7 * H, balance: -7 * H });
     });
 
     test('future years and years before the first entry have no Target', () => {

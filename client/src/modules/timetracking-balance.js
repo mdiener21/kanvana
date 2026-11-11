@@ -1,4 +1,5 @@
 import { zonedParts, formatDuration, dayNumber, MINUTE_MS, HOUR_MS, DEFAULT_WORKDAYS } from './timetracking-time.js';
+import { customerOf, customerWorkWeek } from './timetracking-work-week-model.js';
 
 // Judged on the displayed minutes, so a few seconds short never shows as "−0:00".
 const isDeficit = (balanceMs) => Math.round(balanceMs / MINUTE_MS) < 0;
@@ -19,7 +20,9 @@ export function showBalance(element, balanceMs, durationFormat, toneElement = el
 const startDay = (entry, tz) => dayNumber(zonedParts(Date.parse(entry.start), tz));
 
 // Attribution: an entry counts wholly toward the period containing its start.
-function loggedIn(entries, from, to, tz) {
+export function periodLogged(entries, period, tz) {
+  const from = dayNumber(period.start);
+  const to = dayNumber(period.end);
   return entries
     .filter((e) => { const day = startDay(e, tz); return day >= from && day <= to; })
     .reduce((sum, e) => sum + Date.parse(e.end) - Date.parse(e.start), 0);
@@ -52,39 +55,16 @@ function periodTarget(entries, period, { weeklyHours, workdays = DEFAULT_WORKDAY
     : null;
 }
 
-// A Work week with Weekly hours has a Target; without, it doesn't.
-export const hasTarget = (workWeek) => workWeek.weeklyHours > 0;
-
-const positiveOrNull = (value) => (typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null);
-
-function workdaysOf(value) {
-  const days = Array.isArray(value) ? value.filter((d) => Number.isInteger(d) && d >= 1 && d <= 7) : [];
-  return days.length ? [...new Set(days)].sort((a, b) => a - b) : [...DEFAULT_WORKDAYS];
-}
-
-// Anything stored, including a Customer from before Work weeks, resolves to a valid Work week.
-export const resolveWorkWeek = (raw) => ({ weeklyHours: positiveOrNull(raw?.weeklyHours), workdays: workdaysOf(raw?.workdays) });
-
-const customerOf = (tt, customerId) => tt.customers.find((c) => c.id === customerId) ?? null;
-
-// A Customer's Work week; an unknown Customer, or one without Weekly hours, has no Target.
-export const customerWorkWeek = (tt, customerId) => resolveWorkWeek(customerOf(tt, customerId));
-
-/**
- * The one entry point for every Balance view: Logged, Target and Balance of `entries` over
- * `period` against a Work week ({ weeklyHours, workdays }). Target and Balance are null when the
- * Work week has no Weekly hours, or no counted day falls in the period.
- */
+// The one entry point for every Balance view, so they cannot disagree. Target and Balance are null
+// without Weekly hours or a counted day in the period.
 export function periodBalance(entries, period, workWeek, { now, tz, endsAtLastEntry = false }) {
-  const loggedMs = loggedIn(entries, dayNumber(period.start), dayNumber(period.end), tz);
+  const loggedMs = periodLogged(entries, period, tz);
   const targetMs = periodTarget(entries, period, workWeek, { now, tz, endsAtLastEntry });
   return { loggedMs, targetMs, balanceMs: targetMs === null ? null : loggedMs - targetMs };
 }
 
-/**
- * A Customer's Balance over `period`: only Time Entries booked to its Projects, against its Work
- * week. Its Target starts on its own first entry day and, while it is archived, stops at its last.
- */
+// Only the Customer's own entries count, so its Target starts at its first entry day and, while
+// it is archived, stops at its last.
 export function customerBalance(tt, customerId, period, { now, tz }) {
   const customer = customerOf(tt, customerId);
   const projectIds = new Set(tt.projects.filter((p) => p.customerId === customer?.id).map((p) => p.id));

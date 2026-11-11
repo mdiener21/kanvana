@@ -1,5 +1,6 @@
 import { escapeHtml } from './security.js';
-import { periodBalance, customerBalance, customerWorkWeek, showBalance, hasTarget } from './timetracking-balance.js';
+import { periodLogged, customerBalance, showBalance } from './timetracking-balance.js';
+import { customerWorkWeek, hasTarget } from './timetracking-work-week-model.js';
 import { currentPeriod, WEEK } from './timetracking-report.js';
 import {
   zonedParts, addDays, dayNumber, dayKey, ymdToUtcMs, isoWeek, formatShortWeekday, formatShortMonth, formatDuration
@@ -18,18 +19,18 @@ export function summarizeWeekStrip(tt, now, { tz, customerId = null }) {
   const week = currentPeriod(WEEK, now, tz);
   const options = { now, tz };
   const today = dayNumber(zonedParts(now, tz));
-  const loggedOf = (period) => periodBalance(tt.timeEntries, period, {}, options).loggedMs;
+  const loggedOf = (period) => periodLogged(tt.timeEntries, period, tz);
   const days = Array.from({ length: 7 }, (_, i) => {
     const ymd = addDays(week.start, i);
     const day = { start: ymd, end: ymd };
-    const { loggedMs: balanceLoggedMs, targetMs } = customerBalance(tt, customerId, day, options);
+    const { loggedMs: customerLoggedMs, targetMs } = customerBalance(tt, customerId, day, options);
     return {
       key: dayKey(ymdToUtcMs(ymd), 'UTC'),
       ymd,
       weekday: formatShortWeekday(ymd),
       date: ymd.d,
       loggedMs: loggedOf(day),
-      balanceLoggedMs,
+      customerLoggedMs,
       targetMs,
       isToday: dayNumber(ymd) === today,
       isFuture: dayNumber(ymd) > today
@@ -63,9 +64,9 @@ export const WEEK_HEADER_HTML = `
 
 // Full at or above the day's Target; a Target of 0 (a weekend) is full once anything is logged;
 // no Target yet (a future day) leaves the meter empty.
-function meterHtml({ balanceLoggedMs: loggedMs, targetMs }) {
-  const ratio = targetMs === null ? 0 : targetMs > 0 ? Math.min(loggedMs / targetMs, 1) : Number(loggedMs > 0);
-  const isMet = targetMs !== null && loggedMs > 0 && loggedMs >= targetMs;
+function meterHtml({ customerLoggedMs, targetMs }) {
+  const ratio = targetMs === null ? 0 : targetMs > 0 ? Math.min(customerLoggedMs / targetMs, 1) : Number(customerLoggedMs > 0);
+  const isMet = targetMs !== null && customerLoggedMs > 0 && customerLoggedMs >= targetMs;
   return `<span class="tt-week-meter${isMet ? ' is-met' : ''}" aria-hidden="true"><span class="tt-week-meter-fill" style="width:${Math.round(ratio * 100)}%"></span></span>`;
 }
 

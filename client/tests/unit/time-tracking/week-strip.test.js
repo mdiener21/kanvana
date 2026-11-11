@@ -79,7 +79,7 @@ describe('week strip summary', () => {
     const strip = summarizeWeekStrip(ttOf(entries), NOW, { tz: TZ, customerId: 'c1' });
     expect(strip.days.map((d) => d.loggedMs).slice(0, 4)).toEqual([1 * H, 6 * H, 0, 0]);
     expect(strip.loggedMs).toBe(7 * H);
-    expect(strip.days.map((d) => d.balanceLoggedMs).slice(0, 4)).toEqual([0, 4 * H, 0, 0]);
+    expect(strip.days.map((d) => d.customerLoggedMs).slice(0, 4)).toEqual([0, 4 * H, 0, 0]);
     // Acme's first entry is Tuesday: Tue–Thu = 24h Target, 4h logged.
     expect(strip.days.map((d) => d.targetMs).slice(0, 4)).toEqual([null, 8 * H, 8 * H, 8 * H]);
     expect(strip.balanceMs).toBe(4 * H - 24 * H);

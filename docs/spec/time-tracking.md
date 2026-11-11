@@ -230,7 +230,7 @@ See the [glossary](../../CONTEXT.md#time-tracking-glossary) for Untracked gap.
   - Year: 1 January to 31 December, one bucket per month, labelled `2026`
   - Previous / next shift by one period of the same kind; an entry counts wholly toward the week,
     month and year of its start
-  - Given `now` and `balanceCustomerId`, the summary fills `balanceLogged`, `target` and `balance`
+  - Given `now` and `balanceCustomerId`, the summary fills `customerLoggedMs`, `target` and `balance`
     from `customerBalance` for that customer, whatever entries are summarised; Target and Balance are
     null with no (or an unknown) customer, a customer without Weekly hours, or a period with no
     Target
@@ -313,6 +313,9 @@ Target and Balance.
   customer (its entries, its Work week, the archived stop). The badge, week-strip meters and Reports Balance card
   all use `customerBalance`: the main screen for the default customer, Reports for the filtered
   customer or else the default customer
+- Reading and validating a Work week lives in `timetracking-work-week-model.js` (`resolveWorkWeek`
+  for stored values, `patchWorkWeek` for user edits, `WORK_WEEK_FIELDS`), used by the Balance, the
+  Work week editor, `updateCustomerWorkWeek` and the legacy migration
 - **"This week" badge** in the Time Tracker header: `This week ±h:mm`, the current week's Balance in
   the duration format, green for a surplus and red for a deficit, sign always shown. It shows the
   default customer's Balance (only its entries, against its Work week), ignores the entry list

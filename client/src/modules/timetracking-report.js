@@ -117,7 +117,7 @@ export function summarizePeriod(tt, entries, period, { tz, now, balanceCustomerI
       ...customer,
       projects: [...customer.projects.values()].sort(byTotalThenName).map(withShare)
     })),
-    balanceLogged: balance.loggedMs,
+    customerLoggedMs: balance.loggedMs,
     target: balance.targetMs,
     balance: balance.balanceMs
   };

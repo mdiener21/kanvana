@@ -1,5 +1,5 @@
 import { escapeHtml } from './security.js';
-import { resolveWorkWeek, hasTarget } from './timetracking-balance.js';
+import { resolveWorkWeek, hasTarget } from './timetracking-work-week-model.js';
 import { updateCustomerWorkWeek } from './timetracking-crud.js';
 
 // ISO weekdays 1–7.
@@ -74,10 +74,7 @@ function saveWorkdays(box) {
   if (workdays.length > 0) updateCustomerWorkWeek(id, { workdays });
 }
 
-/**
- * Saves Work week edits made in `list` on change. A save that changes nothing (an invalid value)
- * emits no event, so `refresh` is called to put the stored value back.
- */
+// An invalid value saves nothing and emits no event, so `refresh` puts the stored value back.
 export function bindWorkWeekEditors(list, refresh) {
   list.addEventListener('change', (ev) => {
     if (ev.target.matches('[data-work-week-hours]')) saveWeeklyHours(ev.target);
