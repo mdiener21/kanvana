@@ -206,8 +206,7 @@ See the [glossary](../../CONTEXT.md#time-tracking-glossary) for Untracked gap.
   - Unfiltered: the default customer's Balance, matching the "This week" badge; hidden with no
     default customer
   - Hidden while a project filter is active (a Target belongs to a customer's whole Work week), when
-    the customer shown has no Weekly hours (until the migration, #303, a customer without Weekly
-    hours uses the legacy global Work week), and when the period has no Target (future, or entirely
+    the customer shown has no Weekly hours, and when the period has no Target (future, or entirely
     before the customer's first Time Entry)
   - Logged on the card is the customer's, so with no filter it can differ from the Total KPI, which
     counts every customer
@@ -234,7 +233,7 @@ See the [glossary](../../CONTEXT.md#time-tracking-glossary) for Untracked gap.
   - Given `now` and `balanceCustomerId`, the summary fills `balanceLogged`, `target` and `balance`
     from `customerBalance` for that customer, whatever entries are summarised; Target and Balance are
     null with no (or an unknown) customer, a customer without Weekly hours, or a period with no
-    Target. `legacyWorkWeek` passes the temporary global Work week fallback (removed in #303)
+    Target
 
 ## Projects and Customers
 
@@ -267,21 +266,25 @@ separate from board settings.
 | Time format | 24-hour, 12-hour | 24-hour |
 | Timezone | IANA zones | browser zone, else `Europe/Berlin` |
 | Duration format | `h:mm` (7:30), decimal (7.50 h) | `h:mm` |
-| Weekly hours (contract) | number > 0, step 0.5, decimals allowed, no maximum | empty (off) |
-| Workdays | any non-empty set of Mon … Sun (checkboxes) | Mon–Fri |
 
 - Changing the default customer resets the default project to that customer's first active project
 - The timezone controls display and attribution only; changing it never rewrites stored entries
 - Settings show a live preview of the current date, time and a sample duration
 - The default customer also picks whose Balance the Tracker main screen shows (badge, meters)
-- Weekly hours and Workdays here are the legacy global Work week: until the migration (#303) they
-  apply to the main screen only as the fallback for a default customer without Weekly hours of its
-  own, on the main screen and the Reports Balance card alike
-- Weekly hours is a number input (`inputmode="decimal"`); clearing it switches Target and Balance
-  off and removes the value from the stored settings. A value of zero or below is not saved.
-- Workdays is a group of seven checkboxes (`Mon` … `Sun`); each tick saves immediately. The last
-  ticked day is disabled so the set can never be empty. A stored value that is missing or invalid
-  resolves to Mon–Fri.
+- There is no global Weekly hours or Workdays: the Work week is per customer (Projects and
+  Customers), and resolved settings expose neither field
+- **Legacy migration.** Older versions stored a global `weeklyHours` / `workdays` in
+  `globalSettings.timeTracking`. Once the read model is loaded on the Time Tracking page, a pure
+  migration (`legacyWorkWeekMigration` in `timetracking-legacy-work-week.js`) decides the events,
+  emitted through the normal emitter with the user's actor:
+  - legacy Weekly hours, a default customer set and that customer has no Weekly hours → one
+    `customer.updated` with the legacy Weekly hours and Workdays (Mon–Fri when none were stored)
+  - any legacy field present → one global `settings.updated` without `weeklyHours` and `workdays`
+  - nothing legacy → no events; running it on its own output emits nothing
+  - Two devices running it on the same state emit the same values, so the per-field merge converges;
+    a device whose default customer already has Weekly hours (from sync) only clears the legacy
+    fields. A user with a default customer sees the same Balance before and after the upgrade;
+    without one, the legacy values are dropped and no customer gets a Target
 
 ## Weekly hours, Target and Balance
 
@@ -359,12 +362,14 @@ ignored while an input is focused.
   finished, current, future and pre-first-entry weeks, decimal Weekly hours and Monday week start
   across DST; Workdays (default Mon–Fri, weekends add no Target, custom sets, invalid values);
   per-customer Balance (only its entries, own first entry, archived stop / unarchive, Mon–Wed gives
-  Thu–Sun 0, additivity per customer, legacy fallback); the period summary's Balance for one
+  Thu–Sun 0, additivity per customer, a customer without Weekly hours has no Target); the legacy
+  Work week migration table (customer patch + settings clear, no / unknown default customer, default
+  customer already has Weekly hours, nothing legacy, own output, same Balance before and after); the period summary's Balance for one
   customer in week, month and year (own Work week, own first entry, archived stop, year reset,
   additivity, no customer / no Weekly hours); `customer.updated` Work week patch
   validation and snapshot replay
-- DOM: entry bar save flow, filters, edit modal, delete confirmation; Weekly hours input; Workdays
-  checkboxes (default, save, last day locked, sync); "This week"
+- DOM: entry bar save flow, filters, edit modal, delete confirmation; Settings shows neither Weekly
+  hours nor Workdays, and a stored legacy value gives no badge; "This week"
   badge visibility and live updates; Reports Week | Month switch, navigation and persisted choice,
   week chart and table, balance card values, sign / colour and visibility rules (default customer
   unfiltered, the filtered customer live, hidden under a project filter, without a default customer
@@ -386,7 +391,9 @@ ignored while an input is focused.
   filter hides it
 - E2E (desktop, Work week): two customers with different Work weeks; the badge follows the default
   customer and its Work week, another customer's entry changes totals only; an archived customer's
-  Work week stays editable
+  Work week stays editable; with two customers the badge opens Reports, whose customer filter
+  switches the Balance between them, and changing the default customer moves the badge; an upgrade
+  from a stored legacy global Weekly hours moves it onto the default customer with the same Balance
 - E2E (Pixel 5, Work week): summary, Weekly hours input and day ticks ≥ 44×44px, no horizontal
   overflow; the badge turns on from the default customer's Work week
 - E2E (Pixel 5): tap edit and delete on a row without hover; controls measure at least 44×44px; tap

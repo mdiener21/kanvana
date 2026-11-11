@@ -85,10 +85,11 @@ describe('week strip summary', () => {
     expect(strip.balanceMs).toBe(4 * H - 24 * H);
   });
 
-  test('falls back to the legacy global Work week while the Default customer has none', () => {
+  test('a Default customer without a Work week has no Target, meters or Balance', () => {
     const entries = [entry('mon', '2026-11-09T08:00:00Z', '2026-11-09T10:00:00Z', 'p2')];
-    const strip = summarizeWeekStrip(ttOf(entries), NOW, { tz: TZ, customerId: 'c2', legacyWorkWeek: { weeklyHours: 20 } });
-    expect(strip.hasTarget).toBe(true);
-    expect(strip.balanceMs).toBe(2 * H - 16 * H);
+    const strip = summarizeWeekStrip(ttOf(entries), NOW, { tz: TZ, customerId: 'c2' });
+    expect(strip.hasTarget).toBe(false);
+    expect(strip.balanceMs).toBeNull();
+    expect(strip.days.every((d) => d.targetMs === null)).toBe(true);
   });
 });

@@ -3,7 +3,6 @@ import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 import { EVENT_SCOPE } from './constants.js';
 import { isProjectActive, projectById } from './timetracking-crud.js';
 import { DATE_FORMATS, TIME_FORMATS, DURATION_FORMATS, browserTimezone } from './timetracking-time.js';
-import { resolveWorkWeek } from './timetracking-balance.js';
 
 export function isValidTimezone(tz) {
   if (typeof tz !== 'string' || !tz) return false;
@@ -30,9 +29,7 @@ export function resolveTimeTrackingSettings(raw) {
     dateFormat: oneOf(s.dateFormat, DATE_FORMATS),
     timeFormat: oneOf(s.timeFormat, TIME_FORMATS),
     timezone: isValidTimezone(s.timezone) ? s.timezone : browserTimezone(),
-    durationFormat: oneOf(s.durationFormat, DURATION_FORMATS),
-    // Legacy global Work week: only the fallback for a Default customer without one, until migrated.
-    ...resolveWorkWeek(s)
+    durationFormat: oneOf(s.durationFormat, DURATION_FORMATS)
   };
 }
 
@@ -55,7 +52,6 @@ export function saveTimeTrackingSettings(patch) {
       ? activeProjectsOf(loadTimeTracking(), next.defaultCustomerId)[0]?.id ?? null
       : null;
   }
-  if (next.weeklyHours === null) delete next.weeklyHours;
   scheduleDomainEvent({
     type: 'settings.updated',
     scope: EVENT_SCOPE.GLOBAL,

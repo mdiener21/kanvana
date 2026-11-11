@@ -98,3 +98,74 @@ test('an archived Customer\'s Work week stays editable', async ({ page }) => {
   await setWorkWeek(page, 'Acme', '20', ['Fri']);
   await expect(editor(page, 'Acme').locator('summary')).toContainText('20h · Mon–Thu');
 });
+
+test('two Customers: the badge follows the Default customer and the Reports Customer filter switches Balance', async ({ page }) => {
+  // Thursday 15 Oct 2026.
+  await page.clock.install({ time: new Date('2026-10-15T12:00:00+02:00') });
+  await page.goto('/timetracking.html');
+  await page.locator('#tt-nav-projects').click();
+  await addProject(page, 'Acme', 'Website');
+  await addProject(page, 'Globex', 'Support');
+  await logToday(page, 'Website', '6h');
+  await logToday(page, 'Support', '3h');
+  // Acme 40h over Mon–Fri (8h today); Globex 20h over Mon–Fri (4h today).
+  await setWorkWeek(page, 'Acme', '40');
+  await setWorkWeek(page, 'Globex', '20');
+  await chooseDefaultCustomer(page, 'Acme');
+
+  const badge = page.getByTestId('tt-week-balance');
+  await expect(badge).toHaveText(/This week\s*−2:00/);
+  await badge.click();
+  await expect(page.getByTestId('tt-report-period')).toHaveText('W42 · 12–18 Oct 2026');
+  const card = page.getByTestId('tt-balance-card');
+  const customerFilter = page.getByLabel('Filter report by customer');
+  // Unfiltered: the Default customer's Balance.
+  await expect(card).toContainText(/Logged\s*6:00/);
+  await expect(card).toContainText(/Target\s*8:00/);
+  await expect(card).toContainText(/Balance\s*−2:00/);
+
+  await customerFilter.selectOption({ label: 'Globex' });
+  await expect(card).toContainText(/Logged\s*3:00/);
+  await expect(card).toContainText(/Target\s*4:00/);
+  await expect(card).toContainText(/Balance\s*−1:00/);
+
+  await customerFilter.selectOption({ label: 'Acme' });
+  await expect(card).toContainText(/Balance\s*−2:00/);
+
+  // Switching the Default customer moves the badge to Globex's Work week.
+  await chooseDefaultCustomer(page, 'Globex');
+  await expect(badge).toHaveText(/This week\s*−1:00/);
+});
+
+test('upgrading moves the legacy global Weekly hours onto the Default customer with the same Balance', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-15T12:00:00+02:00') });
+  await page.goto('/timetracking.html');
+  await page.locator('#tt-nav-projects').click();
+  await addProject(page, 'Acme', 'Website');
+  await logToday(page, 'Website', '6h');
+  await chooseDefaultCustomer(page, 'Acme');
+
+  // What an older version stored: a global Weekly hours and Workdays in the Time Tracking settings.
+  await page.evaluate(async () => {
+    const { loadGlobalSettings } = await import('/modules/storage.js');
+    const { scheduleDomainEvent, flushDomainEvents } = await import('/modules/event-sourcing/emitter.js');
+    const timeTracking = { ...loadGlobalSettings().timeTracking, weeklyHours: 25, workdays: [1, 2, 3, 4, 5] };
+    scheduleDomainEvent({
+      type: 'settings.updated', scope: 'global', entityId: 'timeTracking', payload: { fields: { timeTracking } }
+    });
+    await flushDomainEvents();
+  });
+
+  await page.reload();
+  // First entry today (Thursday): 25h / 5 = 5h Target, 6h logged.
+  const badge = page.getByTestId('tt-week-balance');
+  await expect(badge).toHaveText(/This week\s*\+1:00/);
+  await page.locator('#tt-nav-projects').click();
+  await expect(editor(page, 'Acme').locator('summary')).toContainText('25h · Mon–Fri');
+  await page.locator('#tt-nav-settings').click();
+  await expect(page.locator('#tt-section-settings').getByLabel(/Weekly hours/)).toHaveCount(0);
+  await expect(page.locator('#tt-section-settings').getByRole('group', { name: 'Workdays' })).toHaveCount(0);
+
+  await page.reload();
+  await expect(badge).toHaveText(/This week\s*\+1:00/);
+});

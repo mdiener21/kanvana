@@ -295,12 +295,6 @@ describe('Customer Balance', () => {
     }
   });
 
-  test('a Customer without Weekly hours falls back to the legacy Work week while it exists', () => {
-    const data = withWorkWeeks(twoCustomers, { c2: { weeklyHours: null } });
-    const s = summarizePeriod(data, [], OCT, { ...globex, legacyWorkWeek: { weeklyHours: 10, workdays: [1, 2, 3, 4, 5] } });
-    expect(s).toMatchObject({ balanceLogged: 2 * H, target: 9 * 2 * H });
-  });
-
   test('an archived Customer\'s Target stops at its last entry', () => {
     const data = withWorkWeeks(twoCustomers, { c2: { weeklyHours: 20, archived: true } });
     expect(summarizePeriod(data, [], OCT, globex).target).toBe(4 * H); // Tue 20 Oct only

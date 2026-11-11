@@ -67,16 +67,8 @@ export const resolveWorkWeek = (raw) => ({ weeklyHours: positiveOrNull(raw?.week
 
 const customerOf = (tt, customerId) => tt.customers.find((c) => c.id === customerId) ?? null;
 
-/**
- * A Customer's Work week. `legacyWorkWeek` is the temporary fallback to the global Time Tracking
- * setting for a Customer without Weekly hours; the legacy migration removes it.
- */
-export function customerWorkWeek(tt, customerId, legacyWorkWeek = null) {
-  const customer = customerOf(tt, customerId);
-  const own = resolveWorkWeek(customer);
-  if (!customer || hasTarget(own) || !legacyWorkWeek || !hasTarget(legacyWorkWeek)) return own;
-  return resolveWorkWeek(legacyWorkWeek);
-}
+// A Customer's Work week; an unknown Customer, or one without Weekly hours, has no Target.
+export const customerWorkWeek = (tt, customerId) => resolveWorkWeek(customerOf(tt, customerId));
 
 /**
  * The one entry point for every Balance view: Logged, Target and Balance of `entries` over
@@ -93,11 +85,11 @@ export function periodBalance(entries, period, workWeek, { now, tz, endsAtLastEn
  * A Customer's Balance over `period`: only Time Entries booked to its Projects, against its Work
  * week. Its Target starts on its own first entry day and, while it is archived, stops at its last.
  */
-export function customerBalance(tt, customerId, period, { now, tz, legacyWorkWeek = null }) {
+export function customerBalance(tt, customerId, period, { now, tz }) {
   const customer = customerOf(tt, customerId);
   const projectIds = new Set(tt.projects.filter((p) => p.customerId === customer?.id).map((p) => p.id));
   const entries = customer ? (tt.timeEntries ?? []).filter((e) => projectIds.has(e.projectId)) : [];
-  return periodBalance(entries, period, customerWorkWeek(tt, customerId, legacyWorkWeek), {
+  return periodBalance(entries, period, customerWorkWeek(tt, customerId), {
     now, tz, endsAtLastEntry: !!customer?.archived
   });
 }

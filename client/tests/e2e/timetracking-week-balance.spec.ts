@@ -23,10 +23,10 @@ async function chooseDefaultCustomer(page: Page, name: string): Promise<void> {
   await page.locator('#tt-section-settings').getByLabel('Default customer').selectOption({ label: name });
 }
 
-// Temporary legacy fallback: the global Weekly hours applies to a Default customer without a Work week.
-async function setLegacyWeeklyHours(page: Page, hours: string): Promise<void> {
-  await page.locator('#tt-nav-settings').tap();
-  const weeklyHours = page.locator('#tt-section-settings').getByLabel('Weekly hours (contract)');
+async function setWeeklyHoursOnPhone(page: Page, customer: string, hours: string): Promise<void> {
+  await page.locator('#tt-nav-projects').tap();
+  await page.getByRole('group', { name: `Work week for ${customer}` }).locator('summary').tap();
+  const weeklyHours = page.getByLabel(`Weekly hours for ${customer}`);
   await weeklyHours.fill(hours);
   await weeklyHours.press('Tab');
 }
@@ -73,8 +73,8 @@ test('on a phone, tapping the "This week" badge opens Reports on the current wee
   await page.clock.install({ time: new Date('2026-10-15T12:00:00+02:00') });
   await page.goto('/timetracking.html');
   await logTodayOnPhone(page, '6h');
+  await setWeeklyHoursOnPhone(page, 'Acme', '25');
   await chooseDefaultCustomer(page, 'Acme');
-  await setLegacyWeeklyHours(page, '25');
   await page.locator('#tt-nav-tracker').tap();
 
   await page.getByTestId('tt-week-balance').tap();
@@ -108,11 +108,7 @@ test('on a phone, the Year view with 12 monthly bars and its Balance fit the scr
   await page.clock.install({ time: new Date('2026-10-15T12:00:00+02:00') });
   await page.goto('/timetracking.html');
   await logTodayOnPhone(page, '6h');
-  await page.locator('#tt-nav-projects').tap();
-  await page.getByRole('group', { name: 'Work week for Acme' }).locator('summary').tap();
-  const weeklyHours = page.getByLabel('Weekly hours for Acme');
-  await weeklyHours.fill('25');
-  await weeklyHours.press('Tab');
+  await setWeeklyHoursOnPhone(page, 'Acme', '25');
   await chooseDefaultCustomer(page, 'Acme');
 
   await page.locator('#tt-nav-reports').tap();

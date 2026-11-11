@@ -75,7 +75,7 @@ function bucketFor(map, item, extra) {
 }
 
 // The Balance is `balanceCustomerId`'s (see customerBalance), whatever `entries` are summarised.
-export function summarizePeriod(tt, entries, period, { tz, now, balanceCustomerId = null, legacyWorkWeek = null }) {
+export function summarizePeriod(tt, entries, period, { tz, now, balanceCustomerId = null }) {
   const kind = KINDS[period.kind];
   const buckets = kind.buckets(period).map((start) => ({ start, totalMs: 0, byProject: {} }));
   const customers = new Map();
@@ -103,7 +103,7 @@ export function summarizePeriod(tt, entries, period, { tz, now, balanceCustomerI
     entryCount += 1;
   }
 
-  const balance = customerBalance(tt, balanceCustomerId, period, { now, tz, legacyWorkWeek });
+  const balance = customerBalance(tt, balanceCustomerId, period, { now, tz });
   const withShare = (bucket) => ({ ...bucket, share: totalMs > 0 ? bucket.totalMs / totalMs : 0 });
   return {
     period,

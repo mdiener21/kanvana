@@ -234,12 +234,10 @@ export function mountReportsPanel(container, {
     if (followsCurrentPeriod) period = currentPeriod(kind, prefs.now, prefs.tz);
     filter.refresh();
     const activeFilter = filter.getFilter();
-    const settings = getSettings();
     summary = summarizePeriod(tt, filterEntries(tt, activeFilter), period, {
       tz: prefs.tz,
       now: prefs.now,
-      balanceCustomerId: balanceCustomerOf(activeFilter, settings),
-      legacyWorkWeek: { weeklyHours: settings.weeklyHours, workdays: settings.workdays }
+      balanceCustomerId: balanceCustomerOf(activeFilter, getSettings())
     });
     const name = summary.label;
     label.textContent = name;

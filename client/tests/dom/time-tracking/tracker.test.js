@@ -848,23 +848,10 @@ describe('"This week" Balance badge', () => {
     expect(badge().hidden).toBe(true);
   });
 
-  test('is hidden for a Default customer with neither a Work week nor a legacy global Weekly hours', () => {
-    asDefault();
+  test('is hidden for a Default customer without a Work week, even with a stored legacy global Weekly hours', () => {
+    asDefault({ weeklyHours: 5 });
     mount({ timeEntries: THREE_ENTRIES });
     expect(badge().hidden).toBe(true);
-  });
-
-  test('falls back to the legacy global Weekly hours while the Default customer has no Work week', () => {
-    asDefault({ weeklyHours: 5 });
-    mount({ timeEntries: THREE_ENTRIES });
-    expect(value()).toBe('+1:30');
-  });
-
-  test("the Default customer's own Work week wins over the legacy global Weekly hours", () => {
-    customers = [{ ...ACME, weeklyHours: 15 }, OLD_CO];
-    asDefault({ weeklyHours: 5 });
-    mount({ timeEntries: THREE_ENTRIES });
-    expect(value()).toBe('−2:30');
   });
 
   // First entry Wed 7 Oct, today Thu 8 Oct: 2 counted workdays; 3.5h logged.

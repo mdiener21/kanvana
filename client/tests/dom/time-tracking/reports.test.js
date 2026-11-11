@@ -49,7 +49,7 @@ function fakeChart() {
 // `weeklyHours` / `workdays` are the Default customer's (Acme's) Work week; `workWeeks` sets any Customer's.
 function mount({
   durationFormat = 'h:mm', weeklyHours = null, workdays = [1, 2, 3, 4, 5], workWeeks = {},
-  defaultCustomerId = 'c1', legacyWorkWeek = { weeklyHours: null, workdays: [1, 2, 3, 4, 5] }
+  defaultCustomerId = 'c1'
 } = {}) {
   state = makeState();
   const weeks = { c1: { weeklyHours, workdays }, ...workWeeks };
@@ -60,7 +60,7 @@ function mount({
   panel = mountReportsPanel(host, {
     getPrefs: () => prefs,
     getTimeTracking: () => state,
-    getSettings: () => ({ defaultCustomerId, ...legacyWorkWeek }),
+    getSettings: () => ({ defaultCustomerId }),
     createChart: () => { const chart = fakeChart(); charts.push(chart); return chart; }
   });
   panel.show();
@@ -455,13 +455,6 @@ describe('balance card', () => {
     choose(screen.getByLabelText('Filter report by customer'), 'c2');
     expect(card().hidden).toBe(true);
     expect(kpi('Total')).toBe('3:00');
-  });
-
-  test('a Customer without Weekly hours uses the legacy Weekly hours while they exist', () => {
-    mount({ legacyWorkWeek: { weeklyHours: 40, workdays: [1, 2, 3, 4, 5] } });
-    choose(screen.getByLabelText('Filter report by customer'), 'c2');
-    expect(cardValue('Logged').textContent).toBe('3:00');
-    expect(cardValue('Target').textContent).toBe('64:00');
   });
 
   test('a Project filter hides the card', () => {

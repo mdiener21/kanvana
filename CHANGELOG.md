@@ -13,9 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Time Tracking Reports: the Balance card works per customer. Filtered to a customer it shows that customer's Logged, Target and Balance against its own Work week; unfiltered it shows the Default customer's, matching the "This week" badge. It is hidden under a project filter, with no Default customer, and for a customer without Weekly hours (until the legacy settings are migrated, the global Weekly hours stand in) (#302).
+- Time Tracking: Weekly hours and Workdays are no longer global Settings; they live only on each customer's Work week. **Upgrading:** the first time you open Time Tracking, your global Weekly hours and Workdays move to your Default customer (if it has no Work week yet), so the "This week" badge and Reports show the same Balance as before, and the global values are removed. Without a Default customer the global values are dropped; set a Work week on a customer to get a Target again (#303).
 
-- Time Tracker: the "This week" badge and week-strip meters now show the Default customer's Balance, counting only its entries against its Work week from its first entry (and up to its last while archived); day and week totals still count every customer. With no Default customer the badge is hidden; a Default customer without a Work week uses the global Weekly hours until those settings are migrated (#301).
+- Time Tracking Reports: the Balance card works per customer. Filtered to a customer it shows that customer's Logged, Target and Balance against its own Work week; unfiltered it shows the Default customer's, matching the "This week" badge. It is hidden under a project filter, with no Default customer, and for a customer without Weekly hours (#302).
+
+- Time Tracker: the "This week" badge and week-strip meters now show the Default customer's Balance, counting only its entries against its Work week from its first entry (and up to its last while archived); day and week totals still count every customer. With no Default customer, or one without a Work week, the badge is hidden (#301).
 
 - Time Tracking: the "This week" badge, week-strip meters and Reports Balance card now share one Balance entry point; no visible change (#300).
 

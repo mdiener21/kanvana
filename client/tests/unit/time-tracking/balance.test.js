@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { periodBalance, customerBalance, customerWorkWeek, formatBalance } from '../../../src/modules/timetracking-balance.js';
+import { periodBalance, customerBalance, customerWorkWeek, resolveWorkWeek, formatBalance } from '../../../src/modules/timetracking-balance.js';
 import { currentPeriod } from '../../../src/modules/timetracking-report.js';
 import { formatDuration } from '../../../src/modules/timetracking-time.js';
 
@@ -252,24 +252,27 @@ describe('customerBalance — a Customer\'s Balance against its own Work week', 
     expect(customerBalance(tt, 'c1', W42, finished).targetMs).toBe(40 * H);
   });
 
-  describe('temporary legacy fallback (until the migration)', () => {
-    const legacyWorkWeek = { weeklyHours: 20, workdays: [1, 2] };
+  test('a Customer without Weekly hours has no Target', () => {
+    const tt = ttOf([onAcme('a', '2026-10-12T07:00:00.000Z', 8)], [{ ...ACME, weeklyHours: null }]);
+    expect(customerBalance(tt, 'c1', W42, finished)).toEqual({ loggedMs: 8 * H, targetMs: null, balanceMs: null });
+  });
+});
 
-    test('a Customer without Weekly hours uses the legacy global Weekly hours and Workdays', () => {
-      const tt = ttOf([onAcme('a', '2026-10-12T07:00:00.000Z', 8)], [{ ...ACME, weeklyHours: null }]);
-      expect(customerWorkWeek(tt, 'c1', legacyWorkWeek)).toEqual(legacyWorkWeek);
-      expect(customerBalance(tt, 'c1', W42, { ...finished, legacyWorkWeek }).targetMs).toBe(20 * H);
-    });
+describe('resolveWorkWeek — any stored value resolves to a valid Work week', () => {
+  test.each([0, -5, '40', NaN, Infinity, null])('Weekly hours %s is treated as off', (weeklyHours) => {
+    expect(resolveWorkWeek({ weeklyHours }).weeklyHours).toBeNull();
+  });
 
-    test('a Customer with its own Weekly hours ignores the legacy value', () => {
-      const tt = ttOf([onAcme('a', '2026-10-12T07:00:00.000Z', 8)]);
-      expect(customerBalance(tt, 'c1', W42, { ...finished, legacyWorkWeek }).targetMs).toBe(40 * H);
-    });
+  test('Weekly hours has no upper limit', () => {
+    expect(resolveWorkWeek({ weeklyHours: 168.5 }).weeklyHours).toBe(168.5);
+  });
 
-    test('without a Customer the legacy value gives no Target', () => {
-      const tt = ttOf([onAcme('a', '2026-10-12T07:00:00.000Z', 8)]);
-      expect(customerBalance(tt, null, W42, { ...finished, legacyWorkWeek })).toMatchObject({ targetMs: null });
-    });
+  test('Workdays are kept as sorted, unique ISO weekdays', () => {
+    expect(resolveWorkWeek({ workdays: [7, 2, 2, 6] }).workdays).toEqual([2, 6, 7]);
+  });
+
+  test.each([[[]], [[0, 8]], [['1']], ['1,2'], [null]])('Workdays %j fall back to Mon–Fri', (workdays) => {
+    expect(resolveWorkWeek({ workdays }).workdays).toEqual([1, 2, 3, 4, 5]);
   });
 });
 

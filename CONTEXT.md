@@ -62,7 +62,8 @@ last end, that no Time Entry covers. Derived for display only, never stored and 
 
 **Time Tracking settings** live in the global settings layer (`globalSettings.timeTracking`, synced
 via `settings.updated` with `global` scope). Only values the user explicitly chose are stored; an
-unset timezone resolves to each device's browser timezone.
+unset timezone resolves to each device's browser timezone. They hold no Work week: Weekly hours and
+Workdays belong to each Customer (see Work week).
 
 **Last-used project** — the project of the last saved or duplicated Time Entry, pre-filled in the
 entry bar ahead of the default project. It is **per-device** state in `localStorage`
@@ -80,8 +81,9 @@ week" badge does not. An unknown or missing value falls back to `month`.
 A Customer without Weekly hours has no Target. Customers stored before Work weeks resolve to no
 Weekly hours over Mon–Fri. The current Work week applies to every period; there is no history of
 earlier values. The **Default customer** setting also picks whose Balance the Tracker main screen
-shows. Until the legacy migration (#303), a Default customer without Weekly hours falls back to the
-legacy global Time Tracking `weeklyHours` / `workdays`.
+shows. There is no global Work week: older versions' global Time Tracking `weeklyHours` /
+`workdays` are moved onto the Default customer (if it has no Weekly hours yet) and removed from the
+settings by a one-off migration on the Time Tracking page; nothing reads them any more.
 
 **Weekly hours** — a Customer's contractual hours per week; part of its Work week (`weeklyHours`, a
 number > 0, decimals allowed, no maximum). Unset means off: no Target or Balance for that Customer.

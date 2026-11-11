@@ -170,15 +170,8 @@ describe('week strip', () => {
     expect(badge().querySelector('.tt-week-balance-value').textContent).toBe('−10:45');
   });
 
-  test('falls back to the legacy global Weekly hours while the Default customer has no Work week', () => {
+  test('a stored legacy global Weekly hours gives a Default customer without a Work week no meters or Balance', () => {
     vi.mocked(loadGlobalSettings).mockImplementation(() => ({ timeTracking: { defaultCustomerId: 'c1', weeklyHours: 40 } }));
-    mount();
-    expect(fill('Mon')).toBe('100%');
-    expect(badge().querySelector('.tt-week-balance-value').textContent).toBe('−19:45');
-  });
-
-  test('the legacy global Weekly hours alone, with no Default customer, shows no meters or Balance', () => {
-    vi.mocked(loadGlobalSettings).mockImplementation(() => ({ timeTracking: { weeklyHours: 40 } }));
     mount();
     expect(cells().every((c) => c.querySelector('.tt-week-meter') === null)).toBe(true);
     expect(badge().hidden).toBe(true);

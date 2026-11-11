@@ -14,9 +14,9 @@ function weekStripLabel(start, end) {
 
 // The week's days: totals over all entries (the strip ignores the list filter); meters and the
 // Balance from the Default customer (`customerId`) against its Work week.
-export function summarizeWeekStrip(tt, now, { tz, customerId = null, legacyWorkWeek = null }) {
+export function summarizeWeekStrip(tt, now, { tz, customerId = null }) {
   const week = currentPeriod(WEEK, now, tz);
-  const options = { now, tz, legacyWorkWeek };
+  const options = { now, tz };
   const today = dayNumber(zonedParts(now, tz));
   const loggedOf = (period) => periodBalance(tt.timeEntries, period, {}, options).loggedMs;
   const days = Array.from({ length: 7 }, (_, i) => {
@@ -40,7 +40,7 @@ export function summarizeWeekStrip(tt, now, { tz, customerId = null, legacyWorkW
     days,
     loggedMs: loggedOf(week),
     balanceMs: customerBalance(tt, customerId, week, options).balanceMs,
-    hasTarget: hasTarget(customerWorkWeek(tt, customerId, legacyWorkWeek))
+    hasTarget: hasTarget(customerWorkWeek(tt, customerId))
   };
 }
 
@@ -96,10 +96,7 @@ export function mountWeekStrip(panel, { getSettings, onOpenCurrentWeek, onSelect
   });
 
   function refresh(tt, prefs) {
-    const { defaultCustomerId, weeklyHours, workdays } = getSettings();
-    const week = summarizeWeekStrip(tt, prefs.now, {
-      tz: prefs.tz, customerId: defaultCustomerId, legacyWorkWeek: { weeklyHours, workdays }
-    });
+    const week = summarizeWeekStrip(tt, prefs.now, { tz: prefs.tz, customerId: getSettings().defaultCustomerId });
     loggedDays = new Set(week.days.filter((d) => d.loggedMs > 0).map((d) => d.key));
     label.textContent = week.label;
     const totalText = formatDuration(week.loggedMs, prefs.durationFormat);
