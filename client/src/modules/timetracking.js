@@ -1,4 +1,8 @@
 import { bootPage } from './page-boot.js';
 import { mountTimeTracking } from './timetracking-ui.js';
+import { migrateLegacyWorkWeek } from './timetracking-legacy-work-week.js';
 
-bootPage().then(() => mountTimeTracking(document));
+bootPage().then(() => {
+  migrateLegacyWorkWeek();
+  mountTimeTracking(document);
+});
