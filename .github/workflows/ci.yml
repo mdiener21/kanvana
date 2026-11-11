@@ -37,7 +37,9 @@ jobs:
         working-directory: client
 
       - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
+        # The runner image already ships Chromium's libraries; --with-deps only adds fonts.
+        # When the Ubuntu apt mirror is unreachable, fall back to the browser alone.
+        run: npx playwright install --with-deps chromium || npx playwright install chromium
         working-directory: client
 
       - name: E2E tests
