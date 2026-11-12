@@ -16,6 +16,7 @@
 - Clicking a day shows the list of tasks due on that date
 - Overdue tasks in the list are styled in red
 - Task links open the task edit modal on the board and return the user to `index.html`
+- On phones and short screens the page scrolls inside its main area, so the task list below the month grid stays reachable however many tasks are due
 
 ## Navigation
 
