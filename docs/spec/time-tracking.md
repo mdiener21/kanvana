@@ -128,7 +128,8 @@ Constructed through factories in `schema.js`; IDs via `generateUUID()`.
   focus within the row; on touch devices (`(hover: none)`, by input capability, not screen width)
   they sit in one always-visible, 44px `⋯` **More actions** menu per row (Edit, Duplicate, Delete;
   Delete still asks inline). `Esc` or a tap outside closes the menu
-- Rows fit a narrow phone screen (Pixel 5) without horizontal overflow
+- Rows fit a narrow phone screen (Pixel 5) without horizontal overflow; on a phone the page scrolls
+  vertically, so every entry can be reached and edited however long the list is
 - Filter by customer and/or project; the project filter lists only the selected customer's projects;
   archived customers/projects remain selectable as filters
 - Selected row is highlighted and kept in view when moving with `j` / `k`

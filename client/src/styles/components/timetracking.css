@@ -822,7 +822,8 @@
 
 /* Mobile */
 @media (max-width: 600px) {
-  body:has(> .tt-shell) { padding: 0; }
+  /* responsive.css pins the board's body to the viewport; the tracker scrolls the document instead */
+  body:has(> .tt-shell) { padding: 0; height: auto; overflow: visible; }
   .tt-shell,
   .tt-shell.sidebar-collapsed {
     grid-template-columns: minmax(0, 1fr);

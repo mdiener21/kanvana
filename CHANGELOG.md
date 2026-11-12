@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Time Tracker on phones: the page scrolls vertically again, so entries below the fold can be reached and edited.
+
 ## [3.4.14] - 2026-11-11
 
 ### Added
