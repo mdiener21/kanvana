@@ -274,6 +274,8 @@ body.calendar-page .rpt-main {
     margin: 0;
     scroll-snap-align: unset;
     overflow: hidden;
+    /* Keep the card at its content height so <main> scrolls; shrinking it clipped the due list. */
+    flex-shrink: 0;
   }
 }
 

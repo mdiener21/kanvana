@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Time Tracker on phones: the page scrolls vertically again, so entries below the fold can be reached and edited.
+- Calendar on phones: the list of tasks due on the selected day is no longer cut off below the month grid on short screens or busy days; the page scrolls down to it.
 
 ## [3.4.14] - 2026-11-11
 
