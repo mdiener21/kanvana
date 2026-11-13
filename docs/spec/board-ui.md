@@ -15,9 +15,10 @@
 - A menu button opens controls for boards, help, labels, settings, notifications, add column, and calendar
 - A quick-access bell button mirrors the notification modal and count badge shown in the menu
 - A quick-access clock link beside the bell opens Time Tracking; it is not repeated in the menu
-- On mobile, the top bar stays on a single row: the brand remains left; search, sync, time tracking, notifications and the menu sit right as icon buttons
-- On mobile, the search icon drops the task search field in below the header and focuses it; Escape or a tap elsewhere closes it, and a dot on the icon shows a filter is still applied
+- On mobile, the top bar stays on a single row down to 320px wide: the brand remains left (its text truncates); search, sync, time tracking, notifications and the menu sit right as icon buttons, each at least 44×44px (`--touch-target`)
+- On mobile, the search icon drops the task search field in below the header and focuses it; Escape or a tap elsewhere closes it, and a dot on the icon shows a filter is still applied; its accessible name is "Search tasks", or "Search tasks, filter applied" while a filter is applied
 - On mobile, the cloud icon carries a sync-state dot (grey offline, green live, amber syncing, orange unsynced); signed out it opens sign-in directly, otherwise it drops in the session panel (user, sign out, sync state) below the header
+- The cloud icon's accessible name carries the sync state shown in the session panel: "Sign in to sync, <state>" while a tap opens sign-in, otherwise "Sync session, <state>" (e.g. "Sync session, Live", "Sync session, 2 unsynced"). It has `aria-controls="session-status"` and `aria-expanded` for the session panel, and `aria-haspopup="dialog"` only while it opens sign-in
 - On mobile, opening the controls menu expands into a full-screen overlay with a dedicated close button that holds only board controls (no search or session status) and does not raise the keyboard
 
 ## Boards UI

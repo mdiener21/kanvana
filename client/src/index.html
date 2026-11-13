@@ -102,7 +102,7 @@
         </a>
       </div>
       
-      <div class="session-status" aria-label="Session status">
+      <div id="session-status" class="session-status" aria-label="Session status">
         <button id="login-btn" class="control-btn" type="button" aria-haspopup="dialog" aria-label="Sign in to sync">
           <span data-lucide="cloud" aria-hidden="true"></span>
           <span>Go Online</span>
@@ -123,7 +123,7 @@
           <span data-lucide="search" aria-hidden="true"></span>
         </button>
 
-        <button id="sync-quick-btn" class="control-btn icon-only mobile-only" type="button" aria-label="Sync and sign in" aria-expanded="false">
+        <button id="sync-quick-btn" class="control-btn icon-only mobile-only" type="button" aria-label="Sign in to sync, Offline" aria-expanded="false" aria-controls="session-status" aria-haspopup="dialog">
           <span data-lucide="cloud" aria-hidden="true"></span>
           <span class="sync-quick-dot" aria-hidden="true"></span>
         </button>

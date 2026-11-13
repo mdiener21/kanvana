@@ -1,7 +1,7 @@
 /* Time Tracking page (timetracking.html) — all selectors are tt- scoped */
 
 :root {
-  --tt-touch-target: 44px;
+  --tt-touch-target: var(--touch-target);
   /* --accent (#3b82f6) is < 4.5:1 for small text on light tints */
   --tt-accent-text: #1d4ed8;
 }

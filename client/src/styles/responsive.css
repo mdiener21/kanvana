@@ -57,7 +57,7 @@
 
   .toolbar-quick-actions {
     grid-column: 2;
-    gap: 6px;
+    gap: 4px;
     margin-left: auto;
   }
 
@@ -117,8 +117,8 @@
   .toolbar-quick-actions .control-btn {
     position: relative;
     padding: 8px;
-    min-width: 38px;
-    min-height: 38px;
+    min-width: var(--touch-target);
+    min-height: var(--touch-target);
     justify-content: center;
   }
 

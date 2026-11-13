@@ -5,6 +5,9 @@
 :root {
   color-scheme: light;
 
+  /* Minimum touch-target size (WCAG 2.5.5) for tap controls on phones */
+  --touch-target: 44px;
+
   /* Core palette */
   --color-primary: #3b82f6;
   --color-primary-hover: #2563eb;

@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Board header: a clock quick-action next to the notifications bell opens Time Tracking; the Time Tracking entry is gone from the menu.
-- Board on phones: task search and sign-in/sync move out of the menu into header icons. Search drops in below the header; the cloud icon shows sync state and opens sign-in or the session panel. Opening the menu no longer raises the keyboard.
+- Board on phones: task search and sign-in/sync move out of the menu into header icons. Search drops in below the header; the cloud icon shows sync state and opens sign-in or the session panel. Opening the menu no longer raises the keyboard. Screen readers hear the sync state and an applied search filter in the icons' names, and every header icon is a 44×44px touch target with the header still on one row (#313)
 - Time Tracking on phones: the Time Tracker / Reports / Projects / Settings tabs move from the top to a tab bar fixed to the bottom edge; an entry's row menu opens upward when it would sit under the tab bar, and stays placed as the page scrolls or resizes (#313)
 
 ## [3.4.15] - 2026-11-12

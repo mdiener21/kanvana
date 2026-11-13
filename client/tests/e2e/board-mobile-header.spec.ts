@@ -183,6 +183,72 @@ test('on a phone the clock quick-action sits beside the notifications bell', asy
   await expectClockBesideBell(page);
 });
 
+const QUICK_ACTIONS = ['#search-quick-btn', '#sync-quick-btn', '#timetracking-quick-btn', '#notifications-quick-btn', '#desktop-menu-btn'];
+
+for (const width of [320, 360, 393]) {
+  test(`at ${width}px wide every header quick action is at least 44×44px and the header stays on one row`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 740 });
+    await openBoard(page);
+
+    const brand = (await page.locator('.brand').boundingBox())!;
+    for (const selector of QUICK_ACTIONS) {
+      const box = (await page.locator(selector).boundingBox())!;
+      expect(box.width, `${selector} width`).toBeGreaterThanOrEqual(44);
+      expect(box.height, `${selector} height`).toBeGreaterThanOrEqual(44);
+      // Same row as the brand, and inside the viewport
+      expect(box.y, `${selector} sits on the brand's row`).toBeLessThan(brand.y + brand.height);
+      expect(box.y + box.height, `${selector} sits on the brand's row`).toBeGreaterThan(brand.y);
+      expect(box.x + box.width, `${selector} fits the viewport`).toBeLessThanOrEqual(width);
+    }
+    await expect(page.locator('.brand-logo')).toBeVisible();
+  });
+}
+
+test('the search icon names itself and says when a filter is still applied', async ({ page }) => {
+  await openBoard(page);
+  const searchBtn = page.locator('#search-quick-btn');
+  const search = page.locator('#board-search-input');
+  await expect(searchBtn).toHaveAccessibleName('Search tasks');
+  await expect(searchBtn).toHaveAttribute('aria-controls', 'board-search-input');
+
+  await searchBtn.tap();
+  await search.fill('Soul Stone');
+  await tapElsewhere(page);
+  await expect(searchBtn).toHaveAccessibleName('Search tasks, filter applied');
+
+  await searchBtn.tap();
+  await search.fill('');
+  await expect(searchBtn).toHaveAccessibleName('Search tasks');
+});
+
+test('the cloud icon names the sync state, controls the session panel and announces sign-in as a dialog', async ({ page }) => {
+  await mockBackend(page);
+  await openBoard(page);
+  const cloud = page.locator('#sync-quick-btn');
+
+  await expect(cloud).toHaveAccessibleName('Sign in to sync, Offline');
+  await expect(cloud).toHaveAttribute('aria-controls', 'session-status');
+  await expect(page.locator('#session-status')).toHaveCount(1);
+  await expect(cloud).toHaveAttribute('aria-haspopup', 'dialog');
+
+  await cloud.tap();
+  await page.locator('#login-email').fill(USER.email);
+  await page.locator('#login-password').fill('secret-password');
+  await page.locator('#email-auth-submit').tap();
+  await expect(page.locator('#login-modal')).toBeHidden();
+
+  await expect(cloud).toHaveAccessibleName('Sync session, Live');
+  await expect(cloud).not.toHaveAttribute('aria-haspopup', /.*/);
+  await expect(cloud).toHaveAttribute('aria-controls', 'session-status');
+});
+
+test('the other header quick actions have accessible names', async ({ page }) => {
+  await openBoard(page);
+  await expect(page.locator('#timetracking-quick-btn')).toHaveAccessibleName('Time Tracking');
+  await expect(page.locator('#notifications-quick-btn')).toHaveAccessibleName(/^Notifications/);
+  await expect(page.locator('#desktop-menu-btn')).toHaveAccessibleName('Menu');
+});
+
 test.describe('at desktop width', () => {
   const { defaultBrowserType, ...desktop } = devices['Desktop Chrome'];
   test.use(desktop);

@@ -10,6 +10,7 @@ const HEADER_HTML = `
       <div id="user-info" class="user-info hidden">
         <button id="logout-btn" type="button">Sign out</button>
       </div>
+      <span id="sync-indicator" class="sync-indicator sync-indicator--offline">Offline</span>
     </div>
     <button id="search-quick-btn" type="button" aria-expanded="false">Search</button>
     <button id="sync-quick-btn" type="button" aria-expanded="false">Sync</button>
@@ -25,6 +26,15 @@ function jwt() {
 }
 
 const controls = () => document.querySelector('.controls');
+const button = (id) => document.getElementById(id);
+// MutationObserver callbacks run as microtasks.
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+function setSyncState(cls, text) {
+  const indicator = document.getElementById('sync-indicator');
+  indicator.className = `sync-indicator sync-indicator--${cls}`;
+  indicator.textContent = text;
+}
 const click = (id) => document.getElementById(id).click();
 
 describe('initializeHeaderPanels', () => {
@@ -71,5 +81,52 @@ describe('initializeHeaderPanels', () => {
 
     document.getElementById('board').click();
     expect(controls().classList.contains('session-open')).toBe(false);
+  });
+
+  describe('accessible names', () => {
+    it('names the cloud button after the sync state, as a sign-in action while signed out', async () => {
+      expect(button('sync-quick-btn').getAttribute('aria-label')).toBe('Sign in to sync, Offline');
+
+      getPb().authStore.save(jwt(), USER);
+      setSyncState('syncing', 'Syncing… (3)');
+      await settle();
+      expect(button('sync-quick-btn').getAttribute('aria-label')).toBe('Sync session, Syncing… (3)');
+
+      setSyncState('unsynced', '⚠ 2 unsynced');
+      await settle();
+      expect(button('sync-quick-btn').getAttribute('aria-label')).toBe('Sync session, 2 unsynced');
+
+      setSyncState('live', 'Live ●');
+      await settle();
+      expect(button('sync-quick-btn').getAttribute('aria-label')).toBe('Sync session, Live');
+    });
+
+    it('marks the cloud button as opening a dialog only while it opens sign-in', async () => {
+      const cloud = button('sync-quick-btn');
+      expect(cloud.getAttribute('aria-haspopup')).toBe('dialog');
+
+      getPb().authStore.save(jwt(), USER);
+      await settle();
+      expect(cloud.hasAttribute('aria-haspopup')).toBe(false);
+
+      getPb().authStore.clear();
+      button('login-btn').disabled = true; // backend unreachable: the panel explains why
+      await settle();
+      expect(cloud.hasAttribute('aria-haspopup')).toBe(false);
+      expect(cloud.getAttribute('aria-label')).toBe('Sync session, Offline');
+    });
+
+    it('says on the search button when a filter is still applied', () => {
+      const input = document.getElementById('board-search-input');
+      expect(button('search-quick-btn').getAttribute('aria-label')).toBe('Search tasks');
+
+      input.value = 'Soul Stone';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      expect(button('search-quick-btn').getAttribute('aria-label')).toBe('Search tasks, filter applied');
+
+      input.value = '';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      expect(button('search-quick-btn').getAttribute('aria-label')).toBe('Search tasks');
+    });
   });
 });

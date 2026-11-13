@@ -21,6 +21,26 @@ export function initializeHeaderPanels() {
 
   const closeAll = () => Object.keys(HEADER_PANELS).forEach((name) => setOpen(name, false));
 
+  // Signed out with a reachable backend, the cloud button opens sign-in instead of the session panel.
+  const opensSignIn = () => {
+    const loginBtn = $id('login-btn');
+    return !isAuthenticated() && Boolean(loginBtn) && !loginBtn.disabled;
+  };
+
+  // The quick-action icons carry state visually (dots); their accessible names carry it for screen readers.
+  const describeQuickActions = () => {
+    const searchBtn = $id(HEADER_PANELS.search.buttonId);
+    searchBtn?.setAttribute('aria-label', searchInput?.value ? 'Search tasks, filter applied' : 'Search tasks');
+
+    const syncBtn = $id(HEADER_PANELS.session.buttonId);
+    if (!syncBtn) return;
+    const signIn = opensSignIn();
+    const state = $id('sync-indicator')?.textContent.replace(/[●⚠]/g, '').trim() || 'Offline';
+    syncBtn.setAttribute('aria-label', `${signIn ? 'Sign in to sync' : 'Sync session'}, ${state}`);
+    if (signIn) syncBtn.setAttribute('aria-haspopup', 'dialog');
+    else syncBtn.removeAttribute('aria-haspopup');
+  };
+
   $id(HEADER_PANELS.search.buttonId)?.addEventListener('click', (e) => {
     e.stopPropagation();
     const open = !isOpen('search');
@@ -50,7 +70,18 @@ export function initializeHeaderPanels() {
 
   window.addEventListener('auth-changed', () => {
     if (!isAuthenticated()) setOpen('session', false);
+    describeQuickActions();
   });
+
+  searchInput?.addEventListener('input', describeQuickActions);
+  // sync-indicator.js re-renders the state pill and authsync.js disables sign-in when the backend is unreachable.
+  const sessionPanel = $(HEADER_PANELS.session.panelSelector);
+  if (sessionPanel) {
+    new MutationObserver(describeQuickActions).observe(sessionPanel, {
+      subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['disabled'],
+    });
+  }
+  describeQuickActions();
 
   // Escape in the search panel closes it and returns focus to its button; false when it was not open.
   const dismissSearch = () => {
