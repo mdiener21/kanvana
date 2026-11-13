@@ -190,4 +190,5 @@ The app uses CSS custom properties and `html[data-theme]` for theming.
 ## Footer and Help
 
 - Footer reminds users that data lives in the browser and should be exported
+- The footer is hidden on phones (≤600px)
 - The canonical help copy lives in `docs/user/help-how-to.md`

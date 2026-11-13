@@ -66,12 +66,14 @@ for (const width of [320, 360, 393]) {
   });
 }
 
-test('on a phone the header row holds only the brand', async ({ page }) => {
+test('on a phone there is no header brand or footer; the logo sits in the Controls sheet', async ({ page }) => {
   await openBoard(page);
+  await expect(page.locator('.brand')).toBeHidden();
+  await expect(page.locator('.footer')).toBeHidden();
   const header = (await page.locator('body > header').boundingBox())!;
-  await expect(page.locator('.brand-logo')).toBeVisible();
-  const barBox = (await bar(page).boundingBox())!;
-  expect(barBox.y).toBeGreaterThan(header.y + header.height);
+  expect(header.height, 'header takes no space').toBe(0);
+  await page.locator('#desktop-menu-btn').tap();
+  await expect(page.locator('.controls-menu-logo')).toBeVisible();
 });
 
 // Touch emulation has no swipe gesture; a horizontal wheel scroll over the bar moves the same scroller.
@@ -196,17 +198,13 @@ for (const { selector, url } of [
 }
 
 for (const height of [640, 844]) {
-  test(`at ${height}px tall the bar covers neither the column nor the footer`, async ({ page }) => {
+  test(`at ${height}px tall the column ends just above the bar`, async ({ page }) => {
     await page.setViewportSize({ width: 393, height });
     await openBoard(page);
     const barTop = (await bar(page).boundingBox())!.y;
     const column = (await page.locator('.task-column').first().boundingBox())!;
     expect(column.y + column.height, 'column ends above the bar').toBeLessThanOrEqual(barTop);
-    const footer = page.locator('.footer');
-    if (await footer.isVisible()) {
-      const box = (await footer.boundingBox())!;
-      expect(box.y + box.height, 'footer ends above the bar').toBeLessThanOrEqual(barTop + 1);
-    }
+    expect(column.y + column.height, 'column fills the space above the bar').toBeGreaterThan(barTop - 24);
   });
 }
 
