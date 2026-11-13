@@ -94,7 +94,7 @@ test('the modal lists tasks most overdue first, with status and priority, from b
   await page.keyboard.press('Escape');
   await expect(modal).toBeHidden();
 
-  await page.getByRole('button', { name: 'Menu', exact: true }).click();
+  await page.getByRole('button', { name: 'Controls', exact: true }).click();
   await menuBell(page).click();
   await expect(modal).toBeVisible();
   await openTask(list, 'Today task').click();

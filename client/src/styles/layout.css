@@ -107,10 +107,17 @@
   text-decoration: none;
 }
 
-/* Phone-only header toggles (search, sync); responsive.css shows them below 600px */
-.toolbar-quick-actions .mobile-only {
+/* Phone-only tabs; responsive.css turns the group into a bottom tab bar below 600px */
+.toolbar-quick-actions .mobile-only,
+.toolbar-quick-actions .quick-label,
+.toolbar-quick-actions .quick-icon-mobile {
   display: none;
 }
+
+/* The markup is in phone tab order; the desktop header keeps clock, bell, menu */
+#timetracking-quick-btn { order: 1; }
+#notifications-quick-btn { order: 2; }
+#desktop-menu-btn { order: 3; }
 
 .settings-section {
   margin-top: 20px;

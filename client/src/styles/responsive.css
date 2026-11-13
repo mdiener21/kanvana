@@ -21,6 +21,9 @@
     height: 100dvh;      /* better than 100vh on mobile browsers with dynamic bars */
     min-height: 100dvh;
     overflow: hidden;
+    box-sizing: border-box;
+    /* Room for the fixed bottom tab bar */
+    padding-bottom: calc(var(--board-tab-bar-height) + env(safe-area-inset-bottom));
   }
 
   body.mobile-menu-open {
@@ -55,52 +58,65 @@
     line-height: 1.15;
   }
 
+  /* The header quick actions become a bottom tab bar in thumb reach, styled like the
+     time tracker's (.tt-sidebar). Four tabs per screen; the rest scroll in, snapping. */
+  /* Active-tab text: --accent is under 4.5:1 on white at 11px; same pair as --tt-accent-text */
+  :root { --board-tab-bar-height: 57px; --board-tab-accent: #1d4ed8; --board-session-row-height: 58px; }
+  :root[data-theme="dark"] { --board-tab-accent: var(--accent); }
+
   .toolbar-quick-actions {
-    grid-column: 2;
-    gap: 4px;
-    margin-left: auto;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 365;
+    gap: 0;
+    align-items: stretch;
+    padding: 0 0 env(safe-area-inset-bottom);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    border-top: 1px solid var(--border-subtle);
+    box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.06);
+    /* Edge shadows appear only on a side with more tabs: the surface-coloured covers
+       scroll with the tabs, the shadows stay put (background-attachment local vs scroll). */
+    background:
+      linear-gradient(to right, var(--surface) 40%, transparent) left / 32px 100% no-repeat local,
+      linear-gradient(to left, var(--surface) 40%, transparent) right / 32px 100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%, rgba(15, 23, 42, 0.16), transparent) left / 12px 100% no-repeat scroll,
+      radial-gradient(farthest-side at 100% 50%, rgba(15, 23, 42, 0.16), transparent) right / 12px 100% no-repeat scroll,
+      var(--surface);
   }
 
-  /* Search and sync/session drop in below the header from their quick-action toggles,
-     so the menu overlay only carries board controls. */
-  .board-search,
-  .session-status {
-    position: absolute;
-    top: calc(100% + 4px);
+  .toolbar-quick-actions::-webkit-scrollbar { display: none; }
+
+  /* Search rises from the tab bar, in thumb reach, instead of dropping from the header */
+  .board-search {
+    position: fixed;
     left: 10px;
     right: 10px;
-    z-index: 361;
-    visibility: hidden;
-    opacity: 0;
-    transform: translateY(-6px);
-    transition:
-      opacity var(--transition-fast),
-      transform var(--transition-fast),
-      visibility 0s linear 0.15s;
-    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
-  }
-
-  .board-search {
+    bottom: calc(var(--board-tab-bar-height) + 8px + env(safe-area-inset-bottom));
+    z-index: 366;
     flex: none;
     min-height: 48px;
     border-radius: 12px;
     background-color: var(--surface);
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(6px);
+    transition:
+      opacity var(--transition-fast),
+      transform var(--transition-fast),
+      visibility 0s linear 0.15s;
   }
 
   .board-search input {
     font-size: 16px; /* avoids iOS zoom on focus */
   }
 
-  .session-status {
-    justify-content: space-between;
-    padding: 8px 10px;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    background: var(--surface);
-  }
-
-  .controls.search-open .board-search,
-  .controls.session-open .session-status {
+  .controls.search-open .board-search {
     visibility: visible;
     opacity: 1;
     transform: translateY(0);
@@ -110,48 +126,110 @@
       visibility 0s;
   }
 
+  /* Sign-in and sync state live in the Controls sheet, as the first row under its title.
+     #session-status sits outside #board-controls-menu in the markup, so it docks there. */
+  .session-status {
+    display: none;
+  }
+
+  /* Docks inside the sheet's fixed title area (.controls-menu-mobile-header grows to hold it),
+     so sheet items scroll under the same blurred surface as the title */
+  .controls.mobile-menu-open .session-status {
+    display: flex;
+    position: fixed;
+    top: calc(env(safe-area-inset-top) + 74px);
+    left: 16px;
+    right: 16px;
+    z-index: 363;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: var(--board-session-row-height);
+    padding: 6px 6px 6px 12px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    background: var(--surface);
+  }
+
+  .session-status .sync-indicator {
+    order: -1;
+    margin-right: auto;
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+
   .toolbar-quick-actions .mobile-only {
     display: inline-flex;
   }
 
+  /* Phone tab order is the markup order (layout.css reorders for desktop) */
+  #timetracking-quick-btn,
+  #notifications-quick-btn,
+  #desktop-menu-btn { order: 0; }
+
   .toolbar-quick-actions .control-btn {
     position: relative;
-    padding: 8px;
-    min-width: var(--touch-target);
-    min-height: var(--touch-target);
+    flex: 0 0 25%;
+    min-width: 0;
+    min-height: calc(var(--board-tab-bar-height) - 1px);
+    scroll-snap-align: start;
+    flex-direction: column;
     justify-content: center;
+    gap: 4px;
+    padding: 8px 4px 6px;
+    border-radius: 0;
+    background: none;
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: 11px;
+    line-height: 1.2;
+    white-space: nowrap;
   }
 
-  #notifications-quick-btn {
-    margin-left: 0;
+  .toolbar-quick-actions .control-btn:hover { background: none; color: var(--text); }
+
+  .toolbar-quick-actions .control-btn svg { width: 20px; height: 20px; flex: none; }
+
+  .toolbar-quick-actions .quick-label,
+  .toolbar-quick-actions .quick-icon-mobile { display: block; }
+
+  .toolbar-quick-actions .quick-label {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  /* Pressed look while a header panel is open */
-  .toolbar-quick-actions .control-btn[aria-expanded="true"] {
-    background-color: var(--color-primary-hover);
-    box-shadow: inset 0 0 0 2px color-mix(in srgb, white 45%, transparent);
+  .toolbar-quick-actions .quick-icon-desktop { display: none; }
+
+  .toolbar-quick-actions .control-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -4px;
   }
 
-  /* Sync state dot on the cloud button mirrors #sync-indicator */
-  .sync-quick-dot,
-  #search-quick-btn::after {
-    position: absolute;
-    top: -3px;
-    right: -3px;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
+  /* Open panel or toggle on: accent text and a top rule, as the tracker marks its current tab */
+  .toolbar-quick-actions .control-btn[aria-expanded="true"],
+  .toolbar-quick-actions .control-btn[aria-pressed="true"] {
+    color: var(--board-tab-accent);
+    box-shadow: inset 0 2px 0 var(--accent);
+  }
+
+  /* Badge sits on the bell's shoulder */
+  .toolbar-quick-actions #notification-quick-badge {
+    top: 4px;
+    right: auto;
+    left: calc(50% + 2px);
     border: 2px solid var(--surface);
-    background: var(--color-sync-offline);
   }
-
-  .controls:has(.sync-indicator--live) .sync-quick-dot { background: var(--color-sync-live); }
-  .controls:has(.sync-indicator--syncing) .sync-quick-dot { background: var(--color-sync-syncing); }
-  .controls:has(.sync-indicator--unsynced) .sync-quick-dot { background: var(--color-sync-unsynced); }
 
   /* A search filter stays applied after the field closes; the dot says so */
   #search-quick-btn::after {
     content: none;
+    position: absolute;
+    top: 7px;
+    left: calc(50% + 5px);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 2px solid var(--surface);
     background: var(--color-warning);
   }
 
@@ -160,9 +238,10 @@
   }
 
   .session-status #login-btn {
-    padding: 6px 8px;
-    font-size: 12px;
-    gap: 4px;
+    min-height: var(--touch-target);
+    padding: 0 14px;
+    font-size: 14px;
+    gap: 6px;
     white-space: nowrap;
   }
 
@@ -175,17 +254,17 @@
   }
 
   .session-status .user-name {
-    max-width: 72px;
-    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 14px;
   }
 
   .session-status #logout-btn {
-    padding: 6px;
-  }
-
-  .session-status .sync-indicator {
-    padding: 4px 8px;
-    font-size: 11px;
+    min-width: var(--touch-target);
+    min-height: var(--touch-target);
+    justify-content: center;
+    padding: 0;
   }
 
   .controls-actions {
@@ -194,7 +273,11 @@
     z-index: 360;
     max-width: none;
     min-width: 0;
-    padding: calc(env(safe-area-inset-top) + 92px) 16px calc(env(safe-area-inset-bottom) + 24px);
+    /* Title row + docked sync row above; the tab bar below */
+    padding:
+      calc(env(safe-area-inset-top) + 74px + var(--board-session-row-height) + 30px)
+      16px
+      calc(var(--board-tab-bar-height) + env(safe-area-inset-bottom) + 24px);
     border: 0;
     border-radius: 0;
     box-shadow: none;
@@ -216,7 +299,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: calc(env(safe-area-inset-top) + 18px) 16px 14px;
+    /* Bottom padding holds the docked #session-status row */
+    padding: calc(env(safe-area-inset-top) + 18px) 16px calc(14px + var(--board-session-row-height) + 12px);
     background: linear-gradient(180deg, var(--surface) 0%, color-mix(in srgb, var(--surface) 82%, transparent) 100%);
     border-bottom: 1px solid var(--border-subtle);
     backdrop-filter: blur(14px);
@@ -253,6 +337,15 @@
     font-size: 15px;
   }
 
+  /* The tab bar carries these on phones; the sheet keeps board management only */
+  .controls-actions #notifications-btn,
+  .controls-actions #theme-toggle-btn,
+  .controls-actions #show-reports-btn,
+  .controls-actions #show-calendar-btn,
+  .controls-actions #help-btn {
+    display: none;
+  }
+
   .controls-actions .legal-menu-link {
     min-height: 48px;
     border-radius: 12px;
@@ -283,8 +376,9 @@
     padding: 10px;
   }
 
-  .footer{
-    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  /* The tab bar clears the safe area, so the footer no longer has to */
+  .footer {
+    padding-bottom: 8px;
   }
 
   /* Disable snap during drag so tasks can move between columns */
@@ -304,7 +398,7 @@
     margin: 0 8px; /* Use horizontal margin for spacing */
     scroll-snap-align: center;
     /* Ensure column fits on screen vertically so internal scroll works */
-    height: calc(100dvh - 180px);
+    height: calc(100dvh - 180px - var(--board-tab-bar-height) - env(safe-area-inset-bottom));
     display: flex;
     flex-direction: column;
     flex: 0 0 auto;

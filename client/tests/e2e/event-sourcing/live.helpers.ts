@@ -135,7 +135,7 @@ export async function selectBoard(page: Page, name: string): Promise<void> {
   // The selector sits in the closed toolbar menu, so its options only match with includeHidden.
   const select = page.getByLabel('Select board', { exact: true });
   await expect(select.getByRole('option', { name, exact: true, includeHidden: true })).toHaveCount(1, { timeout: SYNC_TIMEOUT });
-  if (!(await select.isVisible())) await page.getByRole('button', { name: 'Menu', exact: true }).click();
+  if (!(await select.isVisible())) await page.getByRole('button', { name: 'Controls', exact: true }).click();
   await select.selectOption({ label: name });
   await expect(page.locator('#brand-text')).toHaveText(name);
 }

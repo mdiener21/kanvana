@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Board on phones: the header icons move to a bottom tab bar, styled like Time Tracking's. Controls, Notifications, Time Tracker and Search sit in thumb reach with labels; swipe the bar for Reports, Calendar, Dark mode and Help. Search opens just above the bar. The menu button is now named "Controls".
+- Board on phones: sign-in and sync status leave the header and become the first row of the Controls sheet; the cloud quick button is gone. The sheet no longer repeats notifications, dark mode, reports, calendar or help.
+
 ## [3.4.17] - 2026-11-13
 
 ### Changed
