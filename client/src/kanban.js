@@ -11,6 +11,7 @@ import { initializeNotifications } from './modules/notifications.js';
 import { ensureBoardsInitialized, setActiveBoardId } from './modules/storage.js';
 import { bootPage } from './modules/page-boot.js';
 import { initializeSwimLaneControls } from './modules/swimlanes.js';
+import { initializeHeaderPanels } from './modules/header-panels.js';
 
 // Add task button listeners
 document.addEventListener('DOMContentLoaded', async () => {
@@ -24,6 +25,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const controlsActions = document.getElementById('board-controls-menu');
   const controls = document.querySelector('.controls');
   const mobileMenuCloseBtn = document.getElementById('mobile-menu-close-btn');
+
+  const headerPanels = initializeHeaderPanels();
 
   if (menuBtn && controlsActions) {
     const closeMenu = () => {
@@ -45,11 +48,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       // Close other menus if open (optional, but good practice)
       document.querySelectorAll('.column-menu').forEach(m => m.classList.add('hidden'));
-
-      if (!isExpanded) {
-        boardSearchInput?.focus();
-        boardSearchInput?.select();
-      }
+      headerPanels.closeAll();
     });
 
     // Close menu when clicking action buttons inside it.
@@ -76,10 +75,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     boardSearchInput?.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        closeMenu();
-        menuBtn.focus();
-      }
+      if (e.key !== 'Escape') return;
+      closeMenu();
+      if (!headerPanels.dismissSearch()) menuBtn.focus();
     });
   }
 

@@ -5,6 +5,9 @@
 :root {
   color-scheme: light;
 
+  /* Minimum touch-target size (WCAG 2.5.5) for tap controls on phones */
+  --touch-target: 44px;
+
   /* Core palette */
   --color-primary: #3b82f6;
   --color-primary-hover: #2563eb;
@@ -14,6 +17,11 @@
   --color-warning: #f59e0b;
   --color-warning-bg: #fef3c7;
   --color-warning-fg: #78350f;
+  /* Sync state colours, one per #sync-indicator state */
+  --color-sync-live: var(--color-success);
+  --color-sync-syncing: var(--color-warning);
+  --color-sync-unsynced: #ea580c;
+  --color-sync-offline: #94a3b8;
   /* Accent for text, outlines and indicator bars on surfaces (fills use --color-primary) */
   --accent: var(--color-primary);
 

@@ -12,6 +12,7 @@ import { prefillProjectId, loadLastUsedProjectId, rememberLastUsedProject } from
 import { WEEK_HEADER_HTML, mountWeekStrip } from './timetracking-week-strip.js';
 import { groupEntriesByDay, formatTime, formatDuration, plusDaysBetween, newEntryTimes } from './timetracking-time.js';
 import { colorDotHtml } from './timetracking-markup.js';
+import { rowMenuOpensUp } from './timetracking-row-menu.js';
 import { dayCoverage, coverageBarHtml } from './timetracking-coverage.js';
 import { mountRowRename } from './timetracking-rename.js';
 import { untrackedGaps } from './timetracking-gaps.js';
@@ -274,7 +275,23 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     list.innerHTML = entryListHtml(tt, prefs, groups, view, gaps, dayEntries);
     renderIcons(list);
     rename.afterRender();
+    placeRowMenu();
   }
+
+  // Re-placed on scroll and resize too: the menu stays open while the page moves (#315).
+  function placeRowMenu() {
+    const menu = list.querySelector('.tt-row-menu');
+    const anchor = menu?.offsetParent;
+    if (!anchor) return;
+    const nav = doc.getElementById('tt-sidebar');
+    const tabBarPinned = nav && win.getComputedStyle(nav).position === 'fixed';
+    const visibleBottom = tabBarPinned ? nav.getBoundingClientRect().top : win.innerHeight;
+    const { top, bottom } = anchor.getBoundingClientRect();
+    const opensUp = rowMenuOpensUp({ anchorTop: top, anchorBottom: bottom, menuHeight: menu.offsetHeight, visibleBottom });
+    menu.classList.toggle('tt-row-menu--up', opensUp);
+  }
+  const PLACEMENT_EVENTS = ['scroll', 'resize'];
+  for (const type of PLACEMENT_EVENTS) win.addEventListener(type, placeRowMenu, { passive: true });
 
   function select(id) {
     view.selectedId = id;
@@ -471,6 +488,7 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
       closeEditor();
       off(DATA_CHANGED, refresh);
       doc.removeEventListener('click', onDocumentClick);
+      for (const type of PLACEMENT_EVENTS) win.removeEventListener(type, placeRowMenu);
       for (const [target, type] of PAGE_RETURN_EVENTS) target.removeEventListener(type, onPageReturn);
       fields.unwire();
       filter.unmount();

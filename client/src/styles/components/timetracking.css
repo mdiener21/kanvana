@@ -1,7 +1,7 @@
 /* Time Tracking page (timetracking.html) — all selectors are tt- scoped */
 
 :root {
-  --tt-touch-target: 44px;
+  --tt-touch-target: var(--touch-target);
   /* --accent (#3b82f6) is < 4.5:1 for small text on light tints */
   --tt-accent-text: #1d4ed8;
 }
@@ -477,6 +477,7 @@
   background: var(--surface, #fff);
   box-shadow: var(--shadow-md);
 }
+.tt-row-menu--up { top: auto; bottom: calc(100% - 4px); }
 .tt-row-menu-item {
   display: flex;
   align-items: center;
@@ -822,39 +823,69 @@
 
 /* Mobile */
 @media (max-width: 600px) {
+  /* Height of the bottom tab bar above the safe area: 56px tabs + 1px top border */
+  :root { --tt-tab-bar-height: 57px; }
   /* responsive.css pins the board's body to the viewport; the tracker scrolls the document instead */
   body:has(> .tt-shell) { padding: 0; height: auto; overflow: visible; }
+  /* Anything scrolled into view (focused fields, selected rows) clears the fixed tab bar */
+  html:has(.tt-shell) { scroll-padding-bottom: calc(var(--tt-tab-bar-height) + 16px + env(safe-area-inset-bottom)); }
   .tt-shell,
   .tt-shell.sidebar-collapsed {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: 56px auto 1fr;
+    grid-template-rows: 56px 1fr;
     flex-shrink: 0;
   }
-  /* One line: the nav already names the page, and Back is an icon */
+  /* One line: the tab bar already names the page, and Back is an icon */
   .tt-topbar { padding: 0 8px 0 16px; gap: 4px; }
   .tt-topbar-title, .tt-topbar-back-label { display: none; }
   .tt-topbar-logo, .tt-topbar-back { min-height: var(--tt-touch-target); }
   .tt-topbar-back { min-width: var(--tt-touch-target); justify-content: center; }
   .tt-topbar-back [data-lucide], .tt-topbar-back svg { width: 18px; height: 18px; }
+
+  /* The sidebar becomes a tab bar pinned to the bottom edge, in thumb reach */
   .tt-sidebar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
     flex-direction: row;
     border-right: 0;
-    border-bottom: 1px solid var(--border, #e5e7eb);
-    padding: 0;
-    overflow-x: auto;
+    border-top: 1px solid var(--border, #e5e7eb);
+    padding: 0 0 env(safe-area-inset-bottom);
+    background: var(--surface, #fff);
+    box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.06);
   }
   .tt-sidebar-toggle { display: none; }
   .tt-nav-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: calc(var(--tt-tab-bar-height) - 1px);
     flex-direction: column;
-    padding: 8px 12px;
-    font-size: 10px;
+    justify-content: center;
+    padding: 8px 4px 6px;
+    font-size: 11px;
     gap: 4px;
+    text-align: center;
     text-transform: none;
+    letter-spacing: 0;
+  }
+  .tt-nav-btn [data-lucide], .tt-nav-btn svg { width: 20px; height: 20px; }
+  .tt-nav-btn:hover { background: none; }
+  .tt-nav-btn[aria-current="page"] {
+    background: none;
+    color: var(--tt-accent-text);
+    box-shadow: inset 0 2px 0 var(--accent);
   }
   .tt-nav-label,
-  .tt-shell.sidebar-collapsed .tt-nav-label { display: block; }
-  /* The document scrolls, so the top bar and nav scroll away and leave room above the keyboard */
-  .tt-main { padding: 16px; overflow-y: visible; }
+  .tt-shell.sidebar-collapsed .tt-nav-label { display: block; max-width: 100%; text-overflow: ellipsis; }
+
+  /* The document scrolls, so the top bar scrolls away and leaves room above the keyboard;
+     bottom padding keeps the last row clear of the tab bar */
+  .tt-main {
+    padding: 16px 16px calc(16px + var(--tt-tab-bar-height) + env(safe-area-inset-bottom));
+    overflow-y: visible;
+  }
   .tt-add-row { flex-wrap: wrap; }
   .tt-settings-grid { grid-template-columns: minmax(0, 1fr); }
   .tt-help-card { min-width: unset; margin: 16px; }

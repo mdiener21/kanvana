@@ -37,6 +37,7 @@ export const EVENT_EMITTED = 'event:emitted';
 export const EVENTS_STORED = 'events:stored';
 export const SNAPSHOT_ADOPTED = 'snapshot:adopted';
 export const PEER_SYNC_CHANGED = 'sync:peer-changed';
+export const SYNC_INDICATOR_CHANGED = 'sync:indicator-changed';
 export const BOARD_SETTINGS_WRITTEN = 'settings:written';
 export const DRAG_RECONCILE_BEGIN = 'drag:reconcile:begin';
 export const DRAG_RECONCILE_END = 'drag:reconcile:end';

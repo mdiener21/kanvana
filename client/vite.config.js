@@ -40,6 +40,10 @@ export default defineConfig({
     outDir: '../dist',
     emptyOutDir: true
   },
+  // Relative to root: the scanner resolves rollupOptions.input against 'src' and finds no pages.
+  optimizeDeps: {
+    entries: ['index.html', 'reports.html', 'calendar.html', 'impressum.html', 'timetracking.html']
+  },
   server: {
     port: 3000,
     // Without this the first navigation transforms the whole module graph on
