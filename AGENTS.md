@@ -89,8 +89,9 @@ Use `gh` for issues, PRs and CI; it infers `mdiener21/kanvana` from the clone.
   `CHANGELOG.md` updated when `client/src/` changes: run
   `node scripts/check-spec-sync.mjs --base origin/main --head HEAD` before pushing.
 - CI failures: `gh pr checks <n>`, then `gh run view <run-id> --log-failed`.
-- A push to `main` runs CI: Test gates Build and every deploy (Pages, FTP, Docker image), so a red Test
-  ships nothing.
+- A push to `main` runs CI: lint/unit/DOM, three E2E shards and PWA + performance run as parallel jobs
+  that the required `Test` check aggregates. Every deploy (Pages, FTP, Docker image) needs Test, Build
+  and Semgrep, so a red Test ships nothing. A failing E2E shard uploads its Playwright HTML report.
 - CI runs E2E on Linux Chromium. Layout assertions (truncation, overflow, box sizes) can pass on
   Windows and fail in CI because form controls render at different widths; treat the PR's CI run as the
   verdict for those.
