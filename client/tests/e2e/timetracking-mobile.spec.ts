@@ -2,14 +2,20 @@ import { test, expect, devices, type Locator, type Page } from '@playwright/test
 
 test.use({ ...devices['Pixel 5'] });
 
-test('on a phone the sidebar collapses into a top bar and an entry can be logged by touch', async ({ page }) => {
+test('on a phone the sidebar becomes a bottom tab bar and an entry can be logged by touch', async ({ page }) => {
   await page.goto('/timetracking.html');
   const sidebar = await page.locator('#tt-sidebar').boundingBox();
   const main = await page.locator('#tt-main').boundingBox();
+  const viewport = page.viewportSize()!;
   expect(sidebar!.height).toBeLessThan(100);
   expect(main!.x).toBe(sidebar!.x);
   expect(main!.width).toBe(sidebar!.width);
-  expect(main!.y).toBeGreaterThanOrEqual(sidebar!.y + sidebar!.height);
+  // Pinned to the bottom edge, and still there after scrolling
+  expect(sidebar!.y + sidebar!.height).toBeCloseTo(viewport.height, 0);
+  await page.evaluate(() => window.scrollTo(0, document.scrollingElement!.scrollHeight));
+  const scrolled = await page.locator('#tt-sidebar').boundingBox();
+  expect(scrolled!.y + scrolled!.height).toBeCloseTo(viewport.height, 0);
+  await page.evaluate(() => window.scrollTo(0, 0));
   await expect(page.locator('#tt-sidebar-toggle')).toBeHidden();
   for (const id of ['tracker', 'reports', 'projects', 'settings']) {
     await expect(page.locator(`#tt-nav-${id}`)).toBeInViewport();

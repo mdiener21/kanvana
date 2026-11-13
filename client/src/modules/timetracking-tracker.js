@@ -274,6 +274,19 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     list.innerHTML = entryListHtml(tt, prefs, groups, view, gaps, dayEntries);
     renderIcons(list);
     rename.afterRender();
+    placeRowMenu();
+  }
+
+  // A row menu that would run under the bottom edge (on phones, under the pinned tab bar)
+  // opens upward instead.
+  function placeRowMenu() {
+    const menu = list.querySelector('.tt-row-menu');
+    if (!menu) return;
+    const nav = doc.getElementById('tt-sidebar');
+    const pinned = nav && win.getComputedStyle(nav).position === 'fixed';
+    const floor = pinned ? nav.getBoundingClientRect().top : win.innerHeight;
+    const rect = menu.getBoundingClientRect();
+    menu.classList.toggle('tt-row-menu--up', rect.bottom > floor && rect.top - rect.height > 0);
   }
 
   function select(id) {

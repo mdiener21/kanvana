@@ -14,8 +14,11 @@
 - Search matches task title, description, priority, label name, and label group name
 - A menu button opens controls for boards, help, labels, settings, notifications, add column, and calendar
 - A quick-access bell button mirrors the notification modal and count badge shown in the menu
-- On mobile, the top bar stays on a single row: the brand remains left, while notifications and the menu stay right; task search plus auth and sync controls move into the mobile menu overlay instead of consuming their own header rows
-- On mobile, opening the controls menu expands into a full-screen overlay with a dedicated close button, keeping search, session status, and the control list within easy thumb reach
+- A quick-access clock link beside the bell opens Time Tracking; it is not repeated in the menu
+- On mobile, the top bar stays on a single row: the brand remains left; search, sync, time tracking, notifications and the menu sit right as icon buttons
+- On mobile, the search icon drops the task search field in below the header and focuses it; Escape or a tap elsewhere closes it, and a dot on the icon shows a filter is still applied
+- On mobile, the cloud icon carries a sync-state dot (grey offline, green live, amber syncing, orange unsynced); signed out it opens sign-in directly, otherwise it drops in the session panel (user, sign out, sync state) below the header
+- On mobile, opening the controls menu expands into a full-screen overlay with a dedicated close button that holds only board controls (no search or session status) and does not raise the keyboard
 
 ## Boards UI
 

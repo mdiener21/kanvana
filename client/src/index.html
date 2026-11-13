@@ -48,12 +48,6 @@
         </div>
         <label class="sr-only" for="board-select">Select board</label>
         <select id="board-select" class="control-select" aria-label="Select board"></select>
-        <button id="show-timetracking-btn" class="control-btn" type="button" aria-pressed="false" aria-label="Time Tracking">
-          <span data-lucide="clock" aria-hidden="true"></span>
-          <span><a class="control-btn" href="./timetracking.html" style="text-decoration:none;">
-          Time Tracking
-        </a></span>
-        </button>
         <label class="control-btn swimlane-toggle-label" for="swimlane-quick-toggle">
           <span data-lucide="rows-3" aria-hidden="true"></span>
           <span>Swim Lanes</span>
@@ -125,6 +119,19 @@
       </div>
 
       <div class="toolbar-quick-actions">
+        <button id="search-quick-btn" class="control-btn icon-only mobile-only" type="button" aria-label="Search tasks" aria-expanded="false" aria-controls="board-search-input">
+          <span data-lucide="search" aria-hidden="true"></span>
+        </button>
+
+        <button id="sync-quick-btn" class="control-btn icon-only mobile-only" type="button" aria-label="Sync and sign in" aria-expanded="false">
+          <span data-lucide="cloud" aria-hidden="true"></span>
+          <span class="sync-quick-dot" aria-hidden="true"></span>
+        </button>
+
+        <a id="timetracking-quick-btn" class="control-btn icon-only" href="./timetracking.html" aria-label="Time Tracking" title="Time Tracking">
+          <span data-lucide="clock" aria-hidden="true"></span>
+        </a>
+
         <button id="notifications-quick-btn" class="control-btn icon-only" type="button" aria-haspopup="dialog" aria-label="Notifications">
           <span data-lucide="bell" aria-hidden="true"></span>
           <span id="notification-quick-badge" class="notification-badge hidden" aria-label="notifications count"></span>

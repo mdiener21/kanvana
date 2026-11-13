@@ -22,8 +22,12 @@ Terms (Customer, Project, Time Entry, Duration, Archived, Attribution) are defin
 ## Page and Navigation
 
 - Entry point: `src/timetracking.html` (new Vite build input)
-- Reachable from the main board menu as `Time Tracking`; page links `Back to Board`
+- Reachable from the board header's clock quick-action (`Time Tracking`), beside the notifications
+  bell; page links `Back to Board`
 - Sidebar sections: **Time Tracker**, **Reports**, **Projects**, **Settings**
+- On phones (≤600px) the sidebar becomes a tab bar fixed to the bottom edge (safe-area aware); the
+  active tab is marked in the accent colour, and an entry's row menu opens upward when it would run
+  under the tab bar
 - Touch targets: every Time Tracking control (row actions, project/customer list actions, inline
   delete confirm, edit-modal buttons, add, month previous / next) has a hit area of at least
   44×44px at every screen width
