@@ -17,7 +17,15 @@ function setTheme(theme) {
   document.documentElement.dataset.theme = theme;
 }
 
+// The phone tab bar's toggle keeps its name; aria-pressed carries the state
+function updateThemeQuickButton(theme) {
+  const btn = document.getElementById('theme-quick-btn');
+  if (!btn) return;
+  btn.setAttribute('aria-pressed', String(theme === 'dark'));
+}
+
 function updateThemeToggleButton(theme) {
+  updateThemeQuickButton(theme);
   const btn = document.getElementById('theme-toggle-btn');
   if (!btn) return;
 
@@ -47,15 +55,15 @@ export function initializeThemeToggle() {
   setTheme(theme);
   updateThemeToggleButton(theme);
 
-  const btn = document.getElementById('theme-toggle-btn');
-  if (!btn) return;
-
-  btn.addEventListener('click', () => {
+  const toggle = () => {
     const current = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
     const next = current === 'dark' ? 'light' : 'dark';
 
     setTheme(next);
     localStorage.setItem(STORAGE_KEY, next);
     updateThemeToggleButton(next);
-  });
+  };
+
+  document.getElementById('theme-toggle-btn')?.addEventListener('click', toggle);
+  document.getElementById('theme-quick-btn')?.addEventListener('click', toggle);
 }

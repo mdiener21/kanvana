@@ -86,6 +86,7 @@ export function initializeModalHandlers() {
 
   // Help modal
   $id('help-btn').addEventListener('click', showHelpModal);
+  $id('help-quick-btn')?.addEventListener('click', showHelpModal);
   setupModalCloseHandlers('help-modal', hideHelpModal);
 
   // Close top-most modal on Escape

@@ -35,7 +35,7 @@ export const dialog = (page: Page, name: string): Locator => page.getByRole('dia
 
 // The controls live behind the toolbar's Menu button; it closes again after some actions.
 async function revealInMenu(page: Page, control: Locator): Promise<void> {
-  if (!(await control.isVisible())) await page.getByRole('button', { name: 'Menu', exact: true }).click();
+  if (!(await control.isVisible())) await page.getByRole('button', { name: 'Controls', exact: true }).click();
   await expect(control).toBeVisible();
 }
 
