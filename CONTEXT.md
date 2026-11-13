@@ -377,6 +377,7 @@ Development runs without a service worker. Production lifecycle tests run with `
 |---|---|
 | `kanban.js` | Entry point — initialises storage, renders board |
 | `boards.js` | Board lifecycle: create, rename, switch, template apply |
+| `header-panels.js` | Phone header drop-in panels (search, session): `initializeHeaderPanels()` wires the quick-action buttons, outside-click close and close on sign-out (from `isAuthenticated()`), and returns `{ closeAll, dismissSearch }` |
 | `boards-modal.js` | Board selector / management modal |
 | `columns.js` | Column CRUD |
 | `column-element.js` | Column DOM element factory |

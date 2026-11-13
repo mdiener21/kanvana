@@ -11,6 +11,7 @@ import { initializeNotifications } from './modules/notifications.js';
 import { ensureBoardsInitialized, setActiveBoardId } from './modules/storage.js';
 import { bootPage } from './modules/page-boot.js';
 import { initializeSwimLaneControls } from './modules/swimlanes.js';
+import { initializeHeaderPanels } from './modules/header-panels.js';
 
 // Add task button listeners
 document.addEventListener('DOMContentLoaded', async () => {
@@ -25,49 +26,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const controls = document.querySelector('.controls');
   const mobileMenuCloseBtn = document.getElementById('mobile-menu-close-btn');
 
-  // Phone header: search and sync/session live behind icon buttons and drop in below the
-  // header (responsive.css). On wider screens both sit inline and the buttons are hidden.
-  const searchQuickBtn = document.getElementById('search-quick-btn');
-  const syncQuickBtn = document.getElementById('sync-quick-btn');
-  const setHeaderPanel = (name, open) => {
-    controls?.classList.toggle(`${name}-open`, open);
-    (name === 'search' ? searchQuickBtn : syncQuickBtn)?.setAttribute('aria-expanded', String(open));
-  };
-  const closeHeaderPanels = () => {
-    setHeaderPanel('search', false);
-    setHeaderPanel('session', false);
-  };
-
-  searchQuickBtn?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const open = !controls?.classList.contains('search-open');
-    setHeaderPanel('session', false);
-    setHeaderPanel('search', open);
-    if (open) boardSearchInput?.focus();
-  });
-
-  syncQuickBtn?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    setHeaderPanel('search', false);
-    // Signed out with a reachable backend: go straight to sign-in. Otherwise show the
-    // session panel (signed-in user + sign out, or the disabled button explaining why).
-    const loginBtn = document.getElementById('login-btn');
-    const signedOut = document.getElementById('user-info')?.classList.contains('hidden');
-    if (signedOut && loginBtn && !loginBtn.disabled) {
-      setHeaderPanel('session', false);
-      loginBtn.click();
-      return;
-    }
-    setHeaderPanel('session', !controls?.classList.contains('session-open'));
-  });
-
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('.board-search, .session-status, #search-quick-btn, #sync-quick-btn')) {
-      closeHeaderPanels();
-    }
-  });
-
-  document.getElementById('logout-btn')?.addEventListener('click', () => setHeaderPanel('session', false));
+  const headerPanels = initializeHeaderPanels();
 
   if (menuBtn && controlsActions) {
     const closeMenu = () => {
@@ -89,7 +48,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       // Close other menus if open (optional, but good practice)
       document.querySelectorAll('.column-menu').forEach(m => m.classList.add('hidden'));
-      closeHeaderPanels();
+      headerPanels.closeAll();
     });
 
     // Close menu when clicking action buttons inside it.
@@ -118,12 +77,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     boardSearchInput?.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
       closeMenu();
-      if (controls?.classList.contains('search-open')) {
-        setHeaderPanel('search', false);
-        searchQuickBtn?.focus();
-      } else {
-        menuBtn.focus();
-      }
+      if (!headerPanels.dismissSearch()) menuBtn.focus();
     });
   }
 
