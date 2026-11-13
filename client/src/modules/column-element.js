@@ -228,7 +228,12 @@ export function createColumnElement(column) {
     'data-wip': getWipState(taskCount, column),
     draggable: 'false',
     'aria-labelledby': `column-title-${column.id}`,
-    style: column?.color ? { '--column-accent': column.color } : {}
+    style: column?.color ? { '--column-accent': column.color } : {},
+    // A collapsed rail expands on a click anywhere except its drag handle
+    onClick: isCollapsed ? (e) => {
+      if (e.target.closest('.column-drag-handle, .column-collapse-btn')) return;
+      if (toggleColumnCollapsed(column.id)) emit(DATA_CHANGED);
+    } : undefined
   }, headerDiv, ul);
 }
 

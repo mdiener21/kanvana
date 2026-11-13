@@ -365,6 +365,7 @@ body.dragging-column .column-header * {
 }
 
 .swimlane-column-header.is-collapsed {
+  cursor: pointer;
   align-items: center;
   justify-content: flex-start;
   gap: 8px;

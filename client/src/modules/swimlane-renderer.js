@@ -42,7 +42,9 @@ export function createSwimlaneHeaderCell(column, taskCount) {
     class: cx('swimlane-column-header', isCollapsed && 'is-collapsed'),
     'data-column': column.id,
     'data-wip': getWipState(taskCount, column),
-    style: column?.color ? { '--column-accent': column.color } : {}
+    style: column?.color ? { '--column-accent': column.color } : {},
+    // A collapsed header expands on a click anywhere in it
+    onClick: isCollapsed ? () => { if (toggleColumnCollapsed(column.id)) emit(DATA_CHANGED); } : undefined
   },
     collapseBtn,
     !isCollapsed ? h('h2', {}, column.name) : null,

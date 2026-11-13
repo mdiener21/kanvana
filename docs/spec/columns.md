@@ -15,6 +15,7 @@
 - Each column has a persisted `order`
 - Columns can be collapsed into a narrow rail with persisted state
 - Collapsed headers show the column name and task count in standard board view
+- A click anywhere on a collapsed rail expands it, except on its drag handle; in swim lane view a click anywhere on a collapsed column header expands it
 - Collapsed columns still accept drops and place dropped tasks at the top
 
 ## Sorting

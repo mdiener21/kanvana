@@ -105,7 +105,8 @@ test('a column can be renamed, recoloured, reordered and collapsed, and all of i
   await expect(columnHeadings(page)).toHaveText(['Review (1)', 'To Do', 'Done']);
   await expect(card(page, 'Check copy')).toBeHidden();
 
-  await page.getByRole('button', { name: 'Expand Review column', exact: true }).click();
+  // Expand: a click anywhere on the collapsed rail, not just its button
+  await column(page, 'Review (1)').locator('h2').click();
   await expect(columnHeadings(page)).toHaveText(['Review', 'To Do', 'Done']);
   await expect(card(page, 'Check copy')).toBeVisible();
   expect(await columnAccent(column(page, 'Review'))).toBe('rgb(139, 92, 246)');
