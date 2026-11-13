@@ -40,7 +40,14 @@ async function expectManagedLabels(page: Page, template: Template): Promise<void
   await closeManageLabels(page);
 }
 
-for (const { file, data } of templates.filter(({ data }) => data.boardName)) {
+// Every template's data is checked in tests/unit/board-templates.test.js. Through the UI, two cover
+// the cases that differ: the most labels across the most groups, and a template with no starter tasks.
+const throughTheUi = ['RAID-Board-Template.json', 'Eisenhower-Method-Board-Template.json'];
+
+const uiTemplates = templates.filter(({ file }) => throughTheUi.includes(file));
+if (uiTemplates.length !== throughTheUi.length) throw new Error(`Missing template file: ${throughTheUi.join(', ')}`);
+
+for (const { file, data } of uiTemplates) {
   test(`a board created from the ${data.boardName} template has its columns, labels and starter tasks`, async ({ page }) => {
     await openApp(page);
     await createBoard(page, 'From template', data.boardName);

@@ -41,7 +41,8 @@ The unit, DOM, and mocked `test:e2e` suites need **no** Docker.
 ## CI Security Gate for Deploy
 
 - `.github/workflows/ci.yml` runs a Semgrep security scan (`p/security-audit` and `p/secrets`) on each push and pull request.
-- Deploy jobs (`ftp-deploy`, `pages-deploy`, `docker-push`) run only after the Semgrep scan passes on push events.
+- Deploy jobs (`ftp-deploy`, `pages-deploy`, `docker-push`) run only on push events, and only after the `Test` check and the Semgrep scan pass.
+- Every third-party action is pinned to a full commit SHA (Dependabot updates the pins), and workflows default to `contents: read`.
 - Semgrep SARIF output is uploaded to GitHub Code Scanning for centralized security findings visibility.
 
 ## IDB Unit Test Setup
