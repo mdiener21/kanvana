@@ -101,6 +101,17 @@
   gap: 8px;
 }
 
+/* The time-tracking quick link is an <a>: match the buttons' box model */
+.toolbar-quick-actions a.control-btn {
+  box-sizing: border-box;
+  text-decoration: none;
+}
+
+/* Phone-only header toggles (search, sync); responsive.css shows them below 600px */
+.toolbar-quick-actions .mobile-only {
+  display: none;
+}
+
 .settings-section {
   margin-top: 20px;
   padding-top: 18px;

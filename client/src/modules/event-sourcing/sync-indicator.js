@@ -6,17 +6,17 @@
 //   Offline       gray    — no network or not logged in
 // Re-renders (no reload, AC-005) on DATA_CHANGED and SYNC_STATUS_CHANGED.
 
-import { on, off, DATA_CHANGED, PEER_SYNC_CHANGED } from '../events.js';
+import { on, off, emit, DATA_CHANGED, PEER_SYNC_CHANGED, SYNC_INDICATOR_CHANGED } from '../events.js';
 import { getSyncStatus, SYNC_STATUS_CHANGED } from './sync-queue.js';
 import { getSyncSessionState, SESSION_STATE } from './sync-session.js';
 
 const ELEMENT_ID = 'sync-indicator';
 
 const STATE = {
-  offline: () => ({ text: 'Offline', cls: 'sync-indicator--offline' }),
-  live: () => ({ text: 'Live ●', cls: 'sync-indicator--live' }),
-  syncing: (n) => ({ text: `Syncing… (${n})`, cls: 'sync-indicator--syncing' }),
-  unsynced: (n) => ({ text: `⚠ ${n} unsynced`, cls: 'sync-indicator--unsynced' }),
+  offline: () => ({ text: 'Offline', label: 'Offline', cls: 'sync-indicator--offline' }),
+  live: () => ({ text: 'Live ●', label: 'Live', cls: 'sync-indicator--live' }),
+  syncing: (n) => ({ text: `Syncing… (${n})`, label: `Syncing… (${n})`, cls: 'sync-indicator--syncing' }),
+  unsynced: (n) => ({ text: `⚠ ${n} unsynced`, label: `${n} unsynced`, cls: 'sync-indicator--unsynced' }),
 };
 
 async function deriveState() {
@@ -31,13 +31,21 @@ async function deriveState() {
 
 let _el = null;
 let _handlers = null;
+let _label = STATE.offline().label;
+
+// The shown state without its glyphs, for accessible names elsewhere in the header.
+export function getSyncStateLabel() {
+  return _label;
+}
 
 export async function renderSyncIndicator() {
   const el = _el;
   if (!el) return;
-  const { text, cls } = await deriveState();
+  const { text, label, cls } = await deriveState();
   el.textContent = text;
   el.className = `sync-indicator ${cls}`;
+  _label = label;
+  emit(SYNC_INDICATOR_CHANGED);
 }
 
 export function initSyncIndicator() {
@@ -66,4 +74,5 @@ export function _resetSyncIndicatorForTesting() {
   }
   _handlers = null;
   _el = null;
+  _label = STATE.offline().label;
 }

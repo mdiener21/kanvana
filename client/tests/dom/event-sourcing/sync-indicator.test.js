@@ -21,9 +21,10 @@ vi.mock('../../../src/modules/event-sourcing/sync-session.js', () => ({
 // events.js kept real: the indicator subscribes via the real on/emit bus.
 import {
   initSyncIndicator,
+  getSyncStateLabel,
   _resetSyncIndicatorForTesting,
 } from '../../../src/modules/event-sourcing/sync-indicator.js';
-import { emit, DATA_CHANGED } from '../../../src/modules/events.js';
+import { emit, on, off, DATA_CHANGED, SYNC_INDICATOR_CHANGED } from '../../../src/modules/events.js';
 
 const FIXTURE = '<div id="sync-indicator"></div>';
 
@@ -153,5 +154,23 @@ describe('sync state indicator', () => {
       expect(el().textContent).toContain('Live');
       expect(el().classList.contains('sync-indicator--live')).toBe(true);
     });
+  });
+
+  it('exposes the shown state as a glyph-free label and announces each change', async () => {
+    expect(getSyncStateLabel()).toBe('Offline');
+    const announced = [];
+    const record = () => announced.push(getSyncStateLabel());
+    on(SYNC_INDICATOR_CHANGED, record);
+    try {
+      fake.status = { depth: 2, retrying: true };
+      initSyncIndicator();
+      await waitFor(() => expect(announced).toEqual(['2 unsynced']));
+
+      fake.status = { depth: 0, retrying: false };
+      emit(DATA_CHANGED);
+      await waitFor(() => expect(announced).toEqual(['2 unsynced', 'Live']));
+    } finally {
+      off(SYNC_INDICATOR_CHANGED, record);
+    }
   });
 });

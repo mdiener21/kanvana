@@ -57,60 +57,106 @@
 
   .toolbar-quick-actions {
     grid-column: 2;
-    gap: 6px;
+    gap: 4px;
     margin-left: auto;
   }
 
-  .board-search {
-    position: fixed;
-    top: calc(env(safe-area-inset-top) + 78px);
-    left: 16px;
-    right: 16px;
+  /* Search and sync/session drop in below the header from their quick-action toggles,
+     so the menu overlay only carries board controls. */
+  .board-search,
+  .session-status {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 10px;
+    right: 10px;
     z-index: 361;
-    flex: none;
+    visibility: hidden;
     opacity: 0;
-    pointer-events: none;
-    transform: translateY(-8px);
-    transition: opacity var(--transition-fast), transform var(--transition-fast);
-    box-shadow: 0 14px 36px rgba(15, 23, 42, 0.18);
+    transform: translateY(-6px);
+    transition:
+      opacity var(--transition-fast),
+      transform var(--transition-fast),
+      visibility 0s linear 0.15s;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
+  }
+
+  .board-search {
+    flex: none;
+    min-height: 48px;
+    border-radius: 12px;
+    background-color: var(--surface);
+  }
+
+  .board-search input {
+    font-size: 16px; /* avoids iOS zoom on focus */
   }
 
   .session-status {
-    position: fixed;
-    top: calc(env(safe-area-inset-top) + 130px);
-    left: 16px;
-    right: 16px;
-    z-index: 361;
     justify-content: space-between;
     padding: 8px 10px;
     border: 1px solid var(--border);
-    border-radius: 14px;
-    background: color-mix(in srgb, var(--surface) 94%, transparent);
-    backdrop-filter: blur(10px);
-    opacity: 0;
-    pointer-events: none;
-    transform: translateY(-8px);
-    transition: opacity var(--transition-fast), transform var(--transition-fast);
+    border-radius: 12px;
+    background: var(--surface);
   }
 
-  .controls.mobile-menu-open .board-search,
-  .controls.mobile-menu-open .session-status,
-  .board-search:focus-within {
+  .controls.search-open .board-search,
+  .controls.session-open .session-status {
+    visibility: visible;
     opacity: 1;
-    pointer-events: auto;
     transform: translateY(0);
+    transition:
+      opacity var(--transition-fast),
+      transform var(--transition-fast),
+      visibility 0s;
   }
 
-  #notifications-quick-btn,
-  #desktop-menu-btn {
+  .toolbar-quick-actions .mobile-only {
+    display: inline-flex;
+  }
+
+  .toolbar-quick-actions .control-btn {
+    position: relative;
     padding: 8px;
-    min-width: 38px;
-    min-height: 38px;
+    min-width: var(--touch-target);
+    min-height: var(--touch-target);
     justify-content: center;
   }
 
   #notifications-quick-btn {
     margin-left: 0;
+  }
+
+  /* Pressed look while a header panel is open */
+  .toolbar-quick-actions .control-btn[aria-expanded="true"] {
+    background-color: var(--color-primary-hover);
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, white 45%, transparent);
+  }
+
+  /* Sync state dot on the cloud button mirrors #sync-indicator */
+  .sync-quick-dot,
+  #search-quick-btn::after {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--surface);
+    background: var(--color-sync-offline);
+  }
+
+  .controls:has(.sync-indicator--live) .sync-quick-dot { background: var(--color-sync-live); }
+  .controls:has(.sync-indicator--syncing) .sync-quick-dot { background: var(--color-sync-syncing); }
+  .controls:has(.sync-indicator--unsynced) .sync-quick-dot { background: var(--color-sync-unsynced); }
+
+  /* A search filter stays applied after the field closes; the dot says so */
+  #search-quick-btn::after {
+    content: none;
+    background: var(--color-warning);
+  }
+
+  .controls:has(#board-search-input:not(:placeholder-shown)) #search-quick-btn::after {
+    content: '';
   }
 
   .session-status #login-btn {
@@ -148,8 +194,7 @@
     z-index: 360;
     max-width: none;
     min-width: 0;
-    padding: calc(env(safe-area-inset-top) + 18px) 16px calc(env(safe-area-inset-bottom) + 24px);
-    padding-top: calc(env(safe-area-inset-top) + 190px);
+    padding: calc(env(safe-area-inset-top) + 92px) 16px calc(env(safe-area-inset-bottom) + 24px);
     border: 0;
     border-radius: 0;
     box-shadow: none;

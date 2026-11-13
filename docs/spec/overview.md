@@ -121,6 +121,7 @@ All canonical specs live under `docs/spec/`. Start here when adding, changing, o
 - `src/modules/impressum.js` - impressum/imprint page logic
 - `src/modules/sync.js` - PocketBase SDK init and auth functions (`isAuthenticated`, `loginUser`, `registerUser`, `logoutUser`, `loginWithProvider`)
 - `src/modules/authsync.js` - auth/sync UI orchestration, login modal handlers, backend health probe
+- `src/modules/header-panels.js` - phone header search and session drop-in panels (`initializeHeaderPanels()`)
 
 ### Event sourcing (`src/modules/event-sourcing/`)
 
