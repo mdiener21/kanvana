@@ -14,11 +14,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Time Tracking on phones: the Time Tracker / Reports / Projects / Settings tabs move from the top to a tab bar fixed to the bottom edge; an entry's row menu opens upward when it would sit under the tab bar, and stays placed as the page scrolls or resizes (#313).
 - Development: `npm run dev` pre-bundles every page's dependencies at startup, so the first load of each page no longer stalls while Vite discovers them (#313).
 
+## [3.4.16] - 2026-11-12
+
+### Changed
+
+- Maintenance updates.
+
 ## [3.4.15] - 2026-11-12
 
 ### Fixed
 
 - Time Tracker on phones: the page scrolls vertically again, so entries below the fold can be reached and edited.
+- Calendar on phones: the list of tasks due on the selected day is no longer cut off below the month grid on short screens or busy days; the page scrolls down to it.
 
 ## [3.4.14] - 2026-11-11
 
