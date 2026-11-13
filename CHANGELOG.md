@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.20] - 2026-11-13
+
 ### Changed
 
 - Board on phones: the header row (logo and board name) and the footer are gone, so columns run from the top edge to the tab bar. The Kanvana logo now sits beside the Controls sheet title.
