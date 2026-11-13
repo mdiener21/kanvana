@@ -142,12 +142,12 @@
     height: 12px;
     border-radius: 50%;
     border: 2px solid var(--surface);
-    background: #94a3b8;
+    background: var(--color-sync-offline);
   }
 
-  .controls:has(.sync-indicator--live) .sync-quick-dot { background: var(--color-success); }
-  .controls:has(.sync-indicator--syncing) .sync-quick-dot { background: var(--color-warning); }
-  .controls:has(.sync-indicator--unsynced) .sync-quick-dot { background: #ea580c; }
+  .controls:has(.sync-indicator--live) .sync-quick-dot { background: var(--color-sync-live); }
+  .controls:has(.sync-indicator--syncing) .sync-quick-dot { background: var(--color-sync-syncing); }
+  .controls:has(.sync-indicator--unsynced) .sync-quick-dot { background: var(--color-sync-unsynced); }
 
   /* A search filter stays applied after the field closes; the dot says so */
   #search-quick-btn::after {

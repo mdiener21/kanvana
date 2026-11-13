@@ -40,10 +40,7 @@ export default defineConfig({
     outDir: '../dist',
     emptyOutDir: true
   },
-  // The dependency scanner would read build.rollupOptions.input relative to root ('src'),
-  // where 'src/*.html' does not exist, so it skipped pre-bundling: a cold dev server then
-  // discovered and bundled deps during the first page load (and echarts later, on the
-  // Time Tracking page). Name the pages relative to root so the scan finds every dep at boot.
+  // Relative to root: the scanner resolves rollupOptions.input against 'src' and finds no pages.
   optimizeDeps: {
     entries: ['index.html', 'reports.html', 'calendar.html', 'impressum.html', 'timetracking.html']
   },

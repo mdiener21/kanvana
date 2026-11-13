@@ -278,8 +278,7 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     placeRowMenu();
   }
 
-  // A row menu that would run under the bottom edge (on phones, under the pinned tab bar)
-  // opens upward instead; re-placed on render, scroll and resize.
+  // Re-placed on scroll and resize too: the menu stays open while the page moves (#315).
   function placeRowMenu() {
     const menu = list.querySelector('.tt-row-menu');
     const anchor = menu?.offsetParent;

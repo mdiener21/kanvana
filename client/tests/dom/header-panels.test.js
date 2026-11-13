@@ -1,5 +1,22 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { waitFor } from '@testing-library/dom';
+
+// Stand-ins for the sources the sync indicator derives its state from.
+const fake = vi.hoisted(() => ({ status: { depth: 0, retrying: false }, session: 'signed-out' }));
+
+vi.mock('../../src/modules/event-sourcing/sync-queue.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  getSyncStatus: vi.fn(async () => fake.status),
+}));
+
+vi.mock('../../src/modules/event-sourcing/sync-session.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  getSyncSessionState: vi.fn(() => fake.session),
+}));
+
 import { initializeHeaderPanels } from '../../src/modules/header-panels.js';
+import { initSyncIndicator, _resetSyncIndicatorForTesting } from '../../src/modules/event-sourcing/sync-indicator.js';
+import { emit, DATA_CHANGED } from '../../src/modules/events.js';
 import { getPb } from '../../src/modules/sync.js';
 
 const HEADER_HTML = `
@@ -30,20 +47,24 @@ const button = (id) => document.getElementById(id);
 // MutationObserver callbacks run as microtasks.
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-function setSyncState(cls, text) {
-  const indicator = document.getElementById('sync-indicator');
-  indicator.className = `sync-indicator sync-indicator--${cls}`;
-  indicator.textContent = text;
+function setSyncState(session, status) {
+  fake.session = session;
+  fake.status = status;
+  emit(DATA_CHANGED);
 }
 const click = (id) => document.getElementById(id).click();
 
 describe('initializeHeaderPanels', () => {
   beforeEach(() => {
+    fake.session = 'signed-out';
+    fake.status = { depth: 0, retrying: false };
     document.body.innerHTML = HEADER_HTML;
     initializeHeaderPanels();
+    initSyncIndicator();
   });
 
   afterEach(() => {
+    _resetSyncIndicatorForTesting();
     getPb().authStore.clear();
   });
 
@@ -87,18 +108,16 @@ describe('initializeHeaderPanels', () => {
     it('names the cloud button after the sync state, as a sign-in action while signed out', async () => {
       expect(button('sync-quick-btn').getAttribute('aria-label')).toBe('Sign in to sync, Offline');
 
+      const name = () => button('sync-quick-btn').getAttribute('aria-label');
       getPb().authStore.save(jwt(), USER);
-      setSyncState('syncing', 'Syncing… (3)');
-      await settle();
-      expect(button('sync-quick-btn').getAttribute('aria-label')).toBe('Sync session, Syncing… (3)');
+      setSyncState('live', { depth: 3, retrying: false });
+      await waitFor(() => expect(name()).toBe('Sync session, Syncing… (3)'));
 
-      setSyncState('unsynced', '⚠ 2 unsynced');
-      await settle();
-      expect(button('sync-quick-btn').getAttribute('aria-label')).toBe('Sync session, 2 unsynced');
+      setSyncState('live', { depth: 2, retrying: true });
+      await waitFor(() => expect(name()).toBe('Sync session, 2 unsynced'));
 
-      setSyncState('live', 'Live ●');
-      await settle();
-      expect(button('sync-quick-btn').getAttribute('aria-label')).toBe('Sync session, Live');
+      setSyncState('live', { depth: 0, retrying: false });
+      await waitFor(() => expect(name()).toBe('Sync session, Live'));
     });
 
     it('marks the cloud button as opening a dialog only while it opens sign-in', async () => {
@@ -126,6 +145,17 @@ describe('initializeHeaderPanels', () => {
 
       input.value = '';
       input.dispatchEvent(new Event('input', { bubbles: true }));
+      expect(button('search-quick-btn').getAttribute('aria-label')).toBe('Search tasks');
+    });
+
+    it('keeps the search button name in step when code sets or clears the filter', () => {
+      const input = document.getElementById('board-search-input');
+
+      input.value = 'Soul Stone';
+      expect(button('search-quick-btn').getAttribute('aria-label')).toBe('Search tasks, filter applied');
+      expect(input.value).toBe('Soul Stone');
+
+      input.value = '';
       expect(button('search-quick-btn').getAttribute('aria-label')).toBe('Search tasks');
     });
   });

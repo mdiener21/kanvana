@@ -250,7 +250,7 @@ manual push/pull); the header **sync-state indicator** shows `Live` / `Syncing�
 | `event-sourcing/realtime.js` | **Inbound** — SSE subscription (`startRealtime({ onConnect })`, `stopRealtime()`) + catch-up pull (`catchUp()`), run by the session; a stop also ends a pull in flight; remote events go through `ingestEvent(…, { origin: 'remote' })` (deduped by id), and SSE messages arriving while earlier ones are being stored queue up and go through `ingestRemoteBatch` together, so a burst does not redraw per event (#142) |
 | `event-sourcing/hlc.js` | Hybrid Logical Clock — `emitLocal()`, `observeRemote()`, `compareHlc()` |
 | `event-sourcing/snapshot.js`, `snapshot-sync.js` | Client snapshots + upload + event GC. Snapshots are always taken locally; upload runs only between `startSnapshotSync()` and `stopSnapshotSync()`, and only as the Data Owner |
-| `event-sourcing/sync-indicator.js` | Header sync-state indicator (#115), rendered from the session state and queue depth |
+| `event-sourcing/sync-indicator.js` | Header sync-state indicator (#115), rendered from the session state and queue depth; `getSyncStateLabel()` gives the shown state without glyphs and `SYNC_INDICATOR_CHANGED` fires after each render |
 
 **Sync leader** (#222) — of all tabs of an origin, the holder of the Web Lock `kanvana:sync-leader` runs the
 session's network side: queue, realtime, catch-up and snapshot upload. Every other tab is a **follower**: it runs
@@ -377,7 +377,7 @@ Development runs without a service worker. Production lifecycle tests run with `
 |---|---|
 | `kanban.js` | Entry point — initialises storage, renders board |
 | `boards.js` | Board lifecycle: create, rename, switch, template apply |
-| `header-panels.js` | Phone header drop-in panels (search, session): `initializeHeaderPanels()` wires the quick-action buttons, outside-click close and close on sign-out (from `isAuthenticated()`), and returns `{ closeAll, dismissSearch }` |
+| `header-panels.js` | Phone header drop-in panels (search, session): `initializeHeaderPanels()` wires the quick-action buttons, outside-click close and close on sign-out (from `isAuthenticated()`), names the cloud button from `getSyncStateLabel()`, and returns `{ closeAll, dismissSearch }` |
 | `boards-modal.js` | Board selector / management modal |
 | `columns.js` | Column CRUD |
 | `column-element.js` | Column DOM element factory |

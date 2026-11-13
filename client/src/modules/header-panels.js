@@ -1,11 +1,32 @@
 import { $, $id } from './dom.js';
 import { isAuthenticated } from './sync.js';
+import { on, SYNC_INDICATOR_CHANGED } from './events.js';
+import { getSyncStateLabel } from './event-sourcing/sync-indicator.js';
 
-// Phone-only drop-ins below the header (responsive.css); on wider screens both sit inline and the buttons are hidden.
 const HEADER_PANELS = {
   search: { buttonId: 'search-quick-btn', openClass: 'search-open', panelSelector: '.board-search' },
   session: { buttonId: 'sync-quick-btn', openClass: 'session-open', panelSelector: '.session-status' },
 };
+
+// Setting `input.value` from code fires no `input` event, but the CSS filter dot still follows it.
+function onValueSet(input, callback) {
+  const { get, set } = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+  Object.defineProperty(input, 'value', {
+    configurable: true,
+    get() { return get.call(this); },
+    set(value) { set.call(this, value); callback(); },
+  });
+}
+
+// No module owns backend reachability; authsync.js disables sign-in when the health probe fails.
+function isSignInReachable() {
+  const loginBtn = $id('login-btn');
+  return Boolean(loginBtn) && !loginBtn.disabled;
+}
+
+function opensSignIn() {
+  return !isAuthenticated() && isSignInReachable();
+}
 
 export function initializeHeaderPanels() {
   const controls = $('.controls');
@@ -21,13 +42,6 @@ export function initializeHeaderPanels() {
 
   const closeAll = () => Object.keys(HEADER_PANELS).forEach((name) => setOpen(name, false));
 
-  // Signed out with a reachable backend, the cloud button opens sign-in instead of the session panel.
-  const opensSignIn = () => {
-    const loginBtn = $id('login-btn');
-    return !isAuthenticated() && Boolean(loginBtn) && !loginBtn.disabled;
-  };
-
-  // The quick-action icons carry state visually (dots); their accessible names carry it for screen readers.
   const describeQuickActions = () => {
     const searchBtn = $id(HEADER_PANELS.search.buttonId);
     searchBtn?.setAttribute('aria-label', searchInput?.value ? 'Search tasks, filter applied' : 'Search tasks');
@@ -35,8 +49,7 @@ export function initializeHeaderPanels() {
     const syncBtn = $id(HEADER_PANELS.session.buttonId);
     if (!syncBtn) return;
     const signIn = opensSignIn();
-    const state = $id('sync-indicator')?.textContent.replace(/[●⚠]/g, '').trim() || 'Offline';
-    syncBtn.setAttribute('aria-label', `${signIn ? 'Sign in to sync' : 'Sync session'}, ${state}`);
+    syncBtn.setAttribute('aria-label', `${signIn ? 'Sign in to sync' : 'Sync session'}, ${getSyncStateLabel()}`);
     if (signIn) syncBtn.setAttribute('aria-haspopup', 'dialog');
     else syncBtn.removeAttribute('aria-haspopup');
   };
@@ -52,11 +65,9 @@ export function initializeHeaderPanels() {
   $id(HEADER_PANELS.session.buttonId)?.addEventListener('click', (e) => {
     e.stopPropagation();
     setOpen('search', false);
-    // Signed out with a reachable backend goes straight to sign-in; otherwise the panel explains why not.
-    const loginBtn = $id('login-btn');
-    if (!isAuthenticated() && loginBtn && !loginBtn.disabled) {
+    if (opensSignIn()) {
       setOpen('session', false);
-      loginBtn.click();
+      $id('login-btn').click();
       return;
     }
     setOpen('session', !isOpen('session'));
@@ -73,17 +84,13 @@ export function initializeHeaderPanels() {
     describeQuickActions();
   });
 
+  on(SYNC_INDICATOR_CHANGED, describeQuickActions);
   searchInput?.addEventListener('input', describeQuickActions);
-  // sync-indicator.js re-renders the state pill and authsync.js disables sign-in when the backend is unreachable.
-  const sessionPanel = $(HEADER_PANELS.session.panelSelector);
-  if (sessionPanel) {
-    new MutationObserver(describeQuickActions).observe(sessionPanel, {
-      subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['disabled'],
-    });
-  }
+  if (searchInput) onValueSet(searchInput, describeQuickActions);
+  const loginBtn = $id('login-btn');
+  if (loginBtn) new MutationObserver(describeQuickActions).observe(loginBtn, { attributeFilter: ['disabled'] });
   describeQuickActions();
 
-  // Escape in the search panel closes it and returns focus to its button; false when it was not open.
   const dismissSearch = () => {
     if (!isOpen('search')) return false;
     setOpen('search', false);
