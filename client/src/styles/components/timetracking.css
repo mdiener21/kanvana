@@ -823,10 +823,12 @@
 
 /* Mobile */
 @media (max-width: 600px) {
+  /* Height of the bottom tab bar above the safe area: 56px tabs + 1px top border */
+  :root { --tt-tab-bar-height: 57px; }
   /* responsive.css pins the board's body to the viewport; the tracker scrolls the document instead */
   body:has(> .tt-shell) { padding: 0; height: auto; overflow: visible; }
   /* Anything scrolled into view (focused fields, selected rows) clears the fixed tab bar */
-  html:has(.tt-shell) { scroll-padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+  html:has(.tt-shell) { scroll-padding-bottom: calc(var(--tt-tab-bar-height) + 16px + env(safe-area-inset-bottom)); }
   .tt-shell,
   .tt-shell.sidebar-collapsed {
     grid-template-columns: minmax(0, 1fr);
@@ -858,7 +860,7 @@
   .tt-nav-btn {
     flex: 1 1 0;
     min-width: 0;
-    min-height: 56px;
+    min-height: calc(var(--tt-tab-bar-height) - 1px);
     flex-direction: column;
     justify-content: center;
     padding: 8px 4px 6px;
@@ -881,7 +883,7 @@
   /* The document scrolls, so the top bar scrolls away and leaves room above the keyboard;
      bottom padding keeps the last row clear of the tab bar */
   .tt-main {
-    padding: 16px 16px calc(16px + 57px + env(safe-area-inset-bottom));
+    padding: 16px 16px calc(16px + var(--tt-tab-bar-height) + env(safe-area-inset-bottom));
     overflow-y: visible;
   }
   .tt-add-row { flex-wrap: wrap; }

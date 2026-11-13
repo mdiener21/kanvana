@@ -27,7 +27,8 @@ Terms (Customer, Project, Time Entry, Duration, Archived, Attribution) are defin
 - Sidebar sections: **Time Tracker**, **Reports**, **Projects**, **Settings**
 - On phones (≤600px) the sidebar becomes a tab bar fixed to the bottom edge (safe-area aware); the
   active tab is marked in the accent colour, and an entry's row menu opens upward when it would run
-  under the tab bar
+  under the tab bar and the room above the row holds it; the placement is rechecked as the page
+  scrolls or resizes
 - Touch targets: every Time Tracking control (row actions, project/customer list actions, inline
   delete confirm, edit-modal buttons, add, month previous / next) has a hit area of at least
   44×44px at every screen width
