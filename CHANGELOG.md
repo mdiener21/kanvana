@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.17] - 2026-11-13
+
 ### Changed
 
 - Board header: a clock quick-action next to the notifications bell opens Time Tracking; the Time Tracking entry is gone from the menu (#313).
