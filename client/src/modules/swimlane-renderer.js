@@ -27,13 +27,14 @@ function buildSwimlaneCounter(column, taskCount) {
 
 export function createSwimlaneHeaderCell(column, taskCount) {
   const isCollapsed = column?.collapsed === true;
+  const toggleCollapsed = () => { if (toggleColumnCollapsed(column.id)) emit(DATA_CHANGED); };
 
   const collapseBtn = h('button', {
     class: 'swimlane-column-collapse-btn',
     type: 'button',
     'aria-label': isCollapsed ? `Expand ${column.name} column` : `Collapse ${column.name} column`,
     title: isCollapsed ? 'Expand column' : 'Collapse column',
-    onClick: (event) => { event.stopPropagation(); if (toggleColumnCollapsed(column.id)) emit(DATA_CHANGED); }
+    onClick: (event) => { event.stopPropagation(); toggleCollapsed(); }
   },
     h('span', { 'data-lucide': isCollapsed ? 'chevron-right' : 'chevrons-right-left', 'aria-hidden': 'true' })
   );
@@ -44,7 +45,7 @@ export function createSwimlaneHeaderCell(column, taskCount) {
     'data-wip': getWipState(taskCount, column),
     style: column?.color ? { '--column-accent': column.color } : {},
     // A collapsed header expands on a click anywhere in it
-    onClick: isCollapsed ? () => { if (toggleColumnCollapsed(column.id)) emit(DATA_CHANGED); } : undefined
+    onClick: isCollapsed ? toggleCollapsed : undefined
   },
     collapseBtn,
     !isCollapsed ? h('h2', {}, column.name) : null,

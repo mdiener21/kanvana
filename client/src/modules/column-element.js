@@ -28,6 +28,7 @@ export { closeAllColumnMenus };
 
 export function createColumnElement(column) {
   const isCollapsed = column?.collapsed === true;
+  const toggleCollapsed = () => { if (toggleColumnCollapsed(column.id)) emit(DATA_CHANGED); };
 
   const collapseBtn = h('button', {
     class: 'column-collapse-btn',
@@ -36,7 +37,7 @@ export function createColumnElement(column) {
     title: isCollapsed ? 'Expand column' : 'Collapse column',
     onClick: (e) => {
       e.stopPropagation();
-      if (toggleColumnCollapsed(column.id)) emit(DATA_CHANGED);
+      toggleCollapsed();
     }
   },
     h('span', { 'data-lucide': isCollapsed ? 'chevron-right' : 'chevrons-right-left', 'aria-hidden': 'true' })
@@ -231,8 +232,7 @@ export function createColumnElement(column) {
     style: column?.color ? { '--column-accent': column.color } : {},
     // A collapsed rail expands on a click anywhere except its drag handle
     onClick: isCollapsed ? (e) => {
-      if (e.target.closest('.column-drag-handle, .column-collapse-btn')) return;
-      if (toggleColumnCollapsed(column.id)) emit(DATA_CHANGED);
+      if (!e.target.closest('.column-drag-handle')) toggleCollapsed();
     } : undefined
   }, headerDiv, ul);
 }
