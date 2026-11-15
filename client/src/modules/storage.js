@@ -25,6 +25,8 @@ const ALLOWED_SWIMLANE_GROUP_BY = new Set(['label', 'label-group', 'priority']);
 
 let activeBoardId = null;
 const syntheticDoneIdByBoard = new Map();
+// A task stored with no dates gets its column history seeded once per session, so reads agree (#330).
+const seededHistoryAtByTask = new Map();
 
 // After an account switch the default board's events wait for the first catch-up (#221).
 let defaultBoardDeferred = false;
@@ -107,6 +109,7 @@ export function _resetStorageForTesting() {
   _resetIdbForTesting();
   activeBoardId = null;
   syntheticDoneIdByBoard.clear();
+  seededHistoryAtByTask.clear();
   defaultBoardDeferred = false;
   readModel.reset();
   _resetSnapshotSchedulerForTesting();
@@ -140,10 +143,6 @@ export function getActiveBoardName() {
   const board = id ? getBoardById(id) : null;
   const name = typeof board?.name === 'string' ? board.name.trim() : '';
   return name || 'Untitled board';
-}
-
-function saveBoards(boards) {
-  readModel.setBoards(boards);
 }
 
 export function getActiveBoardId() {
@@ -280,11 +279,9 @@ export function renameBoard(boardId, newName) {
   const name = typeof newName === 'string' ? newName.trim() : '';
   if (!id || !name) return false;
 
-  const boards = listBoards();
-  if (!boards.some((b) => b.id === id)) return false;
+  if (!getBoardById(id)) return false;
 
-  const updated = boards.map((b) => (b.id === id ? { ...b, name } : b));
-  saveBoards(updated);
+  // The board list changes only when the reducer folds this event (ADR-0005, #330).
   scheduleDomainEvent({
     type: 'board.updated',
     boardId: id,
@@ -373,13 +370,19 @@ function normalizePriority(value) {
   return sharedNormalizePriority(value);
 }
 
+function seededHistoryAt(boardId, taskId) {
+  const key = `${boardId}:${taskId}`;
+  if (!seededHistoryAtByTask.has(key)) seededHistoryAtByTask.set(key, nowIso());
+  return seededHistoryAtByTask.get(key);
+}
+
 export function loadTasks() {
   ensureBoardsInitialized();
   const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
   const parsed = readModel.board(boardId).tasks;
 
   if (parsed) {
-    let didChange = false;
+    // Normalised on read only; reading never writes the Read Model or IDB (ADR-0005, #330).
     const normalized = parsed.map((t) => {
       const task = t && typeof t === 'object' ? { ...t } : t;
       if (!task || typeof task !== 'object') return task;
@@ -393,11 +396,7 @@ export function loadTasks() {
       if (Array.isArray(task.labels)) task.labels = [...task.labels];
       if (Array.isArray(task.relationships)) task.relationships = task.relationships.map((r) => ({ ...r }));
 
-      const nextPriority = normalizePriority(task.priority);
-      if (task.priority !== nextPriority) {
-        task.priority = nextPriority;
-        didChange = true;
-      }
+      task.priority = normalizePriority(task.priority);
 
       const isDone = isDoneColumnId(task.column);
       const hasDoneDate = typeof task.doneDate === 'string' && task.doneDate.trim() !== '';
@@ -406,27 +405,18 @@ export function loadTasks() {
 
       if (isDone && !hasDoneDate) {
         const inferred = changeDate ? changeDate : creationDate;
-        if (inferred) {
-          task.doneDate = inferred;
-          didChange = true;
-        }
+        if (inferred) task.doneDate = inferred;
       }
 
-      if (!isDone && hasDoneDate) {
-        delete task.doneDate;
-        didChange = true;
-      }
+      if (!isDone && hasDoneDate) delete task.doneDate;
 
       const rawHistory = task.columnHistory;
       const history = Array.isArray(rawHistory) ? rawHistory : null;
-      const seededAt = changeDate || creationDate || nowIso();
+      const seededAt = changeDate || creationDate || seededHistoryAt(boardId, task.id);
       const seededColumn = typeof task.column === 'string' ? task.column.trim() : '';
 
       if (!history || history.length === 0) {
-        if (seededAt && seededColumn) {
-          task.columnHistory = [{ column: seededColumn, at: seededAt }];
-          didChange = true;
-        }
+        if (seededAt && seededColumn) task.columnHistory = [{ column: seededColumn, at: seededAt }];
       } else {
         const cleaned = history
           .map((e) => {
@@ -438,37 +428,17 @@ export function loadTasks() {
           .filter(Boolean);
 
         if (cleaned.length === 0) {
-          if (seededAt && seededColumn) {
-            task.columnHistory = [{ column: seededColumn, at: seededAt }];
-            didChange = true;
-          }
-        } else if (cleaned.length !== history.length) {
+          if (seededAt && seededColumn) task.columnHistory = [{ column: seededColumn, at: seededAt }];
+        } else {
           task.columnHistory = cleaned;
-          didChange = true;
         }
       }
 
-      const nextRelationships = normalizeRelationships(task.relationships);
-      if (JSON.stringify(task.relationships) !== JSON.stringify(nextRelationships)) {
-        task.relationships = nextRelationships;
-        didChange = true;
-      }
-
-      const nextSubTasks = normalizeSubTasks(task.subTasks);
-      if (JSON.stringify(task.subTasks) !== JSON.stringify(nextSubTasks)) {
-        task.subTasks = nextSubTasks;
-        didChange = true;
-      }
+      task.relationships = normalizeRelationships(task.relationships);
+      task.subTasks = normalizeSubTasks(task.subTasks);
 
       return task;
     });
-
-    if (didChange) {
-      // Callers edit what this returns, so the stored slice gets its own copy (ADR-0005).
-      const stored = structuredClone(normalized);
-      readModel.setBoardSlice(boardId, 'tasks', stored);
-      scheduleReadModelPersist(boardId, 'tasks', stored);
-    }
 
     readModel.cacheTasks(boardId, normalized);
     return normalized.filter(t => !t.deleted);
