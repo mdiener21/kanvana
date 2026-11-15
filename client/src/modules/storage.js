@@ -8,17 +8,18 @@ import { initHlc } from './event-sourcing/hlc.js';
 import { _flushDomainEventsForTesting, scheduleDomainEvent } from './event-sourcing/emitter.js';
 import { checkAndScheduleSnapshot, _resetSnapshotSchedulerForTesting } from './event-sourcing/snapshot.js';
 import { createReadModel } from './event-sourcing/ingest.js';
+import { READ_MODEL_KEYS } from './event-sourcing/read-model-projector.js';
 import { backfillEventLog } from './event-sourcing/backfill.js';
 import { BOARD_SETTINGS_WRITTEN, DATA_CHANGED, emit } from './events.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const BOARDS_KEY = 'kanbanBoards';
+// The Read Model owns it; only the one-shot migrations below write it, before the Read Model loads.
+const BOARDS_KEY = READ_MODEL_KEYS.boards;
 const ACTIVE_BOARD_KEY = 'kanbanActiveBoardId';
-const GLOBAL_SETTINGS_KEY = 'kanvana:settings:global';
-const TIME_TRACKING_KEY = 'kanvana:timetracking';
-const NEWEST_APPLIED_KEY = 'kanvana:ingest:newestAppliedHlc';
 
+// The legacy localStorage key; it only shares its name with the Read Model's IDB key and need not follow it.
+const LEGACY_BOARDS_KEY = 'kanbanBoards';
 const LEGACY_COLUMNS_KEY = 'kanbanColumns';
 const LEGACY_TASKS_KEY = 'kanbanTasks';
 const LEGACY_LABELS_KEY = 'kanbanLabels';
@@ -47,17 +48,12 @@ let defaultBoardDeferred = false;
 
 // Made once; only ingest projects into it (ADR-0005, #281).
 const readModel = createReadModel({
-  demoTasksForReplay,
-  withoutUnheldDemoTasks,
+  demoBoard: { id: STABLE_DEFAULT_BOARD_ID, tasks: stableDemoTasks },
   schedulePersist,
   scheduleDelete,
   scheduleReadModelPersist,
   scheduleReadModelDelete,
-  checkAndScheduleSnapshot,
-  boardsKey: BOARDS_KEY,
-  globalSettingsKey: GLOBAL_SETTINGS_KEY,
-  timeTrackingKey: TIME_TRACKING_KEY,
-  newestAppliedKey: NEWEST_APPLIED_KEY
+  checkAndScheduleSnapshot
 });
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -296,24 +292,6 @@ function stableDefaultBoardData() {
   };
 }
 
-// No event creates a demo task, so a replay starts from the ones this device still holds (#263).
-function demoTasksForReplay(boardId, liveTasks) {
-  if (boardId !== STABLE_DEFAULT_BOARD_ID) return [];
-  const demoIds = new Set(stableDemoTasks().map((task) => task.id));
-  const held = liveTasks.filter((task) => demoIds.has(task.id));
-  if (!held.length) return [];
-  const heldIds = new Set(held.map((task) => task.id));
-  return stableDemoTasks(held[0].creationDate).filter((task) => heldIds.has(task.id));
-}
-
-// Seeding adds demo tasks to no other device, and neither does an adopted snapshot (#263).
-function withoutUnheldDemoTasks(boardId, snapshotTasks, liveTasks) {
-  if (boardId !== STABLE_DEFAULT_BOARD_ID) return snapshotTasks;
-  const demoIds = new Set(stableDemoTasks().map((task) => task.id));
-  const heldIds = new Set(liveTasks.map((task) => task.id));
-  return snapshotTasks.filter((task) => !demoIds.has(task.id) || heldIds.has(task.id));
-}
-
 function defaultSettings() {
   const locale = (typeof navigator !== 'undefined' && typeof navigator.language === 'string')
     ? navigator.language
@@ -341,7 +319,7 @@ function defaultSettings() {
 // ── Migration from localStorage ────────────────────────────────────────────────
 
 async function migrateFromLocalStorage(db) {
-  const lsBoards = safeParseArray(localStorage.getItem(BOARDS_KEY));
+  const lsBoards = safeParseArray(localStorage.getItem(LEGACY_BOARDS_KEY));
   const lsActiveId = localStorage.getItem(ACTIVE_BOARD_KEY);
 
   // Legacy single-board keys (pre multi-board)
@@ -368,7 +346,7 @@ async function migrateFromLocalStorage(db) {
     localStorage.removeItem(LEGACY_COLUMNS_KEY);
     localStorage.removeItem(LEGACY_TASKS_KEY);
     localStorage.removeItem(LEGACY_LABELS_KEY);
-    localStorage.removeItem(BOARDS_KEY);
+    localStorage.removeItem(LEGACY_BOARDS_KEY);
     localStorage.removeItem(ACTIVE_BOARD_KEY);
     return;
   }
@@ -401,7 +379,7 @@ async function migrateFromLocalStorage(db) {
   }
 
   await tx.done;
-  localStorage.removeItem(BOARDS_KEY);
+  localStorage.removeItem(LEGACY_BOARDS_KEY);
   localStorage.removeItem(ACTIVE_BOARD_KEY);
 }
 
@@ -419,7 +397,7 @@ export async function initStorage() {
   // Migrate from localStorage if IDB is empty but localStorage has data.
   const idbBoards = await db.get(KV_STORE, BOARDS_KEY);
   const hasLocalStorageData = Boolean(
-    localStorage.getItem(BOARDS_KEY) ||
+    localStorage.getItem(LEGACY_BOARDS_KEY) ||
     localStorage.getItem(LEGACY_COLUMNS_KEY) ||
     localStorage.getItem(LEGACY_TASKS_KEY) ||
     localStorage.getItem(LEGACY_LABELS_KEY)
@@ -519,7 +497,6 @@ export function getActiveBoardName() {
 
 function saveBoards(boards) {
   readModel.setBoards(boards);
-  schedulePersist(BOARDS_KEY, boards);
 }
 
 export function getActiveBoardId() {
@@ -984,7 +961,6 @@ export function loadTimeTracking() {
 export function saveGlobalSettings(settings) {
   const normalized = normalizeGlobalSettings(settings);
   readModel.setGlobalSettings(normalized);
-  schedulePersist(GLOBAL_SETTINGS_KEY, normalized);
 }
 
 // ── Cross-board read helpers

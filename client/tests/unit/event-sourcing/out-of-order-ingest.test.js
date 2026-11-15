@@ -18,9 +18,13 @@ import {
   saveTasks,
   setActiveBoardId
 } from '../../../src/modules/storage.js';
-import { EVENT_ORIGIN, ingestEvent } from '../../../src/modules/event-sourcing/ingest.js';
+import { EVENT_ORIGIN, ingestEvent, ingestStoredEvents } from '../../../src/modules/event-sourcing/ingest.js';
+import { _setHlcForTesting, emitLocalSync } from '../../../src/modules/event-sourcing/hlc.js';
+import { EVENTS_STORE, openStore } from '../../../src/modules/idb-store.js';
 import { applyEvents, createProjectionState } from '../../../src/modules/reducer.js';
-import { _setJitterForTesting } from '../../../src/modules/event-sourcing/snapshot.js';
+import {
+  _setJitterForTesting, loadEventsAfter, loadSnapshot, saveSnapshot
+} from '../../../src/modules/event-sourcing/snapshot.js';
 import { DATA_CHANGED, off, on } from '../../../src/modules/events.js';
 
 // Ids must be UUIDs: initStorage() remaps non-UUID ids on load.
@@ -110,6 +114,56 @@ describe('rebuild', () => {
     await ingestRemote(boardEvent('task.updated', { id: 'e-1', wallTime: base + 1, payload: { fields: { title: 'T1' } } }));
 
     expect(loadSettingsForBoard(boardId)).toMatchObject({ swimLanesEnabled: true, swimLaneGroupBy: 'priority' });
+  });
+
+  // CONTEXT.md §9: the events before a covered late event may be gone, so it folds onto the snapshot that covers it.
+  test('folds a late event into the snapshot that covers it, and the view converges', async () => {
+    const base = Date.now() + 1_000;
+    await ingestRemote(boardEvent('task.created', { id: 'e-0', wallTime: base, payload: { task: { title: 'T0', column: todoColumn } } }));
+    const newest = boardEvent('task.updated', { id: 'e-2', wallTime: base + 2, payload: { fields: { title: 'T2' } } });
+    await ingestRemote(newest);
+    await saveSnapshot(boardId, applyEvents(createProjectionState(), await loadEventsAfter(boardId, null)), newest.hlc);
+
+    await ingestRemote(boardEvent('task.updated', { id: 'e-1', wallTime: base + 1, payload: { fields: { priority: 'high' } } }));
+
+    expect(loadTasksForBoard(boardId).find((t) => t.id === TASK_ID)).toMatchObject({ title: 'T2', priority: 'high' });
+    const snapshot = await loadSnapshot(boardId);
+    expect(snapshot.state.appliedEventIds.has('e-1')).toBe(true);
+    expect(snapshot.state.tasks.find((t) => t.id === TASK_ID)).toMatchObject({ title: 'T2', priority: 'high' });
+  });
+});
+
+// Only an event this tab takes moves its clock; the next local edit shows whether one did.
+describe('the clock observes only events this tab takes', () => {
+  const ahead = () => Date.now() + 30_000;
+
+  test('a remote event the covering snapshot already holds', async () => {
+    const base = ahead();
+    const events = [
+      boardEvent('task.created', { id: 'e-0', wallTime: base, payload: { task: { title: 'T0', column: todoColumn } } }),
+      boardEvent('task.updated', { id: 'e-1', wallTime: base + 1, payload: { fields: { priority: 'high' } } }),
+      boardEvent('task.updated', { id: 'e-2', wallTime: base + 2, payload: { fields: { title: 'T2' } } })
+    ];
+    await ingestRemote(events[0]);
+    await ingestRemote(events[2]);
+    await saveSnapshot(boardId, applyEvents(createProjectionState(), events), events[2].hlc);
+    _setHlcForTesting({ wallTime: 0, nodeId: 'node-here' });
+
+    await ingestRemote(events[1]);
+
+    expect(emitLocalSync().wallTime).toBeLessThan(base);
+  });
+
+  test('stored events before this tab starts projecting', async () => {
+    const event = boardEvent('task.updated', { id: 'e-stored', wallTime: ahead(), payload: { fields: { title: 'Stored' } } });
+    await (await openStore()).put(EVENTS_STORE, event);
+    _resetStorageForTesting();
+    await openStore();
+    _setHlcForTesting({ wallTime: 0, nodeId: 'node-here' });
+
+    await ingestStoredEvents([event.id]);
+
+    expect(emitLocalSync().wallTime).toBeLessThan(event.hlc.wallTime);
   });
 });
 

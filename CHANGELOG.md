@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Internal
+
+- The Read Model now owns everything after an event is admitted (projecting, storing, batching, late-event rebuilds, redraw and store notices); Ingest only admits events (#328).
+- A test can create a fresh Read Model without reloading modules (`_resetReadModelForTesting()`); the app still makes exactly one per tab, and storage and ingest always share it (#332).
+
 ## [3.4.21] - 2026-11-15
 
 ### Changed

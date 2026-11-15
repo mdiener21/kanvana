@@ -1,17 +1,34 @@
 import { applyEvent, applyEvents, createProjectionState, createTimeTrackingState } from '../reducer.js';
-import { EVENTS_STORE, KV_STORE, READ_MODEL_STORE, SNAPSHOTS_STORE, keyFor, openStore, readModelKeyFor, writeIfDataCurrent } from '../idb-store.js';
+import {
+  EVENTS_STORE, KV_STORE, READ_MODEL_STORE, SNAPSHOTS_STORE, flushPendingPersists, getDbRef, keyFor, openStore, persistEvent,
+  readModelKeyFor, writeIfDataCurrent
+} from '../idb-store.js';
 import {
   GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY, loadEventsAfter, loadSnapshot, saveSnapshot, scopeForSnapshotKey, snapshotKeyForEvent
 } from './snapshot.js';
 import { EVENT_SCOPE } from '../constants.js';
-import { compareHlc, laterHlc } from './hlc.js';
-import { DATA_CHANGED, emit } from '../events.js';
+import { compareHlc, laterHlc, observeRemote } from './hlc.js';
+import { DATA_CHANGED, EVENT_EMITTED, EVENTS_STORED, emit } from '../events.js';
 import { safeParseArray, safeParseObject } from '../utils.js';
 import { normalizeGlobalSettings } from '../normalize.js';
 
-// The Read Model, sole writer of the IDB read model (ADR-0005); ingest.js makes the one instance and alone projects into it.
+// The Read Model, sole writer of the IDB read model (ADR-0005): ingest.js admits events, this applies, stores and announces them.
 
-export const EVENT_ORDER = Object.freeze({ APPLIED: 'applied', IN_ORDER: 'in-order', LATE: 'late' });
+export const EVENT_ORIGIN = Object.freeze({ LOCAL: 'local', REMOTE: 'remote' });
+
+// Ingest's verdict on a remote event of a batch: already in the event store, dropped (still fresh for the watermark), or admitted.
+export const ADMISSION = Object.freeze({ STORED: 'stored', DROPPED: 'dropped', ADMITTED: 'admitted' });
+
+const EVENT_ORDER = Object.freeze({ APPLIED: 'applied', IN_ORDER: 'in-order', LATE: 'late' });
+
+// The KV keys the Read Model persists under. Storage's one-shot legacy migrations write the board list before load.
+export const READ_MODEL_KEYS = Object.freeze({
+  boards: 'kanbanBoards',
+  globalSettings: 'kanvana:settings:global',
+  timeTracking: 'kanvana:timetracking',
+  newestApplied: 'kanvana:ingest:newestAppliedHlc'
+});
+const { boards: boardsKey, globalSettings: globalSettingsKey, timeTracking: timeTrackingKey, newestApplied: newestAppliedKey } = READ_MODEL_KEYS;
 
 // What an adopted snapshot replaced: the old snapshots and the stored events the new one covers.
 function createSuperseded() {
@@ -40,18 +57,31 @@ function emptyState() {
 
 export function createReadModelProjector(ctx) {
   const {
-    demoTasksForReplay,
-    withoutUnheldDemoTasks,
+    demoBoard,
     schedulePersist,
     scheduleDelete,
     scheduleReadModelPersist,
     scheduleReadModelDelete,
-    checkAndScheduleSnapshot,
-    boardsKey,
-    globalSettingsKey,
-    timeTrackingKey,
-    newestAppliedKey
+    checkAndScheduleSnapshot
   } = ctx;
+
+  // No event creates a demo task, so a replay starts from the ones this device still holds (#263).
+  function demoTasksForReplay(boardId, liveTasks) {
+    if (boardId !== demoBoard?.id) return [];
+    const demoIds = new Set(demoBoard.tasks().map((task) => task.id));
+    const held = liveTasks.filter((task) => demoIds.has(task.id));
+    if (!held.length) return [];
+    const heldIds = new Set(held.map((task) => task.id));
+    return demoBoard.tasks(held[0].creationDate).filter((task) => heldIds.has(task.id));
+  }
+
+  // Seeding adds demo tasks to no other device, and neither does an adopted snapshot (#263).
+  function withoutUnheldDemoTasks(boardId, snapshotTasks, liveTasks) {
+    if (boardId !== demoBoard?.id) return snapshotTasks;
+    const demoIds = new Set(demoBoard.tasks().map((task) => task.id));
+    const heldIds = new Set(liveTasks.map((task) => task.id));
+    return snapshotTasks.filter((task) => !demoIds.has(task.id) || heldIds.has(task.id));
+  }
 
   let state = emptyState();
   // Per-board default-task cache (keeps defaults stable within a session).
@@ -551,12 +581,128 @@ export function createReadModelProjector(ctx) {
     }
   }
 
+  // ── Applying admitted events: the one commit path for local and remote events.
+
+  // Local events project before this returns (ADR-0005 instant UI); the promise settles once stored, or rebuilt if late.
+  function apply(event, { origin = EVENT_ORIGIN.LOCAL } = {}) {
+    return origin === EVENT_ORIGIN.REMOTE ? applyRemote(event) : commitEvent(event, origin);
+  }
+
+  // Projection is in memory, so a batch need not wait for each write before the next event; it awaits them all once.
+  async function applyRemote(event, writes = null) {
+    if (!await foldOntoCoveringSnapshot(event)) return;
+    // Only an event this tab takes moves its clock, so one the covering snapshot already holds does not.
+    await observeRemote(event.hlc);
+    const written = commitEvent(event, EVENT_ORIGIN.REMOTE, { batched: Boolean(writes) });
+    if (!writes) return written;
+    // The batch rethrows a failed write after the loop; this only stops it reading as unhandled meanwhile.
+    written.catch(() => {});
+    writes.push(written);
+  }
+
+  function commitEvent(event, origin, { batched = false } = {}) {
+    const local = origin === EVENT_ORIGIN.LOCAL;
+    const order = projecting ? classify(event) : null;
+    // A late local edit still shows at once; the rebuild then puts it in order.
+    if (order && (order !== EVENT_ORDER.LATE || local)) {
+      if (project(event, { batched }) && !holdChange({ local })) emit(DATA_CHANGED, { event });
+    }
+    emit(EVENT_EMITTED, event);
+    const persisted = getDbRef() ? storeEvent(event, local, batched) : null;
+    noteCommitted(event, persisted);
+    if (!persisted) return Promise.resolve();
+    return order === EVENT_ORDER.LATE ? persisted.then(() => rebuildScope(snapshotKeyForEvent(event))) : persisted;
+  }
+
+  function storeEvent(event, local, batched) {
+    let heldByCommit = false;
+    const persisted = persistEvent({ ...event, synced: !local })
+      .then(() => flushPendingPersists())
+      .then(() => {
+        // Other tabs and the queue read the store, so they may only hear of an event once it is there.
+        if (!batched && !heldByCommit) emit(EVENTS_STORED, { ids: [event.id], local });
+      });
+    heldByCommit = holdStored(persisted, event.id);
+    return persisted;
+  }
+
+  // Catch-up's path, in the order given: `admit` is Ingest's verdict per item. Every DATA_CHANGED is a full board render,
+  // so the batch signals once at the end; resolves to the events not stored before, for the caller's watermark.
+  async function applyRemoteBatch(items, admit) {
+    const fresh = [];
+    const writes = [];
+    beginBatch();
+    try {
+      for (const item of items) {
+        const verdict = await admit(item);
+        if (verdict === ADMISSION.STORED) continue;
+        fresh.push(item.event);
+        if (verdict === ADMISSION.ADMITTED) await applyRemote(item.event, writes);
+      }
+      await Promise.all(writes);
+    } finally {
+      endRemoteBatch();
+    }
+    // The read model the batch deferred is stored before the caller advances its watermark.
+    await flushPendingPersists();
+    if (fresh.length) emit(EVENTS_STORED, { ids: fresh.map((event) => event.id), local: false });
+    return fresh;
+  }
+
+  function endRemoteBatch() {
+    if (endBatch()) emit(DATA_CHANGED, { batch: true });
+  }
+
+  // Stored events this tab has not applied (#222); late ones are put in order by a rebuild once the rest are applied.
+  async function applyStored(events) {
+    const lateKeys = new Set();
+    beginBatch();
+    try {
+      for (const event of [...events].sort((a, b) => compareHlc(a.hlc, b.hlc))) {
+        // Or the next local edit here could sort before an event this tab already shows.
+        await observeRemote(event.hlc);
+        const order = projecting ? classify(event) : null;
+        if (order === EVENT_ORDER.LATE) lateKeys.add(snapshotKeyForEvent(event));
+        else if (order === EVENT_ORDER.IN_ORDER && project(event, { batched: true }) && !holdChange()) {
+          emit(DATA_CHANGED, { event });
+        }
+      }
+    } finally {
+      endRemoteBatch();
+    }
+    for (const key of lateKeys) await rebuildScope(key);
+  }
+
+  // One redraw and one write per slice for a user mutation (#142); synchronous, to stay in this tick's write batch (#256).
+  function commitTogether(mutation) {
+    beginCommit();
+    try {
+      return mutation();
+    } finally {
+      endCommit(closeCommit);
+    }
+  }
+
+  function closeCommit({ changed, stored }) {
+    if (changed) emit(DATA_CHANGED);
+    announceStored(stored);
+  }
+
+  // One notice, so another tab folds the mutation as one and never shows half of it. A failed write was already logged.
+  function announceStored(stored) {
+    if (!stored.length) return;
+    Promise.all(stored)
+      .then((ids) => emit(EVENTS_STORED, { ids, local: true }))
+      .catch(() => {});
+  }
+
   // Adding the same listener again is a no-op, so this is idempotent.
   function startProjecting() {
     projecting = true;
     window.addEventListener('pagehide', persistBatchOnPageHide);
   }
 
+  // Until storage starts projecting, ingested events are only persisted, which boot-time backfill needs.
   function isProjecting() {
     return projecting;
   }
@@ -630,6 +776,7 @@ export function createReadModelProjector(ctx) {
 
   function setBoards(next) {
     state.boards = next;
+    schedulePersist(boardsKey, next);
   }
 
   function setBoardSlice(boardId, slice, value) {
@@ -638,6 +785,7 @@ export function createReadModelProjector(ctx) {
 
   function setGlobalSettings(value) {
     state.globalSettings = value;
+    schedulePersist(globalSettingsKey, value);
   }
 
   // ── Board settings no event carries (swimlanes, display toggles); a rebuild keeps them (see fold).
@@ -668,10 +816,11 @@ export function createReadModelProjector(ctx) {
   }
 
   return {
-    load, startProjecting, isProjecting, reset, addBoard, removeBoard,
+    // Storage's side: loading, reads, and the writes no event carries.
+    load, startProjecting, reset, addBoard, removeBoard,
     boards, board, globalSettings: loadGlobalSettings, timeTracking, cachedTasks, cacheTasks,
     setBoards, setBoardSlice, setGlobalSettings, writeBoardSettings, refreshBoardSettings,
-    classify, project, missedEvents, beginBatch, endBatch, beginCommit, endCommit, holdChange, holdStored,
-    noteCommitted, foldOntoCoveringSnapshot, adoptSnapshot, rebuildAfterPeerAdoption, rebuildScope
+    // Ingest's side: applying admitted events, and the reads admission needs.
+    apply, applyRemoteBatch, applyStored, commitTogether, adoptSnapshot, rebuildAfterPeerAdoption, missedEvents, isProjecting
   };
 }

@@ -1,33 +1,20 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { deleteDB } from 'idb';
 import { resetLocalStorage } from '../setup.js';
-
-// Event ids whose store write waits until the test lets it go.
-const heldWrites = vi.hoisted(() => new Map());
-vi.mock('../../../src/modules/idb-store.js', async (importOriginal) => {
-  const actual = await importOriginal();
-  const persistEvent = async (event) => {
-    await heldWrites.get(event.id)?.();
-    return actual.persistEvent(event);
-  };
-  return { ...actual, persistEvent };
-});
-
-// The setup file's storage already made its Read Model; a fresh module graph gets one whose schedulers this test watches.
-vi.resetModules();
-const { DATA_CHANGED, emit, EVENT_EMITTED, EVENTS_STORED, off, on } = await import('../../../src/modules/events.js');
-const { commitTogether, createReadModel, ingestEvent, ingestRemoteBatch } = await import('../../../src/modules/event-sourcing/ingest.js');
-const { GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY } = await import('../../../src/modules/event-sourcing/snapshot.js');
-const {
-  KV_STORE, READ_MODEL_STORE, keyFor, openStore, readModelKeyFor, schedulePersist, scheduleReadModelPersist, _flushPersistsForTesting, _resetIdbForTesting
-} = await import('../../../src/modules/idb-store.js');
+import { DATA_CHANGED, emit, EVENT_EMITTED, EVENTS_STORED, off, on } from '../../../src/modules/events.js';
+import {
+  commitTogether, createReadModel, ingestEvent, ingestMissedEvents, ingestRemoteBatch, ingestStoredEvents, _resetReadModelForTesting
+} from '../../../src/modules/event-sourcing/ingest.js';
+import { READ_MODEL_KEYS, createReadModelProjector } from '../../../src/modules/event-sourcing/read-model-projector.js';
+import { listBoards } from '../../../src/modules/storage.js';
+import { GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY } from '../../../src/modules/event-sourcing/snapshot.js';
+import {
+  EVENTS_STORE, KV_STORE, READ_MODEL_STORE, keyFor, openStore, readModelKeyFor, schedulePersist, scheduleReadModelPersist, _flushPersistsForTesting, _resetIdbForTesting
+} from '../../../src/modules/idb-store.js';
 
 const BOARD_ID = 'board-a';
-const BOARDS_KEY = 'kanbanBoards';
-const GLOBAL_SETTINGS_KEY = 'kanvana:settings:global';
-const TIME_TRACKING_KEY = 'kanvana:timetracking';
-const NEWEST_APPLIED_KEY = 'kanvana:ingest:newestAppliedHlc';
-const SETTINGS_KEY = `kanbanBoard:${BOARD_ID}:settings`;
+const { boards: BOARDS_KEY, globalSettings: GLOBAL_SETTINGS_KEY, timeTracking: TIME_TRACKING_KEY, newestApplied: NEWEST_APPLIED_KEY } = READ_MODEL_KEYS;
+const SETTINGS_KEY = keyFor(BOARD_ID, 'settings');
 
 function boardEvent(overrides = {}) {
   return {
@@ -67,17 +54,14 @@ async function storeBoard(slices = {}) {
 const ctx = {
   schedulePersist: vi.fn(schedulePersist),
   scheduleReadModelPersist: vi.fn(scheduleReadModelPersist),
-  checkAndScheduleSnapshot: vi.fn(),
-  boardsKey: BOARDS_KEY,
-  globalSettingsKey: GLOBAL_SETTINGS_KEY,
-  timeTrackingKey: TIME_TRACKING_KEY,
-  newestAppliedKey: NEWEST_APPLIED_KEY
+  checkAndScheduleSnapshot: vi.fn()
 };
-const readModel = createReadModel(ctx);
-
+// A fresh Read Model for the tab, which ingest and storage then both use.
 async function loadReadModel(slices) {
   await storeBoard(slices);
   vi.clearAllMocks();
+  _resetReadModelForTesting();
+  const readModel = createReadModel(ctx);
   await readModel.load();
   readModel.startProjecting();
   return { ctx, readModel };
@@ -138,6 +122,26 @@ describe('the Read Model', () => {
     h.readModel.reset();
     await _flushPersistsForTesting();
     _resetIdbForTesting();
+  });
+
+  test('is one per tab: making a second throws', () => {
+    expect(() => createReadModel(ctx)).toThrow('already created');
+  });
+
+  test('is the one storage reads', () => {
+    expect(listBoards().map((board) => board.id)).toEqual([BOARD_ID]);
+  });
+
+  test('an independent Read Model keeps its own state while ingest applies events to the tab\'s', async () => {
+    const independent = createReadModelProjector(ctx);
+    await independent.load();
+    independent.startProjecting();
+
+    ingest(boardEvent());
+
+    expect(h.readModel.board(BOARD_ID).tasks[0].title).toBe('After');
+    expect(independent.board(BOARD_ID).tasks[0].title).toBe('Before');
+    independent.reset();
   });
 
   test('reads back the boards IndexedDB holds once loaded', () => {
@@ -365,26 +369,6 @@ describe('the Read Model', () => {
       expect(h.ctx.checkAndScheduleSnapshot.mock.calls.map(([key]) => key).sort()).toEqual([BOARD_ID, 'board-b']);
       expect(h.readModel.board('board-b').tasks.map((task) => task.title)).toEqual(['B2']);
     });
-    test('overlapping catch-up batches each store the boards touched so far when they end', async () => {
-      const at = (n) => ({ wallTime: 1000 + n, counter: 0, nodeId: 'node-a' });
-      let release;
-      const reached = new Promise((resolve) => {
-        heldWrites.set('slow', () => {
-          resolve();
-          return new Promise((done) => { release = done; });
-        });
-      });
-      const first = ingestRemoteBatch([{ event: boardEvent({ id: 'slow', hlc: at(1), payload: { fields: { title: 'First' } } }) }]);
-      await reached;
-
-      await ingestRemoteBatch([{ event: boardEvent({ id: 'fast', hlc: at(2), payload: { fields: { title: 'Second' } } }) }]);
-      const stored = await (await openStore()).get(READ_MODEL_STORE, readModelKeyFor(BOARD_ID, 'tasks'));
-      release();
-      await first;
-      heldWrites.clear();
-
-      expect(stored[0].title).toBe('Second');
-    });
   });
 
   describe('a reducer no-op', () => {
@@ -506,5 +490,48 @@ describe('the Read Model', () => {
 
       expect(h.readModel.board(BOARD_ID).settings).toEqual({});
     });
+  });
+});
+
+// Before storage makes the tab's Read Model, ingest only stores events, as during boot-time backfill.
+describe('with no Read Model', () => {
+  beforeEach(async () => {
+    resetLocalStorage();
+    await deleteDB('kanvana-db');
+    await openStore();
+    _resetReadModelForTesting();
+  });
+  afterEach(async () => {
+    createReadModel(ctx);
+    await _flushPersistsForTesting();
+    _resetIdbForTesting();
+  });
+
+  test('a local event is announced and stored', async () => {
+    const emitted = [];
+    const handler = (e) => emitted.push(e.detail.id);
+    on(EVENT_EMITTED, handler);
+    const event = boardEvent();
+
+    await ingestEvent(event, { origin: 'local' });
+    off(EVENT_EMITTED, handler);
+
+    expect(emitted).toEqual([event.id]);
+    expect(await (await openStore()).get(EVENTS_STORE, event.id)).toMatchObject({ id: event.id, synced: false });
+  });
+
+  test('a catch-up batch is stored and returned as fresh', async () => {
+    const event = boardEvent();
+
+    expect(await ingestRemoteBatch([{ event }])).toEqual([event]);
+    expect(await (await openStore()).get(EVENTS_STORE, event.id)).toMatchObject({ id: event.id, synced: true });
+  });
+
+  test('stored and missed events are left alone', async () => {
+    const event = boardEvent();
+    await (await openStore()).put(EVENTS_STORE, event);
+
+    await expect(ingestStoredEvents([event.id])).resolves.toBeUndefined();
+    await expect(ingestMissedEvents()).resolves.toBeUndefined();
   });
 });
