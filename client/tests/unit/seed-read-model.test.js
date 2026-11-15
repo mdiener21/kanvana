@@ -2,8 +2,15 @@ import { test, expect, beforeEach } from 'vitest';
 import { deleteDB } from 'idb';
 import { resetLocalStorage } from './setup.js';
 import {
-  createBoard, getActiveBoardId, initStorage, loadColumns, loadColumnsForBoard, loadGlobalSettings, loadLabels, loadTasks,
-  _flushPersistsForTesting
+  createBoard,
+  getActiveBoardId,
+  initStorage,
+  loadColumns,
+  loadGlobalSettings,
+  loadLabels,
+  loadTasks,
+  _flushPersistsForTesting,
+  _loadStoredBoardForTesting
 } from '../../src/modules/storage.js';
 import { openStore, EVENTS_STORE } from '../../src/modules/idb-store.js';
 import { seedBoard, seedGlobalSettings } from '../fixtures/seed-read-model.js';
@@ -65,7 +72,7 @@ test('a column seeded again after it was removed comes back', () => {
   seedBoard({ columns });
   seedBoard({ columns: [] });
   seedBoard({ columns });
-  expect(loadColumnsForBoard(getActiveBoardId()).map((c) => c.id)).toEqual(['todo']);
+  expect(_loadStoredBoardForTesting(getActiveBoardId()).columns.map((c) => c.id)).toEqual(['todo']);
 });
 
 test('seedBoard can target a board other than the active one', () => {

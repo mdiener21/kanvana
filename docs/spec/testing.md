@@ -55,7 +55,8 @@ Storage tests are split across two files:
   - Multi-board and legacy single-board localStorage → IDB migration
   - Cross-session persistence: write in session A, reload in session B
   - `deleteBoard` cleaning up IDB entries
-  - Cross-board read helpers (`loadTasksForBoard`, `loadColumnsForBoard`, etc.)
+  - The board read for a non-active board (`loadBoard(id)`); `tests/unit/storage-board-read.test.js` covers its normalisation, and `tests/dom/import-export-roundtrip.test.js` the export → import round trip
+  - Tests that check what the reducer stored, rather than what a board shows, read `_loadStoredBoardForTesting(id)`
   - Corrupt IDB resilience
 
 ### IDB test infrastructure

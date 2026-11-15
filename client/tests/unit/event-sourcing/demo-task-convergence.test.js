@@ -9,7 +9,7 @@ import {
   _flushPersistsForTesting,
   createBoard,
   ensureBoardsInitialized,
-  loadTasksForBoard
+  _loadStoredBoardForTesting
 } from '../../../src/modules/storage.js';
 import { EVENT_ORIGIN, adoptSnapshot, ingestEvent, ingestRemoteBatch } from '../../../src/modules/event-sourcing/ingest.js';
 import { loadSnapshot, SNAPSHOT_EVENT_THRESHOLD, _resetSnapshotSchedulerForTesting, _setJitterForTesting } from '../../../src/modules/event-sourcing/snapshot.js';
@@ -38,7 +38,7 @@ function olderRemoteEvent(type, entityId, counter, payload) {
 }
 
 const ingestRemote = (...args) => ingestEvent(olderRemoteEvent(...args), { origin: EVENT_ORIGIN.REMOTE });
-const demoTask = (id) => loadTasksForBoard(BOARD).find((task) => task.id === id);
+const demoTask = (id) => _loadStoredBoardForTesting(BOARD).tasks.find((task) => task.id === id);
 
 async function firstRunDevice() {
   _resetStorageForTesting();
@@ -52,9 +52,9 @@ async function firstRunDevice() {
 beforeEach(firstRunDevice);
 
 test('every device seeds the same demo task ids, in the same order', async () => {
-  const onFirstDevice = loadTasksForBoard(BOARD).map((task) => [task.id, task.title]);
+  const onFirstDevice = _loadStoredBoardForTesting(BOARD).tasks.map((task) => [task.id, task.title]);
   await firstRunDevice();
-  expect(loadTasksForBoard(BOARD).map((task) => [task.id, task.title])).toEqual(onFirstDevice);
+  expect(_loadStoredBoardForTesting(BOARD).tasks.map((task) => [task.id, task.title])).toEqual(onFirstDevice);
   expect(onFirstDevice).toContainEqual([SOUL_STONE, 'Find out where the Soul Stone is']);
 });
 
@@ -70,7 +70,7 @@ test('seeding the first-run board emits no task events', async () => {
 
 test('a second board does not get the demo tasks', () => {
   const board = createBoard('Second');
-  expect(loadTasksForBoard(board.id)).toEqual([]);
+  expect(_loadStoredBoardForTesting(board.id).tasks).toEqual([]);
 });
 
 test('edits and moves that arrive late apply to the demo task instead of removing it', async () => {
@@ -78,7 +78,7 @@ test('edits and moves that arrive late apply to the demo task instead of removin
   await ingestRemote('task.moved', TIME_STONE, 2, { order: [{ id: TIME_STONE, column: DONE_COLUMN, order: 1 }] });
 
   expect(demoTask(TIME_STONE)).toMatchObject({ title: 'Edited on A', column: DONE_COLUMN, order: 1 });
-  expect(loadTasksForBoard(BOARD)).toHaveLength(7);
+  expect(_loadStoredBoardForTesting(BOARD).tasks).toHaveLength(7);
 });
 
 test('a task.moved that only renumbers a demo task reaches it when it arrives late', async () => {
@@ -108,7 +108,7 @@ test('a demo task deleted late is gone and later replays do not bring it back', 
 
   expect(demoTask(SOUL_STONE)).toBeUndefined();
   expect(demoTask(TIME_STONE).title).toBe('Edited on A');
-  expect(loadTasksForBoard(BOARD)).toHaveLength(6);
+  expect(_loadStoredBoardForTesting(BOARD).tasks).toHaveLength(6);
 });
 
 test('a device without demo tasks after an account switch does not gain them in a replay', async () => {
@@ -120,7 +120,7 @@ test('a device without demo tasks after an account switch does not gain them in 
   await ingestRemote('board.created', BOARD, 0, { board: { id: BOARD, name: 'Default Board' } });
   await ingestRemote('task.updated', TIME_STONE, 1, { fields: { title: 'Edited on A' } });
 
-  expect(loadTasksForBoard(BOARD)).toEqual([]);
+  expect(_loadStoredBoardForTesting(BOARD).tasks).toEqual([]);
 });
 
 // CONTEXT.md §9, Durability: a catch-up batch defers remote read-model writes, not a local edit's.
@@ -158,12 +158,12 @@ describe('adopting a snapshot', () => {
     _resetStorageForTesting();
     await initStorage();
     ensureBoardsInitialized();
-    expect(loadTasksForBoard(BOARD)).toEqual([]);
+    expect(_loadStoredBoardForTesting(BOARD).tasks).toEqual([]);
 
     const realTask = { ...carried, id: NEW_TASK, title: 'Real task' };
     await adoptSnapshot(BOARD, stateWithTasks([{ ...carried, title: 'Edited on A' }, realTask]), snapshotHlc);
 
-    expect(loadTasksForBoard(BOARD).map((task) => task.id)).toEqual([NEW_TASK]);
+    expect(_loadStoredBoardForTesting(BOARD).tasks.map((task) => task.id)).toEqual([NEW_TASK]);
     expect((await loadSnapshot(BOARD)).state.tasks.map((task) => task.id)).toEqual([NEW_TASK]);
   });
 

@@ -1,11 +1,4 @@
-import {
-  loadTasks,
-  loadColumns,
-  loadLabels,
-  loadSettings
-} from './storage.js';
-
-import { createBoard, getActiveBoardName, listBoards, setActiveBoardId, loadTasksForBoard, loadColumnsForBoard, loadLabelsForBoard, loadSettingsForBoard } from './storage.js';
+import { createBoard, getActiveBoardName, listBoards, loadBoard, setActiveBoardId } from './storage.js';
 import { normalizeBoardModelIds } from './board-serializer.js';
 import { emit, DATA_CHANGED } from './events.js';
 import { normalizePriority, isHexColor, boardDisplayName, normalizeCountdownThreshold, normalizeDueDate, normalizeSubTasks } from './normalize.js';
@@ -539,43 +532,6 @@ function normalizeImportedSettings(settings) {
   };
 }
 
-// Export tasks and columns to JSON file
-export function exportTasks() {
-  const columns = loadColumns().map((c) => ({
-    ...c,
-    color: isHexColor(c?.color) ? c.color.trim() : '#3b82f6'
-  }));
-  const doneColumnIds = new Set(columns.filter((column) => column.role === 'done' || column.id === DONE_COLUMN_ID).map((column) => column.id));
-  doneColumnIds.add(DONE_COLUMN_ID);
-  const tasks = loadTasks().map((task) => normalizeTaskForExport(task, doneColumnIds));
-  const labels = loadLabels();
-  const settings = loadSettings();
-  const boardName = getActiveBoardName();
-  const exportMeta = buildExportMeta();
-  const exportData = { boardName, columns, tasks, labels, settings, exportMeta };
-
-  const integrity = inspectImportPayload(exportData, null);
-  if (integrity.errors.length > 0) {
-    import('./dialog.js').then(({ alertDialog }) => alertDialog({
-      title: 'Export Blocked',
-      message: integrity.errors.join(' ')
-    }));
-    return;
-  }
-
-  const dataStr = JSON.stringify(exportData, null, 2);
-  const blob = new Blob([dataStr], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = exportFilename(boardName);
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
 // Export a specific board to JSON by boardId (does not switch active board).
 export function exportBoard(boardId) {
   const id = typeof boardId === 'string' ? boardId.trim() : '';
@@ -584,21 +540,14 @@ export function exportBoard(boardId) {
   const board = listBoards().find((b) => b.id === id);
   const boardName = boardDisplayName(board);
 
-  const rawTasks = loadTasksForBoard(id);
-  const rawColumns = loadColumnsForBoard(id);
-  const rawLabels = loadLabelsForBoard(id);
-  const rawSettings = loadSettingsForBoard(id);
-
-  const columns = rawColumns.map((c) => ({
-    ...c,
-    color: isHexColor(c?.color) ? c.color.trim() : '#3b82f6',
-    collapsed: c?.collapsed === true
-  }));
+  // The board as it shows: normalised tasks, and columns that always include Done (#333).
+  const read = loadBoard(id);
+  if (!read) return;
+  const { columns, labels } = read;
   const doneColumnIds = new Set(columns.filter((column) => column.role === 'done' || column.id === DONE_COLUMN_ID).map((column) => column.id));
   doneColumnIds.add(DONE_COLUMN_ID);
-  const tasks = rawTasks.map((task) => normalizeTaskForExport(task, doneColumnIds));
-  const labels = Array.isArray(rawLabels) ? rawLabels : [];
-  const settings = normalizeSettingsForExport(rawSettings);
+  const tasks = read.tasks.map((task) => normalizeTaskForExport(task, doneColumnIds));
+  const settings = normalizeSettingsForExport(read.settings);
   const exportMeta = buildExportMeta();
   const exportData = { boardName, columns, tasks, labels, settings, exportMeta };
 

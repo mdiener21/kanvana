@@ -431,7 +431,7 @@ describe('no Web Locks (AC-004)', () => {
 
     await edit(one);
 
-    await waitFor(() => expect(two.storage.loadTasksForBoard(BOARD).map((task) => task.id)).toContain('task-1'));
+    await waitFor(() => expect(two.storage._loadStoredBoardForTesting(BOARD).tasks.map((task) => task.id)).toContain('task-1'));
   });
 
   it('tells the other tab when the queue changes, so its indicator does not stay on an old count', async () => {

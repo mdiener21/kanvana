@@ -9,10 +9,7 @@ import {
   _flushPersistsForTesting,
   createBoard,
   listBoards,
-  loadColumnsForBoard,
-  loadLabelsForBoard,
-  loadSettingsForBoard,
-  loadTasksForBoard
+  _loadStoredBoardForTesting
 } from '../../../src/modules/storage.js';
 import { EVENT_ORIGIN, ingestEvent } from '../../../src/modules/event-sourcing/ingest.js';
 import { BACKFILL_FLAG_KEY } from '../../../src/modules/event-sourcing/backfill.js';
@@ -62,10 +59,10 @@ function countReadModelPuts() {
 function board(id = boardId) {
   return {
     board: listBoards().find((item) => item.id === id),
-    tasks: loadTasksForBoard(id),
-    columns: loadColumnsForBoard(id),
-    labels: loadLabelsForBoard(id),
-    settings: loadSettingsForBoard(id)
+    tasks: _loadStoredBoardForTesting(id).tasks,
+    columns: _loadStoredBoardForTesting(id).columns,
+    labels: _loadStoredBoardForTesting(id).labels,
+    settings: _loadStoredBoardForTesting(id).settings
   };
 }
 
@@ -164,9 +161,9 @@ describe('hydration and replay', () => {
     const replayed = applyEvents(createProjectionState(), stored.filter((event) => event.board_id === boardId));
 
     expect(board().tasks).toMatchObject(replayed.tasks);
-    expect(loadColumnsForBoard(boardId).find((column) => column.id === COLUMN_ID).name).toBe('Renamed');
+    expect(_loadStoredBoardForTesting(boardId).columns.find((column) => column.id === COLUMN_ID).name).toBe('Renamed');
     expect(replayed.columns.find((column) => column.id === COLUMN_ID).name).toBe('Renamed');
-    expect(loadLabelsForBoard(boardId).map((label) => label.name)).toEqual(replayed.labels.map((label) => label.name));
+    expect(_loadStoredBoardForTesting(boardId).labels.map((label) => label.name)).toEqual(replayed.labels.map((label) => label.name));
     expect(board().board.name).toBe(replayed.boards[0].name);
     expect(board().settings.showAge).toBe(replayed.settings.showAge);
   });
@@ -182,7 +179,7 @@ describe('hydration and replay', () => {
     await ingestLocal(createdTask());
     off(DATA_CHANGED, onChanged);
 
-    expect(loadTasksForBoard(boardId)).toEqual([]);
+    expect(_loadStoredBoardForTesting(boardId).tasks).toEqual([]);
     expect(onChanged).not.toHaveBeenCalled();
   });
 });
@@ -240,10 +237,10 @@ describe('snapshots', () => {
 
     const { state } = await loadSnapshot(NEW_BOARD_ID);
     expect(state.boards.map((item) => item.name)).toEqual(['Old']);
-    expect(state.columns).toEqual(loadColumnsForBoard(NEW_BOARD_ID).filter((column) => column.id === COLUMN_ID).map((column) => expect.objectContaining({ id: column.id, name: 'Col' })));
+    expect(state.columns).toEqual(_loadStoredBoardForTesting(NEW_BOARD_ID).columns.filter((column) => column.id === COLUMN_ID).map((column) => expect.objectContaining({ id: column.id, name: 'Col' })));
     expect(state.labels.map((label) => label.name)).toEqual(['Lab']);
     expect(state.settings).toMatchObject({ showAge: true });
-    expect(state.tasks).toEqual(loadTasksForBoard(NEW_BOARD_ID));
+    expect(state.tasks).toEqual(_loadStoredBoardForTesting(NEW_BOARD_ID).tasks);
     expect(state.tasks[0].title).toBe(`T${SNAPSHOT_EVENT_THRESHOLD - 1}`);
   });
 });

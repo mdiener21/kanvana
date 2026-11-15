@@ -4,8 +4,12 @@ import { server } from '../../mocks/server.js';
 import { deleteDB } from 'idb';
 import { DATA_CHANGED, EVENT_EMITTED, off, on } from '../../../src/modules/events.js';
 import {
-  initStorage, createBoard, setActiveBoardId, loadColumnsForBoard, loadTasksForBoard,
-  _flushPersistsForTesting, _resetStorageForTesting,
+  initStorage,
+  createBoard,
+  setActiveBoardId,
+  _flushPersistsForTesting,
+  _resetStorageForTesting,
+  _loadStoredBoardForTesting
 } from '../../../src/modules/storage.js';
 import { addTask, sortColumnTasks } from '../../../src/modules/tasks.js';
 import { EVENT_ORIGIN, ingestEvent } from '../../../src/modules/event-sourcing/ingest.js';
@@ -25,7 +29,7 @@ beforeEach(async () => {
   await initStorage();
   boardId = createBoard('Sort').id;
   setActiveBoardId(boardId);
-  columnId = loadColumnsForBoard(boardId)[0].id;
+  columnId = _loadStoredBoardForTesting(boardId).columns[0].id;
   addTask('Low', '', 'low', '2026-12-03', columnId);
   addTask('Urgent', '', 'urgent', '2026-12-01', columnId);
   addTask('Medium', '', 'medium', '', columnId);
@@ -42,7 +46,7 @@ afterEach(async () => {
 });
 
 function columnTitles() {
-  return loadTasksForBoard(boardId)
+  return _loadStoredBoardForTesting(boardId).tasks
     .filter((task) => task.column === columnId)
     .sort((a, b) => a.order - b.order)
     .map((task) => task.title);
@@ -93,7 +97,7 @@ test('sorting by an unknown key leaves the column unchanged and emits nothing', 
 test('a rebuild triggered by a late remote event keeps the sorted order', async () => {
   sortColumnTasks(columnId, 'priority');
   await _flushPersistsForTesting();
-  const low = loadTasksForBoard(boardId).find((task) => task.title === 'Low');
+  const low = _loadStoredBoardForTesting(boardId).tasks.find((task) => task.title === 'Low');
   const rebuilt = [];
   const handler = (e) => { if (e.detail?.rebuilt) rebuilt.push(e.detail.rebuilt); };
   on(DATA_CHANGED, handler);

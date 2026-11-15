@@ -28,10 +28,12 @@ const fixture = {
 function ctx() {
   return {
     boards: fixture.boards,
-    columnsFor: (id) => fixture.columns[id] || [],
-    labelsFor: (id) => fixture.labels[id] || [],
-    tasksFor: (id) => fixture.tasks[id] || [],
-    settingsFor: (id) => fixture.settings[id] || null
+    boardFor: (id) => ({
+      columns: fixture.columns[id] || [],
+      labels: fixture.labels[id] || [],
+      tasks: fixture.tasks[id] || [],
+      settings: fixture.settings[id] || null
+    })
   };
 }
 
@@ -50,7 +52,8 @@ beforeEach(async () => {
 describe('event log backfill', () => {
   test('a failed write stores neither the events nor the flag, so the next launch backfills again', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    await backfillEventLog({ ...ctx(), settingsFor: () => ({ notCloneable: () => {} }) });
+    const { boards, boardFor } = ctx();
+    await backfillEventLog({ boards, boardFor: (id) => ({ ...boardFor(id), settings: { notCloneable: () => {} } }) });
     await _flushDomainEventsForTesting();
 
     expect(await storedEvents()).toEqual([]);

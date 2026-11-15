@@ -5,17 +5,15 @@
 import {
   ensureBoardsInitialized,
   getActiveBoardId,
-  loadColumnsForBoard,
-  loadLabelsForBoard,
-  loadTasksForBoard
+  _loadStoredBoardForTesting
 } from '../../src/modules/storage.js';
 import { scheduleDomainEvent } from '../../src/modules/event-sourcing/emitter.js';
 import { EVENT_SCOPE } from '../../src/modules/constants.js';
 
 const SLICES = [
-  { key: 'columns', entity: 'column', load: loadColumnsForBoard },
-  { key: 'labels', entity: 'label', load: loadLabelsForBoard },
-  { key: 'tasks', entity: 'task', load: loadTasksForBoard }
+  { key: 'columns', entity: 'column', load: (boardId) => _loadStoredBoardForTesting(boardId).columns },
+  { key: 'labels', entity: 'label', load: (boardId) => _loadStoredBoardForTesting(boardId).labels },
+  { key: 'tasks', entity: 'task', load: (boardId) => _loadStoredBoardForTesting(boardId).tasks }
 ];
 
 /**

@@ -4,8 +4,13 @@ import { deleteDB } from 'idb';
 import { DATA_CHANGED, EVENT_EMITTED, emit, off, on } from '../../../src/modules/events.js';
 import { openStore, readModelKeyFor, EVENTS_STORE, READ_MODEL_STORE } from '../../../src/modules/idb-store.js';
 import {
-  initStorage, createBoard, listBoards, loadTasksForBoard, loadTimeTracking, loadLabelsForBoard, loadColumnsForBoard,
-  _flushPersistsForTesting, _resetStorageForTesting,
+  initStorage,
+  createBoard,
+  listBoards,
+  loadTimeTracking,
+  _flushPersistsForTesting,
+  _resetStorageForTesting,
+  _loadStoredBoardForTesting
 } from '../../../src/modules/storage.js';
 import { scheduleDomainEvent } from '../../../src/modules/event-sourcing/emitter.js';
 import { ingestEvent, EVENT_ORIGIN } from '../../../src/modules/event-sourcing/ingest.js';
@@ -71,13 +76,13 @@ describe('local events', () => {
     const task = { id: 'local-task', title: 'Instant', column: 'todo' };
     scheduleDomainEvent({ type: 'task.created', boardId, entityId: task.id, payload: { task } });
 
-    expect(loadTasksForBoard(boardId).map((t) => t.title)).toContain('Instant');
+    expect(_loadStoredBoardForTesting(boardId).tasks.map((t) => t.title)).toContain('Instant');
   });
 
   test('ingested with origin local are persisted unsynced for the outbound queue', async () => {
     const event = taskCreated('local-2', { eventId: 'evt-local-2' });
     ingestEvent(event, { origin: EVENT_ORIGIN.LOCAL });
-    expect(loadTasksForBoard(boardId).map((t) => t.id)).toContain('local-2');
+    expect(_loadStoredBoardForTesting(boardId).tasks.map((t) => t.id)).toContain('local-2');
 
     await _flushPersistsForTesting();
     expect(await storedEvent('evt-local-2')).toMatchObject({ id: 'evt-local-2', synced: false });
@@ -121,7 +126,7 @@ describe('remote events', () => {
     await ingestEvent(taskCreated('remote-1'), { origin: EVENT_ORIGIN.REMOTE });
     changes.stop();
 
-    expect(loadTasksForBoard(boardId).map((t) => t.id)).toContain('remote-1');
+    expect(_loadStoredBoardForTesting(boardId).tasks.map((t) => t.id)).toContain('remote-1');
     expect(changes.seen.map((d) => d.event?.id)).toEqual(['evt-remote-1']);
     expect(await storedEvent('evt-remote-1')).toMatchObject({ synced: true });
   });
@@ -130,7 +135,7 @@ describe('remote events', () => {
 describe('single path', () => {
   test('an event announced on the bus without ingest never reaches the read model', () => {
     emit(EVENT_EMITTED, taskCreated('bypass'));
-    expect(loadTasksForBoard(boardId).map((t) => t.id)).not.toContain('bypass');
+    expect(_loadStoredBoardForTesting(boardId).tasks.map((t) => t.id)).not.toContain('bypass');
   });
 
   test('an echo of an already-ingested event changes nothing and announces nothing', async () => {
@@ -141,7 +146,7 @@ describe('single path', () => {
     changes.stop();
 
     expect(changes.seen).toEqual([]);
-    expect(loadTasksForBoard(boardId).filter((t) => t.id === 'echoed').map((t) => t.title)).toEqual(['Remote task']);
+    expect(_loadStoredBoardForTesting(boardId).tasks.filter((t) => t.id === 'echoed').map((t) => t.title)).toEqual(['Remote task']);
   });
 });
 
@@ -151,14 +156,14 @@ describe('rejected events', () => {
   async function expectRejected(event, origin = EVENT_ORIGIN.REMOTE) {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     const changes = captureDataChanged();
-    const tasksBefore = loadTasksForBoard(boardId);
+    const tasksBefore = _loadStoredBoardForTesting(boardId).tasks;
     const timeTrackingBefore = loadTimeTracking();
     await expect(ingestEvent(event, { origin })).resolves.toBeUndefined();
     await _flushPersistsForTesting();
     changes.stop();
 
     expect(changes.seen).toEqual([]);
-    expect(loadTasksForBoard(boardId)).toEqual(tasksBefore);
+    expect(_loadStoredBoardForTesting(boardId).tasks).toEqual(tasksBefore);
     expect(loadTimeTracking()).toEqual(timeTrackingBefore);
     if (event?.id) expect(await storedEvent(event.id)).toBeUndefined();
     expect(error).toHaveBeenCalledTimes(1);
@@ -196,7 +201,7 @@ describe('rejected events', () => {
   test('an hlc ahead of this device within the drift limit is accepted', async () => {
     const ahead = { wallTime: Date.now() + MAX_DRIFT_MS / 2, counter: 0, nodeId: 'remote-node' };
     await ingestEvent({ ...taskCreated('slightly-ahead'), hlc: ahead }, { origin: EVENT_ORIGIN.REMOTE });
-    expect(loadTasksForBoard(boardId).some((t) => t.id === 'slightly-ahead')).toBe(true);
+    expect(_loadStoredBoardForTesting(boardId).tasks.some((t) => t.id === 'slightly-ahead')).toBe(true);
   });
 
   test('a malformed local event is rejected too', async () => {
@@ -240,7 +245,7 @@ describe('payload entity fields', () => {
       payload: { fields: { title: 'Renamed', innerHTML: '<img src=x>' } },
     });
 
-    const task = loadTasksForBoard(boardId).find((t) => t.id === 'allow-1');
+    const task = _loadStoredBoardForTesting(boardId).tasks.find((t) => t.id === 'allow-1');
     expect(task).toMatchObject({ title: 'Renamed', column: 'todo' });
     expect(task).not.toHaveProperty('isAdmin');
     expect(task).not.toHaveProperty('onclick');
@@ -251,7 +256,7 @@ describe('payload entity fields', () => {
     const created = taskCreated('allow-2');
     created.payload.task = { ...created.payload.task, doneDate: '2026-10-12T00:00:00.000Z', swimlaneLabelGroup: 'Type' };
     await remote(created);
-    expect(loadTasksForBoard(boardId).find((t) => t.id === 'allow-2'))
+    expect(_loadStoredBoardForTesting(boardId).tasks.find((t) => t.id === 'allow-2'))
       .toMatchObject({ doneDate: '2026-10-12T00:00:00.000Z', swimlaneLabelGroup: 'Type' });
   });
 
@@ -273,7 +278,7 @@ describe('payload entity fields', () => {
     await remote({ ...taskCreated('victim'), id: 'evt-victim-deleted', type: 'task.deleted', payload: {} });
     await remote({ ...taskCreated('fresh'), payload: { task: { id: 'victim', title: 'Back again', column: 'todo' } } });
 
-    const ids = loadTasksForBoard(boardId).map((t) => t.id);
+    const ids = _loadStoredBoardForTesting(boardId).tasks.map((t) => t.id);
     expect(ids).not.toContain('victim');
     expect(ids).toContain('fresh');
   });
@@ -282,12 +287,12 @@ describe('payload entity fields', () => {
     await remote(taskCreated('keep-id'));
     await remote({ ...taskCreated('keep-id'), id: 'evt-keep-id-update', type: 'task.updated', payload: { fields: { id: 'other', title: 'Renamed' } } });
 
-    expect(loadTasksForBoard(boardId).find((t) => t.id === 'keep-id')).toMatchObject({ title: 'Renamed' });
+    expect(_loadStoredBoardForTesting(boardId).tasks.find((t) => t.id === 'keep-id')).toMatchObject({ title: 'Renamed' });
   });
 
   test.each([
-    ['label.created', 'label', () => loadLabelsForBoard(boardId)],
-    ['column.created', 'column', () => loadColumnsForBoard(boardId)],
+    ['label.created', 'label', () => _loadStoredBoardForTesting(boardId).labels],
+    ['column.created', 'column', () => _loadStoredBoardForTesting(boardId).columns],
   ])('%s takes its id from entity_id, not the payload', async (type, key, load) => {
     await remote({ ...taskCreated(`${key}-fresh`), id: `evt-${type}-id`, type, payload: { [key]: { id: `${key}-forged`, name: 'Forged' } } });
 
@@ -338,10 +343,10 @@ describe('entity colours', () => {
 
   test('a non-hex label colour is normalised on create and ignored on update', async () => {
     await remote(boardEvent('label.created', 'l-red', { label: { name: 'Bug', color: HOSTILE, group: '' } }));
-    expect(loadLabelsForBoard(boardId).find((l) => l.id === 'l-red').color).toMatch(HEX);
+    expect(_loadStoredBoardForTesting(boardId).labels.find((l) => l.id === 'l-red').color).toMatch(HEX);
 
     await remote(boardEvent('label.created', 'l-ok', { label: { name: 'Ok', color: '#ff0000', group: '' } }));
     await remote(boardEvent('label.updated', 'l-ok', { fields: { name: 'Renamed', color: HOSTILE } }));
-    expect(loadLabelsForBoard(boardId).find((l) => l.id === 'l-ok')).toMatchObject({ name: 'Renamed', color: '#ff0000' });
+    expect(_loadStoredBoardForTesting(boardId).labels.find((l) => l.id === 'l-ok')).toMatchObject({ name: 'Renamed', color: '#ff0000' });
   });
 });

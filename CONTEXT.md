@@ -217,12 +217,9 @@ the global and time-tracking views once.
 | `initStorage()` | Async bootstrap — opens IDB, loads all state into memory |
 | `getActiveBoardId()` | Active board selector |
 | `ensureBoardsInitialized()` | Guard called before any board operation |
-| `loadTasksForBoard(id)` | Read task state for a board |
-| `loadColumnsForBoard(id)` | Read column state for a board |
-| `loadLabelsForBoard(id)` | Read label state for a board |
-| `loadSettingsForBoard(id)` | Read board-scoped settings |
+| `loadBoard(id)` | One normalised read of a board: tasks, columns (with Done), labels, settings; `null` if not listed |
+| `loadTasks()` / `loadColumns()` / `loadLabels()` / `loadSettings()` | The same read for the active board |
 | `loadGlobalSettings()` / `saveGlobalSettings()` | Read/write cross-board app settings |
-| `saveTasks()` / `saveTasksForBoard(id, tasks)` | Persist task array |
 | `listBoards()` | All board metadata |
 | `keyFor(boardId, kind)` | IDB key builder |
 
@@ -512,7 +509,7 @@ ingestEvent (event-sourcing/ingest.js) — one path, origin is a parameter; Inge
 
 | Boundary | Rule |
 |---|---|
-| Cross-board data | Use `loadTasksForBoard(id)` / `loadColumnsForBoard(id)` — never read or write another board's state |
+| Cross-board data | Read another board with `loadBoard(id)` — never read or write another board's state directly |
 | Rendering | Mutations emit a domain event; the reducer projects it and emits `DATA_CHANGED`, which `render.js` and page modules subscribe to. Feature modules do not call `renderBoard()` after a mutation |
 | Circular deps | Use `events.js` bus for render triggers; do not use `await import('./render.js')` outside of initialization |
 | Done column | Use `isDoneColumn(col)` from `constants.js` — checks both `role === 'done'` and legacy `id === 'done'` |

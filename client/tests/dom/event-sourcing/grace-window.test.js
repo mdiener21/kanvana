@@ -9,9 +9,9 @@ import { getPb } from '../../../src/modules/sync.js';
 import { _resetIdbForTesting, openStore, EVENTS_STORE } from '../../../src/modules/idb-store.js';
 import {
   initStorage,
-  loadTasksForBoard,
   _flushPersistsForTesting,
   _resetStorageForTesting,
+  _loadStoredBoardForTesting
 } from '../../../src/modules/storage.js';
 import { _resetHlcForTesting } from '../../../src/modules/event-sourcing/hlc.js';
 import { applyRemoteEvent, catchUp, recordToEvent, _resetRealtimeForTesting } from '../../../src/modules/event-sourcing/realtime.js';
@@ -44,7 +44,7 @@ const newerEdit = record('e-new', 'task.updated', 40, { fields: { title: 'New' }
 const lateInsideWindow = record('e-late', 'task.updated', 30, { fields: { title: 'Mid', priority: 'high' } });
 const olderThanWindow = { ...record('e-ancient', 'task.updated', 15, { fields: { priority: 'low' } }), created: receivedAfter(GRACE_WINDOW_MS + 1) };
 
-const task = () => loadTasksForBoard(BOARD).find((t) => t.id === TASK);
+const task = () => _loadStoredBoardForTesting(BOARD).tasks.find((t) => t.id === TASK);
 
 async function stored(id) {
   return (await openStore()).get(EVENTS_STORE, id);

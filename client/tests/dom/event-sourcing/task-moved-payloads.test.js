@@ -6,11 +6,11 @@ import {
   createBoard,
   getActiveBoardId,
   initStorage,
-  loadColumnsForBoard,
   loadTasks,
   saveSettings,
   _flushPersistsForTesting,
-  _resetStorageForTesting
+  _resetStorageForTesting,
+  _loadStoredBoardForTesting
 } from '../../../src/modules/storage.js';
 import { seedBoard } from '../../fixtures/seed-read-model.js';
 import {
@@ -45,7 +45,7 @@ beforeEach(async () => {
 
 // On a new board with the same columns, so the tasks keep the order given (seedBoard cannot reorder known ones).
 async function seedColumns(idsByColumn) {
-  const columns = loadColumnsForBoard(getActiveBoardId());
+  const columns = _loadStoredBoardForTesting(getActiveBoardId()).columns;
   createBoard('Moves');
   seedBoard({ columns, tasks: Object.entries(idsByColumn).flatMap(([column, ids]) => ids.map((id, index) => task(id, column, index + 1))) });
   await _flushPersistsForTesting();

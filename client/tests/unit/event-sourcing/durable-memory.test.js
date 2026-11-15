@@ -8,9 +8,8 @@ import {
   _resetStorageForTesting,
   _flushPersistsForTesting,
   createBoard,
-  loadTasksForBoard,
-  loadColumnsForBoard,
-  loadGlobalSettings
+  loadGlobalSettings,
+  _loadStoredBoardForTesting
 } from '../../../src/modules/storage.js';
 import { EVENT_ORIGIN, adoptSnapshot, ingestEvent } from '../../../src/modules/event-sourcing/ingest.js';
 import { createProjectionState } from '../../../src/modules/reducer.js';
@@ -44,8 +43,8 @@ async function reload() {
   await initStorage();
 }
 
-const column = () => loadColumnsForBoard(boardId)[0].id;
-const task = (id) => loadTasksForBoard(boardId).find((t) => t.id === id);
+const column = () => _loadStoredBoardForTesting(boardId).columns[0].id;
+const task = (id) => _loadStoredBoardForTesting(boardId).tasks.find((t) => t.id === id);
 
 beforeEach(async () => {
   _resetStorageForTesting();
@@ -84,7 +83,7 @@ test('a delete record in an adopted snapshot makes later edits of that task a no
   // Another device deleted the task; its snapshot carries the delete record.
   await adoptSnapshot(boardId, createProjectionState({
     boards: [{ id: boardId, name: 'Durable' }],
-    columns: loadColumnsForBoard(boardId),
+    columns: _loadStoredBoardForTesting(boardId).columns,
     appliedEventIds: new Set(['e-create', 'e-delete-elsewhere']),
     taskTombstones: new Set([TASK_ID])
   }), { wallTime: 10_001, counter: 1, nodeId: 'node-z' });
