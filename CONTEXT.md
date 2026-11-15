@@ -143,8 +143,8 @@ The storage layer is split into three modules:
 |---|---|
 | `idb-store.js` | IDB connection singleton, key helpers, fire-and-forget `schedulePersist()` / `scheduleReadModelPersist()` / `scheduleDelete()`, event helpers (`persistEvent`, `getUnsyncedEvents`, `markEventSynced`), and the Data Owner record (`getDataOwner`, `claimDataOwner`, `replaceLocalData`) |
 | `board-serializer.js` | Board import normalizer — remaps non-UUID IDs, coerces fields on import or IDB migration |
-| `storage.js` | All public CRUD functions. Imports from both above. Hands the Read Model its schedulers and storage keys, and reads boards through its `board(id)` / `boards()` calls. |
-| `event-sourcing/read-model-projector.js` | `createReadModelProjector()` — the Read Model, extracted from `storage.js` ([#119](docs/adr/0005-reducer-sole-read-model-writer.md)). Owns the in-memory `state` and per-board task cache, loads them from IDB (`load()`), and answers reads (`board(id)` → tasks, columns, labels, settings). Private to `ingest.js` (#281): `createReadModel(ctx)` there is a factory: each call makes a fresh Read Model with its own state, which ingest applies events to from then on (#332); `storage.js` makes the one per tab. It hands `storage.js` only its reads and the writes no event carries; ingest alone applies admitted events to it (#328) through `apply(event, { origin })`, `applyRemoteBatch(items, admit)`, `applyStored(events)`, `commitTogether(mutation)`, `adoptSnapshot()` and `rebuildAfterPeerAdoption()`, plus the `missedEvents()` read. Behind those it folds each event into `state` via the pure reducer (the sole writer), persists it, holds redraws and store notices during a batch or commit, and alone emits `DATA_CHANGED` and `EVENTS_STORED` for ingested events. It also owns late-event handling: classifying an event as applied / in-order / late, folding a late one onto the snapshot that covers it, adopting a snapshot, and the rebuild queue and merge. Until `startProjecting()`, ingested events are only persisted (boot-time backfill). |
+| `storage.js` | All public CRUD functions. Imports from both above. Makes the tab's Read Model through `createReadModel(ctx)`, handing it its schedulers and the demo board (the Read Model owns its storage keys, `READ_MODEL_KEYS`, and the demo-task replay rules), and reads boards through its `board(id)` / `boards()` calls. |
+| `event-sourcing/read-model-projector.js` | `createReadModelProjector()` — the Read Model, extracted from `storage.js` ([#119](docs/adr/0005-reducer-sole-read-model-writer.md)). Owns the in-memory `state` and per-board task cache, loads them from IDB (`load()`), and answers reads (`board(id)` → tasks, columns, labels, settings). Private to `ingest.js` (#281): `createReadModel(ctx)` there makes the one per tab, which `storage.js` calls, and a second call throws; a test makes a fresh one after `_resetReadModelForTesting()`, or an independent one straight from `createReadModelProjector()` (#332). It hands `storage.js` only its reads and the writes no event carries, always on ingest's current Read Model, so the two never differ; ingest alone applies admitted events to it (#328) through `apply(event, { origin })`, `applyRemoteBatch(items, admit)`, `applyStored(events)`, `commitTogether(mutation)`, `adoptSnapshot()` and `rebuildAfterPeerAdoption()`, plus the `missedEvents()` and `isProjecting()` reads. Behind those it observes a remote event's HLC once it takes it, folds each event into `state` via the pure reducer (the sole writer), persists it, holds redraws and store notices during a batch or commit, and alone emits `DATA_CHANGED` and `EVENTS_STORED` for ingested events. It also owns late-event handling: classifying an event as applied / in-order / late, folding a late one onto the snapshot that covers it, adopting a snapshot, and the rebuild queue and merge. Until `startProjecting()`, and while there is no Read Model at all, ingested events are only persisted (boot-time backfill). |
 
 **Main `kv` keys:**
 
@@ -246,7 +246,7 @@ manual push/pull); the header **sync-state indicator** shows `Live` / `Syncing�
 | `event-sourcing/data-owner.js` | **Account check** — `checkDataOwner(userId)`, the session's `beforeSignIn`: applies the Data Owner policy and coordinates tabs during a switch. `createNetworkSettlingFirstPull()` wraps the leader's network side to finish the first pull after a wipe |
 | `event-sourcing/sync-leader.js` | **Sync leader** (#222) — elects one tab with a Web Lock and links the tabs with a BroadcastChannel. `initSyncLeader()` resolves to the leader-gated network side the tab's session runs on |
 | `event-sourcing/sync-queue.js` | **Outbound** — drains unsynced events to the PB `events` collection in HLC order (debounce, in-flight cap, three-tier retry, no rollback), stamped with the Data Owner, and pushes nothing when the signed-in account is not the Data Owner. Runs only between `startSyncQueue({ onAuthRejected })` and `stopSyncQueue()`; `drainSyncQueue()`, `getSyncStatus()` |
-| `event-sourcing/ingest.js` | **Ingest interface** — `ingestEvent(event, { origin, receivedAt })`, the single entry point of the event log for local and remote events (catch-up uses `ingestRemoteBatch(items)`, which validates and sorts once, applies each board's in-order events to one copy of the board as one list (#238) and saves each touched board's read model once when the batch ends (#237), and returns the events not stored before). Ingest only admits: validate, dedupe against the event store and drop late arrivals (remote only), observe the remote HLC; the Read Model then projects, emits `DATA_CHANGED` and `EVENT_EMITTED`, persists (`synced` = origin is `remote`) and announces `EVENTS_STORED` |
+| `event-sourcing/ingest.js` | **Ingest interface** — `ingestEvent(event, { origin, receivedAt })`, the single entry point of the event log for local and remote events (catch-up uses `ingestRemoteBatch(items)`, which validates and sorts once, applies each board's in-order events to one copy of the board as one list (#238) and saves each touched board's read model once when the batch ends (#237), and returns the events not stored before). Ingest only admits: validate, then (remote only) dedupe against the event store and drop late arrivals; the Read Model then observes the remote HLC, projects, emits `DATA_CHANGED` and `EVENT_EMITTED`, persists (`synced` = origin is `remote`) and announces `EVENTS_STORED` |
 | `event-sourcing/realtime.js` | **Inbound** — SSE subscription (`startRealtime({ onConnect })`, `stopRealtime()`) + catch-up pull (`catchUp()`), run by the session; a stop also ends a pull in flight; remote events go through `ingestEvent(…, { origin: 'remote' })` (deduped by id), and SSE messages arriving while earlier ones are being stored queue up and go through `ingestRemoteBatch` together, so a burst does not redraw per event (#142) |
 | `event-sourcing/hlc.js` | Hybrid Logical Clock — `emitLocal()`, `observeRemote()`, `compareHlc()` |
 | `event-sourcing/snapshot.js`, `snapshot-sync.js` | Client snapshots + upload + event GC. Snapshots are always taken locally; upload runs only between `startSnapshotSync()` and `stopSnapshotSync()`, and only as the Data Owner |
@@ -492,14 +492,16 @@ offline, sign-out → stop the queue, snapshot upload and realtime; a push rejec
                                                    (remote only: await observeRemote(hlc) first)
 [server snapshot]→ catchUp(), before its events → adoptSnapshot(key, state, hlc) → save + rebuildScope(key)
 
-ingestEvent (event-sourcing/ingest.js) — one path, origin is a parameter; Ingest does 1–2, the Read Model's apply() the rest:
+ingestEvent (event-sourcing/ingest.js) — one path, origin is a parameter; Ingest admits (1–2), the Read Model's apply() does the rest:
    1. validate                         (drops malformed events and HLCs over 60 s ahead, #181)
-   2. remote only: drop if it reached the server a grace window after its HLC; classify against the key's newest applied HLC (§9 Ordering)
-   3. project: read-model-projector folds event into state (sole writer, deduped by id)
+   2. remote only: skip if already stored; drop if it reached the server a grace window after its HLC
+   3. classify against the key's newest applied HLC (§9 Ordering); remote only: fold a covered late event onto its snapshot
+      (stop there if the snapshot already holds it), then await observeRemote(hlc)
+   4. project: read-model-projector folds event into state (sole writer, deduped by id)
               → emit(DATA_CHANGED) → renderBoard()      [synchronous for local events; skipped for a late remote one]
-   4. emit(EVENT_EMITTED) → outbound sync-queue schedules a drain if it is running (HLC order, unsynced only, as the Data Owner)
-   5. persistEvent (synced = origin === 'remote')        [same transaction as step 3's writes, §9 Durability] → EVENTS_STORED → other tabs fold it, leader drains
-   6. late event only: rebuildScope(key)                  [the promise settles after the rebuild]
+   5. emit(EVENT_EMITTED) → outbound sync-queue schedules a drain if it is running (HLC order, unsynced only, as the Data Owner)
+   6. persistEvent (synced = origin === 'remote')        [same transaction as step 4's writes, §9 Durability] → EVENTS_STORED → other tabs fold it, leader drains
+   7. late event only: rebuildScope(key)                  [the promise settles after the rebuild]
 ```
 
 ---
@@ -539,7 +541,7 @@ this device's clock is rejected at ingest (#181): it would win every field and s
 
 **Live ingest folds in HLC order** (#179). The projector records the newest HLC it has folded into each
 **scope key** (board id, `__global__`, `__timetracking__`) in kv `kanvana:ingest:newestAppliedHlc`
-(derived once from the stored events on devices that predate it). `ingestEvent()` classifies each event (`classify()` in `read-model-projector.js`):
+(derived once from the stored events on devices that predate it). The Read Model classifies each ingested event (`classify()` in `read-model-projector.js`):
 
 | Event | What happens |
 |---|---|

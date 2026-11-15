@@ -7,14 +7,12 @@ import {
   GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY, loadEventsAfter, loadSnapshot, saveSnapshot, scopeForSnapshotKey, snapshotKeyForEvent
 } from './snapshot.js';
 import { EVENT_SCOPE } from '../constants.js';
-import { compareHlc, laterHlc } from './hlc.js';
+import { compareHlc, laterHlc, observeRemote } from './hlc.js';
 import { DATA_CHANGED, EVENT_EMITTED, EVENTS_STORED, emit } from '../events.js';
 import { safeParseArray, safeParseObject } from '../utils.js';
 import { normalizeGlobalSettings } from '../normalize.js';
 
-// The Read Model, sole writer of the IDB read model (ADR-0005); ingest.js makes each instance and alone applies events to it.
-// Ingest admits an event; everything after that is here: projecting, storing, holding, late-event rebuilds,
-// and the DATA_CHANGED and EVENTS_STORED notices, so only the Read Model decides when the board redraws.
+// The Read Model, sole writer of the IDB read model (ADR-0005): ingest.js admits events, this applies, stores and announces them.
 
 export const EVENT_ORIGIN = Object.freeze({ LOCAL: 'local', REMOTE: 'remote' });
 
@@ -135,9 +133,8 @@ export function createReadModelProjector(ctx) {
     return Boolean(batch?.pending.get(key)?.ids.has(event.id)) || boardMemory(key).appliedEventIds.has(event.id);
   }
 
-  // A deleted board's events must not revive it. None while not projecting: boot-time backfill only persists.
+  // A deleted board's events must not revive it.
   function missedEvents(events) {
-    if (!projecting) return [];
     const deleted = new Set(events.filter((event) => event.type === 'board.deleted').map((event) => event.board_id));
     const removedHere = (boardId) => deleted.has(boardId) && !state.boards.some((board) => board.id === boardId);
     return events.filter((event) => !hasApplied(event) && (boardlessSlots.has(event.scope) || !removedHere(event.board_id)));
@@ -594,6 +591,8 @@ export function createReadModelProjector(ctx) {
   // Projection is in memory, so a batch need not wait for each write before the next event; it awaits them all once.
   async function applyRemote(event, writes = null) {
     if (!await foldOntoCoveringSnapshot(event)) return;
+    // Only an event this tab takes moves its clock, so one the covering snapshot already holds does not.
+    await observeRemote(event.hlc);
     const written = commitEvent(event, EVENT_ORIGIN.REMOTE, { batched: Boolean(writes) });
     if (!writes) return written;
     // The batch rethrows a failed write after the loop; this only stops it reading as unhandled meanwhile.
@@ -654,15 +653,15 @@ export function createReadModelProjector(ctx) {
     if (endBatch()) emit(DATA_CHANGED, { batch: true });
   }
 
-  // Events already in the event store that this tab has not applied: another tab stored them (#222), or this tab
-  // missed the notice. Late ones are put in order by a rebuild once the rest are applied.
+  // Stored events this tab has not applied (#222); late ones are put in order by a rebuild once the rest are applied.
   async function applyStored(events) {
-    if (!projecting) return;
     const lateKeys = new Set();
     beginBatch();
     try {
       for (const event of [...events].sort((a, b) => compareHlc(a.hlc, b.hlc))) {
-        const order = classify(event);
+        // Or the next local edit here could sort before an event this tab already shows.
+        await observeRemote(event.hlc);
+        const order = projecting ? classify(event) : null;
         if (order === EVENT_ORDER.LATE) lateKeys.add(snapshotKeyForEvent(event));
         else if (order === EVENT_ORDER.IN_ORDER && project(event, { batched: true }) && !holdChange()) {
           emit(DATA_CHANGED, { event });
@@ -701,6 +700,11 @@ export function createReadModelProjector(ctx) {
   function startProjecting() {
     projecting = true;
     window.addEventListener('pagehide', persistBatchOnPageHide);
+  }
+
+  // Until storage starts projecting, ingested events are only persisted, which boot-time backfill needs.
+  function isProjecting() {
+    return projecting;
   }
 
   // Devices from before #179 never recorded it, so it is derived once from the stored events and snapshots.
@@ -816,7 +820,7 @@ export function createReadModelProjector(ctx) {
     load, startProjecting, reset, addBoard, removeBoard,
     boards, board, globalSettings: loadGlobalSettings, timeTracking, cachedTasks, cacheTasks,
     setBoards, setBoardSlice, setGlobalSettings, writeBoardSettings, refreshBoardSettings,
-    // Ingest's side: applying admitted events, and the one read admission needs.
-    apply, applyRemoteBatch, applyStored, commitTogether, adoptSnapshot, rebuildAfterPeerAdoption, missedEvents
+    // Ingest's side: applying admitted events, and the reads admission needs.
+    apply, applyRemoteBatch, applyStored, commitTogether, adoptSnapshot, rebuildAfterPeerAdoption, missedEvents, isProjecting
   };
 }

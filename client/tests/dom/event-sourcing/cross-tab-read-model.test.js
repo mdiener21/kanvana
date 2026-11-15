@@ -3,6 +3,7 @@
 import { waitFor } from '@testing-library/dom';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { READ_MODEL_KEYS } from '../../../src/modules/event-sourcing/read-model-projector.js';
 import { FakeBroadcastChannel, createFakeLocks, installLocks, removeLocks } from './helpers/fake-tabs.js';
 
 const BOARD = 'board-1';
@@ -343,7 +344,7 @@ describe('events a tab missed', () => {
     await follower.emitter.flushDomainEvents();
     await follower.idb.flushPendingPersists();
     const db = await leader.idb.openStore();
-    expect((await db.get('kv', 'kanvana:timetracking')).customers.map((c) => c.name)).toEqual(['Other']);
+    expect((await db.get('kv', READ_MODEL_KEYS.timeTracking)).customers.map((c) => c.name)).toEqual(['Other']);
     await closeTab(follower);
     await closeTab(leader);
     FakeBroadcastChannel.reset();
@@ -366,7 +367,7 @@ describe('events a tab missed', () => {
     // A device from before applied ids were kept for time tracking, whose view lost the customer.
     const db = await leader.idb.openStore();
     await db.delete('read_model', '__timetracking__:appliedEventIds');
-    await db.put('kv', { customers: [], projects: [], timeEntries: [] }, 'kanvana:timetracking');
+    await db.put('kv', { customers: [], projects: [], timeEntries: [] }, READ_MODEL_KEYS.timeTracking);
     await closeTab(leader);
 
     const fresh = await openTab();

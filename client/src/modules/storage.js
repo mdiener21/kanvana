@@ -18,6 +18,7 @@ import { BOARD_SETTINGS_WRITTEN, DATA_CHANGED, emit } from './events.js';
 const BOARDS_KEY = READ_MODEL_KEYS.boards;
 const ACTIVE_BOARD_KEY = 'kanbanActiveBoardId';
 
+// The legacy localStorage key; it only shares its name with the Read Model's IDB key and need not follow it.
 const LEGACY_BOARDS_KEY = 'kanbanBoards';
 const LEGACY_COLUMNS_KEY = 'kanbanColumns';
 const LEGACY_TASKS_KEY = 'kanbanTasks';

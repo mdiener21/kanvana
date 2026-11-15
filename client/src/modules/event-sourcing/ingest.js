@@ -1,18 +1,17 @@
-// The single entry point of the event log for local and remote events (#177); ordering rules: CONTEXT.md §9.
-// Ingest admits events (validate, dedupe against the event store, drop late arrivals, observe remote HLCs);
-// the Read Model does everything after admission, redraw and store notices included.
+// The single entry point of the event log (#177): admits events, which the Read Model then applies; ordering rules: CONTEXT.md §9.
 
 import { SNAPSHOT_ADOPTED, emit } from '../events.js';
 import { getDbRef, EVENTS_STORE } from '../idb-store.js';
-import { compareHlc, observeRemote } from './hlc.js';
+import { compareHlc } from './hlc.js';
 import { validateEvent } from './event-validation.js';
 import { GRACE_WINDOW_MS } from './snapshot.js';
 import { ADMISSION, EVENT_ORIGIN, createReadModelProjector } from './read-model-projector.js';
 
 export { EVENT_ORIGIN };
 
-// The Read Model ingest applies events to (ADR-0005): the one made last. storage.js makes one per tab.
+// The one Read Model (ADR-0005), which storage.js makes. Without one, events are only stored, as during boot-time backfill.
 let readModel = null;
+const storeOnly = createReadModelProjector({});
 const loggedDrops = new Set();
 
 const STORAGE_SIDE = [
@@ -20,11 +19,20 @@ const STORAGE_SIDE = [
   'cachedTasks', 'cacheTasks', 'setBoards', 'setBoardSlice', 'setGlobalSettings', 'writeBoardSettings', 'refreshBoardSettings'
 ];
 
-// A fresh Read Model with its own state, which ingest applies events to from now on. Storage gets its reads and
-// the writes no event carries; a test can make another to start clean, without reloading the module graph.
+// Storage gets its reads and the writes no event carries, always on ingest's Read Model, so the two never differ.
 export function createReadModel(ctx) {
+  if (readModel) throw new Error('[Kanvana] The Read Model is already created');
   readModel = createReadModelProjector(ctx);
-  return Object.fromEntries(STORAGE_SIDE.map((name) => [name, readModel[name]]));
+  return Object.fromEntries(STORAGE_SIDE.map((name) => [name, (...args) => readModel[name](...args)]));
+}
+
+// Lets a test make a fresh Read Model without reloading the module graph; storage then reads that one too.
+export function _resetReadModelForTesting() {
+  readModel = null;
+}
+
+function target() {
+  return readModel ?? storeOnly;
 }
 
 // Local events project before this returns (ADR-0005 instant UI); the promise settles once persisted, or rebuilt if late.
@@ -32,7 +40,7 @@ export function ingestEvent(input, { origin = EVENT_ORIGIN.LOCAL, receivedAt } =
   const event = validateEvent(input);
   if (!event) return Promise.resolve();
   if (origin === EVENT_ORIGIN.REMOTE) return ingestRemote(event, receivedAt);
-  return readModel.apply(event, { origin });
+  return target().apply(event, { origin });
 }
 
 // One redraw and one write per slice for a user mutation (#142).
@@ -47,7 +55,7 @@ export async function ingestRemoteBatch(items) {
     .filter(({ event }) => event)
     .sort((a, b) => compareHlc(a.event.hlc, b.event.hlc));
   const stored = await storedIds();
-  return readModel.applyRemoteBatch(valid, async ({ event, receivedAt }) => {
+  return target().applyRemoteBatch(valid, async ({ event, receivedAt }) => {
     const verdict = await admitRemote(event, receivedAt, stored);
     stored?.add(event.id);
     return verdict;
@@ -57,28 +65,22 @@ export async function ingestRemoteBatch(items) {
 // Another tab stored these (#222); its read model is not copied, since it may lack this tab's newest edit.
 export async function ingestStoredEvents(ids) {
   const db = getDbRef();
-  if (!db) return;
+  if (!db || !target().isProjecting()) return;
   const events = await Promise.all(ids.map((id) => db.get(EVENTS_STORE, id)));
-  await applyStored(events.filter(Boolean));
+  await readModel.applyStored(events.filter(Boolean));
 }
 
 // For a tab that may have missed notices: one opening, waking up or taking over. `scopes` limits it to those event scopes.
 export async function ingestMissedEvents({ scopes = null } = {}) {
   const db = getDbRef();
-  if (!db) return;
+  if (!db || !target().isProjecting()) return;
   const stored = await db.getAll(EVENTS_STORE);
-  await applyStored(readModel.missedEvents(scopes ? stored.filter((event) => scopes.includes(event.scope)) : stored));
-}
-
-// Observed first, or the next local edit here could sort before an event this tab already shows.
-async function applyStored(events) {
-  for (const event of [...events].sort((a, b) => compareHlc(a.hlc, b.hlc))) await observeRemote(event.hlc);
-  await readModel.applyStored(events);
+  await readModel.applyStored(readModel.missedEvents(scopes ? stored.filter((event) => scopes.includes(event.scope)) : stored));
 }
 
 async function ingestRemote(event, receivedAt) {
   if (await admitRemote(event, receivedAt) !== ADMISSION.ADMITTED) return;
-  await readModel.apply(event, { origin: EVENT_ORIGIN.REMOTE });
+  await target().apply(event, { origin: EVENT_ORIGIN.REMOTE });
 }
 
 // The event store, unlike session memory, survives a reload (#178).
@@ -88,7 +90,6 @@ async function admitRemote(event, receivedAt, stored = null) {
     logDrop(event);
     return ADMISSION.DROPPED;
   }
-  await observeRemote(event.hlc);
   return ADMISSION.ADMITTED;
 }
 

@@ -158,7 +158,7 @@ the `kanbanSyncMap` mapping) was removed in #215. New sync work goes through the
 | `src/modules/sync.js` | PocketBase SDK init (`getPb`) + auth fns (`isAuthenticated`, `loginUser`, `registerUser`, `logoutUser`, `loginWithProvider`, `ensureAuthenticated`) |
 | `src/modules/authsync.js` | Auth/sync UI orchestration, login modal, backend health probe |
 | `src/modules/event-sourcing/emitter.js` | `scheduleDomainEvent` — stamp, then ingest with origin `local` |
-| `src/modules/event-sourcing/ingest.js` | `ingestEvent(event, { origin })` — single ingest path: admits (validate, dedupe, grace-window drop, observe remote HLC), then hands the event to the Read Model, which projects (sole writer), emits `DATA_CHANGED` and persists |
+| `src/modules/event-sourcing/ingest.js` | `ingestEvent(event, { origin })` — single ingest path: admits (validate, dedupe, grace-window drop), then hands the event to the Read Model, which observes a remote HLC, projects (sole writer), emits `DATA_CHANGED` and persists |
 | `src/modules/event-sourcing/hlc.js` | Hybrid Logical Clock + `compareHlc` |
 | `src/modules/event-sourcing/sync-session.js` | Sync lifecycle state machine; the only sync module listening to auth, `online` and `offline` |
 | `src/modules/event-sourcing/sync-queue.js` | Outbound push queue; `getSyncStatus` |
