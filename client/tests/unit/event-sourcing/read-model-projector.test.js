@@ -3,17 +3,15 @@ import { deleteDB } from 'idb';
 import { resetLocalStorage } from '../setup.js';
 import { DATA_CHANGED, emit, EVENT_EMITTED, EVENTS_STORED, off, on } from '../../../src/modules/events.js';
 import { commitTogether, createReadModel, ingestEvent, ingestRemoteBatch } from '../../../src/modules/event-sourcing/ingest.js';
+import { READ_MODEL_KEYS } from '../../../src/modules/event-sourcing/read-model-projector.js';
 import { GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY } from '../../../src/modules/event-sourcing/snapshot.js';
 import {
   KV_STORE, READ_MODEL_STORE, keyFor, openStore, readModelKeyFor, schedulePersist, scheduleReadModelPersist, _flushPersistsForTesting, _resetIdbForTesting
 } from '../../../src/modules/idb-store.js';
 
 const BOARD_ID = 'board-a';
-const BOARDS_KEY = 'kanbanBoards';
-const GLOBAL_SETTINGS_KEY = 'kanvana:settings:global';
-const TIME_TRACKING_KEY = 'kanvana:timetracking';
-const NEWEST_APPLIED_KEY = 'kanvana:ingest:newestAppliedHlc';
-const SETTINGS_KEY = `kanbanBoard:${BOARD_ID}:settings`;
+const { boards: BOARDS_KEY, globalSettings: GLOBAL_SETTINGS_KEY, timeTracking: TIME_TRACKING_KEY, newestApplied: NEWEST_APPLIED_KEY } = READ_MODEL_KEYS;
+const SETTINGS_KEY = keyFor(BOARD_ID, 'settings');
 
 function boardEvent(overrides = {}) {
   return {
@@ -53,11 +51,7 @@ async function storeBoard(slices = {}) {
 const ctx = {
   schedulePersist: vi.fn(schedulePersist),
   scheduleReadModelPersist: vi.fn(scheduleReadModelPersist),
-  checkAndScheduleSnapshot: vi.fn(),
-  boardsKey: BOARDS_KEY,
-  globalSettingsKey: GLOBAL_SETTINGS_KEY,
-  timeTrackingKey: TIME_TRACKING_KEY,
-  newestAppliedKey: NEWEST_APPLIED_KEY
+  checkAndScheduleSnapshot: vi.fn()
 };
 // Each call makes a fresh Read Model, which ingest then applies events to.
 async function loadReadModel(slices) {

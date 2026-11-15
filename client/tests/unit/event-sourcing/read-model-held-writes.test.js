@@ -17,6 +17,7 @@ vi.mock('../../../src/modules/idb-store.js', async (importOriginal) => {
 // already loaded the real idb-store, and only a fresh module graph imports the mocked one.
 vi.resetModules();
 const { createReadModel, ingestRemoteBatch } = await import('../../../src/modules/event-sourcing/ingest.js');
+const { READ_MODEL_KEYS } = await import('../../../src/modules/event-sourcing/read-model-projector.js');
 const {
   KV_STORE, READ_MODEL_STORE, openStore, readModelKeyFor, schedulePersist, scheduleReadModelPersist, _flushPersistsForTesting, _resetIdbForTesting
 } = await import('../../../src/modules/idb-store.js');
@@ -46,17 +47,13 @@ beforeEach(async () => {
   resetLocalStorage();
   await deleteDB('kanvana-db');
   const db = await openStore();
-  await db.put(KV_STORE, [{ id: BOARD_ID, name: 'A', createdAt: '2026-01-01T00:00:00.000Z' }], 'kanbanBoards');
+  await db.put(KV_STORE, [{ id: BOARD_ID, name: 'A', createdAt: '2026-01-01T00:00:00.000Z' }], READ_MODEL_KEYS.boards);
   await db.put(READ_MODEL_STORE, [{ id: 'task-a', title: 'Before', column: 'todo', columnHistory: [] }], readModelKeyFor(BOARD_ID, 'tasks'));
   await db.put(READ_MODEL_STORE, [{ id: 'todo', name: 'To Do' }], readModelKeyFor(BOARD_ID, 'columns'));
   readModel = createReadModel({
     schedulePersist,
     scheduleReadModelPersist,
-    checkAndScheduleSnapshot: vi.fn(),
-    boardsKey: 'kanbanBoards',
-    globalSettingsKey: 'kanvana:settings:global',
-    timeTrackingKey: 'kanvana:timetracking',
-    newestAppliedKey: 'kanvana:ingest:newestAppliedHlc'
+    checkAndScheduleSnapshot: vi.fn()
   });
   await readModel.load();
   readModel.startProjecting();
