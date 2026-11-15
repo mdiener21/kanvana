@@ -4,11 +4,11 @@ Generated from test source. Do not edit by hand; run `npm run test:overview` fro
 
 ## Fast Scan
 
-- Test files: 173
-- Test cases: 1567
-- Unit files: 55
-- DOM integration files: 54
-- E2E files: 62
+- Test files: 183
+- Test cases: 1625
+- Unit files: 61
+- DOM integration files: 55
+- E2E files: 65
 - Performance files: 1
 
 ## How To Use This
@@ -83,37 +83,59 @@ These lists compare source/spec filenames against test file names and test title
 - `tests/unit/backend-grace-window-hook.test.js:40` events grace-window hook > lets an event older than the grace window be deleted
 - `tests/unit/backend-grace-window-hook.test.js:49` events grace-window hook > lets an event without a readable HLC be deleted
 
+### Board Templates
+
+- Path: `tests/unit/board-templates.test.js`
+- Type: Unit
+- Test count: 1
+
+- `tests/unit/board-templates.test.js:20` the templates folder holds templates
+
+### Boot Migration
+
+- Path: `tests/unit/boot-migration.test.js`
+- Type: Unit
+- Test count: 7
+
+- `tests/unit/boot-migration.test.js:34` multi-board localStorage data becomes the persisted Read Model with UUID ids
+- `tests/unit/boot-migration.test.js:63` legacy single-board localStorage keys become one default board with the demo labels
+- `tests/unit/boot-migration.test.js:83` the migrated localStorage keys are removed, along with the stale legacy-sync keys
+- `tests/unit/boot-migration.test.js:101` localStorage is ignored once IDB holds boards
+- `tests/unit/boot-migration.test.js:112` pre-read-model IDB kv slices move into the read-model store under UUID ids
+- `tests/unit/boot-migration.test.js:133` a first boot with no data writes nothing
+- `tests/unit/boot-migration.test.js:141` running it again on migrated state changes nothing
+
 ### Columns
 
 - Path: `tests/unit/columns.test.js`
 - Type: Unit
 - Test count: 25
 
-- `tests/unit/columns.test.js:17` addColumn creates a new column
-- `tests/unit/columns.test.js:29` addColumn places new columns before Done on a default board, whose columns have no order
-- `tests/unit/columns.test.js:36` addColumn places a new column directly before Done when Done is not last
-- `tests/unit/columns.test.js:49` columns that tie on order > two offline devices adding columns leave Done last on both, whichever event came first
-- `tests/unit/columns.test.js:70` columns that tie on order > Done sorts after its tie in any starting order
-- `tests/unit/columns.test.js:75` columns that tie on order > Done dragged elsewhere stays there, and only yields on a tie
-- `tests/unit/columns.test.js:80` columns that tie on order > a default board without orders keeps Done last
-- `tests/unit/columns.test.js:85` addColumn does nothing for empty name
-- `tests/unit/columns.test.js:91` addColumn normalizes color
-- `tests/unit/columns.test.js:99` toggleColumnCollapsed toggles from false to true
-- `tests/unit/columns.test.js:111` toggleColumnCollapsed toggles from true to false
-- `tests/unit/columns.test.js:121` toggleColumnCollapsed returns false for non-existent column
-- `tests/unit/columns.test.js:125` toggleColumnCollapsed returns false for empty ID
-- `tests/unit/columns.test.js:131` updateColumn updates name and color
-- `tests/unit/columns.test.js:141` updateColumn does nothing for empty name
-- `tests/unit/columns.test.js:153` deleteColumn returns false for Done column
-- `tests/unit/columns.test.js:157` deleteColumn returns false for missing column
-- `tests/unit/columns.test.js:161` deleteColumn deletes column and its tasks
-- `tests/unit/columns.test.js:182` deleteColumn hides the column from loadColumns
-- `tests/unit/columns.test.js:191` deleteColumn deletes tasks in the column
-- `tests/unit/columns.test.js:203` addColumn defaults to an unlimited WIP limit
-- `tests/unit/columns.test.js:209` addColumn stores and normalizes a WIP limit
-- `tests/unit/columns.test.js:217` updateColumn persists a WIP limit change
-- `tests/unit/columns.test.js:225` updateColumn accepts a limit below the current task count
-- `tests/unit/columns.test.js:239` omitting the WIP limit on updateColumn preserves the existing one
+- `tests/unit/columns.test.js:18` addColumn creates a new column
+- `tests/unit/columns.test.js:30` addColumn places new columns before Done on a default board, whose columns have no order
+- `tests/unit/columns.test.js:37` addColumn places a new column directly before Done when Done is not last
+- `tests/unit/columns.test.js:50` columns that tie on order > two offline devices adding columns leave Done last on both, whichever event came first
+- `tests/unit/columns.test.js:71` columns that tie on order > Done sorts after its tie in any starting order
+- `tests/unit/columns.test.js:76` columns that tie on order > Done dragged elsewhere stays there, and only yields on a tie
+- `tests/unit/columns.test.js:81` columns that tie on order > a default board without orders keeps Done last
+- `tests/unit/columns.test.js:86` addColumn does nothing for empty name
+- `tests/unit/columns.test.js:92` addColumn normalizes color
+- `tests/unit/columns.test.js:100` toggleColumnCollapsed toggles from false to true
+- `tests/unit/columns.test.js:112` toggleColumnCollapsed toggles from true to false
+- `tests/unit/columns.test.js:122` toggleColumnCollapsed returns false for non-existent column
+- `tests/unit/columns.test.js:126` toggleColumnCollapsed returns false for empty ID
+- `tests/unit/columns.test.js:132` updateColumn updates name and color
+- `tests/unit/columns.test.js:142` updateColumn does nothing for empty name
+- `tests/unit/columns.test.js:154` deleteColumn returns false for Done column
+- `tests/unit/columns.test.js:158` deleteColumn returns false for missing column
+- `tests/unit/columns.test.js:162` deleteColumn deletes column and its tasks
+- `tests/unit/columns.test.js:183` deleteColumn hides the column from loadColumns
+- `tests/unit/columns.test.js:192` deleteColumn deletes tasks in the column
+- `tests/unit/columns.test.js:204` addColumn defaults to an unlimited WIP limit
+- `tests/unit/columns.test.js:210` addColumn stores and normalizes a WIP limit
+- `tests/unit/columns.test.js:218` updateColumn persists a WIP limit change
+- `tests/unit/columns.test.js:226` updateColumn accepts a limit below the current task count
+- `tests/unit/columns.test.js:240` omitting the WIP limit on updateColumn preserves the existing one
 
 ### Constants
 
@@ -281,47 +303,63 @@ These lists compare source/spec filenames against test file names and test title
 
 - Path: `tests/unit/event-sourcing/out-of-order-ingest.test.js`
 - Type: Unit
-- Test count: 4
+- Test count: 7
 
-- `tests/unit/event-sourcing/out-of-order-ingest.test.js:87` rebuild > keeps a task that no event knows of, such as an imported one
-- `tests/unit/event-sourcing/out-of-order-ingest.test.js:102` rebuild > keeps swimlane settings written without an event
-- `tests/unit/event-sourcing/out-of-order-ingest.test.js:141` in-order ingest stays incremental > a stream of newer events never reads the event store in bulk and never rebuilds
-- `tests/unit/event-sourcing/out-of-order-ingest.test.js:157` in-order ingest stays incremental > a late event is the one that reads the store and rebuilds
+- `tests/unit/event-sourcing/out-of-order-ingest.test.js:89` rebuild > keeps a task that no event knows of, such as a demo task
+- `tests/unit/event-sourcing/out-of-order-ingest.test.js:104` rebuild > keeps swimlane settings written without an event
+- `tests/unit/event-sourcing/out-of-order-ingest.test.js:118` rebuild > folds a late event into the snapshot that covers it, and the view converges
+- `tests/unit/event-sourcing/out-of-order-ingest.test.js:138` the clock observes only events this tab takes > a remote event the covering snapshot already holds
+- `tests/unit/event-sourcing/out-of-order-ingest.test.js:155` the clock observes only events this tab takes > stored events before this tab starts projecting
+- `tests/unit/event-sourcing/out-of-order-ingest.test.js:193` in-order ingest stays incremental > a stream of newer events never reads the event store in bulk and never rebuilds
+- `tests/unit/event-sourcing/out-of-order-ingest.test.js:209` in-order ingest stays incremental > a late event is the one that reads the store and rebuilds
+
+### Read Model Held Writes
+
+- Path: `tests/unit/event-sourcing/read-model-held-writes.test.js`
+- Type: Unit
+- Test count: 1
+
+- `tests/unit/event-sourcing/read-model-held-writes.test.js:70` overlapping catch-up batches each store the boards touched so far when they end
 
 ### Read Model Projector
 
 - Path: `tests/unit/event-sourcing/read-model-projector.test.js`
 - Type: Unit
-- Test count: 28
+- Test count: 33
 
-- `tests/unit/event-sourcing/read-model-projector.test.js:143` the Read Model > reads back the boards IndexedDB holds once loaded
-- `tests/unit/event-sourcing/read-model-projector.test.js:148` the Read Model > a board slice never stored reads as null
-- `tests/unit/event-sourcing/read-model-projector.test.js:154` the Read Model > an ingested board event projects into state and schedules read-model persist
-- `tests/unit/event-sourcing/read-model-projector.test.js:163` the Read Model > an event emitted on the bus without ingest is not projected
-- `tests/unit/event-sourcing/read-model-projector.test.js:168` the Read Model > ingest is idempotent by event id (dedup) and announces DATA_CHANGED once
-- `tests/unit/event-sourcing/read-model-projector.test.js:181` the Read Model > global-scope event projects globalSettings and persists the global key only
-- `tests/unit/event-sourcing/read-model-projector.test.js:199` the Read Model > timetracking-scope event is never routed into a board projection and lands in the time-tracking slot
-- `tests/unit/event-sourcing/read-model-projector.test.js:225` the Read Model > projects an ingested event once, however often projecting is started
-- `tests/unit/event-sourcing/read-model-projector.test.js:232` the Read Model > stops projecting once reset, and skips the events it applied after loading again
-- `tests/unit/event-sourcing/read-model-projector.test.js:248` the Read Model > a commit made before projecting starts still announces its stored events once
-- `tests/unit/event-sourcing/read-model-projector.test.js:286` the Read Model > persists only the slices an event changed > a label event writes the labels only
-- `tests/unit/event-sourcing/read-model-projector.test.js:296` the Read Model > persists only the slices an event changed > the slices an event leaves alone keep their references
-- `tests/unit/event-sourcing/read-model-projector.test.js:309` the Read Model > persists only the slices an event changed > a slice the board has never stored is written, so a reload does not bring defaults back
-- `tests/unit/event-sourcing/read-model-projector.test.js:317` the Read Model > persists only the slices an event changed > a local event is fully projected in memory before ingest returns
-- `tests/unit/event-sourcing/read-model-projector.test.js:325` the Read Model > persists only the slices an event changed > a remote event takes the same selective path as a local one
-- `tests/unit/event-sourcing/read-model-projector.test.js:332` the Read Model > persists only the slices an event changed > a catch-up batch writes each changed slice once, however many events it holds
-- `tests/unit/event-sourcing/read-model-projector.test.js:342` the Read Model > persists only the slices an event changed > a catch-up batch covering two kinds of slice writes both
-- `tests/unit/event-sourcing/read-model-projector.test.js:351` the Read Model > persists only the slices an event changed > a catch-up batch touching several boards saves each once and schedules one snapshot check per board, at its end
-- `tests/unit/event-sourcing/read-model-projector.test.js:368` the Read Model > persists only the slices an event changed > overlapping catch-up batches each store the boards touched so far when they end
-- `tests/unit/event-sourcing/read-model-projector.test.js:398` the Read Model > a reducer no-op > writes only the applied-event memory and emits no DATA_CHANGED
-- `tests/unit/event-sourcing/read-model-projector.test.js:409` the Read Model > a reducer no-op > is remembered, so its next delivery writes nothing
-- `tests/unit/event-sourcing/read-model-projector.test.js:431` the Read Model > a reducer no-op > adding a label or relationship a task already has changes nothing
-- `tests/unit/event-sourcing/read-model-projector.test.js:442` the Read Model > a reducer no-op > a catch-up batch of nothing but no-ops writes the memory and emits no DATA_CHANGED
-- `tests/unit/event-sourcing/read-model-projector.test.js:453` the Read Model > a reducer no-op > a board-less no-op writes nothing but its applied id and newest HLC and still counts towards the next snapshot
-- `tests/unit/event-sourcing/read-model-projector.test.js:476` the Read Model > a reducer no-op > still asks for a snapshot, since the stored event counts towards the next one
-- `tests/unit/event-sourcing/read-model-projector.test.js:484` the Read Model > board settings written without an event (#279) > shows and stores board settings written without an event
-- `tests/unit/event-sourcing/read-model-projector.test.js:493` the Read Model > board settings written without an event (#279) > takes the board settings another tab stored without writing them again
-- `tests/unit/event-sourcing/read-model-projector.test.js:502` the Read Model > board settings written without an event (#279) > keeps its board settings when none are stored
+- `tests/unit/event-sourcing/read-model-projector.test.js:127` the Read Model > is one per tab: making a second throws
+- `tests/unit/event-sourcing/read-model-projector.test.js:131` the Read Model > is the one storage reads
+- `tests/unit/event-sourcing/read-model-projector.test.js:135` the Read Model > an independent Read Model keeps its own state while ingest applies events to the tab\'s
+- `tests/unit/event-sourcing/read-model-projector.test.js:147` the Read Model > reads back the boards IndexedDB holds once loaded
+- `tests/unit/event-sourcing/read-model-projector.test.js:152` the Read Model > a board slice never stored reads as null
+- `tests/unit/event-sourcing/read-model-projector.test.js:158` the Read Model > an ingested board event projects into state and schedules read-model persist
+- `tests/unit/event-sourcing/read-model-projector.test.js:167` the Read Model > an event emitted on the bus without ingest is not projected
+- `tests/unit/event-sourcing/read-model-projector.test.js:172` the Read Model > ingest is idempotent by event id (dedup) and announces DATA_CHANGED once
+- `tests/unit/event-sourcing/read-model-projector.test.js:185` the Read Model > global-scope event projects globalSettings and persists the global key only
+- `tests/unit/event-sourcing/read-model-projector.test.js:203` the Read Model > timetracking-scope event is never routed into a board projection and lands in the time-tracking slot
+- `tests/unit/event-sourcing/read-model-projector.test.js:229` the Read Model > projects an ingested event once, however often projecting is started
+- `tests/unit/event-sourcing/read-model-projector.test.js:236` the Read Model > stops projecting once reset, and skips the events it applied after loading again
+- `tests/unit/event-sourcing/read-model-projector.test.js:252` the Read Model > a commit made before projecting starts still announces its stored events once
+- `tests/unit/event-sourcing/read-model-projector.test.js:290` the Read Model > persists only the slices an event changed > a label event writes the labels only
+- `tests/unit/event-sourcing/read-model-projector.test.js:300` the Read Model > persists only the slices an event changed > the slices an event leaves alone keep their references
+- `tests/unit/event-sourcing/read-model-projector.test.js:313` the Read Model > persists only the slices an event changed > a slice the board has never stored is written, so a reload does not bring defaults back
+- `tests/unit/event-sourcing/read-model-projector.test.js:321` the Read Model > persists only the slices an event changed > a local event is fully projected in memory before ingest returns
+- `tests/unit/event-sourcing/read-model-projector.test.js:329` the Read Model > persists only the slices an event changed > a remote event takes the same selective path as a local one
+- `tests/unit/event-sourcing/read-model-projector.test.js:336` the Read Model > persists only the slices an event changed > a catch-up batch writes each changed slice once, however many events it holds
+- `tests/unit/event-sourcing/read-model-projector.test.js:346` the Read Model > persists only the slices an event changed > a catch-up batch covering two kinds of slice writes both
+- `tests/unit/event-sourcing/read-model-projector.test.js:355` the Read Model > persists only the slices an event changed > a catch-up batch touching several boards saves each once and schedules one snapshot check per board, at its end
+- `tests/unit/event-sourcing/read-model-projector.test.js:382` the Read Model > a reducer no-op > writes only the applied-event memory and emits no DATA_CHANGED
+- `tests/unit/event-sourcing/read-model-projector.test.js:393` the Read Model > a reducer no-op > is remembered, so its next delivery writes nothing
+- `tests/unit/event-sourcing/read-model-projector.test.js:415` the Read Model > a reducer no-op > adding a label or relationship a task already has changes nothing
+- `tests/unit/event-sourcing/read-model-projector.test.js:426` the Read Model > a reducer no-op > a catch-up batch of nothing but no-ops writes the memory and emits no DATA_CHANGED
+- `tests/unit/event-sourcing/read-model-projector.test.js:437` the Read Model > a reducer no-op > a board-less no-op writes nothing but its applied id and newest HLC and still counts towards the next snapshot
+- `tests/unit/event-sourcing/read-model-projector.test.js:460` the Read Model > a reducer no-op > still asks for a snapshot, since the stored event counts towards the next one
+- `tests/unit/event-sourcing/read-model-projector.test.js:468` the Read Model > board settings written without an event (#279) > shows and stores board settings written without an event
+- `tests/unit/event-sourcing/read-model-projector.test.js:477` the Read Model > board settings written without an event (#279) > takes the board settings another tab stored without writing them again
+- `tests/unit/event-sourcing/read-model-projector.test.js:486` the Read Model > board settings written without an event (#279) > keeps its board settings when none are stored
+- `tests/unit/event-sourcing/read-model-projector.test.js:510` with no Read Model > a local event is announced and stored
+- `tests/unit/event-sourcing/read-model-projector.test.js:523` with no Read Model > a catch-up batch is stored and returned as fresh
+- `tests/unit/event-sourcing/read-model-projector.test.js:530` with no Read Model > stored and missed events are left alone
 
 ### Reducer
 
@@ -438,20 +476,20 @@ _No executable test cases detected._
 - Type: Unit
 - Test count: 14
 
-- `tests/unit/labels.test.js:14` addLabel creates label successfully
-- `tests/unit/labels.test.js:26` addLabel returns EMPTY_NAME for empty name
-- `tests/unit/labels.test.js:32` addLabel returns EMPTY_NAME for whitespace-only name
-- `tests/unit/labels.test.js:38` addLabel returns DUPLICATE_NAME for case-insensitive duplicate
-- `tests/unit/labels.test.js:45` addLabel truncates name to 40 characters
-- `tests/unit/labels.test.js:52` addLabel trims group
-- `tests/unit/labels.test.js:59` updateLabel updates label successfully
-- `tests/unit/labels.test.js:68` updateLabel returns NOT_FOUND for non-existent label
-- `tests/unit/labels.test.js:74` updateLabel returns DUPLICATE_NAME when conflicting with another label
-- `tests/unit/labels.test.js:82` updateLabel allows keeping the same name on the same label
-- `tests/unit/labels.test.js:88` updateLabel returns EMPTY_NAME for empty name
-- `tests/unit/labels.test.js:97` deleteLabel removes label from labels list
-- `tests/unit/labels.test.js:104` deleteLabel removes label ID from all tasks
-- `tests/unit/labels.test.js:117` deleteLabel hides the label from loadLabels
+- `tests/unit/labels.test.js:15` addLabel creates label successfully
+- `tests/unit/labels.test.js:27` addLabel returns EMPTY_NAME for empty name
+- `tests/unit/labels.test.js:33` addLabel returns EMPTY_NAME for whitespace-only name
+- `tests/unit/labels.test.js:39` addLabel returns DUPLICATE_NAME for case-insensitive duplicate
+- `tests/unit/labels.test.js:46` addLabel truncates name to 40 characters
+- `tests/unit/labels.test.js:53` addLabel trims group
+- `tests/unit/labels.test.js:60` updateLabel updates label successfully
+- `tests/unit/labels.test.js:69` updateLabel returns NOT_FOUND for non-existent label
+- `tests/unit/labels.test.js:75` updateLabel returns DUPLICATE_NAME when conflicting with another label
+- `tests/unit/labels.test.js:83` updateLabel allows keeping the same name on the same label
+- `tests/unit/labels.test.js:89` updateLabel returns EMPTY_NAME for empty name
+- `tests/unit/labels.test.js:98` deleteLabel removes label from labels list
+- `tests/unit/labels.test.js:105` deleteLabel removes label ID from all tasks
+- `tests/unit/labels.test.js:118` deleteLabel hides the label from loadLabels
 
 ### Normalize
 
@@ -499,6 +537,22 @@ _No executable test cases detected._
 - `tests/unit/security.test.js:4` escapeHtml encodes HTML-sensitive characters
 - `tests/unit/security.test.js:8` formatBytes formats small and larger sizes
 
+### Seed Read Model
+
+- Path: `tests/unit/seed-read-model.test.js`
+- Type: Unit
+- Test count: 9
+
+- `tests/unit/seed-read-model.test.js:19` seedBoard puts the given tasks on the active board
+- `tests/unit/seed-read-model.test.js:24` seedBoard writes through events, which reach the event log
+- `tests/unit/seed-read-model.test.js:32` seeding a slice again replaces it: missing items go, known ones are overwritten whole
+- `tests/unit/seed-read-model.test.js:42` an empty list clears the slice
+- `tests/unit/seed-read-model.test.js:49` columns and labels keep the given order and leave other slices alone
+- `tests/unit/seed-read-model.test.js:63` a column seeded again after it was removed comes back
+- `tests/unit/seed-read-model.test.js:71` seedBoard can target a board other than the active one
+- `tests/unit/seed-read-model.test.js:79` seedGlobalSettings sets global settings through an event
+- `tests/unit/seed-read-model.test.js:84` seedBoard refuses an order events cannot give, rather than seed a different one
+
 ### Sortable Native Drag
 
 - Path: `tests/unit/sortable-native-drag.test.js`
@@ -514,37 +568,48 @@ _No executable test cases detected._
 - Type: Unit
 - Test count: 31
 
-- `tests/unit/storage-idb.test.js:58` initStorage on empty IDB leaves boards list empty
-- `tests/unit/storage-idb.test.js:63` initStorage creates a stable HLC node id on boot
-- `tests/unit/storage-idb.test.js:69` initStorage is safe to call twice in the same session
-- `tests/unit/storage-idb.test.js:78` initStorage removes the stale legacy-sync localStorage keys from older versions
-- `tests/unit/storage-idb.test.js:90` saveTasks persists to IDB and survives a session reset
-- `tests/unit/storage-idb.test.js:107` emitted task.updated events project into task read model
-- `tests/unit/storage-idb.test.js:127` saveColumns persists to IDB and survives a session reset
-- `tests/unit/storage-idb.test.js:146` saveLabels persists to IDB and survives a session reset
-- `tests/unit/storage-idb.test.js:162` saveSettings persists to IDB and survives a session reset
-- `tests/unit/storage-idb.test.js:178` initStorage loads global settings from IDB
-- `tests/unit/storage-idb.test.js:188` saveGlobalSettings persists to IDB and survives a session reset
-- `tests/unit/storage-idb.test.js:199` createBoard persists board list and per-board defaults across sessions
-- `tests/unit/storage-idb.test.js:214` active board id persists across sessions
-- `tests/unit/storage-idb.test.js:229` deleteBoard removes per-board data from IDB
-- `tests/unit/storage-idb.test.js:251` deleteBoard leaves no read-model record of the board, delete records and applied ids included (#178)
-- `tests/unit/storage-idb.test.js:271` v2 migration rehomes board read models and removes legacy kv keys
-- `tests/unit/storage-idb.test.js:293` v2 migration deletes legacy board event logs
-- `tests/unit/storage-idb.test.js:304` v2 schema creates event sourcing stores and event indexes
-- `tests/unit/storage-idb.test.js:316` migrates multi-board localStorage data on first initStorage
-- `tests/unit/storage-idb.test.js:343` migrates legacy done id to a UUID done role and rewrites task references
-- `tests/unit/storage-idb.test.js:380` migration cleans up localStorage after completing
-- `tests/unit/storage-idb.test.js:400` migrates legacy single-board localStorage keys (pre-multi-board format)
-- `tests/unit/storage-idb.test.js:422` migrates legacy single-board tasks without columns using UUID default column mappings
-- `tests/unit/storage-idb.test.js:444` migration does not run again on a subsequent initStorage call (same IDB)
-- `tests/unit/storage-idb.test.js:464` initStorage with corrupt kanbanBoards in IDB yields empty boards list
-- `tests/unit/storage-idb.test.js:478` loadTasksForBoard reads tasks for a non-active board without changing active board
-- `tests/unit/storage-idb.test.js:495` loadColumnsForBoard reads columns for a non-active board
-- `tests/unit/storage-idb.test.js:514` loadLabelsForBoard reads labels for a non-active board
-- `tests/unit/storage-idb.test.js:530` loadSettingsForBoard reads settings for a non-active board
-- `tests/unit/storage-idb.test.js:546` loadTasksForBoard returns empty array for unknown board id
-- `tests/unit/storage-idb.test.js:551` a failed write batch stores nothing and logs once, however many writes joined it
+- `tests/unit/storage-idb.test.js:55` initStorage on empty IDB leaves boards list empty
+- `tests/unit/storage-idb.test.js:60` initStorage creates a stable HLC node id on boot
+- `tests/unit/storage-idb.test.js:66` initStorage is safe to call twice in the same session
+- `tests/unit/storage-idb.test.js:75` initStorage removes the stale legacy-sync localStorage keys from older versions
+- `tests/unit/storage-idb.test.js:87` seeded tasks persist to IDB and survive a session reset
+- `tests/unit/storage-idb.test.js:104` emitted task.updated events project into task read model
+- `tests/unit/storage-idb.test.js:124` seeded columns persist to IDB and survive a session reset
+- `tests/unit/storage-idb.test.js:143` seeded labels persist to IDB and survive a session reset
+- `tests/unit/storage-idb.test.js:159` saveSettings persists to IDB and survives a session reset
+- `tests/unit/storage-idb.test.js:175` initStorage loads global settings from IDB
+- `tests/unit/storage-idb.test.js:185` global settings persist to IDB and survive a session reset
+- `tests/unit/storage-idb.test.js:196` createBoard persists board list and per-board defaults across sessions
+- `tests/unit/storage-idb.test.js:211` active board id persists across sessions
+- `tests/unit/storage-idb.test.js:226` deleteBoard removes per-board data from IDB
+- `tests/unit/storage-idb.test.js:248` deleteBoard leaves no read-model record of the board, delete records and applied ids included (#178)
+- `tests/unit/storage-idb.test.js:268` v2 migration rehomes board read models and removes legacy kv keys
+- `tests/unit/storage-idb.test.js:290` v2 migration deletes legacy board event logs
+- `tests/unit/storage-idb.test.js:301` v2 schema creates event sourcing stores and event indexes
+- `tests/unit/storage-idb.test.js:313` migrates multi-board localStorage data on first initStorage
+- `tests/unit/storage-idb.test.js:340` migrates legacy done id to a UUID done role and rewrites task references
+- `tests/unit/storage-idb.test.js:377` migration cleans up localStorage after completing
+- `tests/unit/storage-idb.test.js:397` migrates legacy single-board localStorage keys (pre-multi-board format)
+- `tests/unit/storage-idb.test.js:419` migrates legacy single-board tasks without columns using UUID default column mappings
+- `tests/unit/storage-idb.test.js:441` migration does not run again on a subsequent initStorage call (same IDB)
+- `tests/unit/storage-idb.test.js:461` initStorage with corrupt kanbanBoards in IDB yields empty boards list
+- `tests/unit/storage-idb.test.js:475` loadTasksForBoard reads tasks for a non-active board without changing active board
+- `tests/unit/storage-idb.test.js:492` loadColumnsForBoard reads columns for a non-active board
+- `tests/unit/storage-idb.test.js:511` loadLabelsForBoard reads labels for a non-active board
+- `tests/unit/storage-idb.test.js:527` loadSettingsForBoard reads settings for a non-active board
+- `tests/unit/storage-idb.test.js:543` loadTasksForBoard returns empty array for unknown board id
+- `tests/unit/storage-idb.test.js:548` a failed write batch stores nothing and logs once, however many writes joined it
+
+### Storage No Second Writers
+
+- Path: `tests/unit/storage-no-second-writers.test.js`
+- Type: Unit
+- Test count: 4
+
+- `tests/unit/storage-no-second-writers.test.js:50` loading tasks causes no IDB write
+- `tests/unit/storage-no-second-writers.test.js:63` legacy, un-normalised tasks still read normalised
+- `tests/unit/storage-no-second-writers.test.js:78` reading a legacy task without dates twice gives the same column history
+- `tests/unit/storage-no-second-writers.test.js:104` renaming a board changes the board list only through its board.updated event
 
 ### Storage
 
@@ -552,33 +617,33 @@ _No executable test cases detected._
 - Type: Unit
 - Test count: 27
 
-- `tests/unit/storage.test.js:31` ensureBoardsInitialized creates default board on empty storage
-- `tests/unit/storage.test.js:40` ensureBoardsInitialized is idempotent
-- `tests/unit/storage.test.js:49` listBoards returns empty array before any board is initialised
-- `tests/unit/storage.test.js:55` createBoard creates board with correct keys
-- `tests/unit/storage.test.js:66` createBoard uses Untitled board for empty name
-- `tests/unit/storage.test.js:72` renameBoard updates board name
-- `tests/unit/storage.test.js:83` renameBoard returns false for non-existent board
-- `tests/unit/storage.test.js:88` renameBoard returns false for empty name
-- `tests/unit/storage.test.js:94` deleteBoard removes board and its data
-- `tests/unit/storage.test.js:104` deleteBoard returns false when only one board exists
-- `tests/unit/storage.test.js:110` deleteBoard switches active board if deleted board was active
-- `tests/unit/storage.test.js:121` getActiveBoardName returns board name
-- `tests/unit/storage.test.js:129` loadColumns returns default columns on fresh board
-- `tests/unit/storage.test.js:138` loadColumns ensures Done column exists
-- `tests/unit/storage.test.js:146` saveColumns + loadColumns roundtrip
-- `tests/unit/storage.test.js:158` loadTasks normalizes priority on load
-- `tests/unit/storage.test.js:168` loadTasks adds doneDate to tasks in Done column that lack it
-- `tests/unit/storage.test.js:178` loadTasks removes doneDate from tasks not in Done column
-- `tests/unit/storage.test.js:188` saveTasks + loadTasks roundtrip
-- `tests/unit/storage.test.js:199` loadLabels adds empty group to labels missing it
-- `tests/unit/storage.test.js:209` loadSettings returns defaults on fresh board
-- `tests/unit/storage.test.js:218` loadSettings normalizes invalid swimLaneGroupBy
-- `tests/unit/storage.test.js:225` loadSettings clamps countdownWarningThreshold to be >= urgentThreshold
-- `tests/unit/storage.test.js:232` loadGlobalSettings returns defaults on first run
-- `tests/unit/storage.test.js:236` saveGlobalSettings drops removed settings
-- `tests/unit/storage.test.js:241` saveGlobalSettings keeps Time Tracking settings
-- `tests/unit/storage.test.js:246` global settings and board settings are isolated
+- `tests/unit/storage.test.js:28` ensureBoardsInitialized creates default board on empty storage
+- `tests/unit/storage.test.js:37` ensureBoardsInitialized is idempotent
+- `tests/unit/storage.test.js:46` listBoards returns empty array before any board is initialised
+- `tests/unit/storage.test.js:52` createBoard creates board with correct keys
+- `tests/unit/storage.test.js:63` createBoard uses Untitled board for empty name
+- `tests/unit/storage.test.js:69` renameBoard updates board name
+- `tests/unit/storage.test.js:80` renameBoard returns false for non-existent board
+- `tests/unit/storage.test.js:85` renameBoard returns false for empty name
+- `tests/unit/storage.test.js:91` deleteBoard removes board and its data
+- `tests/unit/storage.test.js:101` deleteBoard returns false when only one board exists
+- `tests/unit/storage.test.js:107` deleteBoard switches active board if deleted board was active
+- `tests/unit/storage.test.js:118` getActiveBoardName returns board name
+- `tests/unit/storage.test.js:126` loadColumns returns default columns on fresh board
+- `tests/unit/storage.test.js:135` loadColumns ensures Done column exists
+- `tests/unit/storage.test.js:143` seeded columns load back in order
+- `tests/unit/storage.test.js:155` loadTasks normalizes priority on load
+- `tests/unit/storage.test.js:165` loadTasks adds doneDate to tasks in Done column that lack it
+- `tests/unit/storage.test.js:175` loadTasks removes doneDate from tasks not in Done column
+- `tests/unit/storage.test.js:185` seeded tasks load back
+- `tests/unit/storage.test.js:196` loadLabels adds empty group to labels missing it
+- `tests/unit/storage.test.js:206` loadSettings returns defaults on fresh board
+- `tests/unit/storage.test.js:215` loadSettings normalizes invalid swimLaneGroupBy
+- `tests/unit/storage.test.js:222` loadSettings clamps countdownWarningThreshold to be >= urgentThreshold
+- `tests/unit/storage.test.js:229` loadGlobalSettings returns defaults on first run
+- `tests/unit/storage.test.js:233` loadGlobalSettings drops removed settings
+- `tests/unit/storage.test.js:238` loadGlobalSettings keeps Time Tracking settings
+- `tests/unit/storage.test.js:243` global settings and board settings are isolated
 
 ### Swimlanes Utils
 
@@ -624,29 +689,29 @@ _No executable test cases detected._
 - Type: Unit
 - Test count: 23
 
-- `tests/unit/tasks.test.js:14` addTask creates task with order 1 (top of column)
-- `tests/unit/tasks.test.js:24` addTask bumps existing task orders in same column
-- `tests/unit/tasks.test.js:34` addTask does nothing for empty title
-- `tests/unit/tasks.test.js:39` addTask sets creationDate, changeDate, and columnHistory
-- `tests/unit/tasks.test.js:49` addTask sets doneDate when added to Done column
-- `tests/unit/tasks.test.js:55` addTask does not set doneDate for non-Done column
-- `tests/unit/tasks.test.js:61` addTask preserves labels
-- `tests/unit/tasks.test.js:69` updateTask updates title, description, priority
-- `tests/unit/tasks.test.js:82` updateTask does nothing for empty title
-- `tests/unit/tasks.test.js:90` updateTask appends to columnHistory on column change
-- `tests/unit/tasks.test.js:101` updateTask sets doneDate when moving to Done column
-- `tests/unit/tasks.test.js:110` updateTask removes doneDate when moving from Done column
-- `tests/unit/tasks.test.js:120` updateTask seeds columnHistory if missing
-- `tests/unit/tasks.test.js:133` deleteTask removes task by ID
-- `tests/unit/tasks.test.js:145` deleteTask permanently removes the task
-- `tests/unit/tasks.test.js:158` moveTaskToTopInColumn moves specified task to order 1
-- `tests/unit/tasks.test.js:173` moveTaskToTopInColumn returns null for missing args
-- `tests/unit/tasks.test.js:180` addTask stores subTasks when provided
-- `tests/unit/tasks.test.js:195` addTask stores empty subTasks array when none provided
-- `tests/unit/tasks.test.js:202` updateTask persists updated subTasks
-- `tests/unit/tasks.test.js:220` updateTask clears subTasks when empty array passed
-- `tests/unit/tasks.test.js:232` updateTask normalizes invalid subTask entries
-- `tests/unit/tasks.test.js:247` subTasks persist through storage round-trip
+- `tests/unit/tasks.test.js:15` addTask creates task with order 1 (top of column)
+- `tests/unit/tasks.test.js:25` addTask bumps existing task orders in same column
+- `tests/unit/tasks.test.js:35` addTask does nothing for empty title
+- `tests/unit/tasks.test.js:40` addTask sets creationDate, changeDate, and columnHistory
+- `tests/unit/tasks.test.js:50` addTask sets doneDate when added to Done column
+- `tests/unit/tasks.test.js:56` addTask does not set doneDate for non-Done column
+- `tests/unit/tasks.test.js:62` addTask preserves labels
+- `tests/unit/tasks.test.js:70` updateTask updates title, description, priority
+- `tests/unit/tasks.test.js:83` updateTask does nothing for empty title
+- `tests/unit/tasks.test.js:91` updateTask appends to columnHistory on column change
+- `tests/unit/tasks.test.js:102` updateTask sets doneDate when moving to Done column
+- `tests/unit/tasks.test.js:111` updateTask removes doneDate when moving from Done column
+- `tests/unit/tasks.test.js:121` updateTask seeds columnHistory if missing
+- `tests/unit/tasks.test.js:134` deleteTask removes task by ID
+- `tests/unit/tasks.test.js:146` deleteTask permanently removes the task
+- `tests/unit/tasks.test.js:159` moveTaskToTopInColumn moves specified task to order 1
+- `tests/unit/tasks.test.js:174` moveTaskToTopInColumn returns null for missing args
+- `tests/unit/tasks.test.js:181` addTask stores subTasks when provided
+- `tests/unit/tasks.test.js:196` addTask stores empty subTasks array when none provided
+- `tests/unit/tasks.test.js:203` updateTask persists updated subTasks
+- `tests/unit/tasks.test.js:221` updateTask clears subTasks when empty array passed
+- `tests/unit/tasks.test.js:233` updateTask normalizes invalid subTask entries
+- `tests/unit/tasks.test.js:248` subTasks persist through storage round-trip
 
 ### Archive Delete
 
@@ -920,6 +985,17 @@ _No executable test cases detected._
 - `tests/unit/time-tracking/reducer.test.js:275` customer.updated with Weekly hours and Workdays passes validation and patches only those fields
 - `tests/unit/time-tracking/reducer.test.js:284` a Work week patch replays the same from a snapshot
 
+### Row Menu
+
+- Path: `tests/unit/time-tracking/row-menu.test.js`
+- Type: Unit
+- Test count: 4
+
+- `tests/unit/time-tracking/row-menu.test.js:9` rowMenuOpensUp: a row menu opens upward only when it must and can > opens downward when it fits above the visible bottom
+- `tests/unit/time-tracking/row-menu.test.js:13` rowMenuOpensUp: a row menu opens upward only when it must and can > opens upward when opening downward would run under the visible bottom
+- `tests/unit/time-tracking/row-menu.test.js:17` rowMenuOpensUp: a row menu opens upward only when it must and can > stays downward near the top of the viewport, even if it runs under the visible bottom
+- `tests/unit/time-tracking/row-menu.test.js:22` rowMenuOpensUp: a row menu opens upward only when it must and can > measures the room above from the anchor top, not from where the downward menu would start
+
 ### Schema
 
 - Path: `tests/unit/time-tracking/schema.test.js`
@@ -1146,8 +1222,8 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 2
 
-- `tests/dom/boards-select-refresh.test.js:50` #board-select refresh on DATA_CHANGED > rebuilds the dropdown when a remote board.created adds a board
-- `tests/dom/boards-select-refresh.test.js:65` #board-select refresh on DATA_CHANGED > updates an option label when a board is renamed remotely
+- `tests/dom/boards-select-refresh.test.js:47` #board-select refresh on DATA_CHANGED > rebuilds the dropdown when a remote board.created adds a board
+- `tests/dom/boards-select-refresh.test.js:62` #board-select refresh on DATA_CHANGED > updates an option label when a board is renamed remotely
 
 ### Dialog
 
@@ -1239,27 +1315,27 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 21
 
-- `tests/dom/event-sourcing/commit-scope.test.js:117` a task edit that emits several events > every event is projected in order before the caller gets control back
-- `tests/dom/event-sourcing/commit-scope.test.js:128` a task edit that emits several events > is one board commit, signalled before the caller gets control back
-- `tests/dom/event-sourcing/commit-scope.test.js:133` a task edit that emits several events > writes each changed slice once, holding the final projection
-- `tests/dom/event-sourcing/commit-scope.test.js:146` a task edit that emits several events > is one notice to other tabs, naming every event once it is stored
-- `tests/dom/event-sourcing/commit-scope.test.js:161` a task edit that emits several events > a new task placed above others is one commit too
-- `tests/dom/event-sourcing/commit-scope.test.js:169` a commit around other multi-event mutations > a nested commit joins the outer one, which alone redraws and stores
-- `tests/dom/event-sourcing/commit-scope.test.js:190` a commit around other multi-event mutations > deleting a label on several tasks is one commit
-- `tests/dom/event-sourcing/commit-scope.test.js:203` a commit around other multi-event mutations > deleting a column with tasks is one commit
-- `tests/dom/event-sourcing/commit-scope.test.js:213` the task form > saving labels, a relationship, a sub-task and a column move renders the board once
-- `tests/dom/event-sourcing/commit-scope.test.js:245` failure inside a commit > changes to different slices stay separate writes, each with its final value
-- `tests/dom/event-sourcing/commit-scope.test.js:263` failure inside a commit > a mutation that throws part-way still shows and stores what it projected
-- `tests/dom/event-sourcing/commit-scope.test.js:282` failure inside a commit > a write that fails stores nothing of the commit, the screen keeps the edit, and later edits still store
-- `tests/dom/event-sourcing/commit-scope.test.js:401` a drop > on a standard board reconciles once, inside its window
-- `tests/dom/event-sourcing/commit-scope.test.js:408` a drop > into a collapsed column is one reconcile for its two moves
-- `tests/dom/event-sourcing/commit-scope.test.js:417` a drop > across swimlanes reconciles once for its move and its field change
-- `tests/dom/event-sourcing/commit-scope.test.js:432` a drop > to another column stamps the updated date from its event, on the card as well
-- `tests/dom/event-sourcing/commit-scope.test.js:446` a drop > within a column leaves the updated date alone
-- `tests/dom/event-sourcing/commit-scope.test.js:453` a drop > to another lane of the same column carries the updated date in its event
-- `tests/dom/event-sourcing/commit-scope.test.js:487` a burst of remote events > does not redraw for each event and ends on the newest edit
-- `tests/dom/event-sourcing/commit-scope.test.js:497` a burst of remote events > applies by HLC whatever order it arrives in
-- `tests/dom/event-sourcing/commit-scope.test.js:506` a burst of remote events > an event that repeats in the burst applies once
+- `tests/dom/event-sourcing/commit-scope.test.js:115` a task edit that emits several events > every event is projected in order before the caller gets control back
+- `tests/dom/event-sourcing/commit-scope.test.js:126` a task edit that emits several events > is one board commit, signalled before the caller gets control back
+- `tests/dom/event-sourcing/commit-scope.test.js:131` a task edit that emits several events > writes each changed slice once, holding the final projection
+- `tests/dom/event-sourcing/commit-scope.test.js:144` a task edit that emits several events > is one notice to other tabs, naming every event once it is stored
+- `tests/dom/event-sourcing/commit-scope.test.js:159` a task edit that emits several events > a new task placed above others is one commit too
+- `tests/dom/event-sourcing/commit-scope.test.js:167` a commit around other multi-event mutations > a nested commit joins the outer one, which alone redraws and stores
+- `tests/dom/event-sourcing/commit-scope.test.js:188` a commit around other multi-event mutations > deleting a label on several tasks is one commit
+- `tests/dom/event-sourcing/commit-scope.test.js:201` a commit around other multi-event mutations > deleting a column with tasks is one commit
+- `tests/dom/event-sourcing/commit-scope.test.js:211` the task form > saving labels, a relationship, a sub-task and a column move renders the board once
+- `tests/dom/event-sourcing/commit-scope.test.js:243` failure inside a commit > changes to different slices stay separate writes, each with its final value
+- `tests/dom/event-sourcing/commit-scope.test.js:261` failure inside a commit > a mutation that throws part-way still shows and stores what it projected
+- `tests/dom/event-sourcing/commit-scope.test.js:280` failure inside a commit > a write that fails stores nothing of the commit, the screen keeps the edit, and later edits still store
+- `tests/dom/event-sourcing/commit-scope.test.js:399` a drop > on a standard board reconciles once, inside its window
+- `tests/dom/event-sourcing/commit-scope.test.js:406` a drop > into a collapsed column is one reconcile for its two moves
+- `tests/dom/event-sourcing/commit-scope.test.js:416` a drop > across swimlanes reconciles once for its move and its field change
+- `tests/dom/event-sourcing/commit-scope.test.js:431` a drop > to another column stamps the updated date from its event, on the card as well
+- `tests/dom/event-sourcing/commit-scope.test.js:445` a drop > within a column leaves the updated date alone
+- `tests/dom/event-sourcing/commit-scope.test.js:452` a drop > to another lane of the same column carries the updated date in its event
+- `tests/dom/event-sourcing/commit-scope.test.js:486` a burst of remote events > does not redraw for each event and ends on the newest edit
+- `tests/dom/event-sourcing/commit-scope.test.js:496` a burst of remote events > applies by HLC whatever order it arrives in
+- `tests/dom/event-sourcing/commit-scope.test.js:505` a burst of remote events > an event that repeats in the burst applies once
 
 ### Cross Tab Read Model
 
@@ -1267,23 +1343,23 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 17
 
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:135` a remote event the leader ingests > reaches the follower tab read model and re-renders it, with no reload
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:145` a remote event the leader ingests > is not stored again or queued by the follower
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:154` a remote event the leader ingests > moves the follower clock past it, so the next edit there wins everywhere
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:166` a remote event the leader ingests > renders a catch-up batch in the follower once
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:183` a follower edit right after a remote event > keeps both changes in every tab and in what a reload reads, when the edit beats the notice
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:202` a follower edit right after a remote event > orders the same field by clock, not by which tab heard first
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:218` a follower edit right after a remote event > does not bring back old data once the notice was applied
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:231` a local edit > is in the shared store before any tab hears of it
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:247` a local edit > shows in the other tab, with no reload, whichever tab made it
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:257` a local edit > stays queued for push after the other tab applied it
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:268` a board setting written without an event > survives the other tab writing out its copy of the board, and shows there
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:287` a snapshot the leader adopts > drops from the follower what it dropped itself
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:303` events a tab missed > a follower tab opening shows events stored before it could hear of them
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:317` events a tab missed > does not bring back a board deleted in this tab
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:332` events a tab missed > a tab that opens alone repairs a time-tracking view a stale tab wrote over
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:356` events a tab missed > a tab that opens alone replays a view with no applied ids in clock order
-- `tests/dom/event-sourcing/cross-tab-read-model.test.js:377` events a tab missed > does not apply a time-tracking event twice after a reload
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:136` a remote event the leader ingests > reaches the follower tab read model and re-renders it, with no reload
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:146` a remote event the leader ingests > is not stored again or queued by the follower
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:155` a remote event the leader ingests > moves the follower clock past it, so the next edit there wins everywhere
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:167` a remote event the leader ingests > renders a catch-up batch in the follower once
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:184` a follower edit right after a remote event > keeps both changes in every tab and in what a reload reads, when the edit beats the notice
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:203` a follower edit right after a remote event > orders the same field by clock, not by which tab heard first
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:219` a follower edit right after a remote event > does not bring back old data once the notice was applied
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:232` a local edit > is in the shared store before any tab hears of it
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:248` a local edit > shows in the other tab, with no reload, whichever tab made it
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:258` a local edit > stays queued for push after the other tab applied it
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:269` a board setting written without an event > survives the other tab writing out its copy of the board, and shows there
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:288` a snapshot the leader adopts > drops from the follower what it dropped itself
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:304` events a tab missed > a follower tab opening shows events stored before it could hear of them
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:318` events a tab missed > does not bring back a board deleted in this tab
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:333` events a tab missed > a tab that opens alone repairs a time-tracking view a stale tab wrote over
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:357` events a tab missed > a tab that opens alone replays a view with no applied ids in clock order
+- `tests/dom/event-sourcing/cross-tab-read-model.test.js:378` events a tab missed > does not apply a time-tracking event twice after a reload
 
 ### Data Owner Stale Tab
 
@@ -1349,11 +1425,11 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 5
 
-- `tests/dom/event-sourcing/feature-modules-emit-events.test.js:33` updateTask emits one task.updated event with HLC entity id and minimal fields
-- `tests/dom/event-sourcing/feature-modules-emit-events.test.js:67` addColumn emits column.created with the created column payload
-- `tests/dom/event-sourcing/feature-modules-emit-events.test.js:79` label mutations emit label entity and task membership events
-- `tests/dom/event-sourcing/feature-modules-emit-events.test.js:98` updateTask emits collection-op and move events for non-scalar changes
-- `tests/dom/event-sourcing/feature-modules-emit-events.test.js:128` deleteTask emits task.deleted
+- `tests/dom/event-sourcing/feature-modules-emit-events.test.js:34` updateTask emits one task.updated event with HLC entity id and minimal fields
+- `tests/dom/event-sourcing/feature-modules-emit-events.test.js:68` addColumn emits column.created with the created column payload
+- `tests/dom/event-sourcing/feature-modules-emit-events.test.js:80` label mutations emit label entity and task membership events
+- `tests/dom/event-sourcing/feature-modules-emit-events.test.js:99` updateTask emits collection-op and move events for non-scalar changes
+- `tests/dom/event-sourcing/feature-modules-emit-events.test.js:129` deleteTask emits task.deleted
 
 ### Grace Window
 
@@ -1446,12 +1522,12 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 6
 
-- `tests/dom/event-sourcing/replay-fidelity.test.js:68` updateTask relationship change replays the inverse on the target task
-- `tests/dom/event-sourcing/replay-fidelity.test.js:84` addTask replays the sibling reorder in the column
-- `tests/dom/event-sourcing/replay-fidelity.test.js:105` moving a task into and out of the done column replays its doneDate
-- `tests/dom/event-sourcing/replay-fidelity.test.js:129` swimlane drag across priority lanes replays the priority reassignment
-- `tests/dom/event-sourcing/replay-fidelity.test.js:181` a form save with no changes emits nothing and keeps changeDate
-- `tests/dom/event-sourcing/replay-fidelity.test.js:191` a form column change on a task that needs normalizing replays to the same task
+- `tests/dom/event-sourcing/replay-fidelity.test.js:67` updateTask relationship change replays the inverse on the target task
+- `tests/dom/event-sourcing/replay-fidelity.test.js:83` addTask replays the sibling reorder in the column
+- `tests/dom/event-sourcing/replay-fidelity.test.js:104` moving a task into and out of the done column replays its doneDate
+- `tests/dom/event-sourcing/replay-fidelity.test.js:128` swimlane drag across priority lanes replays the priority reassignment
+- `tests/dom/event-sourcing/replay-fidelity.test.js:180` a form save with no changes emits nothing and keeps changeDate
+- `tests/dom/event-sourcing/replay-fidelity.test.js:190` a form column change on a task that needs normalizing replays to the same task
 
 ### Snapshot Catchup
 
@@ -1511,20 +1587,21 @@ _No executable test cases detected._
 
 - Path: `tests/dom/event-sourcing/sync-indicator.test.js`
 - Type: DOM Integration
-- Test count: 12
+- Test count: 13
 
-- `tests/dom/event-sourcing/sync-indicator.test.js:45` sync state indicator > AC-001: logged in, online, empty queue -> Live (green)
-- `tests/dom/event-sourcing/sync-indicator.test.js:53` sync state indicator > AC-002: N events draining -> Syncing… (N) (yellow)
-- `tests/dom/event-sourcing/sync-indicator.test.js:63` sync state indicator > AC-003: events stuck retrying -> ⚠ N unsynced (orange)
-- `tests/dom/event-sourcing/sync-indicator.test.js:73` sync state indicator > AC-003b: paused (auth failure) tier also shows unsynced
-- `tests/dom/event-sourcing/sync-indicator.test.js:82` sync state indicator > catching up with an empty queue still reads Live (the labels do not change, #219)
-- `tests/dom/event-sourcing/sync-indicator.test.js:88` sync state indicator > catching up with queued events reads Syncing (N)
-- `tests/dom/event-sourcing/sync-indicator.test.js:95` sync state indicator > paused with no network reads Offline, even with queued events
-- `tests/dom/event-sourcing/sync-indicator.test.js:102` sync state indicator > AC-004: offline -> Offline (gray)
-- `tests/dom/event-sourcing/sync-indicator.test.js:111` sync state indicator > AC-004b: not logged in -> Offline (gray)
-- `tests/dom/event-sourcing/sync-indicator.test.js:120` sync state indicator > AC-005: updates live on DATA_CHANGED (queue drains) without reload
-- `tests/dom/event-sourcing/sync-indicator.test.js:133` sync state indicator > AC-005b: updates live when the session state changes
-- `tests/dom/event-sourcing/sync-indicator.test.js:144` sync state indicator > updates live when the sync queue status changes
+- `tests/dom/event-sourcing/sync-indicator.test.js:46` sync state indicator > AC-001: logged in, online, empty queue -> Live (green)
+- `tests/dom/event-sourcing/sync-indicator.test.js:54` sync state indicator > AC-002: N events draining -> Syncing… (N) (yellow)
+- `tests/dom/event-sourcing/sync-indicator.test.js:64` sync state indicator > AC-003: events stuck retrying -> ⚠ N unsynced (orange)
+- `tests/dom/event-sourcing/sync-indicator.test.js:74` sync state indicator > AC-003b: paused (auth failure) tier also shows unsynced
+- `tests/dom/event-sourcing/sync-indicator.test.js:83` sync state indicator > catching up with an empty queue still reads Live (the labels do not change, #219)
+- `tests/dom/event-sourcing/sync-indicator.test.js:89` sync state indicator > catching up with queued events reads Syncing (N)
+- `tests/dom/event-sourcing/sync-indicator.test.js:96` sync state indicator > paused with no network reads Offline, even with queued events
+- `tests/dom/event-sourcing/sync-indicator.test.js:103` sync state indicator > AC-004: offline -> Offline (gray)
+- `tests/dom/event-sourcing/sync-indicator.test.js:112` sync state indicator > AC-004b: not logged in -> Offline (gray)
+- `tests/dom/event-sourcing/sync-indicator.test.js:121` sync state indicator > AC-005: updates live on DATA_CHANGED (queue drains) without reload
+- `tests/dom/event-sourcing/sync-indicator.test.js:134` sync state indicator > AC-005b: updates live when the session state changes
+- `tests/dom/event-sourcing/sync-indicator.test.js:145` sync state indicator > updates live when the sync queue status changes
+- `tests/dom/event-sourcing/sync-indicator.test.js:159` sync state indicator > exposes the shown state as a glyph-free label and announces each change
 
 ### Sync Leader
 
@@ -1671,21 +1748,32 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 15
 
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:95` addTask emits the renumbered column with the new task first
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:113` updateTask to another column emits both columns and leaves an unrelated one out
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:122` updateTask to another column puts the task on top there, with no colliding order
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:135` moveTaskToTopInColumn emits only that column, complete
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:152` a drop > to another column emits both columns, complete, and no unrelated column
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:172` a drop > within a column emits that one column, complete
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:192` a drop > reads only the affected task lists from the DOM
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:205` a drop > in swimlanes reads only the affected columns, lane by lane
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:229` a drop > keeps cards not on screen after the card they followed, with no colliding order
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:239` a drop > keeps a card not on screen first in its column when it was first
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:248` a drop > keeps cards that followed the dragged card in the column it left
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:262` a drop > into a column showing none of its cards goes first
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:276` a drop > into Done pins the card above the Done cards past the cut-off
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:290` a drop > in swimlanes still applies the destination lane to the moved card
-- `tests/dom/event-sourcing/task-moved-payloads.test.js:304` sortColumnTasks emits the sorted column with the column id as entity id
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:98` addTask emits the renumbered column with the new task first
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:116` updateTask to another column emits both columns and leaves an unrelated one out
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:125` updateTask to another column puts the task on top there, with no colliding order
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:138` moveTaskToTopInColumn emits only that column, complete
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:155` a drop > to another column emits both columns, complete, and no unrelated column
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:175` a drop > within a column emits that one column, complete
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:195` a drop > reads only the affected task lists from the DOM
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:208` a drop > in swimlanes reads only the affected columns, lane by lane
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:232` a drop > keeps cards not on screen after the card they followed, with no colliding order
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:242` a drop > keeps a card not on screen first in its column when it was first
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:251` a drop > keeps cards that followed the dragged card in the column it left
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:265` a drop > into a column showing none of its cards goes first
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:279` a drop > into Done pins the card above the Done cards past the cut-off
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:293` a drop > in swimlanes still applies the destination lane to the moved card
+- `tests/dom/event-sourcing/task-moved-payloads.test.js:307` sortColumnTasks emits the sorted column with the column id as entity id
+
+### Header Panels
+
+- Path: `tests/dom/header-panels.test.js`
+- Type: DOM Integration
+- Test count: 4
+
+- `tests/dom/header-panels.test.js:25` initializeHeaderPanels > opens search from its button, focused, and closes it on a click elsewhere
+- `tests/dom/header-panels.test.js:40` initializeHeaderPanels > dismissSearch closes an open field and returns focus to its button
+- `tests/dom/header-panels.test.js:50` initializeHeaderPanels > accessible names > says on the search button when a filter is still applied
+- `tests/dom/header-panels.test.js:63` initializeHeaderPanels > accessible names > keeps the search button name in step when code sets or clears the filter
 
 ### Msw Example
 
@@ -1750,8 +1838,8 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 2
 
-- `tests/dom/settings-ui.test.js:44` settings modal opens with board settings controls
-- `tests/dom/settings-ui.test.js:57` settings changes persist through board settings
+- `tests/dom/settings-ui.test.js:45` settings modal opens with board settings controls
+- `tests/dom/settings-ui.test.js:58` settings changes persist through board settings
 
 ### Swimlane Reconcile
 
@@ -2199,6 +2287,27 @@ _No executable test cases detected._
 
 ## End-to-End Tests
 
+### Board Mobile Bottom Bar
+
+- Path: `tests/e2e/board-mobile-bottom-bar.spec.ts`
+- Type: End-to-End
+- Test count: 14
+
+- `tests/e2e/board-mobile-bottom-bar.spec.ts:47` at ${width}px the bottom bar shows Controls, Notifications, Time Tracker and Search, labelled, at least 44px, in order
+- `tests/e2e/board-mobile-bottom-bar.spec.ts:69` on a phone there is no header brand or footer; the logo sits in the Controls sheet
+- `tests/e2e/board-mobile-bottom-bar.spec.ts:93` Reports, Calendar, Dark mode and Help wait off-screen until the bar is swiped
+- `tests/e2e/board-mobile-bottom-bar.spec.ts:108` the Search tab opens the field just above the bar, focused, and a tap on the board closes it
+- `tests/e2e/board-mobile-bottom-bar.spec.ts:130` Online/Offline is not in the bar: the Controls sheet opens with it on top, and Go Online signs in
+- `tests/e2e/board-mobile-bottom-bar.spec.ts:161` the Dark mode tab is a toggle: it switches the theme and shows as pressed while dark
+- `tests/e2e/board-mobile-bottom-bar.spec.ts:179` the Help tab opens the help dialog
+- `tests/e2e/board-mobile-bottom-bar.spec.ts:191` ${selector} opens its page
+- `tests/e2e/board-mobile-bottom-bar.spec.ts:201` at ${height}px tall the column ends just above the bar
+- `tests/e2e/board-mobile-bottom-bar.spec.ts:211` the Controls sheet does not repeat what the bar already offers
+- `tests/e2e/board-mobile-bottom-bar.spec.ts:228` Escape closes the search field
+- `tests/e2e/board-mobile-bottom-bar.spec.ts:236` with the field closed, a dot and the name of the Search tab show a filter is applied until it is cleared
+- `tests/e2e/board-mobile-bottom-bar.spec.ts:262` the bar tabs have accessible names that contain their visible labels
+- `tests/e2e/board-mobile-bottom-bar.spec.ts:276` at desktop width > the header is unchanged: search and sign-in inline, clock then bell then menu, no phone tabs or labels
+
 ### Board Search
 
 - Path: `tests/e2e/board-search.spec.ts`
@@ -2214,8 +2323,8 @@ _No executable test cases detected._
 - Type: End-to-End
 - Test count: 2
 
-- `tests/e2e/board-templates.spec.ts:44` a board created from the ${data.boardName} template has its columns, labels and starter tasks
-- `tests/e2e/board-templates.spec.ts:62` every template in the templates folder is offered when creating a board
+- `tests/e2e/board-templates.spec.ts:51` a board created from the ${data.boardName} template has its columns, labels and starter tasks
+- `tests/e2e/board-templates.spec.ts:69` every template in the templates folder is offered when creating a board
 
 ### Boards
 
@@ -2247,9 +2356,9 @@ _No executable test cases detected._
 - `tests/e2e/columns.spec.ts:61` new columns go before the permanent Done column
 - `tests/e2e/columns.spec.ts:69` adding a column requires a name
 - `tests/e2e/columns.spec.ts:82` a column can be renamed, recoloured, reordered and collapsed, and all of it survives a reload
-- `tests/e2e/columns.spec.ts:114` deleting a column asks first and takes its tasks with it
-- `tests/e2e/columns.spec.ts:134` a deleted column stays deleted after an immediate reload
-- `tests/e2e/columns.spec.ts:151` the Done column cannot be deleted
+- `tests/e2e/columns.spec.ts:115` deleting a column asks first and takes its tasks with it
+- `tests/e2e/columns.spec.ts:135` a deleted column stays deleted after an immediate reload
+- `tests/e2e/columns.spec.ts:152` the Done column cannot be deleted
 
 ### Create Task
 
@@ -2458,6 +2567,15 @@ _No executable test cases detected._
 - `tests/e2e/notifications.spec.ts:150` the banner hides by itself once no task qualifies
 - `tests/e2e/notifications.spec.ts:161` the banner shows at most 5 tasks and links to the full modal for the rest
 - `tests/e2e/notifications.spec.ts:177` on a wide screen > the banner still shows at most 5 tasks
+
+### Reports Calendar Mobile Scroll
+
+- Path: `tests/e2e/reports-calendar-mobile-scroll.spec.ts`
+- Type: End-to-End
+- Test count: 2
+
+- `tests/e2e/reports-calendar-mobile-scroll.spec.ts:10` on a small phone Reports pages sideways to its last report
+- `tests/e2e/reports-calendar-mobile-scroll.spec.ts:22` on a short phone screen Calendar scrolls down to the tasks due on the selected day
 
 ### Reports
 
@@ -2698,6 +2816,14 @@ _No executable test cases detected._
 - `tests/e2e/timetracking-ledger-rows.spec.ts:57` rows are at least 44px tall and start – end stays on one line at any width
 - `tests/e2e/timetracking-ledger-rows.spec.ts:65` today's coverage bar shows a block per entry in its project colour and a now-marker
 
+### Timetracking Mobile Scroll
+
+- Path: `tests/e2e/timetracking-mobile-scroll.spec.ts`
+- Type: End-to-End
+- Test count: 1
+
+- `tests/e2e/timetracking-mobile-scroll.spec.ts:5` on a phone the tracker scrolls vertically to reach an entry below the fold and edit it
+
 ### Timetracking Mobile Tap Budget
 
 - Path: `tests/e2e/timetracking-mobile-tap-budget.spec.ts`
@@ -2718,10 +2844,12 @@ _No executable test cases detected._
 
 - Path: `tests/e2e/timetracking-mobile.spec.ts`
 - Type: End-to-End
-- Test count: 2
+- Test count: 4
 
-- `tests/e2e/timetracking-mobile.spec.ts:5` on a phone the sidebar collapses into a top bar and an entry can be logged by touch
-- `tests/e2e/timetracking-mobile.spec.ts:59` on a phone a time entry can be edited and deleted from its row menu
+- `tests/e2e/timetracking-mobile.spec.ts:5` on a phone the sidebar becomes a bottom tab bar and an entry can be logged by touch
+- `tests/e2e/timetracking-mobile.spec.ts:65` on a phone a time entry can be edited and deleted from its row menu
+- `tests/e2e/timetracking-mobile.spec.ts:151` on a phone a row menu near the tab bar opens upward and stays placed as the page scrolls or resizes
+- `tests/e2e/timetracking-mobile.spec.ts:189` on a phone the active tab is marked in the accent colour
 
 ### Timetracking Rename
 
