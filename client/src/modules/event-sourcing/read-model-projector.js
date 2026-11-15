@@ -23,6 +23,15 @@ export const ADMISSION = Object.freeze({ STORED: 'stored', DROPPED: 'dropped', A
 
 const EVENT_ORDER = Object.freeze({ APPLIED: 'applied', IN_ORDER: 'in-order', LATE: 'late' });
 
+// The KV keys the Read Model persists under. Storage's one-shot legacy migrations write the board list before load.
+export const READ_MODEL_KEYS = Object.freeze({
+  boards: 'kanbanBoards',
+  globalSettings: 'kanvana:settings:global',
+  timeTracking: 'kanvana:timetracking',
+  newestApplied: 'kanvana:ingest:newestAppliedHlc'
+});
+const { boards: boardsKey, globalSettings: globalSettingsKey, timeTracking: timeTrackingKey, newestApplied: newestAppliedKey } = READ_MODEL_KEYS;
+
 // What an adopted snapshot replaced: the old snapshots and the stored events the new one covers.
 function createSuperseded() {
   return { snapshots: [], events: [] };
@@ -50,18 +59,31 @@ function emptyState() {
 
 export function createReadModelProjector(ctx) {
   const {
-    demoTasksForReplay,
-    withoutUnheldDemoTasks,
+    demoBoard,
     schedulePersist,
     scheduleDelete,
     scheduleReadModelPersist,
     scheduleReadModelDelete,
-    checkAndScheduleSnapshot,
-    boardsKey,
-    globalSettingsKey,
-    timeTrackingKey,
-    newestAppliedKey
+    checkAndScheduleSnapshot
   } = ctx;
+
+  // No event creates a demo task, so a replay starts from the ones this device still holds (#263).
+  function demoTasksForReplay(boardId, liveTasks) {
+    if (boardId !== demoBoard?.id) return [];
+    const demoIds = new Set(demoBoard.tasks().map((task) => task.id));
+    const held = liveTasks.filter((task) => demoIds.has(task.id));
+    if (!held.length) return [];
+    const heldIds = new Set(held.map((task) => task.id));
+    return demoBoard.tasks(held[0].creationDate).filter((task) => heldIds.has(task.id));
+  }
+
+  // Seeding adds demo tasks to no other device, and neither does an adopted snapshot (#263).
+  function withoutUnheldDemoTasks(boardId, snapshotTasks, liveTasks) {
+    if (boardId !== demoBoard?.id) return snapshotTasks;
+    const demoIds = new Set(demoBoard.tasks().map((task) => task.id));
+    const heldIds = new Set(liveTasks.map((task) => task.id));
+    return snapshotTasks.filter((task) => !demoIds.has(task.id) || heldIds.has(task.id));
+  }
 
   let state = emptyState();
   // Per-board default-task cache (keeps defaults stable within a session).
@@ -750,6 +772,7 @@ export function createReadModelProjector(ctx) {
 
   function setBoards(next) {
     state.boards = next;
+    schedulePersist(boardsKey, next);
   }
 
   function setBoardSlice(boardId, slice, value) {
@@ -758,6 +781,7 @@ export function createReadModelProjector(ctx) {
 
   function setGlobalSettings(value) {
     state.globalSettings = value;
+    schedulePersist(globalSettingsKey, value);
   }
 
   // ── Board settings no event carries (swimlanes, display toggles); a rebuild keeps them (see fold).
