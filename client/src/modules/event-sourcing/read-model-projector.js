@@ -11,6 +11,7 @@ import { compareHlc, laterHlc, observeRemote } from './hlc.js';
 import { DATA_CHANGED, EVENT_EMITTED, EVENTS_STORED, emit } from '../events.js';
 import { safeParseArray, safeParseObject } from '../utils.js';
 import { normalizeGlobalSettings } from '../normalize.js';
+import { STABLE_DEFAULT_BOARD_ID, stableDemoTasks } from './read-model-seed.js';
 
 // The Read Model, sole writer of the IDB read model (ADR-0005): ingest.js admits events, this applies, stores and announces them.
 
@@ -21,7 +22,7 @@ export const ADMISSION = Object.freeze({ STORED: 'stored', DROPPED: 'dropped', A
 
 const EVENT_ORDER = Object.freeze({ APPLIED: 'applied', IN_ORDER: 'in-order', LATE: 'late' });
 
-// The KV keys the Read Model persists under. Storage's one-shot legacy migrations write the board list before load.
+// The KV keys the Read Model persists under. The boot migration (boot-migration.js) writes the board list before load.
 export const READ_MODEL_KEYS = Object.freeze({
   boards: 'kanbanBoards',
   globalSettings: 'kanvana:settings:global',
@@ -55,9 +56,11 @@ function emptyState() {
   };
 }
 
+// The board every device seeds the same demo tasks into (read-model-seed.js).
+const demoBoard = Object.freeze({ id: STABLE_DEFAULT_BOARD_ID, tasks: stableDemoTasks });
+
 export function createReadModelProjector(ctx) {
   const {
-    demoBoard,
     schedulePersist,
     scheduleDelete,
     scheduleReadModelPersist,
