@@ -593,11 +593,11 @@ _No executable test cases detected._
 - `tests/unit/storage-idb.test.js:419` migrates legacy single-board tasks without columns using UUID default column mappings
 - `tests/unit/storage-idb.test.js:441` migration does not run again on a subsequent initStorage call (same IDB)
 - `tests/unit/storage-idb.test.js:461` initStorage with corrupt kanbanBoards in IDB yields empty boards list
-- `tests/unit/storage-idb.test.js:475` loadTasksForBoard reads tasks for a non-active board without changing active board
-- `tests/unit/storage-idb.test.js:492` loadColumnsForBoard reads columns for a non-active board
-- `tests/unit/storage-idb.test.js:511` loadLabelsForBoard reads labels for a non-active board
-- `tests/unit/storage-idb.test.js:527` loadSettingsForBoard reads settings for a non-active board
-- `tests/unit/storage-idb.test.js:543` loadTasksForBoard returns empty array for unknown board id
+- `tests/unit/storage-idb.test.js:475` loadBoard reads tasks for a non-active board without changing active board
+- `tests/unit/storage-idb.test.js:492` loadBoard reads columns for a non-active board
+- `tests/unit/storage-idb.test.js:511` loadBoard reads labels for a non-active board
+- `tests/unit/storage-idb.test.js:527` loadBoard reads settings for a non-active board
+- `tests/unit/storage-idb.test.js:543` loadBoard returns null for an unknown board id
 - `tests/unit/storage-idb.test.js:548` a failed write batch stores nothing and logs once, however many writes joined it
 
 ### Storage No Second Writers

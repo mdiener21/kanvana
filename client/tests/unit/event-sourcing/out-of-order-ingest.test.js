@@ -8,14 +8,12 @@ import {
   _resetStorageForTesting,
   _flushPersistsForTesting,
   createBoard,
-  loadTasksForBoard,
-  loadColumnsForBoard,
   loadGlobalSettings,
   loadTimeTracking,
   listBoards,
-  loadSettingsForBoard,
   saveSettings,
-  setActiveBoardId
+  setActiveBoardId,
+  _loadStoredBoardForTesting
 } from '../../../src/modules/storage.js';
 import { EVENT_ORIGIN, ingestEvent, ingestStoredEvents } from '../../../src/modules/event-sourcing/ingest.js';
 import { _setHlcForTesting, emitLocalSync } from '../../../src/modules/event-sourcing/hlc.js';
@@ -59,7 +57,7 @@ beforeEach(async () => {
   await deleteDB('kanvana-db');
   await initStorage();
   boardId = createBoard('Ordering').id;
-  [todoColumn, doneColumn] = [loadColumnsForBoard(boardId)[0].id, loadColumnsForBoard(boardId).at(-1).id];
+  [todoColumn, doneColumn] = [_loadStoredBoardForTesting(boardId).columns[0].id, _loadStoredBoardForTesting(boardId).columns.at(-1).id];
   await _flushPersistsForTesting();
 });
 
@@ -79,7 +77,7 @@ describe('board scope', () => {
     for (const i of order) await ingestRemote(events[Number(i)]);
 
     const expected = applyEvents(createProjectionState(), events).tasks[0];
-    const task = loadTasksForBoard(boardId).find((t) => t.id === TASK_ID);
+    const task = _loadStoredBoardForTesting(boardId).tasks.find((t) => t.id === TASK_ID);
     expect(task).toMatchObject({ title: expected.title, priority: expected.priority, column: expected.column });
   });
 });
@@ -88,14 +86,14 @@ describe('rebuild', () => {
   // Demo tasks are never emitted (#263); a rebuild must not erase them.
   test('keeps a task that no event knows of, such as a demo task', async () => {
     boardId = listBoards()[0].id;
-    todoColumn = loadColumnsForBoard(boardId)[0].id;
-    const demoTitle = loadTasksForBoard(boardId)[0].title;
+    todoColumn = _loadStoredBoardForTesting(boardId).columns[0].id;
+    const demoTitle = _loadStoredBoardForTesting(boardId).tasks[0].title;
     const base = Date.now() + 1_000;
     await ingestRemote(boardEvent('task.created', { id: 'e-create', wallTime: base, payload: { task: { title: 'T0', column: todoColumn } } }));
     await ingestRemote(boardEvent('task.updated', { id: 'e-2', wallTime: base + 2, payload: { fields: { title: 'T2' } } }));
     await ingestRemote(boardEvent('task.updated', { id: 'e-1', wallTime: base + 1, payload: { fields: { title: 'T1' } } }));
 
-    const titles = loadTasksForBoard(boardId).map((t) => t.title);
+    const titles = _loadStoredBoardForTesting(boardId).tasks.map((t) => t.title);
     expect(titles).toContain(demoTitle);
     expect(titles).toContain('T2');
   });
@@ -103,15 +101,15 @@ describe('rebuild', () => {
   // The seeded board, since createBoard's settings.updated would hold the same fields (CONTEXT.md §9 known limit).
   test('keeps swimlane settings written without an event', async () => {
     boardId = listBoards()[0].id;
-    todoColumn = loadColumnsForBoard(boardId)[0].id;
+    todoColumn = _loadStoredBoardForTesting(boardId).columns[0].id;
     setActiveBoardId(boardId);
-    saveSettings({ ...loadSettingsForBoard(boardId), swimLanesEnabled: true, swimLaneGroupBy: 'priority' });
+    saveSettings({ ..._loadStoredBoardForTesting(boardId).settings, swimLanesEnabled: true, swimLaneGroupBy: 'priority' });
     const base = Date.now() + 1_000;
     await ingestRemote(boardEvent('task.created', { id: 'e-create', wallTime: base, payload: { task: { title: 'T0', column: todoColumn } } }));
     await ingestRemote(boardEvent('task.updated', { id: 'e-2', wallTime: base + 2, payload: { fields: { title: 'T2' } } }));
     await ingestRemote(boardEvent('task.updated', { id: 'e-1', wallTime: base + 1, payload: { fields: { title: 'T1' } } }));
 
-    expect(loadSettingsForBoard(boardId)).toMatchObject({ swimLanesEnabled: true, swimLaneGroupBy: 'priority' });
+    expect(_loadStoredBoardForTesting(boardId).settings).toMatchObject({ swimLanesEnabled: true, swimLaneGroupBy: 'priority' });
   });
 
   // CONTEXT.md §9: the events before a covered late event may be gone, so it folds onto the snapshot that covers it.
@@ -124,7 +122,7 @@ describe('rebuild', () => {
 
     await ingestRemote(boardEvent('task.updated', { id: 'e-1', wallTime: base + 1, payload: { fields: { priority: 'high' } } }));
 
-    expect(loadTasksForBoard(boardId).find((t) => t.id === TASK_ID)).toMatchObject({ title: 'T2', priority: 'high' });
+    expect(_loadStoredBoardForTesting(boardId).tasks.find((t) => t.id === TASK_ID)).toMatchObject({ title: 'T2', priority: 'high' });
     const snapshot = await loadSnapshot(boardId);
     expect(snapshot.state.appliedEventIds.has('e-1')).toBe(true);
     expect(snapshot.state.tasks.find((t) => t.id === TASK_ID)).toMatchObject({ title: 'T2', priority: 'high' });
@@ -201,7 +199,7 @@ describe('in-order ingest stays incremental', () => {
     }
     watch.stop();
 
-    expect(loadTasksForBoard(boardId).find((t) => t.id === TASK_ID).title).toBe('T50');
+    expect(_loadStoredBoardForTesting(boardId).tasks.find((t) => t.id === TASK_ID).title).toBe('T50');
     expect(scans()).toBe(0);
     expect(watch.seen).toEqual([]);
   });
@@ -216,7 +214,7 @@ describe('in-order ingest stays incremental', () => {
     await ingestRemote(boardEvent('task.updated', { id: 'e-1', wallTime: base + 1, payload: { fields: { title: 'T1' } } }));
     watch.stop();
 
-    expect(loadTasksForBoard(boardId).find((t) => t.id === TASK_ID).title).toBe('T2');
+    expect(_loadStoredBoardForTesting(boardId).tasks.find((t) => t.id === TASK_ID).title).toBe('T2');
     expect(scans()).toBe(1);
     expect(watch.seen).toEqual([boardId]);
   });
@@ -246,7 +244,7 @@ describe('two-context race on one field (ADR-0005)', () => {
     await ingestEvent(first.event, { origin: first.origin });
     await ingestEvent(second.event, { origin: second.origin });
     await _flushPersistsForTesting();
-    return loadTasksForBoard(SHARED_BOARD).find((t) => t.id === TASK_ID).title;
+    return _loadStoredBoardForTesting(SHARED_BOARD).tasks.find((t) => t.id === TASK_ID).title;
   }
 
   test.each([

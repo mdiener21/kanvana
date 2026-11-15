@@ -65,9 +65,9 @@ function boardView(page: Page) {
     return {
       id,
       name: storage.getActiveBoardName(),
-      tasks: storage.loadTasksForBoard(id).map(({ id, title, column, order }: any) => ({ id, title, column, order })).sort(byId),
-      columns: storage.loadColumnsForBoard(id).map(({ id, name, color }: any) => ({ id, name, color })).sort(byId),
-      labels: storage.loadLabelsForBoard(id).map(({ id, name, color }: any) => ({ id, name, color })).sort(byId),
+      tasks: storage._loadStoredBoardForTesting(id).tasks.map(({ id, title, column, order }: any) => ({ id, title, column, order })).sort(byId),
+      columns: storage._loadStoredBoardForTesting(id).columns.map(({ id, name, color }: any) => ({ id, name, color })).sort(byId),
+      labels: storage._loadStoredBoardForTesting(id).labels.map(({ id, name, color }: any) => ({ id, name, color })).sort(byId),
     };
   });
 }

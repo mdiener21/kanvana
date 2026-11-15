@@ -30,10 +30,8 @@ import {
   loadSettings,
   saveSettings,
   loadGlobalSettings,
-  loadTasksForBoard,
-  loadColumnsForBoard,
-  loadLabelsForBoard,
-  loadSettingsForBoard,
+  loadBoard,
+  _loadStoredBoardForTesting
 } from '../../src/modules/storage.js';
 import { logWriteFailure, openStore, schedulePersist, scheduleReadModelPersist, EVENTS_STORE, KV_STORE, READ_MODEL_STORE } from '../../src/modules/idb-store.js';
 import { ingestEvent } from '../../src/modules/event-sourcing/ingest.js';
@@ -240,9 +238,9 @@ test('deleteBoard removes per-board data from IDB', async () => {
 
   await initStorage();
   expect(listBoards().some(b => b.id === other.id)).toBe(false);
-  // Board-scoped helpers should return empty arrays for the deleted board.
-  expect(loadTasksForBoard(other.id)).toEqual([]);
-  expect(loadColumnsForBoard(other.id)).toEqual([]);
+  expect(loadBoard(other.id)).toBeNull();
+  expect(_loadStoredBoardForTesting(other.id).tasks).toEqual([]);
+  expect(_loadStoredBoardForTesting(other.id).columns).toEqual([]);
 });
 
 test('deleteBoard leaves no read-model record of the board, delete records and applied ids included (#178)', async () => {
@@ -470,9 +468,9 @@ test('initStorage with corrupt kanbanBoards in IDB yields empty boards list', as
   expect(listBoards()).toEqual([]);
 });
 
-// ── cross-board read helpers ───────────────────────────────────────────────────────
+// ── the board read, for a board that is not active ─────────────────────────────────
 
-test('loadTasksForBoard reads tasks for a non-active board without changing active board', async () => {
+test('loadBoard reads tasks for a non-active board without changing active board', async () => {
   await initStorage();
   ensureBoardsInitialized();
   const defaultId = getActiveBoardId();
@@ -484,12 +482,12 @@ test('loadTasksForBoard reads tasks for a non-active board without changing acti
   // Switch back to default before the assertion.
   setActiveBoardId(defaultId);
 
-  const tasks = loadTasksForBoard(other.id);
+  const tasks = loadBoard(other.id).tasks;
   expect(tasks.some(t => t.id === 'o1')).toBe(true);
   expect(getActiveBoardId()).toBe(defaultId); // active board must be unchanged
 });
 
-test('loadColumnsForBoard reads columns for a non-active board', async () => {
+test('loadBoard reads columns for a non-active board', async () => {
   await initStorage();
   ensureBoardsInitialized();
   const defaultId = getActiveBoardId();
@@ -503,12 +501,12 @@ test('loadColumnsForBoard reads columns for a non-active board', async () => {
 
   setActiveBoardId(defaultId);
 
-  const columns = loadColumnsForBoard(other.id);
+  const columns = loadBoard(other.id).columns;
   expect(columns.some(c => c.id === 'special')).toBe(true);
   expect(getActiveBoardId()).toBe(defaultId);
 });
 
-test('loadLabelsForBoard reads labels for a non-active board', async () => {
+test('loadBoard reads labels for a non-active board', async () => {
   await initStorage();
   ensureBoardsInitialized();
   const defaultId = getActiveBoardId();
@@ -519,12 +517,12 @@ test('loadLabelsForBoard reads labels for a non-active board', async () => {
 
   setActiveBoardId(defaultId);
 
-  const labels = loadLabelsForBoard(other.id);
+  const labels = loadBoard(other.id).labels;
   expect(labels.some(l => l.id === 'lbl-x')).toBe(true);
   expect(getActiveBoardId()).toBe(defaultId);
 });
 
-test('loadSettingsForBoard reads settings for a non-active board', async () => {
+test('loadBoard reads settings for a non-active board', async () => {
   await initStorage();
   ensureBoardsInitialized();
   const defaultId = getActiveBoardId();
@@ -535,14 +533,14 @@ test('loadSettingsForBoard reads settings for a non-active board', async () => {
 
   setActiveBoardId(defaultId);
 
-  const settings = loadSettingsForBoard(other.id);
+  const settings = loadBoard(other.id).settings;
   expect(settings?.swimLanesEnabled).toBe(true);
   expect(getActiveBoardId()).toBe(defaultId);
 });
 
-test('loadTasksForBoard returns empty array for unknown board id', async () => {
+test('loadBoard returns null for an unknown board id', async () => {
   await initStorage();
-  expect(loadTasksForBoard('non-existent-board')).toEqual([]);
+  expect(loadBoard('non-existent-board')).toBeNull();
 });
 
 test('a failed write batch stores nothing and logs once, however many writes joined it', async () => {

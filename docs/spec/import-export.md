@@ -10,6 +10,9 @@
 - Export runs the same strict structural validation used by import preview; when invalid references are found, export is blocked and the user gets actionable guidance
 - Exported current data uses UUID model IDs for boards, tasks, columns, and labels
 - The Done column is exported with `role: "done"`
+- Export reads the board through the one normalised board read (`loadBoard(id)` in `storage.js`): tasks
+  carry their normalised priority, done date and column history, and the columns always include the Done
+  column, as the board shows them (#333)
 
 ## Import Behavior
 

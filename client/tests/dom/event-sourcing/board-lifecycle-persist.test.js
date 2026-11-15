@@ -11,10 +11,7 @@ import {
   ensureBoardsInitialized,
   getActiveBoardId,
   listBoards,
-  loadColumnsForBoard,
-  loadLabelsForBoard,
-  loadSettingsForBoard,
-  loadTasksForBoard
+  _loadStoredBoardForTesting
 } from '../../../src/modules/storage.js';
 import { KV_STORE, openStore, schedulePersist } from '../../../src/modules/idb-store.js';
 import { EVENT_ORIGIN, ingestEvent } from '../../../src/modules/event-sourcing/ingest.js';
@@ -26,10 +23,10 @@ function board(id) {
   const ids = (items) => items.map((item) => item.id);
   return {
     name: listBoards().find((item) => item.id === id)?.name,
-    tasks: ids(loadTasksForBoard(id)),
-    columns: loadColumnsForBoard(id).map(({ id: columnId, name }) => ({ id: columnId, name })),
-    labels: ids(loadLabelsForBoard(id)),
-    settings: loadSettingsForBoard(id)
+    tasks: ids(_loadStoredBoardForTesting(id).tasks),
+    columns: _loadStoredBoardForTesting(id).columns.map(({ id: columnId, name }) => ({ id: columnId, name })),
+    labels: ids(_loadStoredBoardForTesting(id).labels),
+    settings: _loadStoredBoardForTesting(id).settings
   };
 }
 
@@ -37,7 +34,7 @@ function board(id) {
 const failThisTicksWrites = () => schedulePersist('kanvana:test:uncloneable', () => {});
 
 async function editBoard(boardId) {
-  const column = loadColumnsForBoard(boardId)[0];
+  const column = _loadStoredBoardForTesting(boardId).columns[0];
   await ingestEvent({
     id: crypto.randomUUID(),
     type: 'column.updated',

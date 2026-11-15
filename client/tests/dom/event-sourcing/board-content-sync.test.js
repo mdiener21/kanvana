@@ -3,8 +3,13 @@ import { deleteDB } from 'idb';
 import { initializeBoardsUI } from '../../../src/modules/boards.js';
 import { getUnsyncedEvents } from '../../../src/modules/idb-store.js';
 import {
-  initStorage, getActiveBoardId, setActiveBoardId, loadColumns, loadColumnsForBoard, loadTasksForBoard,
-  _flushPersistsForTesting, _resetStorageForTesting,
+  initStorage,
+  getActiveBoardId,
+  setActiveBoardId,
+  loadColumns,
+  _flushPersistsForTesting,
+  _resetStorageForTesting,
+  _loadStoredBoardForTesting
 } from '../../../src/modules/storage.js';
 import { applyRemoteEvent } from '../../../src/modules/event-sourcing/realtime.js';
 import { compareHlc } from '../../../src/modules/event-sourcing/hlc.js';
@@ -56,12 +61,12 @@ test('a template board reaches a fresh device with its custom columns and tasks'
   const { boardId, outbound } = await createTemplateBoardAndCaptureEvents();
   for (const event of outbound) await applyFromServer(event);
 
-  expect(loadColumnsForBoard(boardId).map(column => column.name)).toEqual([
+  expect(_loadStoredBoardForTesting(boardId).columns.map(column => column.name)).toEqual([
     'Idea Backlog', 'Planned', 'In Development', 'Testing', 'Ready for Release', 'Shipped',
   ]);
-  const tasks = loadTasksForBoard(boardId);
+  const tasks = _loadStoredBoardForTesting(boardId).tasks;
   expect(tasks).toHaveLength(5);
-  const development = loadColumnsForBoard(boardId).find(column => column.name === 'In Development');
+  const development = _loadStoredBoardForTesting(boardId).columns.find(column => column.name === 'In Development');
   expect(tasks.find(task => task.title === 'Feature: Board export improvements').column).toBe(development.id);
 });
 
@@ -73,7 +78,7 @@ test('rendering a board while its columns are still arriving does not add a seco
     loadColumns();
   }
 
-  expect(loadColumnsForBoard(boardId).map(column => column.name)).toEqual([
+  expect(_loadStoredBoardForTesting(boardId).columns.map(column => column.name)).toEqual([
     'Idea Backlog', 'Planned', 'In Development', 'Testing', 'Ready for Release', 'Shipped',
   ]);
 });

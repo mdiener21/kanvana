@@ -21,13 +21,10 @@ import {
   deleteBoard,
   listBoards,
   setActiveBoardId,
-  loadColumnsForBoard,
-  loadLabelsForBoard,
-  loadSettingsForBoard,
-  loadTasksForBoard,
   renameBoard,
   _flushPersistsForTesting,
   _resetStorageForTesting,
+  _loadStoredBoardForTesting
 } from '../../../src/modules/storage.js';
 import {
   MAX_DRIFT_MS,
@@ -376,7 +373,7 @@ describe('catch-up pull', () => {
       put.mockRestore();
     }
 
-    expect(loadTasksForBoard('board-1')).toHaveLength(20);
+    expect(_loadStoredBoardForTesting('board-1').tasks).toHaveLength(20);
     expect(Object.fromEntries(writes)).toEqual({
       'board-1:tasks': 1,
       'board-1:columns': 1,
@@ -478,8 +475,8 @@ describe('catch-up pull', () => {
     await catchUp();
     await edited;
 
-    expect(loadTasksForBoard('board-1')).toHaveLength(10);
-    expect(loadTasksForBoard('board-1').find(t => t.id === 'task-0').title).toBe('Edited meanwhile');
+    expect(_loadStoredBoardForTesting('board-1').tasks).toHaveLength(10);
+    expect(_loadStoredBoardForTesting('board-1').tasks.find(t => t.id === 'task-0').title).toBe('Edited meanwhile');
   });
 
   it('a local command issued during a catch-up builds on the events the batch already took in', async () => {
@@ -510,7 +507,7 @@ describe('catch-up pull', () => {
     expect(moved.board_id).toBe('board-1');
     expect(moved.payload.order).toHaveLength(10);
     expect(moved.payload.order.find(entry => entry.id === 'task-9').order).toBe(1);
-    expect(loadTasksForBoard('board-1').find(t => t.id === 'task-9').order).toBe(1);
+    expect(_loadStoredBoardForTesting('board-1').tasks.find(t => t.id === 'task-9').order).toBe(1);
   });
 
   it('a board deleted during a catch-up stays deleted when the batch ends', async () => {
@@ -537,7 +534,7 @@ describe('catch-up pull', () => {
 
     expect(listBoards().map(b => b.id)).toContain(keep);
     expect(listBoards().map(b => b.id)).not.toContain('board-1');
-    expect(loadTasksForBoard('board-1')).toEqual([]);
+    expect(_loadStoredBoardForTesting('board-1').tasks).toEqual([]);
     const db = await openStore();
     expect(await db.get('read_model', 'board-1:tasks')).toBeUndefined();
   });
@@ -564,10 +561,10 @@ describe('catch-up pull', () => {
     await catchUp();
     const before = {
       boards: listBoards(),
-      tasks: loadTasksForBoard(board),
-      columns: loadColumnsForBoard(board),
-      labels: loadLabelsForBoard(board),
-      settings: loadSettingsForBoard(board),
+      tasks: _loadStoredBoardForTesting(board).tasks,
+      columns: _loadStoredBoardForTesting(board).columns,
+      labels: _loadStoredBoardForTesting(board).labels,
+      settings: _loadStoredBoardForTesting(board).settings,
     };
 
     _resetStorageForTesting();
@@ -575,17 +572,17 @@ describe('catch-up pull', () => {
 
     expect({
       boards: listBoards(),
-      tasks: loadTasksForBoard(board),
-      columns: loadColumnsForBoard(board),
-      labels: loadLabelsForBoard(board),
-      settings: loadSettingsForBoard(board),
+      tasks: _loadStoredBoardForTesting(board).tasks,
+      columns: _loadStoredBoardForTesting(board).columns,
+      labels: _loadStoredBoardForTesting(board).labels,
+      settings: _loadStoredBoardForTesting(board).settings,
     }).toEqual(before);
     expect(before.tasks.map(t => t.title)).toEqual(['Kept']);
     const db = await openStore();
     expect((await db.get('read_model', `${board}:appliedEventIds`)).sort()).toEqual(pulled.map(r => r.local_id).sort());
     // The tombstone survived the reload: a re-created deleted task stays deleted.
     await applyRemoteEvent({ ...record({ local_id: 'again', type: 'task.created', board, h: hlc(9), payload: { task: { title: 'Gone', column: doing } } }), entity_id: gone });
-    expect(loadTasksForBoard(board).map(t => t.title)).toEqual(['Kept']);
+    expect(_loadStoredBoardForTesting(board).tasks.map(t => t.title)).toEqual(['Kept']);
   });
 
   it('advances the catch-up watermark only after the board read model is stored', async () => {

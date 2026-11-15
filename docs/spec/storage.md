@@ -58,8 +58,12 @@ Values are stored as native JavaScript objects (structured clone), not JSON stri
 - Board data is namespaced by board id
 - Board, task, column, and label model `id` values are UUIDs
 - The permanent Done column is identified by `role: "done"`, not by a fixed column id
-- Export operates on the active board unless the board-management UI exports a selected board
-  (uses `loadTasksForBoard(id)`, `loadColumnsForBoard(id)`, etc.)
+- One board read, `loadBoard(id)`, returns a board's normalised tasks, columns (always including the
+  Done column, a view-only one if the board has none stored yet), labels and settings, or `null` when no
+  listed board has that id. `loadTasks()`, `loadColumns()`, `loadLabels()` and `loadSettings()` are the
+  same read for the active board, so the board, export, reports, the calendar and the event-log backfill
+  all see the same data (#333)
+- Export reads the chosen board through `loadBoard(id)`, so it writes normalised tasks
 - Import creates a new board from JSON and switches to it
 
 ## Migration and Backward Compatibility
@@ -77,7 +81,7 @@ After migration, localStorage is cleared of all Kanvana keys. On every boot the 
 
 - Persisted-shape changes must keep import/export round-trippable and preserve legacy normalization
 - Legacy model ids from localStorage, IDB, templates, or imports are normalized to UUIDs, and references are rewritten during load/import
-- `loadTasks()` normalises legacy task fields (priority, done date, column history, relationships, subtasks) on every read and never writes the result back. A fix-up that must persist goes through an event or a one-off migration (ADR-0005, #330)
+- The board read normalises legacy task fields (priority, done date, column history, relationships, subtasks) on every read and never writes the result back. A board with no stored settings reads as the defaults without storing them. A fix-up that must persist goes through an event or a one-off migration (ADR-0005, #330, #333)
 - Board changes such as `renameBoard()` reach the board list only through their event (`board.updated`), which the reducer folds
 - All code must go through storage helpers (`loadTasks`, `createBoard`, etc.) and domain events — never read IDB directly
 
