@@ -15,7 +15,6 @@ import {
   listBoards,
   loadSettingsForBoard,
   saveSettings,
-  saveTasks,
   setActiveBoardId
 } from '../../../src/modules/storage.js';
 import { EVENT_ORIGIN, ingestEvent, ingestStoredEvents } from '../../../src/modules/event-sourcing/ingest.js';
@@ -86,19 +85,18 @@ describe('board scope', () => {
 });
 
 describe('rebuild', () => {
-  // Import writes the read model without an event yet (the rest of ADR-0005,
-  // a follow-up); a rebuild must not erase what it wrote.
-  test('keeps a task that no event knows of, such as an imported one', async () => {
-    const imported = { id: '9c8b7a6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d', title: 'Imported', column: todoColumn };
-    setActiveBoardId(boardId);
-    saveTasks([...loadTasksForBoard(boardId), imported]);
+  // Demo tasks are never emitted (#263); a rebuild must not erase them.
+  test('keeps a task that no event knows of, such as a demo task', async () => {
+    boardId = listBoards()[0].id;
+    todoColumn = loadColumnsForBoard(boardId)[0].id;
+    const demoTitle = loadTasksForBoard(boardId)[0].title;
     const base = Date.now() + 1_000;
     await ingestRemote(boardEvent('task.created', { id: 'e-create', wallTime: base, payload: { task: { title: 'T0', column: todoColumn } } }));
     await ingestRemote(boardEvent('task.updated', { id: 'e-2', wallTime: base + 2, payload: { fields: { title: 'T2' } } }));
     await ingestRemote(boardEvent('task.updated', { id: 'e-1', wallTime: base + 1, payload: { fields: { title: 'T1' } } }));
 
     const titles = loadTasksForBoard(boardId).map((t) => t.title);
-    expect(titles).toContain('Imported');
+    expect(titles).toContain(demoTitle);
     expect(titles).toContain('T2');
   });
 

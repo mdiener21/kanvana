@@ -16,7 +16,7 @@ const loggedDrops = new Set();
 
 const STORAGE_SIDE = [
   'load', 'startProjecting', 'reset', 'addBoard', 'removeBoard', 'boards', 'board', 'globalSettings', 'timeTracking',
-  'cachedTasks', 'cacheTasks', 'setBoardSlice', 'setGlobalSettings', 'writeBoardSettings', 'refreshBoardSettings'
+  'cachedTasks', 'cacheTasks', 'setBoardSlice', 'writeBoardSettings', 'refreshBoardSettings'
 ];
 
 // Storage gets its reads and the writes no event carries, always on ingest's Read Model, so the two never differ.

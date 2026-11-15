@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Internal: the legacy localStorage → IndexedDB migration and the IDB state normalisation moved out of `storage.js` into `boot-migration.js`, with direct tests; the default board and demo seed data moved to the Read Model (`event-sourcing/read-model-seed.js`). No change in behaviour (#334).
 - Storage: opening a board no longer writes its tasks back. Legacy task data (priority, done date, column history, relationships, subtasks) is normalised each time it is read. Renaming a board updates the board list only through its `board.updated` event (#330).
+- Tests seed boards and global settings through domain events (`tests/fixtures/seed-read-model.js`), and storage no longer exports `saveTasks`, `saveColumns`, `saveLabels` or `saveGlobalSettings`, which wrote the read model without an event (#329).
 
 ## [3.4.22] - 2026-11-15
 

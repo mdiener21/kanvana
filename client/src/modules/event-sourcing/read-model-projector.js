@@ -781,11 +781,6 @@ export function createReadModelProjector(ctx) {
     state[slice][boardId] = value;
   }
 
-  function setGlobalSettings(value) {
-    state.globalSettings = value;
-    schedulePersist(globalSettingsKey, value);
-  }
-
   // ── Board settings no event carries (swimlanes, display toggles); a rebuild keeps them (see fold).
 
   function writeBoardSettings(boardId, settings) {
@@ -817,7 +812,7 @@ export function createReadModelProjector(ctx) {
     // Storage's side: loading, reads, and the writes no event carries.
     load, startProjecting, reset, addBoard, removeBoard,
     boards, board, globalSettings: loadGlobalSettings, timeTracking, cachedTasks, cacheTasks,
-    setBoardSlice, setGlobalSettings, writeBoardSettings, refreshBoardSettings,
+    setBoardSlice, writeBoardSettings, refreshBoardSettings,
     // Ingest's side: applying admitted events, and the reads admission needs.
     apply, applyRemoteBatch, applyStored, commitTogether, adoptSnapshot, rebuildAfterPeerAdoption, missedEvents, isProjecting
   };

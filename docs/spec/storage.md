@@ -79,7 +79,7 @@ After migration, localStorage is cleared of all Kanvana keys. On every boot the 
 - Legacy model ids from localStorage, IDB, templates, or imports are normalized to UUIDs, and references are rewritten during load/import
 - `loadTasks()` normalises legacy task fields (priority, done date, column history, relationships, subtasks) on every read and never writes the result back. A fix-up that must persist goes through an event or a one-off migration (ADR-0005, #330)
 - Board changes such as `renameBoard()` reach the board list only through their event (`board.updated`), which the reducer folds
-- All code must go through storage helpers (`loadTasks`, `saveTasks`, etc.) — never read IDB directly
+- All code must go through storage helpers (`loadTasks`, `createBoard`, etc.) and domain events — never read IDB directly
 
 ## Settings Persistence
 
@@ -98,7 +98,7 @@ beyond the old localStorage limit.
 
 - **`idb-store.js`** — IDB plumbing: singleton connection (`openStore()`), key helpers (`keyFor()`, `getBoardEventsKey()`), fire-and-forget write (`schedulePersist()`), fire-and-forget delete (`scheduleDelete()`). Changes when: storage backend or key scheme changes.
 - **`board-serializer.js`** — board import ID-remapping: `normalizeBoardModelIds()` and its private helpers. Changes when: import format or cross-entity ID-remapping logic changes. Import from here directly when you need `normalizeBoardModelIds`.
-- **`storage.js`** — in-memory state, all CRUD helpers (`loadTasks`, `saveTasks`, etc.), `initStorage()`, board lifecycle. Changes when: data shapes or board lifecycle changes.
+- **`storage.js`** — in-memory state, read helpers and board lifecycle (`loadTasks`, `createBoard`, etc.), `initStorage()`. Changes when: data shapes or board lifecycle changes.
 - **`boot-migration.js`** — the boot migration of legacy persisted state (localStorage → IDB, IDB state normalisation). Changes when: an old persisted shape needs upgrading.
 - **`event-sourcing/read-model-seed.js`** — the default board, demo tasks and new-board defaults. Changes when: seed data changes.
 

@@ -1,7 +1,8 @@
 import { beforeEach, expect, test } from 'vitest';
 import { deleteDB } from 'idb';
 import { EVENT_EMITTED, on, off } from '../../../src/modules/events.js';
-import { createBoard, initStorage, saveColumns, saveTasks, _flushPersistsForTesting, _resetStorageForTesting } from '../../../src/modules/storage.js';
+import { createBoard, initStorage, _flushPersistsForTesting, _resetStorageForTesting } from '../../../src/modules/storage.js';
+import { seedBoard } from '../../fixtures/seed-read-model.js';
 import { addColumn } from '../../../src/modules/columns.js';
 import { addLabel, deleteLabel } from '../../../src/modules/labels.js';
 import { deleteTask, updateTask } from '../../../src/modules/tasks.js';
@@ -31,7 +32,7 @@ async function collectEvents(action) {
 }
 
 test('updateTask emits one task.updated event with HLC entity id and minimal fields', async () => {
-  saveTasks([
+  seedBoard({ tasks: [
     {
       id: 'task-a',
       title: 'Before',
@@ -44,7 +45,7 @@ test('updateTask emits one task.updated event with HLC entity id and minimal fie
       subTasks: [],
       columnHistory: []
     }
-  ]);
+  ] });
 
   const events = await collectEvents(() => {
     updateTask('task-a', 'After', '', 'none', '', 'todo', []);
@@ -77,7 +78,7 @@ test('addColumn emits column.created with the created column payload', async () 
 });
 
 test('label mutations emit label entity and task membership events', async () => {
-  saveTasks([{ id: 'task-a', title: 'Task', column: 'todo', labels: [] }]);
+  seedBoard({ tasks: [{ id: 'task-a', title: 'Task', column: 'todo', labels: [] }] });
 
   const addEvents = await collectEvents(() => {
     addLabel('Bug', '#ff0000', 'Type');
@@ -96,14 +97,14 @@ test('label mutations emit label entity and task membership events', async () =>
 });
 
 test('updateTask emits collection-op and move events for non-scalar changes', async () => {
-  saveColumns([
+  seedBoard({ columns: [
     { id: 'todo', name: 'To Do', color: '#3b82f6', order: 1 },
     { id: 'doing', name: 'Doing', color: '#f59e0b', order: 2 }
-  ]);
-  saveTasks([
+  ] });
+  seedBoard({ tasks: [
     { id: 'task-a', title: 'Task', column: 'todo', labels: [], relationships: [], subTasks: [], columnHistory: [] },
     { id: 'task-b', title: 'Other', column: 'todo', labels: [], relationships: [], subTasks: [], columnHistory: [] }
-  ]);
+  ] });
 
   const events = await collectEvents(() => {
     updateTask('task-a', 'Task', '', 'none', '', 'doing', ['label-a'], [{ type: 'related', targetTaskId: 'task-b' }], [
@@ -126,7 +127,7 @@ test('updateTask emits collection-op and move events for non-scalar changes', as
 });
 
 test('deleteTask emits task.deleted', async () => {
-  saveTasks([{ id: 'task-a', title: 'Task', column: 'todo', labels: [] }]);
+  seedBoard({ tasks: [{ id: 'task-a', title: 'Task', column: 'todo', labels: [] }] });
 
   const events = await collectEvents(() => {
     deleteTask('task-a');

@@ -10,12 +10,11 @@ import {
   initStorage,
   loadSettings,
   loadTasks,
-  saveColumns,
   saveSettings,
-  saveTasks,
   _flushPersistsForTesting,
   _resetStorageForTesting
 } from '../../../src/modules/storage.js';
+import { seedBoard } from '../../fixtures/seed-read-model.js';
 import { commitTogether, flushDomainEvents, scheduleDomainEvent } from '../../../src/modules/event-sourcing/emitter.js';
 import { applyRemoteEvent } from '../../../src/modules/event-sourcing/realtime.js';
 import { EVENTS_STORE, KV_STORE, READ_MODEL_STORE, keyFor, openStore } from '../../../src/modules/idb-store.js';
@@ -89,8 +88,7 @@ beforeEach(async () => {
   await deleteDB('kanvana-db');
   await initStorage();
   createBoard('Scope');
-  saveColumns(COLUMNS.map((column) => ({ ...column })));
-  saveTasks([]);
+  seedBoard({ columns: COLUMNS.map((column) => ({ ...column })), tasks: [] });
   [task('a', 'todo', 1), task('other', 'todo', 2), task('b', 'doing', 1)].forEach(seedTask);
   await flushDomainEvents();
   await _flushPersistsForTesting();
@@ -406,7 +404,8 @@ describe('a drop', () => {
   });
 
   test('into a collapsed column is one reconcile for its two moves', async () => {
-    saveColumns(COLUMNS.map((column) => ({ ...column, collapsed: column.id === 'doing' })));
+    seedBoard({ columns: COLUMNS.map((column) => ({ ...column, collapsed: column.id === 'doing' })) });
+    emitted.length = 0;
     renderBoard();
     const to = document.querySelector('.task-column[data-column="doing"] .tasks');
     await expectOneReconcileInsideTheWindow(() => drop('a', to));
