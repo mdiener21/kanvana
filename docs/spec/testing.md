@@ -65,12 +65,16 @@ Storage tests are split across two files:
 - `_resetStorageForTesting()` calls `_db.close()` before nulling `_db` so `deleteDB()` is never blocked by an open connection.
 - `_flushPersistsForTesting()` awaits `Promise.all([..._pendingPersists])` before cross-session assertions; avoids timing races from fire-and-forget IDB writes.
 
+### Seeding the Read Model
+
+Tests seed boards through domain events, the path production uses (ADR-0005): `seedBoard({ columns, labels, tasks }, { boardId })` and `seedGlobalSettings(fields)` from `tests/fixtures/seed-read-model.js`. Each slice given replaces that slice on the board (active board by default); events cannot reorder known items, so `seedBoard` throws when asked to and a test that needs it seeds a new board. Storage has no `save*` writers for tasks, columns, labels or global settings.
+
 ### Cross-session roundtrip pattern
 
 ```js
 await initStorage();
 ensureBoardsInitialized();
-saveTasks([{ id: 't1', title: 'Persisted task', ... }]);
+seedBoard({ tasks: [{ id: 't1', title: 'Persisted task', ... }] });
 await _flushPersistsForTesting();      // wait for IDB writes to settle
 const boardId = getActiveBoardId();
 _resetStorageForTesting();             // drop in-memory state; IDB intact

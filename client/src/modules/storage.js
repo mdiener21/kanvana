@@ -1,5 +1,5 @@
 import { generateUUID, safeParseArray, safeParseObject } from './utils.js';
-import { normalizePriority as sharedNormalizePriority, isHexColor, normalizeCountdownThreshold, defaultColumnColor, normalizeStringKeys, normalizeRelationships, normalizeSubTasks, normalizeGlobalSettings } from './normalize.js';
+import { normalizePriority as sharedNormalizePriority, isHexColor, normalizeCountdownThreshold, defaultColumnColor, normalizeStringKeys, normalizeRelationships, normalizeSubTasks } from './normalize.js';
 import { DONE_COLUMN_ID, DONE_COLUMN_ROLE, isDoneColumn } from './constants.js';
 import { openStore, isDataCurrent, KV_STORE, READ_MODEL_STORE, EVENTS_STORE, SNAPSHOTS_STORE, isFirstPullPending, schedulePersist, scheduleDelete, scheduleReadModelPersist, scheduleReadModelDelete, keyFor, readModelKeyFor, _flushPersistsForTesting as _flushIdbPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
 // Re-export IDB helpers that tests import from this module for backward compatibility.
@@ -713,13 +713,6 @@ export function loadColumns() {
   return ensureDoneColumn(defaultColumns().map(normalizeColumn), boardId);
 }
 
-export function saveColumns(columns) {
-  ensureBoardsInitialized();
-  const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
-  readModel.setBoardSlice(boardId, 'columns', columns);
-  scheduleReadModelPersist(boardId, 'columns', columns);
-}
-
 // ── Tasks ──────────────────────────────────────────────────────────────────────
 
 function normalizePriority(value) {
@@ -836,17 +829,6 @@ export function loadTasks() {
   return defaults;
 }
 
-export function saveTasks(tasks) {
-  ensureBoardsInitialized();
-  const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
-  const normalized = (Array.isArray(tasks) ? tasks : []).map((task) => ({
-    ...task
-  }));
-  readModel.setBoardSlice(boardId, 'tasks', normalized);
-  readModel.cacheTasks(boardId, normalized);
-  scheduleReadModelPersist(boardId, 'tasks', normalized);
-}
-
 // ── Labels ─────────────────────────────────────────────────────────────────────
 
 export function loadLabels() {
@@ -862,13 +844,6 @@ export function loadLabels() {
       }));
   }
   return defaultLabels();
-}
-
-export function saveLabels(labels) {
-  ensureBoardsInitialized();
-  const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
-  readModel.setBoardSlice(boardId, 'labels', labels);
-  scheduleReadModelPersist(boardId, 'labels', labels);
 }
 
 // ── Settings ───────────────────────────────────────────────────────────────────
@@ -956,11 +931,6 @@ export function loadGlobalSettings() {
 
 export function loadTimeTracking() {
   return readModel.timeTracking();
-}
-
-export function saveGlobalSettings(settings) {
-  const normalized = normalizeGlobalSettings(settings);
-  readModel.setGlobalSettings(normalized);
 }
 
 // ── Cross-board read helpers

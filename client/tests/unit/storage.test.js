@@ -9,16 +9,13 @@ import {
   renameBoard,
   deleteBoard,
   loadColumns,
-  saveColumns,
   loadTasks,
-  saveTasks,
   loadLabels,
-  saveLabels,
   loadSettings,
   saveSettings,
-  loadGlobalSettings,
-  saveGlobalSettings
+  loadGlobalSettings
 } from '../../src/modules/storage.js';
+import { seedBoard, seedGlobalSettings } from '../fixtures/seed-read-model.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -137,19 +134,19 @@ test('loadColumns returns default columns on fresh board', () => {
 
 test('loadColumns ensures Done column exists', () => {
   createBoard('No Done');
-  saveColumns([{ id: 'todo', name: 'To Do', color: '#3b82f6', order: 1 }]);
+  seedBoard({ columns: [{ id: 'todo', name: 'To Do', color: '#3b82f6', order: 1 }] });
   const columns = loadColumns();
   const doneColumn = columns.find(c => c.role === 'done');
   expect(doneColumn?.id).toMatch(UUID_RE);
 });
 
-test('saveColumns + loadColumns roundtrip', () => {
+test('seeded columns load back in order', () => {
   createBoard('Roundtrip');
   const cols = [
     { id: 'a', name: 'A', color: '#111111', order: 1, collapsed: false },
     { id: 'done', name: 'Done', color: '#222222', order: 2, collapsed: false }
   ];
-  saveColumns(cols);
+  seedBoard({ columns: cols });
   const loaded = loadColumns();
   expect(loaded.length).toBe(2);
   expect(loaded[0].id).toBe('a');
@@ -157,9 +154,9 @@ test('saveColumns + loadColumns roundtrip', () => {
 
 test('loadTasks normalizes priority on load', () => {
   createBoard('Priority Test');
-  saveTasks([
+  seedBoard({ tasks: [
     { id: 't1', title: 'Test', priority: 'INVALID', column: 'todo' }
-  ]);
+  ] });
   const tasks = loadTasks();
   const task = tasks.find(t => t.id === 't1');
   expect(task.priority).toBe('none');
@@ -167,9 +164,9 @@ test('loadTasks normalizes priority on load', () => {
 
 test('loadTasks adds doneDate to tasks in Done column that lack it', () => {
   createBoard('Done Date Test');
-  saveTasks([
+  seedBoard({ tasks: [
     { id: 't1', title: 'Done task', column: 'done', priority: 'none', changeDate: '2024-01-01T00:00:00Z' }
-  ]);
+  ] });
   const tasks = loadTasks();
   const task = tasks.find(t => t.id === 't1');
   expect(task.doneDate).toBeTruthy();
@@ -177,20 +174,20 @@ test('loadTasks adds doneDate to tasks in Done column that lack it', () => {
 
 test('loadTasks removes doneDate from tasks not in Done column', () => {
   createBoard('Not Done Test');
-  saveTasks([
+  seedBoard({ tasks: [
     { id: 't1', title: 'Active task', column: 'todo', priority: 'none', doneDate: '2024-01-01T00:00:00Z' }
-  ]);
+  ] });
   const tasks = loadTasks();
   const task = tasks.find(t => t.id === 't1');
   expect(task.doneDate).toBeUndefined();
 });
 
-test('saveTasks + loadTasks roundtrip', () => {
+test('seeded tasks load back', () => {
   createBoard('Task Roundtrip');
   const tasks = [
     { id: 't1', title: 'Task 1', column: 'todo', priority: 'high', order: 1 }
   ];
-  saveTasks(tasks);
+  seedBoard({ tasks });
   const loaded = loadTasks();
   expect(loaded.length).toBe(1);
   expect(loaded[0].title).toBe('Task 1');
@@ -198,9 +195,9 @@ test('saveTasks + loadTasks roundtrip', () => {
 
 test('loadLabels adds empty group to labels missing it', () => {
   createBoard('Labels Test');
-  saveLabels([
+  seedBoard({ labels: [
     { id: 'l1', name: 'Bug', color: '#ff0000' }
-  ]);
+  ] });
   const labels = loadLabels();
   const label = labels.find(l => l.id === 'l1');
   expect(label.group).toBe('');
@@ -233,20 +230,20 @@ test('loadGlobalSettings returns defaults on first run', () => {
   expect(loadGlobalSettings()).toEqual({});
 });
 
-test('saveGlobalSettings drops removed settings', () => {
-  saveGlobalSettings({ softDeleteEnabled: true });
+test('loadGlobalSettings drops removed settings', () => {
+  seedGlobalSettings({ softDeleteEnabled: true });
   expect(loadGlobalSettings()).toEqual({});
 });
 
-test('saveGlobalSettings keeps Time Tracking settings', () => {
-  saveGlobalSettings({ softDeleteEnabled: true, timeTracking: { dateFormat: 'YYYY-MM-DD' } });
+test('loadGlobalSettings keeps Time Tracking settings', () => {
+  seedGlobalSettings({ softDeleteEnabled: true, timeTracking: { dateFormat: 'YYYY-MM-DD' } });
   expect(loadGlobalSettings()).toEqual({ timeTracking: { dateFormat: 'YYYY-MM-DD' } });
 });
 
 test('global settings and board settings are isolated', () => {
   createBoard('Settings Isolation');
 
-  saveGlobalSettings({ softDeleteEnabled: true });
+  seedGlobalSettings({ softDeleteEnabled: true });
   saveSettings({ swimLanesEnabled: true, swimLaneGroupBy: 'priority' });
 
   expect(loadGlobalSettings()).toEqual({});

@@ -18,9 +18,6 @@ vi.mock('../../src/modules/storage.js', () => ({
   getActiveBoardName: vi.fn(
     () => boardsState.list.find((b) => b.id === boardsState.activeId)?.name || ''
   ),
-  saveColumns: vi.fn(),
-  saveTasks: vi.fn(),
-  saveLabels: vi.fn(),
   loadSettings: vi.fn(() => ({})),
   saveSettings: vi.fn(),
 }));

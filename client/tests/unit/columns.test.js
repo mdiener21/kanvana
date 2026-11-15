@@ -1,7 +1,8 @@
 import { describe, test, expect, beforeEach } from 'vitest';
 import { resetLocalStorage } from './setup.js';
-import { createBoard, loadColumns, saveColumns, loadTasks, saveTasks } from '../../src/modules/storage.js';
+import { createBoard, loadColumns, loadTasks } from '../../src/modules/storage.js';
 import { addColumn, toggleColumnCollapsed, updateColumn, deleteColumn, updateColumnPositions } from '../../src/modules/columns.js';
+import { seedBoard } from '../fixtures/seed-read-model.js';
 import { byColumnOrder, byOrder } from '../../src/modules/utils.js';
 import { applyEvents, createProjectionState } from '../../src/modules/reducer.js';
 
@@ -36,7 +37,7 @@ test('addColumn places new columns before Done on a default board, whose columns
 test('addColumn places a new column directly before Done when Done is not last', () => {
   addColumn('Review', '#ff0000');
   const orderByName = { Review: 1, Done: 2, 'To Do': 3, 'In Progress': 4 };
-  saveColumns(loadColumns().map((c) => ({ ...c, order: orderByName[c.name] })));
+  seedBoard({ columns: loadColumns().map((c) => ({ ...c, order: orderByName[c.name] })) });
   addColumn('QA', '#ff0000');
   expect(boardOrder()).toEqual(['Review', 'QA', 'Done', 'To Do', 'In Progress']);
 });
@@ -161,10 +162,10 @@ test('deleteColumn returns false for missing column', () => {
 test('deleteColumn deletes column and its tasks', () => {
   addColumn('Temp', '#ff0000');
   const tempCol = loadColumns().find(c => c.name === 'Temp');
-  saveTasks([
+  seedBoard({ tasks: [
     { id: 't1', title: 'In temp', column: tempCol.id, priority: 'none' },
     { id: 't2', title: 'In todo', column: 'todo', priority: 'none' }
-  ]);
+  ] });
 
   const result = deleteColumn(tempCol.id);
   expect(result).toBe(true);
@@ -191,7 +192,7 @@ test('deleteColumn hides the column from loadColumns', () => {
 test('deleteColumn deletes tasks in the column', () => {
   addColumn('Sprint 1', '#fff');
   const [col] = loadColumns().filter(c => c.id !== 'done');
-  saveTasks([{ id: 't1', title: 'Task', column: col.id, order: 1, priority: 'none', labels: [] }]);
+  seedBoard({ tasks: [{ id: 't1', title: 'Task', column: col.id, order: 1, priority: 'none', labels: [] }] });
 
   deleteColumn(col.id);
 
@@ -225,11 +226,11 @@ test('updateColumn persists a WIP limit change', () => {
 test('updateColumn accepts a limit below the current task count', () => {
   addColumn('Doing', '#ff0000', 10);
   const id = loadColumns().find(c => c.name === 'Doing').id;
-  saveTasks([
+  seedBoard({ tasks: [
     { id: 'a', title: 'a', column: id, order: 1 },
     { id: 'b', title: 'b', column: id, order: 2 },
     { id: 'c', title: 'c', column: id, order: 3 }
-  ]);
+  ] });
 
   updateColumn(id, 'Doing', '#ff0000', 1);
   expect(loadColumns().find(c => c.id === id).wipLimit).toBe(1);

@@ -1,12 +1,13 @@
 import { test, expect, beforeEach } from 'vitest';
 import { resetLocalStorage } from './setup.js';
-import { createBoard, loadTasks, saveColumns, saveLabels, saveSettings, saveTasks } from '../../src/modules/storage.js';
+import { createBoard, loadTasks, saveSettings } from '../../src/modules/storage.js';
+import { seedBoard } from '../fixtures/seed-read-model.js';
 import { addTask, updateTask, deleteTask, moveTaskToTopInColumn, updateTaskPositionsFromDrop } from '../../src/modules/tasks.js';
 
 beforeEach(() => {
   resetLocalStorage();
   createBoard('Test');
-  saveTasks([]);
+  seedBoard({ tasks: [] });
 });
 
 // ── addTask ─────────────────────────────────────────────────────────
@@ -118,9 +119,9 @@ test('updateTask removes doneDate when moving from Done column', () => {
 });
 
 test('updateTask seeds columnHistory if missing', () => {
-  saveTasks([
+  seedBoard({ tasks: [
     { id: 't1', title: 'Legacy', column: 'todo', priority: 'none', creationDate: '2024-01-01T00:00:00Z' }
-  ]);
+  ] });
   updateTask('t1', 'Legacy Updated', '', 'none', '', 'todo', []);
 
   const updated = loadTasks().find(t => t.id === 't1');

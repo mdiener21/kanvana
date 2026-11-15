@@ -4,14 +4,15 @@ import { EVENT_EMITTED, on, off } from '../../../src/modules/events.js';
 import { DONE_COLUMN_ID, DONE_COLUMN_ROLE } from '../../../src/modules/constants.js';
 import {
   createBoard,
+  getActiveBoardId,
   initStorage,
+  loadColumnsForBoard,
   loadTasks,
-  saveColumns,
   saveSettings,
-  saveTasks,
   _flushPersistsForTesting,
   _resetStorageForTesting
 } from '../../../src/modules/storage.js';
+import { seedBoard } from '../../fixtures/seed-read-model.js';
 import {
   addTask,
   moveTaskToTopInColumn,
@@ -37,14 +38,16 @@ beforeEach(async () => {
   await deleteDB(DB_NAME);
   await initStorage();
   createBoard('Moves');
-  saveColumns(COLUMNS.map((column) => ({ ...column })));
-  saveTasks([task('a', 'todo', 1), task('b', 'todo', 2), task('c', 'doing', 1)]);
+  seedBoard({ columns: COLUMNS.map((column) => ({ ...column })), tasks: [task('a', 'todo', 1), task('b', 'todo', 2), task('c', 'doing', 1)] });
   await _flushPersistsForTesting();
   document.body.innerHTML = '';
 });
 
+// On a new board with the same columns, so the tasks keep the order given (seedBoard cannot reorder known ones).
 async function seedColumns(idsByColumn) {
-  saveTasks(Object.entries(idsByColumn).flatMap(([column, ids]) => ids.map((id, index) => task(id, column, index + 1))));
+  const columns = loadColumnsForBoard(getActiveBoardId());
+  createBoard('Moves');
+  seedBoard({ columns, tasks: Object.entries(idsByColumn).flatMap(([column, ids]) => ids.map((id, index) => task(id, column, index + 1))) });
   await _flushPersistsForTesting();
 }
 
@@ -274,7 +277,7 @@ describe('a drop', () => {
   });
 
   test('into Done pins the card above the Done cards past the cut-off', async () => {
-    saveColumns([...COLUMNS, { id: DONE_COLUMN_ID, name: 'Done', color: '#16a34a', order: 4, role: DONE_COLUMN_ROLE }]);
+    seedBoard({ columns: [...COLUMNS, { id: DONE_COLUMN_ID, name: 'Done', color: '#16a34a', order: 4, role: DONE_COLUMN_ROLE }] });
     await seedColumns({ todo: ['a'], [DONE_COLUMN_ID]: ['shown', 'past1', 'past2'] });
     renderBoard({ todo: [], [DONE_COLUMN_ID]: ['shown', 'a'] });
 
@@ -288,8 +291,8 @@ describe('a drop', () => {
   });
 
   test('in swimlanes still applies the destination lane to the moved card', async () => {
-    saveSettings({ swimLanesEnabled: true, swimLaneGroupBy: 'priority' });
     await seedColumns({ todo: ['a'], doing: ['c'], parked: ['p1'] });
+    saveSettings({ swimLanesEnabled: true, swimLaneGroupBy: 'priority' });
     renderSwimlanes({ high: { todo: [], doing: ['a', 'c'], parked: ['p1'] } });
 
     const [event] = await movedEvents(() => dropCard('a', 'todo'));
@@ -302,7 +305,7 @@ describe('a drop', () => {
 });
 
 test('sortColumnTasks emits the sorted column with the column id as entity id', async () => {
-  saveTasks([task('a', 'todo', 1), task('b', 'todo', 2, { priority: 'urgent' }), task('c', 'doing', 1)]);
+  seedBoard({ tasks: [task('a', 'todo', 1), task('b', 'todo', 2, { priority: 'urgent' }), task('c', 'doing', 1)] });
   await _flushPersistsForTesting();
 
   const events = await movedEvents(() => sortColumnTasks('todo', 'priority'));

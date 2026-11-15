@@ -77,7 +77,7 @@ After migration, localStorage is cleared of all Kanvana keys.
 
 - Persisted-shape changes must keep import/export round-trippable and preserve legacy normalization
 - Legacy model ids from localStorage, IDB, templates, or imports are normalized to UUIDs, and references are rewritten during load/import
-- All code must go through storage helpers (`loadTasks`, `saveTasks`, etc.) — never read IDB directly
+- All code must go through storage helpers (`loadTasks`, `createBoard`, etc.) and domain events — never read IDB directly
 
 ## Settings Persistence
 
@@ -96,7 +96,7 @@ beyond the old localStorage limit.
 
 - **`idb-store.js`** — IDB plumbing: singleton connection (`openStore()`), key helpers (`keyFor()`, `getBoardEventsKey()`), fire-and-forget write (`schedulePersist()`), fire-and-forget delete (`scheduleDelete()`). Changes when: storage backend or key scheme changes.
 - **`board-serializer.js`** — board import ID-remapping: `normalizeBoardModelIds()` and its private helpers. Changes when: import format or cross-entity ID-remapping logic changes. Import from here directly when you need `normalizeBoardModelIds`.
-- **`storage.js`** — in-memory state, all CRUD helpers (`loadTasks`, `saveTasks`, etc.), `initStorage()`, migration, default data factories. Changes when: data shapes or board lifecycle changes.
+- **`storage.js`** — in-memory state, read helpers and board lifecycle (`loadTasks`, `createBoard`, etc.), `initStorage()`, migration, default data factories. Changes when: data shapes or board lifecycle changes.
 
 `storage.js` re-exports `getBoardEventsKey` and `_flushPersistsForTesting` from `idb-store.js` for backward compatibility with existing import sites.
 

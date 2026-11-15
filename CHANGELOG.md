@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Tests seed boards and global settings through domain events (`tests/fixtures/seed-read-model.js`), and storage no longer exports `saveTasks`, `saveColumns`, `saveLabels` or `saveGlobalSettings`, which wrote the read model without an event (#329).
+
 ## [3.4.22] - 2026-11-15
 
 ### Changed
