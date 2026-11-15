@@ -1,37 +1,20 @@
-import { generateUUID, safeParseArray, safeParseObject } from './utils.js';
+import { generateUUID } from './utils.js';
 import { normalizePriority as sharedNormalizePriority, isHexColor, normalizeCountdownThreshold, defaultColumnColor, normalizeStringKeys, normalizeRelationships, normalizeSubTasks, normalizeGlobalSettings } from './normalize.js';
 import { DONE_COLUMN_ID, DONE_COLUMN_ROLE, isDoneColumn } from './constants.js';
-import { openStore, isDataCurrent, KV_STORE, READ_MODEL_STORE, EVENTS_STORE, SNAPSHOTS_STORE, isFirstPullPending, schedulePersist, scheduleDelete, scheduleReadModelPersist, scheduleReadModelDelete, keyFor, readModelKeyFor, _flushPersistsForTesting as _flushIdbPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
-// Re-export IDB helpers that tests import from this module for backward compatibility.
-import { normalizeBoardModelIds } from './board-serializer.js';
+import { openStore, KV_STORE, EVENTS_STORE, SNAPSHOTS_STORE, isFirstPullPending, schedulePersist, scheduleDelete, scheduleReadModelPersist, scheduleReadModelDelete, _flushPersistsForTesting as _flushIdbPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
 import { initHlc } from './event-sourcing/hlc.js';
 import { _flushDomainEventsForTesting, scheduleDomainEvent } from './event-sourcing/emitter.js';
 import { checkAndScheduleSnapshot, _resetSnapshotSchedulerForTesting } from './event-sourcing/snapshot.js';
 import { createReadModel } from './event-sourcing/ingest.js';
-import { READ_MODEL_KEYS } from './event-sourcing/read-model-projector.js';
+import { STABLE_DEFAULT_BOARD_ID, defaultBoardData, defaultColumns, defaultLabels, defaultSettings, defaultTasks, stableDefaultBoardData } from './event-sourcing/read-model-seed.js';
+import { migrateLegacyState } from './boot-migration.js';
 import { backfillEventLog } from './event-sourcing/backfill.js';
 import { BOARD_SETTINGS_WRITTEN, DATA_CHANGED, emit } from './events.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-// The Read Model owns it; only the one-shot migrations below write it, before the Read Model loads.
-const BOARDS_KEY = READ_MODEL_KEYS.boards;
 const ACTIVE_BOARD_KEY = 'kanbanActiveBoardId';
-
-// The legacy localStorage key; it only shares its name with the Read Model's IDB key and need not follow it.
-const LEGACY_BOARDS_KEY = 'kanbanBoards';
-const LEGACY_COLUMNS_KEY = 'kanbanColumns';
-const LEGACY_TASKS_KEY = 'kanbanTasks';
-const LEGACY_LABELS_KEY = 'kanbanLabels';
-// Left behind by the removed whole-record LWW sync path (ADR-0004).
-const LEGACY_SYNC_KEYS = ['kanbanSyncMap', 'kanbanAutoSyncEnabled'];
-
 const DEFAULT_BOARD_ID = 'default';
-// Well-known stable id for the auto-seeded "Default Board". Every fresh device
-// mints the default board with THIS id (not a random UUID) so two devices on the
-// same account converge onto a single board instead of accruing duplicates.
-// Valid uuid-v4 shape so it passes existing id validation/UUID_RE checks.
-const STABLE_DEFAULT_BOARD_ID = '00000000-0000-4000-8000-000000000001';
 const ALLOWED_SWIMLANE_GROUP_BY = new Set(['label', 'label-group', 'priority']);
 
 // ── In-memory state ────────────────────────────────────────────────────────────
@@ -48,7 +31,6 @@ let defaultBoardDeferred = false;
 
 // Made once; only ingest projects into it (ADR-0005, #281).
 const readModel = createReadModel({
-  demoBoard: { id: STABLE_DEFAULT_BOARD_ID, tasks: stableDemoTasks },
   schedulePersist,
   scheduleDelete,
   scheduleReadModelPersist,
@@ -62,353 +44,18 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-async function normalizeIdbState(db) {
-  const rawBoards = safeParseArray(await db.get(KV_STORE, BOARDS_KEY));
-  if (!rawBoards) return;
-
-  const rawActiveId = await db.get(KV_STORE, ACTIVE_BOARD_KEY);
-  const nextBoards = [];
-  const activeIdMap = new Map();
-  const tx = db.transaction([KV_STORE, READ_MODEL_STORE], 'readwrite');
-  if (!await isDataCurrent(tx)) return;
-  const store = tx.objectStore(KV_STORE);
-  const readModelStore = tx.objectStore(READ_MODEL_STORE);
-
-  for (const rawBoard of rawBoards) {
-    if (!rawBoard || typeof rawBoard !== 'object') continue;
-    const oldBoardId = typeof rawBoard.id === 'string' ? rawBoard.id.trim() : '';
-    const normalized = normalizeBoardModelIds({
-      board: rawBoard,
-      tasks: safeParseArray(await readModelStore.get(readModelKeyFor(oldBoardId, 'tasks')) ?? await store.get(keyFor(oldBoardId, 'tasks'))) || [],
-      columns: safeParseArray(await readModelStore.get(readModelKeyFor(oldBoardId, 'columns')) ?? await store.get(keyFor(oldBoardId, 'columns'))) || legacyDefaultColumns(),
-      labels: safeParseArray(await readModelStore.get(readModelKeyFor(oldBoardId, 'labels')) ?? await store.get(keyFor(oldBoardId, 'labels'))) || [],
-      settings: safeParseObject(await store.get(keyFor(oldBoardId, 'settings'))) || defaultSettings()
-    });
-
-    const newBoardId = normalized.board.id;
-    activeIdMap.set(oldBoardId, newBoardId);
-    nextBoards.push(normalized.board);
-    await readModelStore.put(normalized.tasks, readModelKeyFor(newBoardId, 'tasks'));
-    await readModelStore.put(normalized.columns, readModelKeyFor(newBoardId, 'columns'));
-    await readModelStore.put(normalized.labels, readModelKeyFor(newBoardId, 'labels'));
-    await store.put(normalized.settings, keyFor(newBoardId, 'settings'));
-
-    if (oldBoardId && oldBoardId !== newBoardId) {
-      await readModelStore.delete(readModelKeyFor(oldBoardId, 'tasks'));
-      await readModelStore.delete(readModelKeyFor(oldBoardId, 'columns'));
-      await readModelStore.delete(readModelKeyFor(oldBoardId, 'labels'));
-      await store.delete(keyFor(oldBoardId, 'settings'));
-    }
-    if (oldBoardId) {
-      await store.delete(keyFor(oldBoardId, 'tasks'));
-      await store.delete(keyFor(oldBoardId, 'columns'));
-      await store.delete(keyFor(oldBoardId, 'labels'));
-    }
-  }
-
-  await store.put(nextBoards, BOARDS_KEY);
-  const nextActiveId = activeIdMap.get(rawActiveId) || nextBoards[0]?.id || null;
-  if (nextActiveId) await store.put(nextActiveId, ACTIVE_BOARD_KEY);
-  await tx.done;
-}
-
-// ── Default data ───────────────────────────────────────────────────────────────
-
-function defaultColumns() {
-  return [
-    { id: generateUUID(), name: 'To Do', color: '#3583ff' },
-    { id: generateUUID(), name: 'In Progress', color: '#f59e0b' },
-    { id: generateUUID(), name: 'Done', color: '#505050', role: DONE_COLUMN_ROLE }
-  ];
-}
-
-function legacyDefaultColumns() {
-  return [
-    { id: 'todo', name: 'To Do', color: '#3583ff' },
-    { id: 'inprogress', name: 'In Progress', color: '#f59e0b' },
-    { id: DONE_COLUMN_ID, name: 'Done', color: '#505050', role: DONE_COLUMN_ROLE }
-  ];
-}
-
-function defaultLabels() {
-  return [
-    { id: generateUUID(), name: 'Task', color: '#f59e0b', group: 'Activity' },
-    { id: generateUUID(), name: 'Meeting', color: '#ffd001', group: 'Activity' },
-    { id: generateUUID(), name: 'Email', color: '#d4a300', group: 'Activity' },
-    { id: generateUUID(), name: 'Idea', color: '#25b631', group: '' },
-    { id: generateUUID(), name: 'Goal', color: '#1b7cbd', group: '' },
-  ];
-}
-
-function columnIdByName(columns, name) {
-  return columns.find((column) => column.name === name)?.id || columns[0]?.id || '';
-}
-
-function labelIdByName(labels, name) {
-  return labels.find((label) => label.name === name)?.id || '';
-}
-
-function defaultTasks(columns = defaultColumns(), labels = defaultLabels(), created = nowIso()) {
-  const todoColumnId = columnIdByName(columns, 'To Do');
-  const inProgressColumnId = columnIdByName(columns, 'In Progress');
-  const doneColumnId = columns.find((column) => column.role === DONE_COLUMN_ROLE)?.id || columnIdByName(columns, 'Done');
-  const taskLabelId = labelIdByName(labels, 'Task');
-  const ideaLabelId = labelIdByName(labels, 'Idea');
-  return [
-    {
-      id: generateUUID(),
-      title: 'Find out where the Soul Stone is',
-      description: 'Identify current location and access requirements.',
-      priority: 'high',
-      dueDate: '',
-      column: todoColumnId,
-      labels: [],
-      creationDate: created,
-      changeDate: created,
-      columnHistory: [{ column: todoColumnId, at: created }]
-    },
-    {
-      id: generateUUID(),
-      title: 'Steal the Time Stone',
-      description: 'Coordinate with Dr. Strange and plan retrieval.',
-      priority: 'urgent',
-      dueDate: '',
-      column: inProgressColumnId,
-      labels: [],
-      creationDate: created,
-      changeDate: created,
-      columnHistory: [{ column: inProgressColumnId, at: created }]
-    },
-    {
-      id: generateUUID(),
-      title: 'Collect the Mind Stone',
-      description: 'Determine safe extraction approach.',
-      priority: 'medium',
-      dueDate: '',
-      column: inProgressColumnId,
-      labels: [],
-      creationDate: created,
-      changeDate: created,
-      columnHistory: [{ column: inProgressColumnId, at: created }]
-    },
-    {
-      id: generateUUID(),
-      title: 'Hide the Reality Stone',
-      description: 'Dig a deep hole to hide the stone from the Collector, avoid escalation.',
-      priority: 'low',
-      dueDate: '',
-      column: inProgressColumnId,
-      labels: taskLabelId ? [taskLabelId] : [],
-      creationDate: created,
-      changeDate: created,
-      columnHistory: [{ column: inProgressColumnId, at: created }]
-    },
-    {
-      id: generateUUID(),
-      title: 'Find a bag for stones',
-      description: 'A bag with good durability and space is needed to hold all the stones securely.',
-      priority: 'none',
-      dueDate: '',
-      column: inProgressColumnId,
-      labels: taskLabelId ? [taskLabelId] : [],
-      creationDate: created,
-      changeDate: created,
-      columnHistory: [{ column: inProgressColumnId, at: created }]
-    },
-    {
-      id: generateUUID(),
-      title: 'Collect the Power Stone',
-      description: 'Verify secure containment after retrieval.',
-      priority: 'high',
-      dueDate: '',
-      column: doneColumnId,
-      labels: ideaLabelId ? [ideaLabelId] : [],
-      creationDate: created,
-      changeDate: created,
-      doneDate: created,
-      columnHistory: [{ column: doneColumnId, at: created }]
-    },
-    {
-      id: generateUUID(),
-      title: 'Collect the Space Stone',
-      description: '',
-      priority: 'low',
-      dueDate: '',
-      column: doneColumnId,
-      labels: [],
-      creationDate: created,
-      changeDate: created,
-      doneDate: created,
-      columnHistory: [{ column: doneColumnId, at: created }]
-    }
-  ];
-}
-
-function defaultBoardData(includeTasks = true) {
-  const columns = defaultColumns();
-  const labels = defaultLabels();
-  return {
-    columns,
-    labels,
-    tasks: includeTasks ? defaultTasks(columns, labels) : [],
-    settings: defaultSettings()
-  };
-}
-
-// Deterministic column/label ids for the well-known default board, so two
-// devices seeding their own default board emit identical column.created /
-// label.created events that dedup on merge (see STABLE_DEFAULT_BOARD_ID).
-function stableDefaultColumns() {
-  return [
-    { id: '00000000-0000-4000-8000-000000000010', name: 'To Do', color: '#3583ff' },
-    { id: '00000000-0000-4000-8000-000000000011', name: 'In Progress', color: '#f59e0b' },
-    { id: '00000000-0000-4000-8000-000000000012', name: 'Done', color: '#505050', role: DONE_COLUMN_ROLE }
-  ];
-}
-
-function stableDefaultLabels() {
-  return [
-    { id: '00000000-0000-4000-8000-000000000020', name: 'Task', color: '#f59e0b', group: 'Activity' },
-    { id: '00000000-0000-4000-8000-000000000021', name: 'Meeting', color: '#ffd001', group: 'Activity' },
-    { id: '00000000-0000-4000-8000-000000000022', name: 'Email', color: '#d4a300', group: 'Activity' },
-    { id: '00000000-0000-4000-8000-000000000023', name: 'Idea', color: '#25b631', group: '' },
-    { id: '00000000-0000-4000-8000-000000000024', name: 'Goal', color: '#1b7cbd', group: '' }
-  ];
-}
-
-// Numbered in defaultTasks() order. Only the default board has these; every other caller keeps random ids.
-function stableDemoTasks(created = nowIso()) {
-  return defaultTasks(stableDefaultColumns(), stableDefaultLabels(), created)
-    .map((task, index) => ({ ...task, id: `00000000-0000-4000-8000-${String(30 + index).padStart(12, '0')}` }));
-}
-
-// Demo tasks are never emitted: each device seeds its own, with ids that let an event on one name them on all (#263).
-function stableDefaultBoardData() {
-  return {
-    columns: stableDefaultColumns(),
-    labels: stableDefaultLabels(),
-    tasks: stableDemoTasks(),
-    settings: defaultSettings()
-  };
-}
-
-function defaultSettings() {
-  const locale = (typeof navigator !== 'undefined' && typeof navigator.language === 'string')
-    ? navigator.language
-    : 'en-US';
-
-  return {
-    showPriority: true,
-    showDueDate: true,
-    showAge: true,
-    showChangeDate: false,
-    locale,
-    defaultPriority: 'none',
-    notificationDays: 3,
-    countdownUrgentThreshold: 3,
-    countdownWarningThreshold: 10,
-    swimLanesEnabled: false,
-    swimLaneGroupBy: 'label',
-    swimLaneLabelGroup: '',
-    swimLaneCollapsedKeys: [],
-    swimLaneCellCollapsedKeys: [],
-    swimLaneOrder: []
-  };
-}
-
-// ── Migration from localStorage ────────────────────────────────────────────────
-
-async function migrateFromLocalStorage(db) {
-  const lsBoards = safeParseArray(localStorage.getItem(LEGACY_BOARDS_KEY));
-  const lsActiveId = localStorage.getItem(ACTIVE_BOARD_KEY);
-
-  // Legacy single-board keys (pre multi-board)
-  const legacyColumns = safeParseArray(localStorage.getItem(LEGACY_COLUMNS_KEY));
-  const legacyTasks = safeParseArray(localStorage.getItem(LEGACY_TASKS_KEY));
-  const legacyLabels = safeParseArray(localStorage.getItem(LEGACY_LABELS_KEY));
-
-  let boards = lsBoards;
-
-  if (!boards && (legacyColumns || legacyTasks || legacyLabels)) {
-    // Oldest migration path: single-board localStorage → IDB default board
-    boards = [{ id: DEFAULT_BOARD_ID, name: 'Default Board', createdAt: nowIso() }];
-    const tx = db.transaction([KV_STORE, READ_MODEL_STORE], 'readwrite');
-    const store = tx.objectStore(KV_STORE);
-    const readModelStore = tx.objectStore(READ_MODEL_STORE);
-    await store.put(boards, BOARDS_KEY);
-    await store.put(DEFAULT_BOARD_ID, ACTIVE_BOARD_KEY);
-    await readModelStore.put(legacyColumns || legacyDefaultColumns(), readModelKeyFor(DEFAULT_BOARD_ID, 'columns'));
-    await readModelStore.put(legacyTasks || defaultTasks(), readModelKeyFor(DEFAULT_BOARD_ID, 'tasks'));
-    await readModelStore.put(legacyLabels || defaultLabels(), readModelKeyFor(DEFAULT_BOARD_ID, 'labels'));
-    await store.put(defaultSettings(), keyFor(DEFAULT_BOARD_ID, 'settings'));
-    await tx.done;
-
-    localStorage.removeItem(LEGACY_COLUMNS_KEY);
-    localStorage.removeItem(LEGACY_TASKS_KEY);
-    localStorage.removeItem(LEGACY_LABELS_KEY);
-    localStorage.removeItem(LEGACY_BOARDS_KEY);
-    localStorage.removeItem(ACTIVE_BOARD_KEY);
-    return;
-  }
-
-  if (!boards) return;
-
-  // Multi-board localStorage → IDB
-  const tx = db.transaction([KV_STORE, READ_MODEL_STORE], 'readwrite');
-  const store = tx.objectStore(KV_STORE);
-  const readModelStore = tx.objectStore(READ_MODEL_STORE);
-
-  await store.put(boards, BOARDS_KEY);
-  if (lsActiveId) await store.put(lsActiveId, ACTIVE_BOARD_KEY);
-
-  for (const board of boards) {
-    const tasks = safeParseArray(localStorage.getItem(keyFor(board.id, 'tasks'))) || [];
-    const columns = safeParseArray(localStorage.getItem(keyFor(board.id, 'columns'))) || [];
-    const labels = safeParseArray(localStorage.getItem(keyFor(board.id, 'labels'))) || [];
-    const settings = safeParseObject(localStorage.getItem(keyFor(board.id, 'settings')));
-
-    await readModelStore.put(tasks, readModelKeyFor(board.id, 'tasks'));
-    await readModelStore.put(columns, readModelKeyFor(board.id, 'columns'));
-    await readModelStore.put(labels, readModelKeyFor(board.id, 'labels'));
-    if (settings) await store.put(settings, keyFor(board.id, 'settings'));
-
-    localStorage.removeItem(keyFor(board.id, 'tasks'));
-    localStorage.removeItem(keyFor(board.id, 'columns'));
-    localStorage.removeItem(keyFor(board.id, 'labels'));
-    localStorage.removeItem(keyFor(board.id, 'settings'));
-  }
-
-  await tx.done;
-  localStorage.removeItem(LEGACY_BOARDS_KEY);
-  localStorage.removeItem(ACTIVE_BOARD_KEY);
-}
-
 // ── Public initialisation ──────────────────────────────────────────────────────
 
 /**
  * Must be called once at app startup (before any board renders).
- * Opens the IDB database, migrates from localStorage if needed, and loads all
+ * Opens the IDB database, runs the boot migration (boot-migration.js), and loads all
  * board data into the in-memory state so subsequent reads are synchronous.
  */
 export async function initStorage() {
   const db = await openStore();
   await initHlc();
 
-  // Migrate from localStorage if IDB is empty but localStorage has data.
-  const idbBoards = await db.get(KV_STORE, BOARDS_KEY);
-  const hasLocalStorageData = Boolean(
-    localStorage.getItem(LEGACY_BOARDS_KEY) ||
-    localStorage.getItem(LEGACY_COLUMNS_KEY) ||
-    localStorage.getItem(LEGACY_TASKS_KEY) ||
-    localStorage.getItem(LEGACY_LABELS_KEY)
-  );
-
-  if (!idbBoards && hasLocalStorageData) {
-    await migrateFromLocalStorage(db);
-  }
-
-  await normalizeIdbState(db);
-  for (const key of LEGACY_SYNC_KEYS) localStorage.removeItem(key);
+  await migrateLegacyState(db);
 
   // Load everything into in-memory state.
   await readModel.load();
