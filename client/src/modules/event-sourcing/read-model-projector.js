@@ -12,7 +12,7 @@ import { DATA_CHANGED, EVENT_EMITTED, EVENTS_STORED, emit } from '../events.js';
 import { safeParseArray, safeParseObject } from '../utils.js';
 import { normalizeGlobalSettings } from '../normalize.js';
 
-// The Read Model, sole writer of the IDB read model (ADR-0005); ingest.js makes the one instance and alone applies events to it.
+// The Read Model, sole writer of the IDB read model (ADR-0005); ingest.js makes each instance and alone applies events to it.
 // Ingest admits an event; everything after that is here: projecting, storing, holding, late-event rebuilds,
 // and the DATA_CHANGED and EVENTS_STORED notices, so only the Read Model decides when the board redraws.
 

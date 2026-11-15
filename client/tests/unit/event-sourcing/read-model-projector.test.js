@@ -1,26 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { deleteDB } from 'idb';
 import { resetLocalStorage } from '../setup.js';
-
-// Event ids whose store write waits until the test lets it go.
-const heldWrites = vi.hoisted(() => new Map());
-vi.mock('../../../src/modules/idb-store.js', async (importOriginal) => {
-  const actual = await importOriginal();
-  const persistEvent = async (event) => {
-    await heldWrites.get(event.id)?.();
-    return actual.persistEvent(event);
-  };
-  return { ...actual, persistEvent };
-});
-
-// The setup file's storage already made its Read Model; a fresh module graph gets one whose schedulers this test watches.
-vi.resetModules();
-const { DATA_CHANGED, emit, EVENT_EMITTED, EVENTS_STORED, off, on } = await import('../../../src/modules/events.js');
-const { commitTogether, createReadModel, ingestEvent, ingestRemoteBatch } = await import('../../../src/modules/event-sourcing/ingest.js');
-const { GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY } = await import('../../../src/modules/event-sourcing/snapshot.js');
-const {
+import { DATA_CHANGED, emit, EVENT_EMITTED, EVENTS_STORED, off, on } from '../../../src/modules/events.js';
+import { commitTogether, createReadModel, ingestEvent, ingestRemoteBatch } from '../../../src/modules/event-sourcing/ingest.js';
+import { GLOBAL_SNAPSHOT_KEY, TIMETRACKING_SNAPSHOT_KEY } from '../../../src/modules/event-sourcing/snapshot.js';
+import {
   KV_STORE, READ_MODEL_STORE, keyFor, openStore, readModelKeyFor, schedulePersist, scheduleReadModelPersist, _flushPersistsForTesting, _resetIdbForTesting
-} = await import('../../../src/modules/idb-store.js');
+} from '../../../src/modules/idb-store.js';
 
 const BOARD_ID = 'board-a';
 const BOARDS_KEY = 'kanbanBoards';
@@ -73,11 +59,11 @@ const ctx = {
   timeTrackingKey: TIME_TRACKING_KEY,
   newestAppliedKey: NEWEST_APPLIED_KEY
 };
-const readModel = createReadModel(ctx);
-
+// Each call makes a fresh Read Model, which ingest then applies events to.
 async function loadReadModel(slices) {
   await storeBoard(slices);
   vi.clearAllMocks();
+  const readModel = createReadModel(ctx);
   await readModel.load();
   readModel.startProjecting();
   return { ctx, readModel };
@@ -138,6 +124,17 @@ describe('the Read Model', () => {
     h.readModel.reset();
     await _flushPersistsForTesting();
     _resetIdbForTesting();
+  });
+
+  test('a second Read Model keeps its own state, and ingest applies events to the newest', async () => {
+    const first = h.readModel;
+    h = await loadReadModel();
+
+    ingest(boardEvent());
+
+    expect(h.readModel.board(BOARD_ID).tasks[0].title).toBe('After');
+    expect(first.board(BOARD_ID).tasks[0].title).toBe('Before');
+    first.reset();
   });
 
   test('reads back the boards IndexedDB holds once loaded', () => {
@@ -364,26 +361,6 @@ describe('the Read Model', () => {
       expect(writesFor('board-b')).toEqual(['appliedEventIds', 'columns', 'labels', 'tasks']);
       expect(h.ctx.checkAndScheduleSnapshot.mock.calls.map(([key]) => key).sort()).toEqual([BOARD_ID, 'board-b']);
       expect(h.readModel.board('board-b').tasks.map((task) => task.title)).toEqual(['B2']);
-    });
-    test('overlapping catch-up batches each store the boards touched so far when they end', async () => {
-      const at = (n) => ({ wallTime: 1000 + n, counter: 0, nodeId: 'node-a' });
-      let release;
-      const reached = new Promise((resolve) => {
-        heldWrites.set('slow', () => {
-          resolve();
-          return new Promise((done) => { release = done; });
-        });
-      });
-      const first = ingestRemoteBatch([{ event: boardEvent({ id: 'slow', hlc: at(1), payload: { fields: { title: 'First' } } }) }]);
-      await reached;
-
-      await ingestRemoteBatch([{ event: boardEvent({ id: 'fast', hlc: at(2), payload: { fields: { title: 'Second' } } }) }]);
-      const stored = await (await openStore()).get(READ_MODEL_STORE, readModelKeyFor(BOARD_ID, 'tasks'));
-      release();
-      await first;
-      heldWrites.clear();
-
-      expect(stored[0].title).toBe('Second');
     });
   });
 

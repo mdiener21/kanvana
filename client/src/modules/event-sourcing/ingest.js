@@ -11,7 +11,7 @@ import { ADMISSION, EVENT_ORIGIN, createReadModelProjector } from './read-model-
 
 export { EVENT_ORIGIN };
 
-// The one Read Model (ADR-0005). Storage gets its reads and the writes no event carries; only ingest applies events to it.
+// The Read Model ingest applies events to (ADR-0005): the one made last. storage.js makes one per tab.
 let readModel = null;
 const loggedDrops = new Set();
 
@@ -20,8 +20,9 @@ const STORAGE_SIDE = [
   'cachedTasks', 'cacheTasks', 'setBoards', 'setBoardSlice', 'setGlobalSettings', 'writeBoardSettings', 'refreshBoardSettings'
 ];
 
+// A fresh Read Model with its own state, which ingest applies events to from now on. Storage gets its reads and
+// the writes no event carries; a test can make another to start clean, without reloading the module graph.
 export function createReadModel(ctx) {
-  if (readModel) throw new Error('[Kanvana] The Read Model is already created');
   readModel = createReadModelProjector(ctx);
   return Object.fromEntries(STORAGE_SIDE.map((name) => [name, readModel[name]]));
 }
