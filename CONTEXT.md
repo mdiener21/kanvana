@@ -143,7 +143,9 @@ The storage layer is split into three modules:
 |---|---|
 | `idb-store.js` | IDB connection singleton, key helpers, fire-and-forget `schedulePersist()` / `scheduleReadModelPersist()` / `scheduleDelete()`, event helpers (`persistEvent`, `getUnsyncedEvents`, `markEventSynced`), and the Data Owner record (`getDataOwner`, `claimDataOwner`, `replaceLocalData`) |
 | `board-serializer.js` | Board import normalizer — remaps non-UUID IDs, coerces fields on import or IDB migration |
-| `storage.js` | All public CRUD functions. Imports from both above. Makes the tab's Read Model through `createReadModel(ctx)`, handing it its schedulers and the demo board (the Read Model owns its storage keys, `READ_MODEL_KEYS`, and the demo-task replay rules), and reads boards through its `board(id)` / `boards()` calls. |
+| `storage.js` | All public CRUD functions. Imports from both above. Makes the tab's Read Model through `createReadModel(ctx)`, handing it its schedulers (the Read Model owns its storage keys, `READ_MODEL_KEYS`, the demo-task replay rules and the seed data), and reads boards through its `board(id)` / `boards()` calls. `initStorage()` runs the boot migration before the Read Model loads. |
+| `boot-migration.js` | `migrateLegacyState(db)` — the boot migration (#334): legacy localStorage → IDB when IDB has no boards yet, then IDB state normalisation (legacy model ids to UUIDs, pre-read-model kv slices into the read-model store), and removal of the stale legacy-sync keys. Runs from `initStorage()` before the Read Model loads; a no-op on current state. |
+| `event-sourcing/read-model-seed.js` | The Read Model's seed data: the stable default board id, its columns, labels and demo tasks, and the defaults a new board starts from (`defaultColumns`, `defaultLabels`, `defaultSettings`, …). The projector's demo-task replay rules key off `STABLE_DEFAULT_BOARD_ID` and `stableDemoTasks`. |
 | `event-sourcing/read-model-projector.js` | `createReadModelProjector()` — the Read Model, extracted from `storage.js` ([#119](docs/adr/0005-reducer-sole-read-model-writer.md)). Owns the in-memory `state` and per-board task cache, loads them from IDB (`load()`), and answers reads (`board(id)` → tasks, columns, labels, settings). Private to `ingest.js` (#281): `createReadModel(ctx)` there makes the one per tab, which `storage.js` calls, and a second call throws; a test makes a fresh one after `_resetReadModelForTesting()`, or an independent one straight from `createReadModelProjector()` (#332). It hands `storage.js` only its reads and the writes no event carries, always on ingest's current Read Model, so the two never differ; ingest alone applies admitted events to it (#328) through `apply(event, { origin })`, `applyRemoteBatch(items, admit)`, `applyStored(events)`, `commitTogether(mutation)`, `adoptSnapshot()` and `rebuildAfterPeerAdoption()`, plus the `missedEvents()` and `isProjecting()` reads. Behind those it observes a remote event's HLC once it takes it, folds each event into `state` via the pure reducer (the sole writer), persists it, holds redraws and store notices during a batch or commit, and alone emits `DATA_CHANGED` and `EVENTS_STORED` for ingested events. It also owns late-event handling: classifying an event as applied / in-order / late, folding a late one onto the snapshot that covers it, adopting a snapshot, and the rebuild queue and merge. Until `startProjecting()`, and while there is no Read Model at all, ingested events are only persisted (boot-time backfill). |
 
 **Main `kv` keys:**
@@ -215,12 +217,9 @@ the global and time-tracking views once.
 | `initStorage()` | Async bootstrap — opens IDB, loads all state into memory |
 | `getActiveBoardId()` | Active board selector |
 | `ensureBoardsInitialized()` | Guard called before any board operation |
-| `loadTasksForBoard(id)` | Read task state for a board |
-| `loadColumnsForBoard(id)` | Read column state for a board |
-| `loadLabelsForBoard(id)` | Read label state for a board |
-| `loadSettingsForBoard(id)` | Read board-scoped settings |
+| `loadBoard(id)` | One normalised read of a board: tasks, columns (with Done), labels, settings; `null` if not listed |
+| `loadTasks()` / `loadColumns()` / `loadLabels()` / `loadSettings()` | The same read for the active board |
 | `loadGlobalSettings()` / `saveGlobalSettings()` | Read/write cross-board app settings |
-| `saveTasks()` / `saveTasksForBoard(id, tasks)` | Persist task array |
 | `listBoards()` | All board metadata |
 | `keyFor(boardId, kind)` | IDB key builder |
 
@@ -510,7 +509,7 @@ ingestEvent (event-sourcing/ingest.js) — one path, origin is a parameter; Inge
 
 | Boundary | Rule |
 |---|---|
-| Cross-board data | Use `loadTasksForBoard(id)` / `loadColumnsForBoard(id)` — never read or write another board's state |
+| Cross-board data | Read another board with `loadBoard(id)` — never read or write another board's state directly |
 | Rendering | Mutations emit a domain event; the reducer projects it and emits `DATA_CHANGED`, which `render.js` and page modules subscribe to. Feature modules do not call `renderBoard()` after a mutation |
 | Circular deps | Use `events.js` bus for render triggers; do not use `await import('./render.js')` outside of initialization |
 | Done column | Use `isDoneColumn(col)` from `constants.js` — checks both `role === 'done'` and legacy `id === 'done'` |

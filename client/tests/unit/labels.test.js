@@ -1,12 +1,13 @@
 import { test, expect, beforeEach } from 'vitest';
 import { resetLocalStorage } from './setup.js';
-import { createBoard, loadLabels, saveLabels, loadTasks, saveTasks } from '../../src/modules/storage.js';
+import { createBoard, loadLabels, loadTasks } from '../../src/modules/storage.js';
+import { seedBoard } from '../fixtures/seed-read-model.js';
 import { addLabel, updateLabel, deleteLabel } from '../../src/modules/labels.js';
 
 beforeEach(() => {
   resetLocalStorage();
   createBoard('Test');
-  saveLabels([]);
+  seedBoard({ labels: [] });
 });
 
 // ── addLabel ────────────────────────────────────────────────────────
@@ -103,9 +104,9 @@ test('deleteLabel removes label from labels list', () => {
 
 test('deleteLabel removes label ID from all tasks', () => {
   const { label } = addLabel('Bug', '#ff0000');
-  saveTasks([
+  seedBoard({ tasks: [
     { id: 't1', title: 'Task 1', column: 'todo', labels: [label.id, 'other-label'] }
-  ]);
+  ] });
   deleteLabel(label.id);
   const tasks = loadTasks();
   expect(tasks[0].labels.includes(label.id)).toBe(false);

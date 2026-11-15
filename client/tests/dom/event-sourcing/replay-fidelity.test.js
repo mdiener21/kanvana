@@ -9,13 +9,12 @@ import { EVENT_EMITTED, on, off } from '../../../src/modules/events.js';
 import {
   createBoard,
   initStorage,
-  saveColumns,
   saveSettings,
-  saveTasks,
   loadTasks,
   _flushPersistsForTesting,
   _resetStorageForTesting
 } from '../../../src/modules/storage.js';
+import { seedBoard } from '../../fixtures/seed-read-model.js';
 import { addTask, updateTask, updateTaskPositionsFromDrop } from '../../../src/modules/tasks.js';
 import { applyEvents, createProjectionState } from '../../../src/modules/reducer.js';
 import { DONE_COLUMN_ID, DONE_COLUMN_ROLE } from '../../../src/modules/constants.js';
@@ -70,7 +69,7 @@ test('updateTask relationship change replays the inverse on the target task', as
     { id: 'task-a', title: 'A', column: 'todo', labels: [], relationships: [], subTasks: [], columnHistory: [] },
     { id: 'task-b', title: 'B', column: 'todo', labels: [], relationships: [], subTasks: [], columnHistory: [] }
   ];
-  saveTasks(clone(seed));
+  seedBoard({ tasks: clone(seed) });
   await _flushPersistsForTesting();
 
   const events = await collectEvents(() => {
@@ -82,12 +81,12 @@ test('updateTask relationship change replays the inverse on the target task', as
 });
 
 test('addTask replays the sibling reorder in the column', async () => {
-  saveColumns(clone(COLUMNS));
+  seedBoard({ columns: clone(COLUMNS) });
   const seed = [
     { id: 'task-a', title: 'A', column: 'todo', order: 1, labels: [], relationships: [], subTasks: [], columnHistory: [] },
     { id: 'task-b', title: 'B', column: 'todo', order: 2, labels: [], relationships: [], subTasks: [], columnHistory: [] }
   ];
-  saveTasks(clone(seed));
+  seedBoard({ tasks: clone(seed) });
   await _flushPersistsForTesting();
 
   const events = await collectEvents(() => {
@@ -103,11 +102,11 @@ function donePresenceById(tasks) {
 }
 
 test('moving a task into and out of the done column replays its doneDate', async () => {
-  saveColumns(clone(COLUMNS));
+  seedBoard({ columns: clone(COLUMNS) });
   const seed = [
     { id: 'task-a', title: 'A', column: 'todo', order: 1, labels: [], relationships: [], subTasks: [], columnHistory: [] }
   ];
-  saveTasks(clone(seed));
+  seedBoard({ tasks: clone(seed) });
   await _flushPersistsForTesting();
 
   const toDone = await collectEvents(() => {
@@ -127,12 +126,12 @@ test('moving a task into and out of the done column replays its doneDate', async
 });
 
 test('swimlane drag across priority lanes replays the priority reassignment', async () => {
-  saveColumns(clone(COLUMNS));
+  seedBoard({ columns: clone(COLUMNS) });
   saveSettings({ swimLanesEnabled: true, swimLaneGroupBy: 'priority' });
   const seed = [
     { id: 'task-a', title: 'A', column: 'todo', order: 1, priority: 'none', labels: [], relationships: [], subTasks: [], columnHistory: [] }
   ];
-  saveTasks(clone(seed));
+  seedBoard({ tasks: clone(seed) });
   await _flushPersistsForTesting();
 
   const item = { dataset: { taskId: 'task-a' } };
@@ -167,7 +166,7 @@ test.each([
   ['only a subtask change', (id) => updateTask(id, 'A', '', 'none', '', 'todo', [], [], [{ id: 's1', title: 'Step', completed: false }])]
 ])('a form edit with %s stamps changeDate and replays it', async (_name, edit) => {
   const seed = seedOne();
-  saveTasks(clone(seed));
+  seedBoard({ tasks: clone(seed) });
   await _flushPersistsForTesting();
 
   const events = await collectEvents(() => edit('task-a'));
@@ -179,7 +178,7 @@ test.each([
 });
 
 test('a form save with no changes emits nothing and keeps changeDate', async () => {
-  saveTasks(clone(seedOne()));
+  seedBoard({ tasks: clone(seedOne()) });
   await _flushPersistsForTesting();
 
   const events = await collectEvents(() => updateTask('task-a', 'A', '', 'none', '', 'todo'));
@@ -191,7 +190,7 @@ test('a form save with no changes emits nothing and keeps changeDate', async () 
 test('a form column change on a task that needs normalizing replays to the same task', async () => {
   // An unknown priority makes loadTasks() normalize and store the tasks it returns.
   const seed = [{ id: 'task-a', title: 'A', column: 'todo', priority: 'critical', labels: [], relationships: [], subTasks: [], columnHistory: [{ column: 'todo', at: OLD_CHANGE }], changeDate: OLD_CHANGE }];
-  saveTasks(clone(seed));
+  seedBoard({ tasks: clone(seed) });
   await _flushPersistsForTesting();
   const before = [{ ...clone(seed[0]), priority: 'none' }];
 

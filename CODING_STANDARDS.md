@@ -16,7 +16,7 @@ covers the code itself. Each rule names the existing helper to reach for, so new
 
 ## Naming
 
-- Functions and variables: `camelCase`, verb-first for actions (`loadTasksForBoard`, `emitTaskMoved`).
+- Functions and variables: `camelCase`, verb-first for actions (`loadBoard`, `emitTaskMoved`).
 - Shared constants: `UPPER_SNAKE_CASE` in `constants.js` (`DONE_COLUMN_ROLE`, `DEFAULT_APP_KEYBINDINGS`).
 - Domain event types: `entity.pastTenseVerb` (`task.created`, `column.moved`).
 - Bus event names: `'noun:verb'` strings exported as constants from `events.js` (`DATA_CHANGED`).
@@ -34,7 +34,7 @@ covers the code itself. Each rule names the existing helper to reach for, so new
   `generateUUID()` in `utils.js`.
 - Validate and normalise at the edges only: user input, imports and remote events (`validation.js`,
   `normalize.js`, `validateEvent()`). Internal callers trust each other.
-- Read board data through the `storage.js` API (`loadTasks()`, `loadTasksForBoard(id)`), never from
+- Read board data through the `storage.js` API (`loadTasks()`, `loadBoard(id)`), never from
   IndexedDB directly.
 
 ## Persistence and async

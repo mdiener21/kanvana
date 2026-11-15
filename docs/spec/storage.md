@@ -58,26 +58,32 @@ Values are stored as native JavaScript objects (structured clone), not JSON stri
 - Board data is namespaced by board id
 - Board, task, column, and label model `id` values are UUIDs
 - The permanent Done column is identified by `role: "done"`, not by a fixed column id
-- Export operates on the active board unless the board-management UI exports a selected board
-  (uses `loadTasksForBoard(id)`, `loadColumnsForBoard(id)`, etc.)
+- One board read, `loadBoard(id)`, returns a board's normalised tasks, columns (always including the
+  Done column, a view-only one if the board has none stored yet), labels and settings, or `null` when no
+  listed board has that id. `loadTasks()`, `loadColumns()`, `loadLabels()` and `loadSettings()` are the
+  same read for the active board, so the board, export, reports, the calendar and the event-log backfill
+  all see the same data (#333)
+- Export reads the chosen board through `loadBoard(id)`, so it writes normalised tasks
 - Import creates a new board from JSON and switches to it
 
 ## Migration and Backward Compatibility
 
 ### localStorage → IDB migration (automatic, one-time)
 
-When `initStorage()` finds an empty IDB but non-empty localStorage, it runs `migrateFromLocalStorage()`:
+`initStorage()` runs `migrateLegacyState(db)` from `boot-migration.js` before the Read Model loads. When IDB has no boards but localStorage has data, it migrates localStorage into IDB:
 
 1. If `kanbanBoards` key exists in localStorage → multi-board migration: copies all per-board keys to IDB and deletes localStorage keys
 2. If legacy single-board keys (`kanbanTasks`, `kanbanColumns`, `kanbanLabels`) exist → wraps them into a default board in IDB
 
-After migration, localStorage is cleared of all Kanvana keys.
+After migration, localStorage is cleared of all Kanvana keys. On every boot the same step then normalises the persisted IDB state (legacy model ids to UUIDs, pre-read-model kv slices into the read-model store) and removes the stale legacy-sync keys; on current state it changes nothing.
 
 ### Schema changes
 
 - Persisted-shape changes must keep import/export round-trippable and preserve legacy normalization
 - Legacy model ids from localStorage, IDB, templates, or imports are normalized to UUIDs, and references are rewritten during load/import
-- All code must go through storage helpers (`loadTasks`, `saveTasks`, etc.) — never read IDB directly
+- The board read normalises legacy task fields (priority, done date, column history, relationships, subtasks) on every read and never writes the result back. A board with no stored settings reads as the defaults without storing them. A fix-up that must persist goes through an event or a one-off migration (ADR-0005, #330, #333)
+- Board changes such as `renameBoard()` reach the board list only through their event (`board.updated`), which the reducer folds
+- All code must go through storage helpers (`loadTasks`, `createBoard`, etc.) and domain events — never read IDB directly
 
 ## Settings Persistence
 
@@ -96,7 +102,9 @@ beyond the old localStorage limit.
 
 - **`idb-store.js`** — IDB plumbing: singleton connection (`openStore()`), key helpers (`keyFor()`, `getBoardEventsKey()`), fire-and-forget write (`schedulePersist()`), fire-and-forget delete (`scheduleDelete()`). Changes when: storage backend or key scheme changes.
 - **`board-serializer.js`** — board import ID-remapping: `normalizeBoardModelIds()` and its private helpers. Changes when: import format or cross-entity ID-remapping logic changes. Import from here directly when you need `normalizeBoardModelIds`.
-- **`storage.js`** — in-memory state, all CRUD helpers (`loadTasks`, `saveTasks`, etc.), `initStorage()`, migration, default data factories. Changes when: data shapes or board lifecycle changes.
+- **`storage.js`** — in-memory state, read helpers and board lifecycle (`loadTasks`, `createBoard`, etc.), `initStorage()`. Changes when: data shapes or board lifecycle changes.
+- **`boot-migration.js`** — the boot migration of legacy persisted state (localStorage → IDB, IDB state normalisation). Changes when: an old persisted shape needs upgrading.
+- **`event-sourcing/read-model-seed.js`** — the default board, demo tasks and new-board defaults. Changes when: seed data changes.
 
 `storage.js` re-exports `getBoardEventsKey` and `_flushPersistsForTesting` from `idb-store.js` for backward compatibility with existing import sites.
 

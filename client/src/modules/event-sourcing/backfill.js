@@ -20,7 +20,10 @@ function dedupKey(boardId, entityId) {
   return `${boardId}::${entityId}`;
 }
 
-export async function backfillEventLog({ boards, columnsFor, labelsFor, tasksFor, settingsFor }) {
+/**
+ * @param {{ boards: object[], boardFor: (boardId: string) => { columns: object[], labels: object[], tasks: object[], settings: object|null } }} source
+ */
+export async function backfillEventLog({ boards, boardFor }) {
   const db = await openStore();
   if (await db.get(KV_STORE, BACKFILL_FLAG_KEY)) return { skipped: true, emitted: 0 };
 
@@ -41,25 +44,25 @@ export async function backfillEventLog({ boards, columnsFor, labelsFor, tasksFor
   }
 
   for (const board of boards) {
+    const { columns, labels, tasks, settings } = boardFor(board.id);
     emitOnce(board.id, board.id, {
       type: 'board.created', boardId: board.id, entityId: board.id, payload: { board }
     });
-    for (const column of columnsFor(board.id)) {
+    for (const column of columns) {
       emitOnce(board.id, column.id, {
         type: 'column.created', boardId: board.id, entityId: column.id, payload: { column }
       });
     }
-    for (const label of labelsFor(board.id)) {
+    for (const label of labels) {
       emitOnce(board.id, label.id, {
         type: 'label.created', boardId: board.id, entityId: label.id, payload: { label }
       });
     }
-    for (const task of tasksFor(board.id)) {
+    for (const task of tasks) {
       emitOnce(board.id, task.id, {
         type: 'task.created', boardId: board.id, entityId: task.id, payload: { task }
       });
     }
-    const settings = settingsFor(board.id);
     if (settings && Object.keys(settings).length > 0) {
       scheduleDomainEvent({
         type: 'settings.updated', boardId: board.id, entityId: board.id, payload: { fields: settings }

@@ -1,37 +1,20 @@
-import { generateUUID, safeParseArray, safeParseObject } from './utils.js';
-import { normalizePriority as sharedNormalizePriority, isHexColor, normalizeCountdownThreshold, defaultColumnColor, normalizeStringKeys, normalizeRelationships, normalizeSubTasks, normalizeGlobalSettings } from './normalize.js';
+import { generateUUID } from './utils.js';
+import { normalizePriority, isHexColor, normalizeCountdownThreshold, defaultColumnColor, normalizeStringKeys, normalizeRelationships, normalizeSubTasks } from './normalize.js';
 import { DONE_COLUMN_ID, DONE_COLUMN_ROLE, isDoneColumn } from './constants.js';
-import { openStore, isDataCurrent, KV_STORE, READ_MODEL_STORE, EVENTS_STORE, SNAPSHOTS_STORE, isFirstPullPending, schedulePersist, scheduleDelete, scheduleReadModelPersist, scheduleReadModelDelete, keyFor, readModelKeyFor, _flushPersistsForTesting as _flushIdbPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
-// Re-export IDB helpers that tests import from this module for backward compatibility.
-import { normalizeBoardModelIds } from './board-serializer.js';
+import { openStore, KV_STORE, EVENTS_STORE, SNAPSHOTS_STORE, isFirstPullPending, schedulePersist, scheduleDelete, scheduleReadModelPersist, scheduleReadModelDelete, _flushPersistsForTesting as _flushIdbPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
 import { initHlc } from './event-sourcing/hlc.js';
 import { _flushDomainEventsForTesting, scheduleDomainEvent } from './event-sourcing/emitter.js';
 import { checkAndScheduleSnapshot, _resetSnapshotSchedulerForTesting } from './event-sourcing/snapshot.js';
 import { createReadModel } from './event-sourcing/ingest.js';
-import { READ_MODEL_KEYS } from './event-sourcing/read-model-projector.js';
+import { STABLE_DEFAULT_BOARD_ID, defaultBoardData, defaultColumns, defaultLabels, defaultSettings, defaultTasks, stableDefaultBoardData } from './event-sourcing/read-model-seed.js';
+import { migrateLegacyState } from './boot-migration.js';
 import { backfillEventLog } from './event-sourcing/backfill.js';
 import { BOARD_SETTINGS_WRITTEN, DATA_CHANGED, emit } from './events.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-// The Read Model owns it; only the one-shot migrations below write it, before the Read Model loads.
-const BOARDS_KEY = READ_MODEL_KEYS.boards;
 const ACTIVE_BOARD_KEY = 'kanbanActiveBoardId';
-
-// The legacy localStorage key; it only shares its name with the Read Model's IDB key and need not follow it.
-const LEGACY_BOARDS_KEY = 'kanbanBoards';
-const LEGACY_COLUMNS_KEY = 'kanbanColumns';
-const LEGACY_TASKS_KEY = 'kanbanTasks';
-const LEGACY_LABELS_KEY = 'kanbanLabels';
-// Left behind by the removed whole-record LWW sync path (ADR-0004).
-const LEGACY_SYNC_KEYS = ['kanbanSyncMap', 'kanbanAutoSyncEnabled'];
-
 const DEFAULT_BOARD_ID = 'default';
-// Well-known stable id for the auto-seeded "Default Board". Every fresh device
-// mints the default board with THIS id (not a random UUID) so two devices on the
-// same account converge onto a single board instead of accruing duplicates.
-// Valid uuid-v4 shape so it passes existing id validation/UUID_RE checks.
-const STABLE_DEFAULT_BOARD_ID = '00000000-0000-4000-8000-000000000001';
 const ALLOWED_SWIMLANE_GROUP_BY = new Set(['label', 'label-group', 'priority']);
 
 // ── In-memory state ────────────────────────────────────────────────────────────
@@ -42,13 +25,14 @@ const ALLOWED_SWIMLANE_GROUP_BY = new Set(['label', 'label-group', 'priority']);
 
 let activeBoardId = null;
 const syntheticDoneIdByBoard = new Map();
+// A task stored with no dates gets its column history seeded once per session, so reads agree (#330).
+const seededHistoryAtByTask = new Map();
 
 // After an account switch the default board's events wait for the first catch-up (#221).
 let defaultBoardDeferred = false;
 
 // Made once; only ingest projects into it (ADR-0005, #281).
 const readModel = createReadModel({
-  demoBoard: { id: STABLE_DEFAULT_BOARD_ID, tasks: stableDemoTasks },
   schedulePersist,
   scheduleDelete,
   scheduleReadModelPersist,
@@ -62,353 +46,18 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-async function normalizeIdbState(db) {
-  const rawBoards = safeParseArray(await db.get(KV_STORE, BOARDS_KEY));
-  if (!rawBoards) return;
-
-  const rawActiveId = await db.get(KV_STORE, ACTIVE_BOARD_KEY);
-  const nextBoards = [];
-  const activeIdMap = new Map();
-  const tx = db.transaction([KV_STORE, READ_MODEL_STORE], 'readwrite');
-  if (!await isDataCurrent(tx)) return;
-  const store = tx.objectStore(KV_STORE);
-  const readModelStore = tx.objectStore(READ_MODEL_STORE);
-
-  for (const rawBoard of rawBoards) {
-    if (!rawBoard || typeof rawBoard !== 'object') continue;
-    const oldBoardId = typeof rawBoard.id === 'string' ? rawBoard.id.trim() : '';
-    const normalized = normalizeBoardModelIds({
-      board: rawBoard,
-      tasks: safeParseArray(await readModelStore.get(readModelKeyFor(oldBoardId, 'tasks')) ?? await store.get(keyFor(oldBoardId, 'tasks'))) || [],
-      columns: safeParseArray(await readModelStore.get(readModelKeyFor(oldBoardId, 'columns')) ?? await store.get(keyFor(oldBoardId, 'columns'))) || legacyDefaultColumns(),
-      labels: safeParseArray(await readModelStore.get(readModelKeyFor(oldBoardId, 'labels')) ?? await store.get(keyFor(oldBoardId, 'labels'))) || [],
-      settings: safeParseObject(await store.get(keyFor(oldBoardId, 'settings'))) || defaultSettings()
-    });
-
-    const newBoardId = normalized.board.id;
-    activeIdMap.set(oldBoardId, newBoardId);
-    nextBoards.push(normalized.board);
-    await readModelStore.put(normalized.tasks, readModelKeyFor(newBoardId, 'tasks'));
-    await readModelStore.put(normalized.columns, readModelKeyFor(newBoardId, 'columns'));
-    await readModelStore.put(normalized.labels, readModelKeyFor(newBoardId, 'labels'));
-    await store.put(normalized.settings, keyFor(newBoardId, 'settings'));
-
-    if (oldBoardId && oldBoardId !== newBoardId) {
-      await readModelStore.delete(readModelKeyFor(oldBoardId, 'tasks'));
-      await readModelStore.delete(readModelKeyFor(oldBoardId, 'columns'));
-      await readModelStore.delete(readModelKeyFor(oldBoardId, 'labels'));
-      await store.delete(keyFor(oldBoardId, 'settings'));
-    }
-    if (oldBoardId) {
-      await store.delete(keyFor(oldBoardId, 'tasks'));
-      await store.delete(keyFor(oldBoardId, 'columns'));
-      await store.delete(keyFor(oldBoardId, 'labels'));
-    }
-  }
-
-  await store.put(nextBoards, BOARDS_KEY);
-  const nextActiveId = activeIdMap.get(rawActiveId) || nextBoards[0]?.id || null;
-  if (nextActiveId) await store.put(nextActiveId, ACTIVE_BOARD_KEY);
-  await tx.done;
-}
-
-// ── Default data ───────────────────────────────────────────────────────────────
-
-function defaultColumns() {
-  return [
-    { id: generateUUID(), name: 'To Do', color: '#3583ff' },
-    { id: generateUUID(), name: 'In Progress', color: '#f59e0b' },
-    { id: generateUUID(), name: 'Done', color: '#505050', role: DONE_COLUMN_ROLE }
-  ];
-}
-
-function legacyDefaultColumns() {
-  return [
-    { id: 'todo', name: 'To Do', color: '#3583ff' },
-    { id: 'inprogress', name: 'In Progress', color: '#f59e0b' },
-    { id: DONE_COLUMN_ID, name: 'Done', color: '#505050', role: DONE_COLUMN_ROLE }
-  ];
-}
-
-function defaultLabels() {
-  return [
-    { id: generateUUID(), name: 'Task', color: '#f59e0b', group: 'Activity' },
-    { id: generateUUID(), name: 'Meeting', color: '#ffd001', group: 'Activity' },
-    { id: generateUUID(), name: 'Email', color: '#d4a300', group: 'Activity' },
-    { id: generateUUID(), name: 'Idea', color: '#25b631', group: '' },
-    { id: generateUUID(), name: 'Goal', color: '#1b7cbd', group: '' },
-  ];
-}
-
-function columnIdByName(columns, name) {
-  return columns.find((column) => column.name === name)?.id || columns[0]?.id || '';
-}
-
-function labelIdByName(labels, name) {
-  return labels.find((label) => label.name === name)?.id || '';
-}
-
-function defaultTasks(columns = defaultColumns(), labels = defaultLabels(), created = nowIso()) {
-  const todoColumnId = columnIdByName(columns, 'To Do');
-  const inProgressColumnId = columnIdByName(columns, 'In Progress');
-  const doneColumnId = columns.find((column) => column.role === DONE_COLUMN_ROLE)?.id || columnIdByName(columns, 'Done');
-  const taskLabelId = labelIdByName(labels, 'Task');
-  const ideaLabelId = labelIdByName(labels, 'Idea');
-  return [
-    {
-      id: generateUUID(),
-      title: 'Find out where the Soul Stone is',
-      description: 'Identify current location and access requirements.',
-      priority: 'high',
-      dueDate: '',
-      column: todoColumnId,
-      labels: [],
-      creationDate: created,
-      changeDate: created,
-      columnHistory: [{ column: todoColumnId, at: created }]
-    },
-    {
-      id: generateUUID(),
-      title: 'Steal the Time Stone',
-      description: 'Coordinate with Dr. Strange and plan retrieval.',
-      priority: 'urgent',
-      dueDate: '',
-      column: inProgressColumnId,
-      labels: [],
-      creationDate: created,
-      changeDate: created,
-      columnHistory: [{ column: inProgressColumnId, at: created }]
-    },
-    {
-      id: generateUUID(),
-      title: 'Collect the Mind Stone',
-      description: 'Determine safe extraction approach.',
-      priority: 'medium',
-      dueDate: '',
-      column: inProgressColumnId,
-      labels: [],
-      creationDate: created,
-      changeDate: created,
-      columnHistory: [{ column: inProgressColumnId, at: created }]
-    },
-    {
-      id: generateUUID(),
-      title: 'Hide the Reality Stone',
-      description: 'Dig a deep hole to hide the stone from the Collector, avoid escalation.',
-      priority: 'low',
-      dueDate: '',
-      column: inProgressColumnId,
-      labels: taskLabelId ? [taskLabelId] : [],
-      creationDate: created,
-      changeDate: created,
-      columnHistory: [{ column: inProgressColumnId, at: created }]
-    },
-    {
-      id: generateUUID(),
-      title: 'Find a bag for stones',
-      description: 'A bag with good durability and space is needed to hold all the stones securely.',
-      priority: 'none',
-      dueDate: '',
-      column: inProgressColumnId,
-      labels: taskLabelId ? [taskLabelId] : [],
-      creationDate: created,
-      changeDate: created,
-      columnHistory: [{ column: inProgressColumnId, at: created }]
-    },
-    {
-      id: generateUUID(),
-      title: 'Collect the Power Stone',
-      description: 'Verify secure containment after retrieval.',
-      priority: 'high',
-      dueDate: '',
-      column: doneColumnId,
-      labels: ideaLabelId ? [ideaLabelId] : [],
-      creationDate: created,
-      changeDate: created,
-      doneDate: created,
-      columnHistory: [{ column: doneColumnId, at: created }]
-    },
-    {
-      id: generateUUID(),
-      title: 'Collect the Space Stone',
-      description: '',
-      priority: 'low',
-      dueDate: '',
-      column: doneColumnId,
-      labels: [],
-      creationDate: created,
-      changeDate: created,
-      doneDate: created,
-      columnHistory: [{ column: doneColumnId, at: created }]
-    }
-  ];
-}
-
-function defaultBoardData(includeTasks = true) {
-  const columns = defaultColumns();
-  const labels = defaultLabels();
-  return {
-    columns,
-    labels,
-    tasks: includeTasks ? defaultTasks(columns, labels) : [],
-    settings: defaultSettings()
-  };
-}
-
-// Deterministic column/label ids for the well-known default board, so two
-// devices seeding their own default board emit identical column.created /
-// label.created events that dedup on merge (see STABLE_DEFAULT_BOARD_ID).
-function stableDefaultColumns() {
-  return [
-    { id: '00000000-0000-4000-8000-000000000010', name: 'To Do', color: '#3583ff' },
-    { id: '00000000-0000-4000-8000-000000000011', name: 'In Progress', color: '#f59e0b' },
-    { id: '00000000-0000-4000-8000-000000000012', name: 'Done', color: '#505050', role: DONE_COLUMN_ROLE }
-  ];
-}
-
-function stableDefaultLabels() {
-  return [
-    { id: '00000000-0000-4000-8000-000000000020', name: 'Task', color: '#f59e0b', group: 'Activity' },
-    { id: '00000000-0000-4000-8000-000000000021', name: 'Meeting', color: '#ffd001', group: 'Activity' },
-    { id: '00000000-0000-4000-8000-000000000022', name: 'Email', color: '#d4a300', group: 'Activity' },
-    { id: '00000000-0000-4000-8000-000000000023', name: 'Idea', color: '#25b631', group: '' },
-    { id: '00000000-0000-4000-8000-000000000024', name: 'Goal', color: '#1b7cbd', group: '' }
-  ];
-}
-
-// Numbered in defaultTasks() order. Only the default board has these; every other caller keeps random ids.
-function stableDemoTasks(created = nowIso()) {
-  return defaultTasks(stableDefaultColumns(), stableDefaultLabels(), created)
-    .map((task, index) => ({ ...task, id: `00000000-0000-4000-8000-${String(30 + index).padStart(12, '0')}` }));
-}
-
-// Demo tasks are never emitted: each device seeds its own, with ids that let an event on one name them on all (#263).
-function stableDefaultBoardData() {
-  return {
-    columns: stableDefaultColumns(),
-    labels: stableDefaultLabels(),
-    tasks: stableDemoTasks(),
-    settings: defaultSettings()
-  };
-}
-
-function defaultSettings() {
-  const locale = (typeof navigator !== 'undefined' && typeof navigator.language === 'string')
-    ? navigator.language
-    : 'en-US';
-
-  return {
-    showPriority: true,
-    showDueDate: true,
-    showAge: true,
-    showChangeDate: false,
-    locale,
-    defaultPriority: 'none',
-    notificationDays: 3,
-    countdownUrgentThreshold: 3,
-    countdownWarningThreshold: 10,
-    swimLanesEnabled: false,
-    swimLaneGroupBy: 'label',
-    swimLaneLabelGroup: '',
-    swimLaneCollapsedKeys: [],
-    swimLaneCellCollapsedKeys: [],
-    swimLaneOrder: []
-  };
-}
-
-// ── Migration from localStorage ────────────────────────────────────────────────
-
-async function migrateFromLocalStorage(db) {
-  const lsBoards = safeParseArray(localStorage.getItem(LEGACY_BOARDS_KEY));
-  const lsActiveId = localStorage.getItem(ACTIVE_BOARD_KEY);
-
-  // Legacy single-board keys (pre multi-board)
-  const legacyColumns = safeParseArray(localStorage.getItem(LEGACY_COLUMNS_KEY));
-  const legacyTasks = safeParseArray(localStorage.getItem(LEGACY_TASKS_KEY));
-  const legacyLabels = safeParseArray(localStorage.getItem(LEGACY_LABELS_KEY));
-
-  let boards = lsBoards;
-
-  if (!boards && (legacyColumns || legacyTasks || legacyLabels)) {
-    // Oldest migration path: single-board localStorage → IDB default board
-    boards = [{ id: DEFAULT_BOARD_ID, name: 'Default Board', createdAt: nowIso() }];
-    const tx = db.transaction([KV_STORE, READ_MODEL_STORE], 'readwrite');
-    const store = tx.objectStore(KV_STORE);
-    const readModelStore = tx.objectStore(READ_MODEL_STORE);
-    await store.put(boards, BOARDS_KEY);
-    await store.put(DEFAULT_BOARD_ID, ACTIVE_BOARD_KEY);
-    await readModelStore.put(legacyColumns || legacyDefaultColumns(), readModelKeyFor(DEFAULT_BOARD_ID, 'columns'));
-    await readModelStore.put(legacyTasks || defaultTasks(), readModelKeyFor(DEFAULT_BOARD_ID, 'tasks'));
-    await readModelStore.put(legacyLabels || defaultLabels(), readModelKeyFor(DEFAULT_BOARD_ID, 'labels'));
-    await store.put(defaultSettings(), keyFor(DEFAULT_BOARD_ID, 'settings'));
-    await tx.done;
-
-    localStorage.removeItem(LEGACY_COLUMNS_KEY);
-    localStorage.removeItem(LEGACY_TASKS_KEY);
-    localStorage.removeItem(LEGACY_LABELS_KEY);
-    localStorage.removeItem(LEGACY_BOARDS_KEY);
-    localStorage.removeItem(ACTIVE_BOARD_KEY);
-    return;
-  }
-
-  if (!boards) return;
-
-  // Multi-board localStorage → IDB
-  const tx = db.transaction([KV_STORE, READ_MODEL_STORE], 'readwrite');
-  const store = tx.objectStore(KV_STORE);
-  const readModelStore = tx.objectStore(READ_MODEL_STORE);
-
-  await store.put(boards, BOARDS_KEY);
-  if (lsActiveId) await store.put(lsActiveId, ACTIVE_BOARD_KEY);
-
-  for (const board of boards) {
-    const tasks = safeParseArray(localStorage.getItem(keyFor(board.id, 'tasks'))) || [];
-    const columns = safeParseArray(localStorage.getItem(keyFor(board.id, 'columns'))) || [];
-    const labels = safeParseArray(localStorage.getItem(keyFor(board.id, 'labels'))) || [];
-    const settings = safeParseObject(localStorage.getItem(keyFor(board.id, 'settings')));
-
-    await readModelStore.put(tasks, readModelKeyFor(board.id, 'tasks'));
-    await readModelStore.put(columns, readModelKeyFor(board.id, 'columns'));
-    await readModelStore.put(labels, readModelKeyFor(board.id, 'labels'));
-    if (settings) await store.put(settings, keyFor(board.id, 'settings'));
-
-    localStorage.removeItem(keyFor(board.id, 'tasks'));
-    localStorage.removeItem(keyFor(board.id, 'columns'));
-    localStorage.removeItem(keyFor(board.id, 'labels'));
-    localStorage.removeItem(keyFor(board.id, 'settings'));
-  }
-
-  await tx.done;
-  localStorage.removeItem(LEGACY_BOARDS_KEY);
-  localStorage.removeItem(ACTIVE_BOARD_KEY);
-}
-
 // ── Public initialisation ──────────────────────────────────────────────────────
 
 /**
  * Must be called once at app startup (before any board renders).
- * Opens the IDB database, migrates from localStorage if needed, and loads all
+ * Opens the IDB database, runs the boot migration (boot-migration.js), and loads all
  * board data into the in-memory state so subsequent reads are synchronous.
  */
 export async function initStorage() {
   const db = await openStore();
   await initHlc();
 
-  // Migrate from localStorage if IDB is empty but localStorage has data.
-  const idbBoards = await db.get(KV_STORE, BOARDS_KEY);
-  const hasLocalStorageData = Boolean(
-    localStorage.getItem(LEGACY_BOARDS_KEY) ||
-    localStorage.getItem(LEGACY_COLUMNS_KEY) ||
-    localStorage.getItem(LEGACY_TASKS_KEY) ||
-    localStorage.getItem(LEGACY_LABELS_KEY)
-  );
-
-  if (!idbBoards && hasLocalStorageData) {
-    await migrateFromLocalStorage(db);
-  }
-
-  await normalizeIdbState(db);
-  for (const key of LEGACY_SYNC_KEYS) localStorage.removeItem(key);
+  await migrateLegacyState(db);
 
   // Load everything into in-memory state.
   await readModel.load();
@@ -417,13 +66,7 @@ export async function initStorage() {
 
   // One-shot: give pre-event-sourcing state an event log so it can sync at all.
   const backfillStartedAt = globalThis.__kanvanaPerfMarks ? performance.now() : null;
-  await backfillEventLog({
-    boards: listBoards(),
-    columnsFor: loadColumnsForBoard,
-    labelsFor: loadLabelsForBoard,
-    tasksFor: loadTasksForBoard,
-    settingsFor: loadSettingsForBoard
-  });
+  await backfillEventLog({ boards: listBoards(), boardFor: loadBoard });
   if (backfillStartedAt !== null) {
     performance.measure('kanvana:startup:backfill', { start: backfillStartedAt, end: performance.now() });
   }
@@ -460,6 +103,7 @@ export function _resetStorageForTesting() {
   _resetIdbForTesting();
   activeBoardId = null;
   syntheticDoneIdByBoard.clear();
+  seededHistoryAtByTask.clear();
   defaultBoardDeferred = false;
   readModel.reset();
   _resetSnapshotSchedulerForTesting();
@@ -493,10 +137,6 @@ export function getActiveBoardName() {
   const board = id ? getBoardById(id) : null;
   const name = typeof board?.name === 'string' ? board.name.trim() : '';
   return name || 'Untitled board';
-}
-
-function saveBoards(boards) {
-  readModel.setBoards(boards);
 }
 
 export function getActiveBoardId() {
@@ -633,11 +273,9 @@ export function renameBoard(boardId, newName) {
   const name = typeof newName === 'string' ? newName.trim() : '';
   if (!id || !name) return false;
 
-  const boards = listBoards();
-  if (!boards.some((b) => b.id === id)) return false;
+  if (!getBoardById(id)) return false;
 
-  const updated = boards.map((b) => (b.id === id ? { ...b, name } : b));
-  saveBoards(updated);
+  // The board list changes only when the reducer folds this event (ADR-0005, #330).
   scheduleDomainEvent({
     type: 'board.updated',
     boardId: id,
@@ -671,6 +309,47 @@ export function deleteBoard(boardId) {
   return true;
 }
 
+// ── One board read ─────────────────────────────────────────────────────────────
+//
+// Asking for a board by id gives normalised tasks, columns (always with a Done column),
+// labels and settings. The active-board reads below are this read for the active board,
+// so export, reports, the calendar and backfill get what the board itself shows (#333).
+// Reads never write the Read Model or IDB (ADR-0005, #330).
+
+/**
+ * @param {string} boardId
+ * @returns {{ tasks: object[], columns: object[], labels: object[], settings: object } | null}
+ *   null when no listed board has that id (e.g. it was deleted)
+ */
+export function loadBoard(boardId) {
+  if (!getBoardById(boardId)) return null;
+  const columns = boardColumns(boardId);
+  const labels = boardLabels(boardId);
+  return { tasks: boardTasks(boardId, columns, labels), columns, labels, settings: boardSettings(boardId) };
+}
+
+function activeBoard() {
+  ensureBoardsInitialized();
+  return getActiveBoardId() || DEFAULT_BOARD_ID;
+}
+
+export function loadColumns() {
+  return boardColumns(activeBoard());
+}
+
+export function loadTasks() {
+  const boardId = activeBoard();
+  return boardTasks(boardId, boardColumns(boardId), boardLabels(boardId));
+}
+
+export function loadLabels() {
+  return boardLabels(activeBoard());
+}
+
+export function loadSettings() {
+  return boardSettings(activeBoard());
+}
+
 // ── Columns ────────────────────────────────────────────────────────────────────
 
 function normalizeColumn(c) {
@@ -685,14 +364,29 @@ function ensureDoneColumn(columns, boardId) {
     return list.map((column) => (isDoneColumn(column) ? { ...column, role: DONE_COLUMN_ROLE } : column));
   }
   const maxOrder = list.reduce((max, c) => Math.max(max, Number.isFinite(c?.order) ? c.order : 0), 0);
-  if (!syntheticDoneIdByBoard.has(boardId)) syntheticDoneIdByBoard.set(boardId, generateUUID());
-  list.push({ id: syntheticDoneIdByBoard.get(boardId), name: 'Done', color: '#16a34a', order: maxOrder + 1, collapsed: false, role: DONE_COLUMN_ROLE });
+  list.push({ id: syntheticDoneId(boardId), name: 'Done', color: '#16a34a', order: maxOrder + 1, collapsed: false, role: DONE_COLUMN_ROLE });
   return list;
 }
 
-export function getDoneColumnId() {
-  const columns = loadColumns();
+function syntheticDoneId(boardId) {
+  if (!syntheticDoneIdByBoard.has(boardId)) syntheticDoneIdByBoard.set(boardId, generateUUID());
+  return syntheticDoneIdByBoard.get(boardId);
+}
+
+function boardColumns(boardId) {
+  const parsed = readModel.board(boardId).columns;
+  // View-only fallback: a synced board's Done column may not have arrived yet,
+  // and persisting a synthetic one here duplicates it once the real one lands.
+  const stored = parsed ? parsed.filter((c) => !c.deleted) : defaultColumns();
+  return ensureDoneColumn(stored.map(normalizeColumn), boardId);
+}
+
+function doneColumnIdIn(columns) {
   return columns.find((column) => isDoneColumn(column))?.id || DONE_COLUMN_ID;
+}
+
+export function getDoneColumnId() {
+  return doneColumnIdIn(loadColumns());
 }
 
 export function isDoneColumnId(columnId) {
@@ -701,174 +395,98 @@ export function isDoneColumnId(columnId) {
   return id === DONE_COLUMN_ID || id === getDoneColumnId();
 }
 
-export function loadColumns() {
-  ensureBoardsInitialized();
-  const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
-  const parsed = readModel.board(boardId).columns;
-  if (parsed) {
-    // View-only fallback: a synced board's Done column may not have arrived yet,
-    // and persisting a synthetic one here duplicates it once the real one lands.
-    return ensureDoneColumn(parsed.filter(c => !c.deleted).map(normalizeColumn), boardId);
-  }
-  return ensureDoneColumn(defaultColumns().map(normalizeColumn), boardId);
-}
-
-export function saveColumns(columns) {
-  ensureBoardsInitialized();
-  const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
-  readModel.setBoardSlice(boardId, 'columns', columns);
-  scheduleReadModelPersist(boardId, 'columns', columns);
-}
-
 // ── Tasks ──────────────────────────────────────────────────────────────────────
 
-function normalizePriority(value) {
-  return sharedNormalizePriority(value);
+function seededHistoryAt(boardId, taskId) {
+  const key = `${boardId}:${taskId}`;
+  if (!seededHistoryAtByTask.has(key)) seededHistoryAtByTask.set(key, nowIso());
+  return seededHistoryAtByTask.get(key);
 }
 
-export function loadTasks() {
-  ensureBoardsInitialized();
-  const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
-  const parsed = readModel.board(boardId).tasks;
+function normalizeTask(t, boardId, doneColumnId) {
+  const task = t && typeof t === 'object' ? { ...t } : t;
+  if (!task || typeof task !== 'object') return task;
 
-  if (parsed) {
-    let didChange = false;
-    const normalized = parsed.map((t) => {
-      const task = t && typeof t === 'object' ? { ...t } : t;
-      if (!task || typeof task !== 'object') return task;
+  // Detach the mutable nested fields from the stored read model. Feature
+  // modules mutate the loaded task in place (e.g. columnHistory.push); since
+  // the projection is now the sole writer of state (ADR-0005), those edits
+  // must not leak back into the read model and double-apply with events.
+  if (Array.isArray(task.columnHistory)) task.columnHistory = task.columnHistory.map((e) => ({ ...e }));
+  if (Array.isArray(task.subTasks)) task.subTasks = task.subTasks.map((s) => ({ ...s }));
+  if (Array.isArray(task.labels)) task.labels = [...task.labels];
+  if (Array.isArray(task.relationships)) task.relationships = task.relationships.map((r) => ({ ...r }));
 
-      // Detach the mutable nested fields from the stored read model. Feature
-      // modules mutate the loaded task in place (e.g. columnHistory.push); since
-      // the projection is now the sole writer of state (ADR-0005), those edits
-      // must not leak back into the read model and double-apply with events.
-      if (Array.isArray(task.columnHistory)) task.columnHistory = task.columnHistory.map((e) => ({ ...e }));
-      if (Array.isArray(task.subTasks)) task.subTasks = task.subTasks.map((s) => ({ ...s }));
-      if (Array.isArray(task.labels)) task.labels = [...task.labels];
-      if (Array.isArray(task.relationships)) task.relationships = task.relationships.map((r) => ({ ...r }));
+  task.priority = normalizePriority(task.priority);
 
-      const nextPriority = normalizePriority(task.priority);
-      if (task.priority !== nextPriority) {
-        task.priority = nextPriority;
-        didChange = true;
-      }
+  const column = typeof task.column === 'string' ? task.column.trim() : '';
+  const isDone = column !== '' && (column === DONE_COLUMN_ID || column === doneColumnId);
+  const hasDoneDate = typeof task.doneDate === 'string' && task.doneDate.trim() !== '';
+  const changeDate = typeof task.changeDate === 'string' && task.changeDate.trim() ? task.changeDate.trim() : '';
+  const creationDate = typeof task.creationDate === 'string' && task.creationDate.trim() ? task.creationDate.trim() : '';
 
-      const isDone = isDoneColumnId(task.column);
-      const hasDoneDate = typeof task.doneDate === 'string' && task.doneDate.trim() !== '';
-      const changeDate = typeof task.changeDate === 'string' && task.changeDate.trim() ? task.changeDate.trim() : '';
-      const creationDate = typeof task.creationDate === 'string' && task.creationDate.trim() ? task.creationDate.trim() : '';
+  if (isDone && !hasDoneDate) {
+    const inferred = changeDate ? changeDate : creationDate;
+    if (inferred) task.doneDate = inferred;
+  }
 
-      if (isDone && !hasDoneDate) {
-        const inferred = changeDate ? changeDate : creationDate;
-        if (inferred) {
-          task.doneDate = inferred;
-          didChange = true;
-        }
-      }
+  if (!isDone && hasDoneDate) delete task.doneDate;
 
-      if (!isDone && hasDoneDate) {
-        delete task.doneDate;
-        didChange = true;
-      }
+  const rawHistory = task.columnHistory;
+  const history = Array.isArray(rawHistory) ? rawHistory : null;
+  const seededAt = changeDate || creationDate || seededHistoryAt(boardId, task.id);
 
-      const rawHistory = task.columnHistory;
-      const history = Array.isArray(rawHistory) ? rawHistory : null;
-      const seededAt = changeDate || creationDate || nowIso();
-      const seededColumn = typeof task.column === 'string' ? task.column.trim() : '';
+  if (!history || history.length === 0) {
+    if (seededAt && column) task.columnHistory = [{ column, at: seededAt }];
+  } else {
+    const cleaned = history
+      .map((e) => {
+        const entryColumn = typeof e?.column === 'string' ? e.column.trim() : '';
+        const at = typeof e?.at === 'string' ? e.at.trim() : '';
+        if (!entryColumn || !at) return null;
+        return { column: entryColumn, at };
+      })
+      .filter(Boolean);
 
-      if (!history || history.length === 0) {
-        if (seededAt && seededColumn) {
-          task.columnHistory = [{ column: seededColumn, at: seededAt }];
-          didChange = true;
-        }
-      } else {
-        const cleaned = history
-          .map((e) => {
-            const column = typeof e?.column === 'string' ? e.column.trim() : '';
-            const at = typeof e?.at === 'string' ? e.at.trim() : '';
-            if (!column || !at) return null;
-            return { column, at };
-          })
-          .filter(Boolean);
-
-        if (cleaned.length === 0) {
-          if (seededAt && seededColumn) {
-            task.columnHistory = [{ column: seededColumn, at: seededAt }];
-            didChange = true;
-          }
-        } else if (cleaned.length !== history.length) {
-          task.columnHistory = cleaned;
-          didChange = true;
-        }
-      }
-
-      const nextRelationships = normalizeRelationships(task.relationships);
-      if (JSON.stringify(task.relationships) !== JSON.stringify(nextRelationships)) {
-        task.relationships = nextRelationships;
-        didChange = true;
-      }
-
-      const nextSubTasks = normalizeSubTasks(task.subTasks);
-      if (JSON.stringify(task.subTasks) !== JSON.stringify(nextSubTasks)) {
-        task.subTasks = nextSubTasks;
-        didChange = true;
-      }
-
-      return task;
-    });
-
-    if (didChange) {
-      // Callers edit what this returns, so the stored slice gets its own copy (ADR-0005).
-      const stored = structuredClone(normalized);
-      readModel.setBoardSlice(boardId, 'tasks', stored);
-      scheduleReadModelPersist(boardId, 'tasks', stored);
+    if (cleaned.length === 0) {
+      if (seededAt && column) task.columnHistory = [{ column, at: seededAt }];
+    } else {
+      task.columnHistory = cleaned;
     }
+  }
 
-    readModel.cacheTasks(boardId, normalized);
-    return normalized.filter(t => !t.deleted);
+  task.relationships = normalizeRelationships(task.relationships);
+  task.subTasks = normalizeSubTasks(task.subTasks);
+
+  return task;
+}
+
+function boardTasks(boardId, columns, labels) {
+  const parsed = readModel.board(boardId).tasks;
+  if (parsed) {
+    const doneColumnId = doneColumnIdIn(columns);
+    return parsed.filter((t) => !t?.deleted).map((t) => normalizeTask(t, boardId, doneColumnId));
   }
 
   // Empty state: return stable in-memory defaults for the session.
   const cached = readModel.cachedTasks(boardId);
   if (Array.isArray(cached)) return cached.filter(t => !t.deleted);
 
-  const defaults = defaultTasks(loadColumns(), loadLabels());
+  const defaults = defaultTasks(columns, labels);
   readModel.cacheTasks(boardId, defaults);
   return defaults;
 }
 
-export function saveTasks(tasks) {
-  ensureBoardsInitialized();
-  const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
-  const normalized = (Array.isArray(tasks) ? tasks : []).map((task) => ({
-    ...task
-  }));
-  readModel.setBoardSlice(boardId, 'tasks', normalized);
-  readModel.cacheTasks(boardId, normalized);
-  scheduleReadModelPersist(boardId, 'tasks', normalized);
-}
-
 // ── Labels ─────────────────────────────────────────────────────────────────────
 
-export function loadLabels() {
-  ensureBoardsInitialized();
-  const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
+function boardLabels(boardId) {
   const parsed = readModel.board(boardId).labels;
-  if (parsed) {
-    return parsed
-      .filter(l => !l.deleted)
-      .map((label) => ({
-        ...label,
-        group: typeof label.group === 'string' ? label.group : ''
-      }));
-  }
-  return defaultLabels();
-}
-
-export function saveLabels(labels) {
-  ensureBoardsInitialized();
-  const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
-  readModel.setBoardSlice(boardId, 'labels', labels);
-  scheduleReadModelPersist(boardId, 'labels', labels);
+  if (!parsed) return defaultLabels();
+  return parsed
+    .filter(l => !l.deleted)
+    .map((label) => ({
+      ...label,
+      group: typeof label.group === 'string' ? label.group : ''
+    }));
 }
 
 // ── Settings ───────────────────────────────────────────────────────────────────
@@ -925,15 +543,9 @@ function normalizeSettings(raw) {
   };
 }
 
-export function loadSettings() {
-  ensureBoardsInitialized();
-  const boardId = getActiveBoardId() || DEFAULT_BOARD_ID;
+function boardSettings(boardId) {
   const parsed = readModel.board(boardId).settings;
-  if (parsed) return normalizeSettings(parsed);
-
-  const defaults = defaultSettings();
-  readModel.writeBoardSettings(boardId, defaults);
-  return defaults;
+  return parsed ? normalizeSettings(parsed) : defaultSettings();
 }
 
 export function saveSettings(settings) {
@@ -958,25 +570,10 @@ export function loadTimeTracking() {
   return readModel.timeTracking();
 }
 
-export function saveGlobalSettings(settings) {
-  const normalized = normalizeGlobalSettings(settings);
-  readModel.setGlobalSettings(normalized);
-}
 
-// ── Cross-board read helpers
-
-export function loadTasksForBoard(boardId) {
-  return (readModel.board(boardId).tasks || []).filter(t => !t.deleted);
-}
-
-export function loadColumnsForBoard(boardId) {
-  return (readModel.board(boardId).columns || []).filter(c => !c.deleted);
-}
-
-export function loadLabelsForBoard(boardId) {
-  return (readModel.board(boardId).labels || []).filter(l => !l.deleted);
-}
-
-export function loadSettingsForBoard(boardId) {
-  return readModel.board(boardId).settings;
+// Tests that check what the reducer stored read it here: live items as stored, not normalised.
+export function _loadStoredBoardForTesting(boardId) {
+  const { tasks, columns, labels, settings } = readModel.board(boardId);
+  const live = (items) => (items || []).filter((item) => !item.deleted);
+  return { tasks: live(tasks), columns: live(columns), labels: live(labels), settings };
 }

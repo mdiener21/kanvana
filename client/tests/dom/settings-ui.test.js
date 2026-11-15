@@ -1,7 +1,8 @@
 import { beforeEach, expect, test } from 'vitest';
 import { fireEvent, screen } from '@testing-library/dom';
 import { mountToBody } from './setup.js';
-import { createBoard, loadSettings, saveTasks } from '../../src/modules/storage.js';
+import { createBoard, loadSettings } from '../../src/modules/storage.js';
+import { seedBoard } from '../fixtures/seed-read-model.js';
 import { initializeSettingsUI } from '../../src/modules/settings.js';
 
 function mountSettings() {
@@ -38,7 +39,7 @@ function mountSettings() {
 
 beforeEach(() => {
   createBoard('Settings UI');
-  saveTasks([]);
+  seedBoard({ tasks: [] });
 });
 
 test('settings modal opens with board settings controls', () => {

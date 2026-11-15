@@ -55,7 +55,8 @@ Storage tests are split across two files:
   - Multi-board and legacy single-board localStorage → IDB migration
   - Cross-session persistence: write in session A, reload in session B
   - `deleteBoard` cleaning up IDB entries
-  - Cross-board read helpers (`loadTasksForBoard`, `loadColumnsForBoard`, etc.)
+  - The board read for a non-active board (`loadBoard(id)`); `tests/unit/storage-board-read.test.js` covers its normalisation, and `tests/dom/import-export-roundtrip.test.js` the export → import round trip
+  - Tests that check what the reducer stored, rather than what a board shows, read `_loadStoredBoardForTesting(id)`
   - Corrupt IDB resilience
 
 ### IDB test infrastructure
@@ -65,12 +66,16 @@ Storage tests are split across two files:
 - `_resetStorageForTesting()` calls `_db.close()` before nulling `_db` so `deleteDB()` is never blocked by an open connection.
 - `_flushPersistsForTesting()` awaits `Promise.all([..._pendingPersists])` before cross-session assertions; avoids timing races from fire-and-forget IDB writes.
 
+### Seeding the Read Model
+
+Tests seed boards through domain events, the path production uses (ADR-0005): `seedBoard({ columns, labels, tasks }, { boardId })` and `seedGlobalSettings(fields)` from `tests/fixtures/seed-read-model.js`. Each slice given replaces that slice on the board (active board by default); events cannot reorder known items, so `seedBoard` throws when asked to and a test that needs it seeds a new board. Storage has no `save*` writers for tasks, columns, labels or global settings.
+
 ### Cross-session roundtrip pattern
 
 ```js
 await initStorage();
 ensureBoardsInitialized();
-saveTasks([{ id: 't1', title: 'Persisted task', ... }]);
+seedBoard({ tasks: [{ id: 't1', title: 'Persisted task', ... }] });
 await _flushPersistsForTesting();      // wait for IDB writes to settle
 const boardId = getActiveBoardId();
 _resetStorageForTesting();             // drop in-memory state; IDB intact

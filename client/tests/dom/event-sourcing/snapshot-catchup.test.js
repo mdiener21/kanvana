@@ -11,13 +11,11 @@ import { _resetIdbForTesting, openStore, getUnsyncedEvents, KV_STORE } from '../
 import {
   initStorage,
   listBoards,
-  loadTasksForBoard,
-  loadColumnsForBoard,
-  loadLabelsForBoard,
   loadGlobalSettings,
   loadTimeTracking,
   _flushPersistsForTesting,
   _resetStorageForTesting,
+  _loadStoredBoardForTesting
 } from '../../../src/modules/storage.js';
 import { _resetHlcForTesting } from '../../../src/modules/event-sourcing/hlc.js';
 import { catchUp, LAST_SEEN_PREFIX, _resetRealtimeForTesting } from '../../../src/modules/event-sourcing/realtime.js';
@@ -117,7 +115,7 @@ describe('catch-up with a server snapshot', () => {
     await catchUp();
 
     expect(listBoards().map(board => board.name)).toEqual(['GOMOGI']);
-    expect(loadColumnsForBoard(BOARD).map(column => column.name)).toEqual(['To Do', 'Done']);
+    expect(_loadStoredBoardForTesting(BOARD).columns.map(column => column.name)).toEqual(['To Do', 'Done']);
   });
 
   it('reconstructs a board whose events were GC-ed, from the snapshot alone', async () => {
@@ -132,10 +130,10 @@ describe('catch-up with a server snapshot', () => {
     await catchUp();
 
     expect(listBoards().map((b) => b.name)).toContain('GOMOGI');
-    expect(loadTasksForBoard(BOARD).map((t) => t.title)).toEqual([
+    expect(_loadStoredBoardForTesting(BOARD).tasks.map((t) => t.title)).toEqual([
       'TU Invoice number for bill', 'UNIVIE Offer decision',
     ]);
-    expect(loadColumnsForBoard(BOARD).map((c) => c.id)).toEqual(['todo', 'done']);
+    expect(_loadStoredBoardForTesting(BOARD).columns.map((c) => c.id)).toEqual(['todo', 'done']);
   });
 
   it('replays events newer than the snapshot on top of it', async () => {
@@ -154,8 +152,8 @@ describe('catch-up with a server snapshot', () => {
 
     await catchUp();
 
-    expect(loadTasksForBoard(BOARD).map((t) => t.title)).toContain('MazeMap Merger Aquisition');
-    expect(loadTasksForBoard(BOARD)).toHaveLength(3);
+    expect(_loadStoredBoardForTesting(BOARD).tasks.map((t) => t.title)).toContain('MazeMap Merger Aquisition');
+    expect(_loadStoredBoardForTesting(BOARD).tasks).toHaveLength(3);
   });
 
   it('ignores events the snapshot already holds', async () => {
@@ -174,8 +172,8 @@ describe('catch-up with a server snapshot', () => {
 
     await catchUp();
 
-    expect(loadTasksForBoard(BOARD).map((t) => t.title)).not.toContain('Already in the snapshot');
-    expect(loadTasksForBoard(BOARD)).toHaveLength(2);
+    expect(_loadStoredBoardForTesting(BOARD).tasks.map((t) => t.title)).not.toContain('Already in the snapshot');
+    expect(_loadStoredBoardForTesting(BOARD).tasks).toHaveLength(2);
   });
 
   it('hydrates a timetracking snapshot into the time-tracking slot, not a board', async () => {
@@ -199,7 +197,7 @@ describe('catch-up with a server snapshot', () => {
     // The projector persists the time-tracking read model under its own KV key.
     expect(await db.get(KV_STORE, 'kanvana:timetracking')).toEqual(slot);
     expect(listBoards().map((b) => b.id)).toEqual([BOARD]);
-    expect(loadTasksForBoard(BOARD)).toHaveLength(2);
+    expect(_loadStoredBoardForTesting(BOARD).tasks).toHaveLength(2);
     expect(await db.get(KV_STORE, `${LAST_SEEN_PREFIX}__timetracking__`)).toEqual(hlc(120));
   });
 
@@ -265,7 +263,7 @@ describe('adopting a snapshot keeps newer local edits', () => {
     serveSnapshots([{ id: 'snap-2', key: BOARD, hlc: hlc(200), bytes: await gzip(remote) }]);
     await catchUp();
 
-    expect(loadTasksForBoard(BOARD).map((t) => t.title)).toEqual(expect.arrayContaining([
+    expect(_loadStoredBoardForTesting(BOARD).tasks.map((t) => t.title)).toEqual(expect.arrayContaining([
       'TU Invoice number for bill', 'UNIVIE Offer decision', 'From another device', 'Unsynced local task',
     ]));
     expect(await queuedIds()).toContain(edit.id);
@@ -285,8 +283,8 @@ describe('adopting a snapshot keeps newer local edits', () => {
     serveSnapshots([{ id: 'snap-2', key: BOARD, hlc: later(edit.hlc), bytes: await gzip(snapshot) }]);
     await catchUp();
 
-    expect(loadTasksForBoard(BOARD)).toEqual(tasks);
-    expect(loadColumnsForBoard(BOARD)).toEqual(SNAPSHOT_BODY.columns);
+    expect(_loadStoredBoardForTesting(BOARD).tasks).toEqual(tasks);
+    expect(_loadStoredBoardForTesting(BOARD).columns).toEqual(SNAPSHOT_BODY.columns);
   });
 
   it('board: an entity a stored event created but the newer snapshot dropped is gone', async () => {
@@ -296,12 +294,12 @@ describe('adopting a snapshot keeps newer local edits', () => {
     ])));
     setAuth();
     await catchUp();
-    expect(loadLabelsForBoard(BOARD).map((l) => l.id)).toContain('label-2');
+    expect(_loadStoredBoardForTesting(BOARD).labels.map((l) => l.id)).toContain('label-2');
 
     serveSnapshots([{ id: 'snap-2', key: BOARD, hlc: hlc(200), bytes: await gzip({ ...SNAPSHOT_BODY, appliedEventIds: ['evt-label'] }) }]);
     await catchUp();
 
-    expect(loadLabelsForBoard(BOARD)).toEqual(SNAPSHOT_BODY.labels);
+    expect(_loadStoredBoardForTesting(BOARD).labels).toEqual(SNAPSHOT_BODY.labels);
   });
 
   it('global: adopting a snapshot older than an unsynced settings edit keeps the edit', async () => {

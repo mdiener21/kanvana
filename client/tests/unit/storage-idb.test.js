@@ -25,23 +25,18 @@ import {
   getActiveBoardId,
   setActiveBoardId,
   loadTasks,
-  saveTasks,
   loadColumns,
-  saveColumns,
   loadLabels,
-  saveLabels,
   loadSettings,
   saveSettings,
   loadGlobalSettings,
-  saveGlobalSettings,
-  loadTasksForBoard,
-  loadColumnsForBoard,
-  loadLabelsForBoard,
-  loadSettingsForBoard,
+  loadBoard,
+  _loadStoredBoardForTesting
 } from '../../src/modules/storage.js';
 import { logWriteFailure, openStore, schedulePersist, scheduleReadModelPersist, EVENTS_STORE, KV_STORE, READ_MODEL_STORE } from '../../src/modules/idb-store.js';
 import { ingestEvent } from '../../src/modules/event-sourcing/ingest.js';
 import { scheduleDomainEvent } from '../../src/modules/event-sourcing/emitter.js';
+import { seedBoard, seedGlobalSettings } from '../fixtures/seed-read-model.js';
 
 const DB_NAME = 'kanvana-db';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -87,11 +82,11 @@ test('initStorage removes the stale legacy-sync localStorage keys from older ver
 
 // ── cross-session persistence ────────────────────────────────────────────────────
 
-test('saveTasks persists to IDB and survives a session reset', async () => {
+test('seeded tasks persist to IDB and survive a session reset', async () => {
   // Session 1: write tasks
   await initStorage();
   ensureBoardsInitialized();
-  saveTasks([{ id: 't1', title: 'Persisted task', column: 'todo', priority: 'none', order: 1 }]);
+  seedBoard({ tasks: [{ id: 't1', title: 'Persisted task', column: 'todo', priority: 'none', order: 1 }] });
 
   await _flushPersistsForTesting();
   const boardId = getActiveBoardId();
@@ -108,7 +103,7 @@ test('emitted task.updated events project into task read model', async () => {
   await initStorage();
   ensureBoardsInitialized();
   const boardId = getActiveBoardId();
-  saveTasks([{ id: 'task-a', title: 'Before', column: 'todo', priority: 'none', order: 1 }]);
+  seedBoard({ tasks: [{ id: 'task-a', title: 'Before', column: 'todo', priority: 'none', order: 1 }] });
 
   scheduleDomainEvent({
     type: 'task.updated',
@@ -124,13 +119,13 @@ test('emitted task.updated events project into task read model', async () => {
   expect((await db.get('read_model', `${boardId}:tasks`))[0].title).toBe('After');
 });
 
-test('saveColumns persists to IDB and survives a session reset', async () => {
+test('seeded columns persist to IDB and survive a session reset', async () => {
   await initStorage();
   ensureBoardsInitialized();
-  saveColumns([
+  seedBoard({ columns: [
     { id: 'review', name: 'Review', color: '#aabbcc', order: 1, collapsed: false },
     { id: 'done',   name: 'Done',   color: '#505050', order: 2, collapsed: false },
-  ]);
+  ] });
 
   await _flushPersistsForTesting();
   const boardId = getActiveBoardId();
@@ -143,10 +138,10 @@ test('saveColumns persists to IDB and survives a session reset', async () => {
   expect(reviewColumn?.id).toMatch(UUID_RE);
 });
 
-test('saveLabels persists to IDB and survives a session reset', async () => {
+test('seeded labels persist to IDB and survive a session reset', async () => {
   await initStorage();
   ensureBoardsInitialized();
-  saveLabels([{ id: 'lbl-1', name: 'Blocker', color: '#ff0000', group: '' }]);
+  seedBoard({ labels: [{ id: 'lbl-1', name: 'Blocker', color: '#ff0000', group: '' }] });
 
   await _flushPersistsForTesting();
   const boardId = getActiveBoardId();
@@ -185,9 +180,9 @@ test('initStorage loads global settings from IDB', async () => {
   expect(loadGlobalSettings()).toEqual({});
 });
 
-test('saveGlobalSettings persists to IDB and survives a session reset', async () => {
+test('global settings persist to IDB and survive a session reset', async () => {
   await initStorage();
-  saveGlobalSettings({ softDeleteEnabled: true });
+  seedGlobalSettings({ softDeleteEnabled: true });
 
   await _flushPersistsForTesting();
   _resetStorageForTesting();
@@ -200,7 +195,7 @@ test('createBoard persists board list and per-board defaults across sessions', a
   await initStorage();
   ensureBoardsInitialized();
   const board = createBoard('Persisted Board');
-  saveTasks([{ id: 't1', title: 'Board task', column: 'todo', priority: 'none', order: 1 }]);
+  seedBoard({ tasks: [{ id: 't1', title: 'Board task', column: 'todo', priority: 'none', order: 1 }] });
 
   await _flushPersistsForTesting();
   _resetStorageForTesting();
@@ -232,7 +227,7 @@ test('deleteBoard removes per-board data from IDB', async () => {
   const defaultId = getActiveBoardId();
   const other = createBoard('Doomed');
   setActiveBoardId(other.id);
-  saveTasks([{ id: 't1', title: 'Doomed task', column: 'todo', priority: 'none', order: 1 }]);
+  seedBoard({ tasks: [{ id: 't1', title: 'Doomed task', column: 'todo', priority: 'none', order: 1 }] });
 
   await _flushPersistsForTesting();
 
@@ -243,9 +238,9 @@ test('deleteBoard removes per-board data from IDB', async () => {
 
   await initStorage();
   expect(listBoards().some(b => b.id === other.id)).toBe(false);
-  // Board-scoped helpers should return empty arrays for the deleted board.
-  expect(loadTasksForBoard(other.id)).toEqual([]);
-  expect(loadColumnsForBoard(other.id)).toEqual([]);
+  expect(loadBoard(other.id)).toBeNull();
+  expect(_loadStoredBoardForTesting(other.id).tasks).toEqual([]);
+  expect(_loadStoredBoardForTesting(other.id).columns).toEqual([]);
 });
 
 test('deleteBoard leaves no read-model record of the board, delete records and applied ids included (#178)', async () => {
@@ -254,7 +249,7 @@ test('deleteBoard leaves no read-model record of the board, delete records and a
   const defaultId = getActiveBoardId();
   const other = createBoard('Doomed');
   setActiveBoardId(other.id);
-  saveTasks([{ id: 't1', title: 'Doomed task', column: 'todo', priority: 'none', order: 1 }]);
+  seedBoard({ tasks: [{ id: 't1', title: 'Doomed task', column: 'todo', priority: 'none', order: 1 }] });
   scheduleDomainEvent({ type: 'task.deleted', boardId: other.id, entityId: 't1', payload: {} });
   await _flushPersistsForTesting();
   const db = await openStore();
@@ -473,61 +468,61 @@ test('initStorage with corrupt kanbanBoards in IDB yields empty boards list', as
   expect(listBoards()).toEqual([]);
 });
 
-// ── cross-board read helpers ───────────────────────────────────────────────────────
+// ── the board read, for a board that is not active ─────────────────────────────────
 
-test('loadTasksForBoard reads tasks for a non-active board without changing active board', async () => {
+test('loadBoard reads tasks for a non-active board without changing active board', async () => {
   await initStorage();
   ensureBoardsInitialized();
   const defaultId = getActiveBoardId();
   const other = createBoard('Other');
 
   setActiveBoardId(other.id);
-  saveTasks([{ id: 'o1', title: 'Other task', column: 'todo', priority: 'none', order: 1 }]);
+  seedBoard({ tasks: [{ id: 'o1', title: 'Other task', column: 'todo', priority: 'none', order: 1 }] });
 
   // Switch back to default before the assertion.
   setActiveBoardId(defaultId);
 
-  const tasks = loadTasksForBoard(other.id);
+  const tasks = loadBoard(other.id).tasks;
   expect(tasks.some(t => t.id === 'o1')).toBe(true);
   expect(getActiveBoardId()).toBe(defaultId); // active board must be unchanged
 });
 
-test('loadColumnsForBoard reads columns for a non-active board', async () => {
+test('loadBoard reads columns for a non-active board', async () => {
   await initStorage();
   ensureBoardsInitialized();
   const defaultId = getActiveBoardId();
   const other = createBoard('Other');
 
   setActiveBoardId(other.id);
-  saveColumns([
+  seedBoard({ columns: [
     { id: 'special', name: 'Special', color: '#ff0000', order: 1, collapsed: false },
     { id: 'done',    name: 'Done',    color: '#505050', order: 2, collapsed: false },
-  ]);
+  ] });
 
   setActiveBoardId(defaultId);
 
-  const columns = loadColumnsForBoard(other.id);
+  const columns = loadBoard(other.id).columns;
   expect(columns.some(c => c.id === 'special')).toBe(true);
   expect(getActiveBoardId()).toBe(defaultId);
 });
 
-test('loadLabelsForBoard reads labels for a non-active board', async () => {
+test('loadBoard reads labels for a non-active board', async () => {
   await initStorage();
   ensureBoardsInitialized();
   const defaultId = getActiveBoardId();
   const other = createBoard('Other');
 
   setActiveBoardId(other.id);
-  saveLabels([{ id: 'lbl-x', name: 'X', color: '#123456', group: '' }]);
+  seedBoard({ labels: [{ id: 'lbl-x', name: 'X', color: '#123456', group: '' }] });
 
   setActiveBoardId(defaultId);
 
-  const labels = loadLabelsForBoard(other.id);
+  const labels = loadBoard(other.id).labels;
   expect(labels.some(l => l.id === 'lbl-x')).toBe(true);
   expect(getActiveBoardId()).toBe(defaultId);
 });
 
-test('loadSettingsForBoard reads settings for a non-active board', async () => {
+test('loadBoard reads settings for a non-active board', async () => {
   await initStorage();
   ensureBoardsInitialized();
   const defaultId = getActiveBoardId();
@@ -538,14 +533,14 @@ test('loadSettingsForBoard reads settings for a non-active board', async () => {
 
   setActiveBoardId(defaultId);
 
-  const settings = loadSettingsForBoard(other.id);
+  const settings = loadBoard(other.id).settings;
   expect(settings?.swimLanesEnabled).toBe(true);
   expect(getActiveBoardId()).toBe(defaultId);
 });
 
-test('loadTasksForBoard returns empty array for unknown board id', async () => {
+test('loadBoard returns null for an unknown board id', async () => {
   await initStorage();
-  expect(loadTasksForBoard('non-existent-board')).toEqual([]);
+  expect(loadBoard('non-existent-board')).toBeNull();
 });
 
 test('a failed write batch stores nothing and logs once, however many writes joined it', async () => {

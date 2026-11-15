@@ -398,7 +398,7 @@ describe('the default board after a wipe', () => {
     await settle(400);
 
     expect(pushes).toEqual([]);
-    expect(page.storage.loadTasksForBoard(stableId)).toEqual([]);
+    expect(page.storage._loadStoredBoardForTesting(stableId).tasks).toEqual([]);
   }, 30000);
 
   it('publishes it once when the new account has nothing yet', async () => {
@@ -411,7 +411,7 @@ describe('the default board after a wipe', () => {
 
     await waitFor(() => expect(pushes.filter((body) => body.event_type === 'board.created').map((body) => [body.board, body.owner])).toEqual([[stableId, USER_B.id]]));
     await waitFor(() => expect(pushes.filter((body) => body.event_type === 'column.created')).toHaveLength(3));
-    expect(page.storage.loadTasksForBoard(stableId)).toEqual([]);
+    expect(page.storage._loadStoredBoardForTesting(stableId).tasks).toEqual([]);
     await waitFor(async () => expect(await page.idb.getUnsyncedEvents()).toHaveLength(0));
 
     const pushedOnce = pushes.length;

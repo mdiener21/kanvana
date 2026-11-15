@@ -1,7 +1,7 @@
 import { test, expect, beforeEach, vi } from 'vitest';
 import { resetLocalStorage } from './setup.js';
 import { inspectImportPayload, buildImportConfirmationMessage, IMPORT_LIMITS, exportBoard, importTasks } from '../../src/modules/importexport.js';
-import { createBoard, getActiveBoardId, saveColumns, saveTasks } from '../../src/modules/storage.js';
+import { createBoard, getActiveBoardId } from '../../src/modules/storage.js';
 
 vi.mock('../../src/modules/dialog.js', () => ({
   confirmDialog: vi.fn(() => Promise.resolve(true)),

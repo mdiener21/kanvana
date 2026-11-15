@@ -94,7 +94,7 @@ function timeTrackingEvent(type, entityId, payload, { id, nodeId, wallTime = Dat
 
 const customerNames = (tab) => tab.storage.loadTimeTracking().customers.map((customer) => customer.name).sort();
 
-const taskIn = (tab) => tab.storage.loadTasksForBoard(BOARD).find((task) => task.id === TASK);
+const taskIn = (tab) => tab.storage._loadStoredBoardForTesting(BOARD).tasks.find((task) => task.id === TASK);
 
 // A fresh tab reads only IndexedDB, so it shows what survives a reload.
 async function taskAfterReload() {
@@ -327,7 +327,7 @@ describe('events a tab missed', () => {
     await follower.ingest.ingestMissedEvents();
 
     expect(follower.storage.getBoardById(BOARD)).toBeNull();
-    expect(follower.storage.loadTasksForBoard(BOARD)).toEqual([]);
+    expect(follower.storage._loadStoredBoardForTesting(BOARD).tasks).toEqual([]);
   });
 
   it('a tab that opens alone repairs a time-tracking view a stale tab wrote over', async () => {
