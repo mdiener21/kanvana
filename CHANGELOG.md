@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Storage: opening a board no longer writes its tasks back. Legacy task data (priority, done date, column history, relationships, subtasks) is normalised each time it is read. Renaming a board updates the board list only through its `board.updated` event (#330).
+
 ## [3.4.22] - 2026-11-15
 
 ### Changed

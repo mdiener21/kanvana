@@ -774,11 +774,6 @@ export function createReadModelProjector(ctx) {
 
   // ── Writes storage still makes without an event (save* paths).
 
-  function setBoards(next) {
-    state.boards = next;
-    schedulePersist(boardsKey, next);
-  }
-
   function setBoardSlice(boardId, slice, value) {
     state[slice][boardId] = value;
   }
@@ -819,7 +814,7 @@ export function createReadModelProjector(ctx) {
     // Storage's side: loading, reads, and the writes no event carries.
     load, startProjecting, reset, addBoard, removeBoard,
     boards, board, globalSettings: loadGlobalSettings, timeTracking, cachedTasks, cacheTasks,
-    setBoards, setBoardSlice, setGlobalSettings, writeBoardSettings, refreshBoardSettings,
+    setBoardSlice, setGlobalSettings, writeBoardSettings, refreshBoardSettings,
     // Ingest's side: applying admitted events, and the reads admission needs.
     apply, applyRemoteBatch, applyStored, commitTogether, adoptSnapshot, rebuildAfterPeerAdoption, missedEvents, isProjecting
   };
