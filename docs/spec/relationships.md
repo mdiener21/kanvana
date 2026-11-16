@@ -92,7 +92,7 @@ Each task stores its relationships as an array on the task object:
 
 - Relationships are saved when the task form is submitted (same as other task fields).
 - The bidirectional sync (auto-create/remove inverse) is applied at save time in `tasks.js`.
-- All affected tasks (the edited task and any target tasks) are saved in a single `saveTasks()` call.
+- The changes to all affected tasks (the edited task and any target tasks) are emitted as events in one `commitTogether()` scope.
 
 ## Normalization
 

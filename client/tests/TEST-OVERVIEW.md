@@ -4,10 +4,10 @@ Generated from test source. Do not edit by hand; run `npm run test:overview` fro
 
 ## Fast Scan
 
-- Test files: 183
-- Test cases: 1625
-- Unit files: 61
-- DOM integration files: 55
+- Test files: 185
+- Test cases: 1636
+- Unit files: 62
+- DOM integration files: 56
 - E2E files: 65
 - Performance files: 1
 
@@ -95,15 +95,17 @@ These lists compare source/spec filenames against test file names and test title
 
 - Path: `tests/unit/boot-migration.test.js`
 - Type: Unit
-- Test count: 7
+- Test count: 9
 
-- `tests/unit/boot-migration.test.js:34` multi-board localStorage data becomes the persisted Read Model with UUID ids
-- `tests/unit/boot-migration.test.js:63` legacy single-board localStorage keys become one default board with the demo labels
-- `tests/unit/boot-migration.test.js:83` the migrated localStorage keys are removed, along with the stale legacy-sync keys
-- `tests/unit/boot-migration.test.js:101` localStorage is ignored once IDB holds boards
-- `tests/unit/boot-migration.test.js:112` pre-read-model IDB kv slices move into the read-model store under UUID ids
-- `tests/unit/boot-migration.test.js:133` a first boot with no data writes nothing
-- `tests/unit/boot-migration.test.js:141` running it again on migrated state changes nothing
+- `tests/unit/boot-migration.test.js:37` multi-board localStorage data becomes the persisted Read Model with UUID ids
+- `tests/unit/boot-migration.test.js:66` legacy single-board localStorage keys become one default board with the demo labels
+- `tests/unit/boot-migration.test.js:86` the migrated localStorage keys are removed, along with the stale legacy-sync keys
+- `tests/unit/boot-migration.test.js:104` localStorage is ignored once IDB holds boards
+- `tests/unit/boot-migration.test.js:115` pre-read-model IDB kv slices move into the read-model store under UUID ids
+- `tests/unit/boot-migration.test.js:136` a first boot with no data writes no boards and no Read Model
+- `tests/unit/boot-migration.test.js:144` running it again on migrated state changes nothing
+- `tests/unit/boot-migration.test.js:154` a task stored with no dates and no column history gets its history stamped once
+- `tests/unit/boot-migration.test.js:170` booting storage runs the migration: legacy localStorage data reads back through the board read
 
 ### Columns
 
@@ -184,12 +186,12 @@ These lists compare source/spec filenames against test file names and test title
 - Type: Unit
 - Test count: 6
 
-- `tests/unit/event-sourcing/backfill.test.js:51` event log backfill > a failed write stores neither the events nor the flag, so the next launch backfills again
-- `tests/unit/event-sourcing/backfill.test.js:61` event log backfill > emits a created event for every pre-existing entity
-- `tests/unit/event-sourcing/backfill.test.js:75` event log backfill > a replaying device reconstructs each board and its tasks
-- `tests/unit/event-sourcing/backfill.test.js:100` event log backfill > runs once and is a no-op on the next startup
-- `tests/unit/event-sourcing/backfill.test.js:112` event log backfill > skips entities that already have a created event
-- `tests/unit/event-sourcing/backfill.test.js:126` event log backfill > records the flag so a later run is skipped
+- `tests/unit/event-sourcing/backfill.test.js:53` event log backfill > a failed write stores neither the events nor the flag, so the next launch backfills again
+- `tests/unit/event-sourcing/backfill.test.js:64` event log backfill > emits a created event for every pre-existing entity
+- `tests/unit/event-sourcing/backfill.test.js:78` event log backfill > a replaying device reconstructs each board and its tasks
+- `tests/unit/event-sourcing/backfill.test.js:103` event log backfill > runs once and is a no-op on the next startup
+- `tests/unit/event-sourcing/backfill.test.js:115` event log backfill > skips entities that already have a created event
+- `tests/unit/event-sourcing/backfill.test.js:129` event log backfill > records the flag so a later run is skipped
 
 ### Board Delete Replay
 
@@ -264,11 +266,11 @@ These lists compare source/spec filenames against test file names and test title
 - Type: Unit
 - Test count: 5
 
-- `tests/unit/event-sourcing/durable-memory.test.js:59` a task deleted before a reload is not resurrected by an older task.created
-- `tests/unit/event-sourcing/durable-memory.test.js:69` the remote echo of an edit applied before a reload does not overwrite a newer edit
-- `tests/unit/event-sourcing/durable-memory.test.js:81` a delete record in an adopted snapshot makes later edits of that task a no-op, also after a reload
-- `tests/unit/event-sourcing/durable-memory.test.js:102` a snapshot holds the board memory and the live applied set is pruned of what it holds
-- `tests/unit/event-sourcing/durable-memory.test.js:136` a global-scope echo of an event stored before a reload is answered as applied from the event store
+- `tests/unit/event-sourcing/durable-memory.test.js:58` a task deleted before a reload is not resurrected by an older task.created
+- `tests/unit/event-sourcing/durable-memory.test.js:68` the remote echo of an edit applied before a reload does not overwrite a newer edit
+- `tests/unit/event-sourcing/durable-memory.test.js:80` a delete record in an adopted snapshot makes later edits of that task a no-op, also after a reload
+- `tests/unit/event-sourcing/durable-memory.test.js:101` a snapshot holds the board memory and the live applied set is pruned of what it holds
+- `tests/unit/event-sourcing/durable-memory.test.js:135` a global-scope echo of an event stored before a reload is answered as applied from the event store
 
 ### Emitter
 
@@ -305,13 +307,13 @@ These lists compare source/spec filenames against test file names and test title
 - Type: Unit
 - Test count: 7
 
-- `tests/unit/event-sourcing/out-of-order-ingest.test.js:89` rebuild > keeps a task that no event knows of, such as a demo task
-- `tests/unit/event-sourcing/out-of-order-ingest.test.js:104` rebuild > keeps swimlane settings written without an event
-- `tests/unit/event-sourcing/out-of-order-ingest.test.js:118` rebuild > folds a late event into the snapshot that covers it, and the view converges
-- `tests/unit/event-sourcing/out-of-order-ingest.test.js:138` the clock observes only events this tab takes > a remote event the covering snapshot already holds
-- `tests/unit/event-sourcing/out-of-order-ingest.test.js:155` the clock observes only events this tab takes > stored events before this tab starts projecting
-- `tests/unit/event-sourcing/out-of-order-ingest.test.js:193` in-order ingest stays incremental > a stream of newer events never reads the event store in bulk and never rebuilds
-- `tests/unit/event-sourcing/out-of-order-ingest.test.js:209` in-order ingest stays incremental > a late event is the one that reads the store and rebuilds
+- `tests/unit/event-sourcing/out-of-order-ingest.test.js:87` rebuild > keeps a task that no event knows of, such as a demo task
+- `tests/unit/event-sourcing/out-of-order-ingest.test.js:102` rebuild > keeps swimlane settings written without an event
+- `tests/unit/event-sourcing/out-of-order-ingest.test.js:116` rebuild > folds a late event into the snapshot that covers it, and the view converges
+- `tests/unit/event-sourcing/out-of-order-ingest.test.js:136` the clock observes only events this tab takes > a remote event the covering snapshot already holds
+- `tests/unit/event-sourcing/out-of-order-ingest.test.js:153` the clock observes only events this tab takes > stored events before this tab starts projecting
+- `tests/unit/event-sourcing/out-of-order-ingest.test.js:191` in-order ingest stays incremental > a stream of newer events never reads the event store in bulk and never rebuilds
+- `tests/unit/event-sourcing/out-of-order-ingest.test.js:207` in-order ingest stays incremental > a late event is the one that reads the store and rebuilds
 
 ### Read Model Held Writes
 
@@ -394,16 +396,16 @@ These lists compare source/spec filenames against test file names and test title
 - Type: Unit
 - Test count: 10
 
-- `tests/unit/event-sourcing/selective-persist.test.js:98` writes that reach IndexedDB > a task move stores the tasks and the event memory, and no other slice
-- `tests/unit/event-sourcing/selective-persist.test.js:105` writes that reach IndexedDB > a column, a label, a settings and a board event each store their own slice
-- `tests/unit/event-sourcing/selective-persist.test.js:120` writes that reach IndexedDB > a duplicate create stores the event memory only, and renders nothing
-- `tests/unit/event-sourcing/selective-persist.test.js:148` hydration and replay > a board saved slice by slice hydrates to what was in memory
-- `tests/unit/event-sourcing/selective-persist.test.js:159` hydration and replay > a board saved slice by slice matches a replay of the same events from its start
-- `tests/unit/event-sourcing/selective-persist.test.js:174` hydration and replay > a reload still remembers a task deletion and every applied id, so neither replays
-- `tests/unit/event-sourcing/selective-persist.test.js:216` snapshots > a run of no-ops takes one snapshot, not one per event
-- `tests/unit/event-sourcing/selective-persist.test.js:233` snapshots > a snapshot holds the whole board though each event stored only its slice
-- `tests/unit/event-sourcing/selective-persist.test.js:260` backfill at boot (#138) > fills the log with valid syncable events, without projecting or announcing them
-- `tests/unit/event-sourcing/selective-persist.test.js:286` backfill at boot (#138) > a reopen with the flag set adds no events and shows the same board
+- `tests/unit/event-sourcing/selective-persist.test.js:95` writes that reach IndexedDB > a task move stores the tasks and the event memory, and no other slice
+- `tests/unit/event-sourcing/selective-persist.test.js:102` writes that reach IndexedDB > a column, a label, a settings and a board event each store their own slice
+- `tests/unit/event-sourcing/selective-persist.test.js:117` writes that reach IndexedDB > a duplicate create stores the event memory only, and renders nothing
+- `tests/unit/event-sourcing/selective-persist.test.js:145` hydration and replay > a board saved slice by slice hydrates to what was in memory
+- `tests/unit/event-sourcing/selective-persist.test.js:156` hydration and replay > a board saved slice by slice matches a replay of the same events from its start
+- `tests/unit/event-sourcing/selective-persist.test.js:171` hydration and replay > a reload still remembers a task deletion and every applied id, so neither replays
+- `tests/unit/event-sourcing/selective-persist.test.js:213` snapshots > a run of no-ops takes one snapshot, not one per event
+- `tests/unit/event-sourcing/selective-persist.test.js:230` snapshots > a snapshot holds the whole board though each event stored only its slice
+- `tests/unit/event-sourcing/selective-persist.test.js:257` backfill at boot (#138) > fills the log with valid syncable events, without projecting or announcing them
+- `tests/unit/event-sourcing/selective-persist.test.js:283` backfill at boot (#138) > a reopen with the flag set adds no events and shows the same board
 
 ### Snapshot
 
@@ -543,15 +545,15 @@ _No executable test cases detected._
 - Type: Unit
 - Test count: 9
 
-- `tests/unit/seed-read-model.test.js:19` seedBoard puts the given tasks on the active board
-- `tests/unit/seed-read-model.test.js:24` seedBoard writes through events, which reach the event log
-- `tests/unit/seed-read-model.test.js:32` seeding a slice again replaces it: missing items go, known ones are overwritten whole
-- `tests/unit/seed-read-model.test.js:42` an empty list clears the slice
-- `tests/unit/seed-read-model.test.js:49` columns and labels keep the given order and leave other slices alone
-- `tests/unit/seed-read-model.test.js:63` a column seeded again after it was removed comes back
-- `tests/unit/seed-read-model.test.js:71` seedBoard can target a board other than the active one
-- `tests/unit/seed-read-model.test.js:79` seedGlobalSettings sets global settings through an event
-- `tests/unit/seed-read-model.test.js:84` seedBoard refuses an order events cannot give, rather than seed a different one
+- `tests/unit/seed-read-model.test.js:26` seedBoard puts the given tasks on the active board
+- `tests/unit/seed-read-model.test.js:31` seedBoard writes through events, which reach the event log
+- `tests/unit/seed-read-model.test.js:39` seeding a slice again replaces it: missing items go, known ones are overwritten whole
+- `tests/unit/seed-read-model.test.js:49` an empty list clears the slice
+- `tests/unit/seed-read-model.test.js:56` columns and labels keep the given order and leave other slices alone
+- `tests/unit/seed-read-model.test.js:70` a column seeded again after it was removed comes back
+- `tests/unit/seed-read-model.test.js:78` seedBoard can target a board other than the active one
+- `tests/unit/seed-read-model.test.js:86` seedGlobalSettings sets global settings through an event
+- `tests/unit/seed-read-model.test.js:91` seedBoard refuses an order events cannot give, rather than seed a different one
 
 ### Sortable Native Drag
 
@@ -562,43 +564,57 @@ _No executable test cases detected._
 - `tests/unit/sortable-native-drag.test.js:30` SortableJS never uses native HTML5 drag > finds every Sortable call site
 - `tests/unit/sortable-native-drag.test.js:44` SortableJS never uses native HTML5 drag > task cards are never natively draggable
 
+### Storage Board Read
+
+- Path: `tests/unit/storage-board-read.test.js`
+- Type: Unit
+- Test count: 7
+
+- `tests/unit/storage-board-read.test.js:60` a board read cross-board gives normalised tasks
+- `tests/unit/storage-board-read.test.js:76` a board stored without a Done column reads with one, cross-board as on the board itself
+- `tests/unit/storage-board-read.test.js:89` the active-board reads give what the board read gives
+- `tests/unit/storage-board-read.test.js:105` a task stored with no dates reads with the same column history in every session
+- `tests/unit/storage-board-read.test.js:122` a task that arrives with no dates after boot reads with no column history, the same in every session
+- `tests/unit/storage-board-read.test.js:138` a board that is not listed reads as null
+- `tests/unit/storage-board-read.test.js:145` backfill logs a legacy board as it reads: normalised tasks, and its Done column
+
 ### Storage Idb
 
 - Path: `tests/unit/storage-idb.test.js`
 - Type: Unit
 - Test count: 31
 
-- `tests/unit/storage-idb.test.js:55` initStorage on empty IDB leaves boards list empty
-- `tests/unit/storage-idb.test.js:60` initStorage creates a stable HLC node id on boot
-- `tests/unit/storage-idb.test.js:66` initStorage is safe to call twice in the same session
-- `tests/unit/storage-idb.test.js:75` initStorage removes the stale legacy-sync localStorage keys from older versions
-- `tests/unit/storage-idb.test.js:87` seeded tasks persist to IDB and survive a session reset
-- `tests/unit/storage-idb.test.js:104` emitted task.updated events project into task read model
-- `tests/unit/storage-idb.test.js:124` seeded columns persist to IDB and survive a session reset
-- `tests/unit/storage-idb.test.js:143` seeded labels persist to IDB and survive a session reset
-- `tests/unit/storage-idb.test.js:159` saveSettings persists to IDB and survives a session reset
-- `tests/unit/storage-idb.test.js:175` initStorage loads global settings from IDB
-- `tests/unit/storage-idb.test.js:185` global settings persist to IDB and survive a session reset
-- `tests/unit/storage-idb.test.js:196` createBoard persists board list and per-board defaults across sessions
-- `tests/unit/storage-idb.test.js:211` active board id persists across sessions
-- `tests/unit/storage-idb.test.js:226` deleteBoard removes per-board data from IDB
-- `tests/unit/storage-idb.test.js:248` deleteBoard leaves no read-model record of the board, delete records and applied ids included (#178)
-- `tests/unit/storage-idb.test.js:268` v2 migration rehomes board read models and removes legacy kv keys
-- `tests/unit/storage-idb.test.js:290` v2 migration deletes legacy board event logs
-- `tests/unit/storage-idb.test.js:301` v2 schema creates event sourcing stores and event indexes
-- `tests/unit/storage-idb.test.js:313` migrates multi-board localStorage data on first initStorage
-- `tests/unit/storage-idb.test.js:340` migrates legacy done id to a UUID done role and rewrites task references
-- `tests/unit/storage-idb.test.js:377` migration cleans up localStorage after completing
-- `tests/unit/storage-idb.test.js:397` migrates legacy single-board localStorage keys (pre-multi-board format)
-- `tests/unit/storage-idb.test.js:419` migrates legacy single-board tasks without columns using UUID default column mappings
-- `tests/unit/storage-idb.test.js:441` migration does not run again on a subsequent initStorage call (same IDB)
-- `tests/unit/storage-idb.test.js:461` initStorage with corrupt kanbanBoards in IDB yields empty boards list
-- `tests/unit/storage-idb.test.js:475` loadBoard reads tasks for a non-active board without changing active board
-- `tests/unit/storage-idb.test.js:492` loadBoard reads columns for a non-active board
-- `tests/unit/storage-idb.test.js:511` loadBoard reads labels for a non-active board
-- `tests/unit/storage-idb.test.js:527` loadBoard reads settings for a non-active board
-- `tests/unit/storage-idb.test.js:543` loadBoard returns null for an unknown board id
-- `tests/unit/storage-idb.test.js:548` a failed write batch stores nothing and logs once, however many writes joined it
+- `tests/unit/storage-idb.test.js:53` initStorage on empty IDB leaves boards list empty
+- `tests/unit/storage-idb.test.js:58` initStorage creates a stable HLC node id on boot
+- `tests/unit/storage-idb.test.js:64` initStorage is safe to call twice in the same session
+- `tests/unit/storage-idb.test.js:73` initStorage removes the stale legacy-sync localStorage keys from older versions
+- `tests/unit/storage-idb.test.js:85` seeded tasks persist to IDB and survive a session reset
+- `tests/unit/storage-idb.test.js:102` emitted task.updated events project into task read model
+- `tests/unit/storage-idb.test.js:122` seeded columns persist to IDB and survive a session reset
+- `tests/unit/storage-idb.test.js:141` seeded labels persist to IDB and survive a session reset
+- `tests/unit/storage-idb.test.js:157` saveSettings persists to IDB and survives a session reset
+- `tests/unit/storage-idb.test.js:173` initStorage loads global settings from IDB
+- `tests/unit/storage-idb.test.js:183` global settings persist to IDB and survive a session reset
+- `tests/unit/storage-idb.test.js:194` createBoard persists board list and per-board defaults across sessions
+- `tests/unit/storage-idb.test.js:209` active board id persists across sessions
+- `tests/unit/storage-idb.test.js:224` deleteBoard removes per-board data from IDB
+- `tests/unit/storage-idb.test.js:246` deleteBoard leaves no read-model record of the board, delete records and applied ids included (#178)
+- `tests/unit/storage-idb.test.js:266` v2 migration rehomes board read models and removes legacy kv keys
+- `tests/unit/storage-idb.test.js:288` v2 migration deletes legacy board event logs
+- `tests/unit/storage-idb.test.js:299` v2 schema creates event sourcing stores and event indexes
+- `tests/unit/storage-idb.test.js:311` migrates multi-board localStorage data on first initStorage
+- `tests/unit/storage-idb.test.js:338` migrates legacy done id to a UUID done role and rewrites task references
+- `tests/unit/storage-idb.test.js:375` migration cleans up localStorage after completing
+- `tests/unit/storage-idb.test.js:395` migrates legacy single-board localStorage keys (pre-multi-board format)
+- `tests/unit/storage-idb.test.js:417` migrates legacy single-board tasks without columns using UUID default column mappings
+- `tests/unit/storage-idb.test.js:439` migration does not run again on a subsequent initStorage call (same IDB)
+- `tests/unit/storage-idb.test.js:459` initStorage with corrupt kanbanBoards in IDB yields empty boards list
+- `tests/unit/storage-idb.test.js:473` loadBoard reads tasks for a non-active board without changing active board
+- `tests/unit/storage-idb.test.js:490` loadBoard reads columns for a non-active board
+- `tests/unit/storage-idb.test.js:509` loadBoard reads labels for a non-active board
+- `tests/unit/storage-idb.test.js:525` loadBoard reads settings for a non-active board
+- `tests/unit/storage-idb.test.js:541` loadBoard returns null for an unknown board id
+- `tests/unit/storage-idb.test.js:546` a failed write batch stores nothing and logs once, however many writes joined it
 
 ### Storage No Second Writers
 
@@ -606,10 +622,10 @@ _No executable test cases detected._
 - Type: Unit
 - Test count: 4
 
-- `tests/unit/storage-no-second-writers.test.js:50` loading tasks causes no IDB write
-- `tests/unit/storage-no-second-writers.test.js:63` legacy, un-normalised tasks still read normalised
-- `tests/unit/storage-no-second-writers.test.js:78` reading a legacy task without dates twice gives the same column history
-- `tests/unit/storage-no-second-writers.test.js:104` renaming a board changes the board list only through its board.updated event
+- `tests/unit/storage-no-second-writers.test.js:48` loading tasks causes no IDB write
+- `tests/unit/storage-no-second-writers.test.js:61` legacy, un-normalised tasks still read normalised
+- `tests/unit/storage-no-second-writers.test.js:76` reading a legacy task without dates twice gives the same column history
+- `tests/unit/storage-no-second-writers.test.js:102` renaming a board changes the board list only through its board.updated event
 
 ### Storage
 
@@ -1282,8 +1298,8 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 2
 
-- `tests/dom/event-sourcing/board-content-sync.test.js:55` a template board reaches a fresh device with its custom columns and tasks
-- `tests/dom/event-sourcing/board-content-sync.test.js:68` rendering a board while its columns are still arriving does not add a second Done column
+- `tests/dom/event-sourcing/board-content-sync.test.js:60` a template board reaches a fresh device with its custom columns and tasks
+- `tests/dom/event-sourcing/board-content-sync.test.js:73` rendering a board while its columns are still arriving does not add a second Done column
 
 ### Board Lifecycle Persist
 
@@ -1291,9 +1307,9 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 3
 
-- `tests/dom/event-sourcing/board-lifecycle-persist.test.js:71` a created board whose save failed is stored whole by the next edit on it
-- `tests/dom/event-sourcing/board-lifecycle-persist.test.js:85` a seeded default board whose save failed is stored whole by the next edit on it
-- `tests/dom/event-sourcing/board-lifecycle-persist.test.js:98` creating or deleting a board stores the board list as listed, without a board deleted elsewhere
+- `tests/dom/event-sourcing/board-lifecycle-persist.test.js:68` a created board whose save failed is stored whole by the next edit on it
+- `tests/dom/event-sourcing/board-lifecycle-persist.test.js:82` a seeded default board whose save failed is stored whole by the next edit on it
+- `tests/dom/event-sourcing/board-lifecycle-persist.test.js:95` creating or deleting a board stores the board list as listed, without a board deleted elsewhere
 
 ### Column Sort
 
@@ -1301,13 +1317,13 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 7
 
-- `tests/dom/event-sourcing/column-sort.test.js:58` sorting by priority emits a task.moved event and updates the read model before returning
-- `tests/dom/event-sourcing/column-sort.test.js:68` sorting by due date puts tasks without a due date last
-- `tests/dom/event-sourcing/column-sort.test.js:74` sorting a column that is already sorted emits nothing
-- `tests/dom/event-sourcing/column-sort.test.js:83` sorting by an unknown key leaves the column unchanged and emits nothing
-- `tests/dom/event-sourcing/column-sort.test.js:93` a rebuild triggered by a late remote event keeps the sorted order
-- `tests/dom/event-sourcing/column-sort.test.js:136` a sort reaches a second device over SSE
-- `tests/dom/event-sourcing/column-sort.test.js:143` a sort reaches a second device through catch-up
+- `tests/dom/event-sourcing/column-sort.test.js:62` sorting by priority emits a task.moved event and updates the read model before returning
+- `tests/dom/event-sourcing/column-sort.test.js:72` sorting by due date puts tasks without a due date last
+- `tests/dom/event-sourcing/column-sort.test.js:78` sorting a column that is already sorted emits nothing
+- `tests/dom/event-sourcing/column-sort.test.js:87` sorting by an unknown key leaves the column unchanged and emits nothing
+- `tests/dom/event-sourcing/column-sort.test.js:97` a rebuild triggered by a late remote event keeps the sorted order
+- `tests/dom/event-sourcing/column-sort.test.js:140` a sort reaches a second device over SSE
+- `tests/dom/event-sourcing/column-sort.test.js:147` a sort reaches a second device through catch-up
 
 ### Commit Scope
 
@@ -1451,27 +1467,27 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 21
 
-- `tests/dom/event-sourcing/ingest.test.js:70` local events > update the in-memory read model before scheduleDomainEvent() returns (ADR-0005 instant UI)
-- `tests/dom/event-sourcing/ingest.test.js:77` local events > ingested with origin local are persisted unsynced for the outbound queue
-- `tests/dom/event-sourcing/ingest.test.js:86` local events > do not save the read model when the event can not be stored (#256)
-- `tests/dom/event-sourcing/ingest.test.js:100` local events > of one tick land in a single write transaction with their read-model changes (#256)
-- `tests/dom/event-sourcing/ingest.test.js:119` remote events > are projected, announced with DATA_CHANGED and persisted as synced
-- `tests/dom/event-sourcing/ingest.test.js:131` single path > an event announced on the bus without ingest never reaches the read model
-- `tests/dom/event-sourcing/ingest.test.js:136` single path > an echo of an already-ingested event changes nothing and announces nothing
-- `tests/dom/event-sourcing/ingest.test.js:191` rejected events > an hlc more than the drift limit ahead of this device
-- `tests/dom/event-sourcing/ingest.test.js:196` rejected events > an hlc ahead of this device within the drift limit is accepted
-- `tests/dom/event-sourcing/ingest.test.js:202` rejected events > a malformed local event is rejected too
-- `tests/dom/event-sourcing/ingest.test.js:223` rejected events > types that carry no payload data still accept an empty payload
-- `tests/dom/event-sourcing/ingest.test.js:234` payload entity fields > unknown task keys are dropped from task.created and task.updated
-- `tests/dom/event-sourcing/ingest.test.js:250` payload entity fields > known task keys that are not factory defaults survive (doneDate, swimlaneLabelGroup)
-- `tests/dom/event-sourcing/ingest.test.js:258` payload entity fields > unknown customer, project and time entry keys are dropped
-- `tests/dom/event-sourcing/ingest.test.js:271` payload entity fields > a payload id cannot resurrect a deleted task: the id comes from entity_id
-- `tests/dom/event-sourcing/ingest.test.js:281` payload entity fields > a task.updated field cannot change the task id
-- `tests/dom/event-sourcing/ingest.test.js:299` payload entity fields > board.created takes its id from entity_id, not the payload
-- `tests/dom/event-sourcing/ingest.test.js:307` payload entity fields > the persisted event carries the sanitised payload
-- `tests/dom/event-sourcing/ingest.test.js:325` entity colours > a non-hex customer or project colour is normalised to a hex colour
-- `tests/dom/event-sourcing/ingest.test.js:334` entity colours > a valid colour is kept (trimmed)
-- `tests/dom/event-sourcing/ingest.test.js:339` entity colours > a non-hex label colour is normalised on create and ignored on update
+- `tests/dom/event-sourcing/ingest.test.js:75` local events > update the in-memory read model before scheduleDomainEvent() returns (ADR-0005 instant UI)
+- `tests/dom/event-sourcing/ingest.test.js:82` local events > ingested with origin local are persisted unsynced for the outbound queue
+- `tests/dom/event-sourcing/ingest.test.js:91` local events > do not save the read model when the event can not be stored (#256)
+- `tests/dom/event-sourcing/ingest.test.js:105` local events > of one tick land in a single write transaction with their read-model changes (#256)
+- `tests/dom/event-sourcing/ingest.test.js:124` remote events > are projected, announced with DATA_CHANGED and persisted as synced
+- `tests/dom/event-sourcing/ingest.test.js:136` single path > an event announced on the bus without ingest never reaches the read model
+- `tests/dom/event-sourcing/ingest.test.js:141` single path > an echo of an already-ingested event changes nothing and announces nothing
+- `tests/dom/event-sourcing/ingest.test.js:196` rejected events > an hlc more than the drift limit ahead of this device
+- `tests/dom/event-sourcing/ingest.test.js:201` rejected events > an hlc ahead of this device within the drift limit is accepted
+- `tests/dom/event-sourcing/ingest.test.js:207` rejected events > a malformed local event is rejected too
+- `tests/dom/event-sourcing/ingest.test.js:228` rejected events > types that carry no payload data still accept an empty payload
+- `tests/dom/event-sourcing/ingest.test.js:239` payload entity fields > unknown task keys are dropped from task.created and task.updated
+- `tests/dom/event-sourcing/ingest.test.js:255` payload entity fields > known task keys that are not factory defaults survive (doneDate, swimlaneLabelGroup)
+- `tests/dom/event-sourcing/ingest.test.js:263` payload entity fields > unknown customer, project and time entry keys are dropped
+- `tests/dom/event-sourcing/ingest.test.js:276` payload entity fields > a payload id cannot resurrect a deleted task: the id comes from entity_id
+- `tests/dom/event-sourcing/ingest.test.js:286` payload entity fields > a task.updated field cannot change the task id
+- `tests/dom/event-sourcing/ingest.test.js:304` payload entity fields > board.created takes its id from entity_id, not the payload
+- `tests/dom/event-sourcing/ingest.test.js:312` payload entity fields > the persisted event carries the sanitised payload
+- `tests/dom/event-sourcing/ingest.test.js:330` entity colours > a non-hex customer or project colour is normalised to a hex colour
+- `tests/dom/event-sourcing/ingest.test.js:339` entity colours > a valid colour is kept (trimmed)
+- `tests/dom/event-sourcing/ingest.test.js:344` entity colours > a non-hex label colour is normalised on create and ignored on update
 
 ### Page Boot Sync
 
@@ -1487,34 +1503,34 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 28
 
-- `tests/dom/event-sourcing/realtime.test.js:103` realtime subscription > AC-001: opens exactly one owner-filtered subscription; second call is a no-op
-- `tests/dom/event-sourcing/realtime.test.js:112` realtime subscription > AC-002: stopRealtime closes the subscription
-- `tests/dom/event-sourcing/realtime.test.js:120` realtime subscription > does not subscribe when unauthenticated
-- `tests/dom/event-sourcing/realtime.test.js:128` applyRemoteEvent > AC-003/AC-007: projects, emits EVENT_EMITTED, advances HLC, stores as synced
-- `tests/dom/event-sourcing/realtime.test.js:147` applyRemoteEvent > a remote HLC far in the future is rejected and does not advance the local clock (#181)
-- `tests/dom/event-sourcing/realtime.test.js:155` applyRemoteEvent > AC-004: an echo of an already-applied event is a no-op in the projection
-- `tests/dom/event-sourcing/realtime.test.js:163` applyRemoteEvent > AC-004 after a reload: an SSE echo of an edit applied before the reload does not undo a newer edit (#178)
-- `tests/dom/event-sourcing/realtime.test.js:178` applyRemoteEvent > projects a live timetracking event into the time-tracking slot, never into a board
-- `tests/dom/event-sourcing/realtime.test.js:198` catch-up pull > discovers all account boards even while the realtime connection is pending
-- `tests/dom/event-sourcing/realtime.test.js:221` catch-up pull > downloads boards when realtime subscription fails
-- `tests/dom/event-sourcing/realtime.test.js:236` catch-up pull > sends no further request once realtime is stopped during a pull
-- `tests/dom/event-sourcing/realtime.test.js:257` catch-up pull > applies nothing from a pull that realtime was stopped during
-- `tests/dom/event-sourcing/realtime.test.js:278` catch-up pull > fetches boards missed during an automatic SSE reconnect
-- `tests/dom/event-sourcing/realtime.test.js:294` catch-up pull > does not skip a delayed board creation older than the catch-up watermark
-- `tests/dom/event-sourcing/realtime.test.js:309` catch-up pull > AC-005: pulls events > lastSeenHlc, applies in order, advances lastSeenHlc atomically
-- `tests/dom/event-sourcing/realtime.test.js:330` catch-up pull > signals DATA_CHANGED once for the whole pulled batch
-- `tests/dom/event-sourcing/realtime.test.js:352` catch-up pull > saves each part of a caught-up board once per batch, not once per event
-- `tests/dom/event-sourcing/realtime.test.js:391` catch-up pull > saves a local edit made during a catch-up at once, not when the batch ends
-- `tests/dom/event-sourcing/realtime.test.js:424` catch-up pull > saves the boards a catch-up has touched so far when the page is hidden
-- `tests/dom/event-sourcing/realtime.test.js:457` catch-up pull > a local edit made during a catch-up applies on top of the events the batch already took in
-- `tests/dom/event-sourcing/realtime.test.js:485` catch-up pull > a local command issued during a catch-up builds on the events the batch already took in
-- `tests/dom/event-sourcing/realtime.test.js:516` catch-up pull > a board deleted during a catch-up stays deleted when the batch ends
-- `tests/dom/event-sourcing/realtime.test.js:545` catch-up pull > a reload after a catch-up shows the same board
-- `tests/dom/event-sourcing/realtime.test.js:591` catch-up pull > advances the catch-up watermark only after the board read model is stored
-- `tests/dom/event-sourcing/realtime.test.js:620` catch-up pull > signals no DATA_CHANGED when the pulled batch is already stored
-- `tests/dom/event-sourcing/realtime.test.js:636` catch-up pull > a poison event among good ones is skipped: good ones applied, poison not persisted, logged once (#181)
-- `tests/dom/event-sourcing/realtime.test.js:665` catch-up pull > ingests timetracking events under their own watermark without touching boards
-- `tests/dom/event-sourcing/realtime.test.js:694` catch-up pull > AC-005/AC-006: re-running catch-up applies nothing new (idempotent overlap)
+- `tests/dom/event-sourcing/realtime.test.js:100` realtime subscription > AC-001: opens exactly one owner-filtered subscription; second call is a no-op
+- `tests/dom/event-sourcing/realtime.test.js:109` realtime subscription > AC-002: stopRealtime closes the subscription
+- `tests/dom/event-sourcing/realtime.test.js:117` realtime subscription > does not subscribe when unauthenticated
+- `tests/dom/event-sourcing/realtime.test.js:125` applyRemoteEvent > AC-003/AC-007: projects, emits EVENT_EMITTED, advances HLC, stores as synced
+- `tests/dom/event-sourcing/realtime.test.js:144` applyRemoteEvent > a remote HLC far in the future is rejected and does not advance the local clock (#181)
+- `tests/dom/event-sourcing/realtime.test.js:152` applyRemoteEvent > AC-004: an echo of an already-applied event is a no-op in the projection
+- `tests/dom/event-sourcing/realtime.test.js:160` applyRemoteEvent > AC-004 after a reload: an SSE echo of an edit applied before the reload does not undo a newer edit (#178)
+- `tests/dom/event-sourcing/realtime.test.js:175` applyRemoteEvent > projects a live timetracking event into the time-tracking slot, never into a board
+- `tests/dom/event-sourcing/realtime.test.js:195` catch-up pull > discovers all account boards even while the realtime connection is pending
+- `tests/dom/event-sourcing/realtime.test.js:218` catch-up pull > downloads boards when realtime subscription fails
+- `tests/dom/event-sourcing/realtime.test.js:233` catch-up pull > sends no further request once realtime is stopped during a pull
+- `tests/dom/event-sourcing/realtime.test.js:254` catch-up pull > applies nothing from a pull that realtime was stopped during
+- `tests/dom/event-sourcing/realtime.test.js:275` catch-up pull > fetches boards missed during an automatic SSE reconnect
+- `tests/dom/event-sourcing/realtime.test.js:291` catch-up pull > does not skip a delayed board creation older than the catch-up watermark
+- `tests/dom/event-sourcing/realtime.test.js:306` catch-up pull > AC-005: pulls events > lastSeenHlc, applies in order, advances lastSeenHlc atomically
+- `tests/dom/event-sourcing/realtime.test.js:327` catch-up pull > signals DATA_CHANGED once for the whole pulled batch
+- `tests/dom/event-sourcing/realtime.test.js:349` catch-up pull > saves each part of a caught-up board once per batch, not once per event
+- `tests/dom/event-sourcing/realtime.test.js:388` catch-up pull > saves a local edit made during a catch-up at once, not when the batch ends
+- `tests/dom/event-sourcing/realtime.test.js:421` catch-up pull > saves the boards a catch-up has touched so far when the page is hidden
+- `tests/dom/event-sourcing/realtime.test.js:454` catch-up pull > a local edit made during a catch-up applies on top of the events the batch already took in
+- `tests/dom/event-sourcing/realtime.test.js:482` catch-up pull > a local command issued during a catch-up builds on the events the batch already took in
+- `tests/dom/event-sourcing/realtime.test.js:513` catch-up pull > a board deleted during a catch-up stays deleted when the batch ends
+- `tests/dom/event-sourcing/realtime.test.js:542` catch-up pull > a reload after a catch-up shows the same board
+- `tests/dom/event-sourcing/realtime.test.js:588` catch-up pull > advances the catch-up watermark only after the board read model is stored
+- `tests/dom/event-sourcing/realtime.test.js:617` catch-up pull > signals no DATA_CHANGED when the pulled batch is already stored
+- `tests/dom/event-sourcing/realtime.test.js:633` catch-up pull > a poison event among good ones is skipped: good ones applied, poison not persisted, logged once (#181)
+- `tests/dom/event-sourcing/realtime.test.js:662` catch-up pull > ingests timetracking events under their own watermark without touching boards
+- `tests/dom/event-sourcing/realtime.test.js:691` catch-up pull > AC-005/AC-006: re-running catch-up applies nothing new (idempotent overlap)
 
 ### Replay Fidelity
 
@@ -1535,19 +1551,19 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 13
 
-- `tests/dom/event-sourcing/snapshot-catchup.test.js:105` catch-up with a server snapshot > does not discover unrelated boards from a board-scoped snapshot
-- `tests/dom/event-sourcing/snapshot-catchup.test.js:123` catch-up with a server snapshot > reconstructs a board whose events were GC-ed, from the snapshot alone
-- `tests/dom/event-sourcing/snapshot-catchup.test.js:141` catch-up with a server snapshot > replays events newer than the snapshot on top of it
-- `tests/dom/event-sourcing/snapshot-catchup.test.js:161` catch-up with a server snapshot > ignores events the snapshot already holds
-- `tests/dom/event-sourcing/snapshot-catchup.test.js:181` catch-up with a server snapshot > hydrates a timetracking snapshot into the time-tracking slot, not a board
-- `tests/dom/event-sourcing/snapshot-catchup.test.js:206` catch-up with a server snapshot > still replays events normally when the server has no snapshot
-- `tests/dom/event-sourcing/snapshot-catchup.test.js:254` adopting a snapshot keeps newer local edits > board: a reconnect adopting a snapshot older than an unsynced edit keeps the edit visible and queued
-- `tests/dom/event-sourcing/snapshot-catchup.test.js:274` adopting a snapshot keeps newer local edits > board: a snapshot newer than every local event becomes the view
-- `tests/dom/event-sourcing/snapshot-catchup.test.js:292` adopting a snapshot keeps newer local edits > board: an entity a stored event created but the newer snapshot dropped is gone
-- `tests/dom/event-sourcing/snapshot-catchup.test.js:307` adopting a snapshot keeps newer local edits > global: adopting a snapshot older than an unsynced settings edit keeps the edit
-- `tests/dom/event-sourcing/snapshot-catchup.test.js:320` adopting a snapshot keeps newer local edits > global: a snapshot newer than every local event becomes the view
-- `tests/dom/event-sourcing/snapshot-catchup.test.js:332` adopting a snapshot keeps newer local edits > time tracking: adopting a snapshot older than an unsynced edit keeps the edit
-- `tests/dom/event-sourcing/snapshot-catchup.test.js:346` adopting a snapshot keeps newer local edits > time tracking: a snapshot newer than every local event becomes the view
+- `tests/dom/event-sourcing/snapshot-catchup.test.js:103` catch-up with a server snapshot > does not discover unrelated boards from a board-scoped snapshot
+- `tests/dom/event-sourcing/snapshot-catchup.test.js:121` catch-up with a server snapshot > reconstructs a board whose events were GC-ed, from the snapshot alone
+- `tests/dom/event-sourcing/snapshot-catchup.test.js:139` catch-up with a server snapshot > replays events newer than the snapshot on top of it
+- `tests/dom/event-sourcing/snapshot-catchup.test.js:159` catch-up with a server snapshot > ignores events the snapshot already holds
+- `tests/dom/event-sourcing/snapshot-catchup.test.js:179` catch-up with a server snapshot > hydrates a timetracking snapshot into the time-tracking slot, not a board
+- `tests/dom/event-sourcing/snapshot-catchup.test.js:204` catch-up with a server snapshot > still replays events normally when the server has no snapshot
+- `tests/dom/event-sourcing/snapshot-catchup.test.js:252` adopting a snapshot keeps newer local edits > board: a reconnect adopting a snapshot older than an unsynced edit keeps the edit visible and queued
+- `tests/dom/event-sourcing/snapshot-catchup.test.js:272` adopting a snapshot keeps newer local edits > board: a snapshot newer than every local event becomes the view
+- `tests/dom/event-sourcing/snapshot-catchup.test.js:290` adopting a snapshot keeps newer local edits > board: an entity a stored event created but the newer snapshot dropped is gone
+- `tests/dom/event-sourcing/snapshot-catchup.test.js:305` adopting a snapshot keeps newer local edits > global: adopting a snapshot older than an unsynced settings edit keeps the edit
+- `tests/dom/event-sourcing/snapshot-catchup.test.js:318` adopting a snapshot keeps newer local edits > global: a snapshot newer than every local event becomes the view
+- `tests/dom/event-sourcing/snapshot-catchup.test.js:330` adopting a snapshot keeps newer local edits > time tracking: adopting a snapshot older than an unsynced edit keeps the edit
+- `tests/dom/event-sourcing/snapshot-catchup.test.js:344` adopting a snapshot keeps newer local edits > time tracking: a snapshot newer than every local event becomes the view
 
 ### Snapshot Download
 
@@ -1774,6 +1790,15 @@ _No executable test cases detected._
 - `tests/dom/header-panels.test.js:40` initializeHeaderPanels > dismissSearch closes an open field and returns focus to its button
 - `tests/dom/header-panels.test.js:50` initializeHeaderPanels > accessible names > says on the search button when a filter is still applied
 - `tests/dom/header-panels.test.js:63` initializeHeaderPanels > accessible names > keeps the search button name in step when code sets or clears the filter
+
+### Import Export Roundtrip
+
+- Path: `tests/dom/import-export-roundtrip.test.js`
+- Type: DOM Integration
+- Test count: 2
+
+- `tests/dom/import-export-roundtrip.test.js:90` a legacy board exports normalised tasks
+- `tests/dom/import-export-roundtrip.test.js:104` export then import gives back the same board
 
 ### Msw Example
 

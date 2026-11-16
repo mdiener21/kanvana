@@ -1,10 +1,8 @@
-/**
- * One normalised board read (#333): asking for a board by id gives the same normalised
- * tasks, columns (always with a Done column), labels and settings whether or not the
- * board is active, so export, reports, calendar and backfill all get the same guarantees.
- */
+// One normalised board read (#333): asking for a board by id gives the same normalised
+// tasks, columns (always with a Done column), labels and settings whether or not the
+// board is active, so export, reports, calendar and backfill all get the same guarantees.
 
-import { test, expect, beforeEach } from 'vitest';
+import { test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { deleteDB } from 'idb';
 import { resetLocalStorage } from './setup.js';
 import {
@@ -15,8 +13,10 @@ import {
   loadColumns,
   loadLabels,
   loadSettings,
-  setActiveBoardId
+  setActiveBoardId,
+  _resetStorageForTesting
 } from '../../src/modules/storage.js';
+import { scheduleDomainEvent } from '../../src/modules/event-sourcing/emitter.js';
 import { openStore, keyFor, EVENTS_STORE, KV_STORE, READ_MODEL_STORE } from '../../src/modules/idb-store.js';
 
 const LEGACY_ID = '11111111-1111-4111-8111-111111111111';
@@ -30,6 +30,10 @@ const UNDATED_ID = '77777777-7777-4777-8777-777777777777';
 beforeEach(async () => {
   resetLocalStorage();
   await deleteDB('kanvana-db');
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 // Two boards as an older version left them; the other board is active, so the legacy one is read cross-board.
@@ -89,13 +93,46 @@ test('the active-board reads give what the board read gives', async () => {
 
   setActiveBoardId(LEGACY_ID);
 
-  // Includes the undated task, whose column history is seeded once per session.
+  // Includes the undated task, whose column history the boot migration stamped.
   expect(loadTasks()).toEqual(crossBoard.tasks);
   expect(loadColumns()).toEqual(crossBoard.columns);
   expect(loadLabels()).toEqual(crossBoard.labels);
   expect(loadSettings()).toEqual(crossBoard.settings);
   expect(crossBoard.labels[0].group).toBe('');
   expect(crossBoard.settings).toMatchObject({ swimLaneGroupBy: 'label', notificationDays: 365 });
+});
+
+test('a task stored with no dates reads with the same column history in every session', async () => {
+  await seedLegacyBoards();
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2024-05-01T10:00:00.000Z'));
+  await initStorage();
+  const undated = () => loadBoard(LEGACY_ID).tasks.find((task) => task.id === UNDATED_ID);
+  const firstSession = undated().columnHistory;
+  await _flushPersistsForTesting();
+
+  _resetStorageForTesting();
+  vi.setSystemTime(new Date('2024-06-01T10:00:00.000Z'));
+  await initStorage();
+
+  expect(firstSession).toEqual([{ column: TODO_ID, at: '2024-05-01T10:00:00.000Z' }]);
+  expect(undated().columnHistory).toEqual(firstSession);
+});
+
+test('a task that arrives with no dates after boot reads with no column history, the same in every session', async () => {
+  await seedLegacyBoards();
+  await initStorage();
+  const task = { id: '88888888-8888-4888-8888-888888888888', title: 'Synced undated', column: TODO_ID };
+  scheduleDomainEvent({ type: 'task.created', boardId: LEGACY_ID, entityId: task.id, payload: { task } });
+  const synced = () => loadBoard(LEGACY_ID).tasks.find((t) => t.id === task.id);
+  const firstSession = synced().columnHistory;
+  await _flushPersistsForTesting();
+
+  _resetStorageForTesting();
+  await initStorage();
+
+  expect(firstSession ?? []).toEqual([]);
+  expect(synced().columnHistory).toEqual(firstSession);
 });
 
 test('a board that is not listed reads as null', async () => {

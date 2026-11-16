@@ -1,7 +1,7 @@
 // The Read Model's seed data: the default board, its demo tasks, and the defaults a new board starts from.
 // The demo-task replay rules in read-model-projector.js key off STABLE_DEFAULT_BOARD_ID and stableDemoTasks.
 
-import { generateUUID } from '../utils.js';
+import { generateUUID, nowIso } from '../utils.js';
 import { DONE_COLUMN_ID, DONE_COLUMN_ROLE } from '../constants.js';
 
 // Well-known stable id for the auto-seeded "Default Board". Every fresh device
@@ -9,10 +9,6 @@ import { DONE_COLUMN_ID, DONE_COLUMN_ROLE } from '../constants.js';
 // same account converge onto a single board instead of accruing duplicates.
 // Valid uuid-v4 shape so it passes existing id validation/UUID_RE checks.
 export const STABLE_DEFAULT_BOARD_ID = '00000000-0000-4000-8000-000000000001';
-
-function nowIso() {
-  return new Date().toISOString();
-}
 
 export function defaultColumns() {
   return [

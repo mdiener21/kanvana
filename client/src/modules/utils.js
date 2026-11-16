@@ -23,6 +23,10 @@ export function generateUUID() {
   });
 }
 
+export function nowIso() {
+  return new Date().toISOString();
+}
+
 export const byOrder = (a, b) => (a.order ?? 0) - (b.order ?? 0);
 
 // Concurrent adds and reorders can tie on order; Done goes after its tie, on every device, without pinning it to the end (#259).

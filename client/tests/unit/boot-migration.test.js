@@ -1,12 +1,11 @@
-/**
- * Direct tests for the boot migration (#334): legacy data in, the Read Model's persisted state out.
- * Seeds raw legacy localStorage / IDB data; never goes through storage's writers.
- */
+// Tests for the boot migration (#334): legacy data in, the Read Model's persisted state out.
+// Seeds raw legacy localStorage / IDB data; never goes through storage's writers.
 
-import { test, expect, beforeEach } from 'vitest';
+import { test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { deleteDB } from 'idb';
 import { resetLocalStorage } from './setup.js';
 import { migrateLegacyState } from '../../src/modules/boot-migration.js';
+import { initStorage, getActiveBoardId, loadBoard, loadTasks } from '../../src/modules/storage.js';
 import { openStore, keyFor, readModelKeyFor, KV_STORE, READ_MODEL_STORE } from '../../src/modules/idb-store.js';
 import { READ_MODEL_KEYS } from '../../src/modules/event-sourcing/read-model-projector.js';
 
@@ -15,6 +14,10 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
 beforeEach(async () => {
   resetLocalStorage();
   await deleteDB('kanvana-db');
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 async function migratedState() {
@@ -130,7 +133,7 @@ test('pre-read-model IDB kv slices move into the read-model store under UUID ids
   expect(await db.get(READ_MODEL_STORE, readModelKeyFor('board-a', 'tasks'))).toBeUndefined();
 });
 
-test('a first boot with no data writes nothing', async () => {
+test('a first boot with no data writes no boards and no Read Model', async () => {
   const { db, boards, activeBoardId } = await migratedState();
 
   expect(boards).toBeUndefined();
@@ -146,4 +149,46 @@ test('running it again on migrated state changes nothing', async () => {
   const second = await migratedState();
 
   expect({ boards: second.boards, slice: await second.slice(second.boards[0].id) }).toEqual(before);
+});
+
+test('a task stored with no dates and no column history gets its history stamped once', async () => {
+  localStorage.setItem('kanbanTasks', JSON.stringify([{ id: 't1', title: 'Undated', column: 'todo' }]));
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2024-05-01T10:00:00.000Z'));
+  const first = await migratedState();
+  const { tasks: [stamped], columns } = await first.slice(first.boards[0].id);
+  const todo = columns.find((column) => column.name === 'To Do');
+
+  vi.setSystemTime(new Date('2024-06-01T10:00:00.000Z'));
+  const second = await migratedState();
+  const { tasks: [again] } = await second.slice(second.boards[0].id);
+
+  expect(stamped.columnHistory).toEqual([{ column: todo.id, at: '2024-05-01T10:00:00.000Z' }]);
+  expect(again.columnHistory).toEqual(stamped.columnHistory);
+});
+
+test('booting storage runs the migration: legacy localStorage data reads back through the board read', async () => {
+  localStorage.setItem('kanbanBoards', JSON.stringify([{ id: 'board-a', name: 'Alpha', createdAt: '2024-01-01T00:00:00Z' }]));
+  localStorage.setItem('kanbanActiveBoardId', 'board-a');
+  localStorage.setItem('kanbanBoard:board-a:tasks', JSON.stringify([
+    { id: 't1', title: 'Migrated', column: 'todo', priority: 'HIGH', creationDate: '2024-01-02T00:00:00Z' }
+  ]));
+  localStorage.setItem('kanbanBoard:board-a:columns', JSON.stringify([
+    { id: 'todo', name: 'To Do', color: '#3b82f6' },
+    { id: 'done', name: 'Done', color: '#505050' }
+  ]));
+
+  await initStorage();
+
+  const boardId = getActiveBoardId();
+  expect(boardId).toMatch(UUID_RE);
+  const board = loadBoard(boardId);
+  const todo = board.columns.find((column) => column.name === 'To Do');
+  expect(todo.id).toMatch(UUID_RE);
+  expect(board.tasks).toEqual([expect.objectContaining({
+    title: 'Migrated', column: todo.id, priority: 'high',
+    columnHistory: [{ column: todo.id, at: '2024-01-02T00:00:00Z' }]
+  })]);
+  expect(loadTasks()).toEqual(board.tasks);
+  expect(localStorage.getItem('kanbanBoards')).toBeNull();
 });

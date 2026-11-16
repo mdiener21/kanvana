@@ -16,16 +16,10 @@ const SLICES = [
   { key: 'tasks', entity: 'task', load: (boardId) => _loadStoredBoardForTesting(boardId).tasks }
 ];
 
-/**
- * Replaces a board's columns, labels and/or tasks with the given lists, through events.
- * Each slice given replaces that slice whole: items missing from it are deleted, items with a known id are
- * overwritten field by field, the rest are created in list order. Slices left out are not touched.
- * Events cannot move a known item within its list, so asking for a new order of known items throws:
- * seed a new board (`createBoard()` makes it active) when a test needs that.
- *
- * @param {{ columns?: object[], labels?: object[], tasks?: object[] }} slices
- * @param {{ boardId?: string }} [options] defaults to the active board
- */
+// Replaces the given slices (columns, labels, tasks) of a board, the active one by default, through events.
+// Items missing from a given slice are deleted, known ids are overwritten field by field, the rest are created
+// in list order; slices left out are not touched. Events cannot reorder known items, so asking for that throws:
+// seed a new board (`createBoard()` makes it active) instead.
 export function seedBoard(slices, { boardId } = {}) {
   ensureBoardsInitialized();
   const board = boardId ?? getActiveBoardId();
@@ -34,12 +28,8 @@ export function seedBoard(slices, { boardId } = {}) {
   }
 }
 
-/**
- * Sets global settings through a global `settings.updated` event; fields merge over the current ones.
- * Like every storage entry point, it starts the Read Model projecting, which seeds the default board on empty storage.
- *
- * @param {object} fields
- */
+// Sets global settings through a global `settings.updated` event; fields merge over the current ones.
+// Like every storage entry point, it starts the Read Model projecting, which seeds the default board on empty storage.
 export function seedGlobalSettings(fields) {
   ensureBoardsInitialized();
   scheduleDomainEvent({ type: 'settings.updated', scope: EVENT_SCOPE.GLOBAL, entityId: 'global', payload: { fields } });
