@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.23] - 2026-11-16
+
 ### Changed
 
 - Storage: one normalised board read, `loadBoard(id)`, serves the active board and every other board. Exporting a board now writes normalised tasks (priority, done date, column history), and reading another board's columns now includes its Done column, as the board itself shows. Reports, the calendar and the event-log backfill read through the same path; `loadTasksForBoard`, `loadColumnsForBoard`, `loadLabelsForBoard`, `loadSettingsForBoard` and the unused `exportTasks` are removed. Reading settings for a board that has none no longer stores the defaults (#333).
