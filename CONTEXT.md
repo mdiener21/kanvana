@@ -219,7 +219,7 @@ the global and time-tracking views once.
 | `ensureBoardsInitialized()` | Guard called before any board operation |
 | `loadBoard(id)` | One normalised read of a board: tasks, columns (with Done), labels, settings; `null` if not listed |
 | `loadTasks()` / `loadColumns()` / `loadLabels()` / `loadSettings()` | The same read for the active board |
-| `loadGlobalSettings()` / `saveGlobalSettings()` | Read/write cross-board app settings |
+| `loadGlobalSettings()` | Read cross-board app settings; a global-scope `settings.updated` event writes them |
 | `listBoards()` | All board metadata |
 | `keyFor(boardId, kind)` | IDB key builder |
 

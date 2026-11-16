@@ -77,11 +77,13 @@ Values are stored as native JavaScript objects (structured clone), not JSON stri
 
 After migration, localStorage is cleared of all Kanvana keys. On every boot the same step then normalises the persisted IDB state (legacy model ids to UUIDs, pre-read-model kv slices into the read-model store) and removes the stale legacy-sync keys; on current state it changes nothing.
 
+The first boot with this step also stamps the column history of every stored task that has no usable column history and no `changeDate` or `creationDate`: one entry for its current column at the boot time. It then sets `kanvana:migrations:undatedColumnHistory:v1` so it never runs again, also on a first boot with no boards (#330).
+
 ### Schema changes
 
 - Persisted-shape changes must keep import/export round-trippable and preserve legacy normalization
 - Legacy model ids from localStorage, IDB, templates, or imports are normalized to UUIDs, and references are rewritten during load/import
-- The board read normalises legacy task fields (priority, done date, column history, relationships, subtasks) on every read and never writes the result back. A board with no stored settings reads as the defaults without storing them. A fix-up that must persist goes through an event or a one-off migration (ADR-0005, #330, #333)
+- The board read normalises legacy task fields (priority, done date, column history, relationships, subtasks) on every read and never writes the result back. It is deterministic: a task with no usable column history reads with one entry dated from its `changeDate` or `creationDate`, and a task with neither (one that arrived undated after the boot migration's stamp) reads with no column history. A board with no stored settings reads as the defaults without storing them. A fix-up that must persist goes through an event or a one-off migration (ADR-0005, #330, #333)
 - Board changes such as `renameBoard()` reach the board list only through their event (`board.updated`), which the reducer folds
 - All code must go through storage helpers (`loadTasks`, `createBoard`, etc.) and domain events — never read IDB directly
 

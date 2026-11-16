@@ -1,7 +1,5 @@
-/**
- * Storage reads never write, and board changes reach the board list only through
- * their events (ADR-0005: the reducer is the sole read-model writer, #330).
- */
+// Storage reads never write, and board changes reach the board list only through
+// their events (ADR-0005: the reducer is the sole read-model writer, #330).
 
 import { test, expect, beforeEach, vi } from 'vitest';
 import { deleteDB } from 'idb';

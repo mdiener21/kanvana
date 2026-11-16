@@ -1,6 +1,6 @@
-import { generateUUID } from './utils.js';
+import { generateUUID, nowIso } from './utils.js';
 import { normalizePriority, isHexColor, normalizeCountdownThreshold, defaultColumnColor, normalizeStringKeys, normalizeRelationships, normalizeSubTasks } from './normalize.js';
-import { DONE_COLUMN_ID, DONE_COLUMN_ROLE, isDoneColumn } from './constants.js';
+import { ACTIVE_BOARD_KEY, DEFAULT_BOARD_ID, DONE_COLUMN_ID, DONE_COLUMN_ROLE, isDoneColumn } from './constants.js';
 import { openStore, KV_STORE, EVENTS_STORE, SNAPSHOTS_STORE, isFirstPullPending, schedulePersist, scheduleDelete, scheduleReadModelPersist, scheduleReadModelDelete, _flushPersistsForTesting as _flushIdbPersistsForTesting, _resetIdbForTesting } from './idb-store.js';
 import { initHlc } from './event-sourcing/hlc.js';
 import { _flushDomainEventsForTesting, scheduleDomainEvent } from './event-sourcing/emitter.js';
@@ -13,8 +13,6 @@ import { BOARD_SETTINGS_WRITTEN, DATA_CHANGED, emit } from './events.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const ACTIVE_BOARD_KEY = 'kanbanActiveBoardId';
-const DEFAULT_BOARD_ID = 'default';
 const ALLOWED_SWIMLANE_GROUP_BY = new Set(['label', 'label-group', 'priority']);
 
 // ── In-memory state ────────────────────────────────────────────────────────────
@@ -25,8 +23,6 @@ const ALLOWED_SWIMLANE_GROUP_BY = new Set(['label', 'label-group', 'priority']);
 
 let activeBoardId = null;
 const syntheticDoneIdByBoard = new Map();
-// A task stored with no dates gets its column history seeded once per session, so reads agree (#330).
-const seededHistoryAtByTask = new Map();
 
 // After an account switch the default board's events wait for the first catch-up (#221).
 let defaultBoardDeferred = false;
@@ -39,12 +35,6 @@ const readModel = createReadModel({
   scheduleReadModelDelete,
   checkAndScheduleSnapshot
 });
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
-function nowIso() {
-  return new Date().toISOString();
-}
 
 // ── Public initialisation ──────────────────────────────────────────────────────
 
@@ -103,7 +93,6 @@ export function _resetStorageForTesting() {
   _resetIdbForTesting();
   activeBoardId = null;
   syntheticDoneIdByBoard.clear();
-  seededHistoryAtByTask.clear();
   defaultBoardDeferred = false;
   readModel.reset();
   _resetSnapshotSchedulerForTesting();
@@ -316,16 +305,13 @@ export function deleteBoard(boardId) {
 // so export, reports, the calendar and backfill get what the board itself shows (#333).
 // Reads never write the Read Model or IDB (ADR-0005, #330).
 
-/**
- * @param {string} boardId
- * @returns {{ tasks: object[], columns: object[], labels: object[], settings: object } | null}
- *   null when no listed board has that id (e.g. it was deleted)
- */
+// Null when no listed board has that id (e.g. it was deleted).
 export function loadBoard(boardId) {
   if (!getBoardById(boardId)) return null;
-  const columns = boardColumns(boardId);
-  const labels = boardLabels(boardId);
-  return { tasks: boardTasks(boardId, columns, labels), columns, labels, settings: boardSettings(boardId) };
+  const stored = readModel.board(boardId);
+  const columns = boardColumns(stored, boardId);
+  const labels = boardLabels(stored);
+  return { tasks: boardTasks(stored, boardId, columns, labels), columns, labels, settings: boardSettings(stored) };
 }
 
 function activeBoard() {
@@ -334,20 +320,22 @@ function activeBoard() {
 }
 
 export function loadColumns() {
-  return boardColumns(activeBoard());
+  const boardId = activeBoard();
+  return boardColumns(readModel.board(boardId), boardId);
 }
 
 export function loadTasks() {
   const boardId = activeBoard();
-  return boardTasks(boardId, boardColumns(boardId), boardLabels(boardId));
+  const stored = readModel.board(boardId);
+  return boardTasks(stored, boardId, boardColumns(stored, boardId), boardLabels(stored));
 }
 
 export function loadLabels() {
-  return boardLabels(activeBoard());
+  return boardLabels(readModel.board(activeBoard()));
 }
 
 export function loadSettings() {
-  return boardSettings(activeBoard());
+  return boardSettings(readModel.board(activeBoard()));
 }
 
 // ── Columns ────────────────────────────────────────────────────────────────────
@@ -373,12 +361,12 @@ function syntheticDoneId(boardId) {
   return syntheticDoneIdByBoard.get(boardId);
 }
 
-function boardColumns(boardId) {
-  const parsed = readModel.board(boardId).columns;
+function boardColumns(stored, boardId) {
+  const parsed = stored.columns;
   // View-only fallback: a synced board's Done column may not have arrived yet,
   // and persisting a synthetic one here duplicates it once the real one lands.
-  const stored = parsed ? parsed.filter((c) => !c.deleted) : defaultColumns();
-  return ensureDoneColumn(stored.map(normalizeColumn), boardId);
+  const live = parsed ? parsed.filter((c) => !c.deleted) : defaultColumns();
+  return ensureDoneColumn(live.map(normalizeColumn), boardId);
 }
 
 function doneColumnIdIn(columns) {
@@ -397,13 +385,7 @@ export function isDoneColumnId(columnId) {
 
 // ── Tasks ──────────────────────────────────────────────────────────────────────
 
-function seededHistoryAt(boardId, taskId) {
-  const key = `${boardId}:${taskId}`;
-  if (!seededHistoryAtByTask.has(key)) seededHistoryAtByTask.set(key, nowIso());
-  return seededHistoryAtByTask.get(key);
-}
-
-function normalizeTask(t, boardId, doneColumnId) {
+function normalizeTask(t, doneColumnId) {
   const task = t && typeof t === 'object' ? { ...t } : t;
   if (!task || typeof task !== 'object') return task;
 
@@ -431,28 +413,21 @@ function normalizeTask(t, boardId, doneColumnId) {
 
   if (!isDone && hasDoneDate) delete task.doneDate;
 
-  const rawHistory = task.columnHistory;
-  const history = Array.isArray(rawHistory) ? rawHistory : null;
-  const seededAt = changeDate || creationDate || seededHistoryAt(boardId, task.id);
-
-  if (!history || history.length === 0) {
-    if (seededAt && column) task.columnHistory = [{ column, at: seededAt }];
-  } else {
-    const cleaned = history
+  const history = Array.isArray(task.columnHistory)
+    ? task.columnHistory
       .map((e) => {
         const entryColumn = typeof e?.column === 'string' ? e.column.trim() : '';
         const at = typeof e?.at === 'string' ? e.at.trim() : '';
-        if (!entryColumn || !at) return null;
-        return { column: entryColumn, at };
+        return entryColumn && at ? { column: entryColumn, at } : null;
       })
-      .filter(Boolean);
-
-    if (cleaned.length === 0) {
-      if (seededAt && column) task.columnHistory = [{ column, at: seededAt }];
-    } else {
-      task.columnHistory = cleaned;
-    }
-  }
+      .filter(Boolean)
+    : [];
+  // The boot migration stamps stored tasks with no dates; one that arrives later undated keeps no history,
+  // as reports read it, rather than a time that would differ per session (#330).
+  const seededAt = changeDate || creationDate;
+  if (history.length > 0) task.columnHistory = history;
+  else if (seededAt && column) task.columnHistory = [{ column, at: seededAt }];
+  else if (Array.isArray(task.columnHistory)) task.columnHistory = [];
 
   task.relationships = normalizeRelationships(task.relationships);
   task.subTasks = normalizeSubTasks(task.subTasks);
@@ -460,11 +435,11 @@ function normalizeTask(t, boardId, doneColumnId) {
   return task;
 }
 
-function boardTasks(boardId, columns, labels) {
-  const parsed = readModel.board(boardId).tasks;
+function boardTasks(stored, boardId, columns, labels) {
+  const parsed = stored.tasks;
   if (parsed) {
     const doneColumnId = doneColumnIdIn(columns);
-    return parsed.filter((t) => !t?.deleted).map((t) => normalizeTask(t, boardId, doneColumnId));
+    return parsed.filter((t) => !t?.deleted).map((t) => normalizeTask(t, doneColumnId));
   }
 
   // Empty state: return stable in-memory defaults for the session.
@@ -478,8 +453,8 @@ function boardTasks(boardId, columns, labels) {
 
 // ── Labels ─────────────────────────────────────────────────────────────────────
 
-function boardLabels(boardId) {
-  const parsed = readModel.board(boardId).labels;
+function boardLabels(stored) {
+  const parsed = stored.labels;
   if (!parsed) return defaultLabels();
   return parsed
     .filter(l => !l.deleted)
@@ -543,8 +518,8 @@ function normalizeSettings(raw) {
   };
 }
 
-function boardSettings(boardId) {
-  const parsed = readModel.board(boardId).settings;
+function boardSettings(stored) {
+  const parsed = stored.settings;
   return parsed ? normalizeSettings(parsed) : defaultSettings();
 }
 

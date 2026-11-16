@@ -2,7 +2,7 @@ import { createBoard, getActiveBoardName, listBoards, loadBoard, setActiveBoardI
 import { normalizeBoardModelIds } from './board-serializer.js';
 import { emit, DATA_CHANGED } from './events.js';
 import { normalizePriority, isHexColor, boardDisplayName, normalizeCountdownThreshold, normalizeDueDate, normalizeSubTasks } from './normalize.js';
-import { DONE_COLUMN_ID } from './constants.js';
+import { DONE_COLUMN_ID, isDoneColumn } from './constants.js';
 import { formatBytes } from './security.js';
 import { normalizeWipLimit } from './wip-limit.js';
 
@@ -544,8 +544,7 @@ export function exportBoard(boardId) {
   const read = loadBoard(id);
   if (!read) return;
   const { columns, labels } = read;
-  const doneColumnIds = new Set(columns.filter((column) => column.role === 'done' || column.id === DONE_COLUMN_ID).map((column) => column.id));
-  doneColumnIds.add(DONE_COLUMN_ID);
+  const doneColumnIds = new Set(columns.filter(isDoneColumn).map((column) => column.id));
   const tasks = read.tasks.map((task) => normalizeTaskForExport(task, doneColumnIds));
   const settings = normalizeSettingsForExport(read.settings);
   const exportMeta = buildExportMeta();

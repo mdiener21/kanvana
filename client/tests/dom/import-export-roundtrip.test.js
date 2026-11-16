@@ -1,7 +1,5 @@
-/**
- * Export reads a board through the one normalised board read (#333), so a legacy board
- * exports normalised tasks, and importing that file gives back the same board.
- */
+// Export reads a board through the one normalised board read (#333), so a legacy board
+// exports normalised tasks, and importing that file gives back the same board.
 
 import { test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { deleteDB } from 'idb';
