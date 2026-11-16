@@ -1,15 +1,15 @@
 // Boot-time migration of legacy persisted state (#334): localStorage → IndexedDB, then IDB state normalisation.
 // Runs before the Read Model loads, so it is the only code besides the Read Model that writes its keys.
 
-import { safeParseArray, safeParseObject } from './utils.js';
-import { isDataCurrent, KV_STORE, READ_MODEL_STORE, keyFor, readModelKeyFor } from './idb-store.js';
+import { nowIso, safeParseArray, safeParseObject } from './utils.js';
+import { ACTIVE_BOARD_KEY, DEFAULT_BOARD_ID } from './constants.js';
+import { isDataCurrent, writeIfDataCurrent, KV_STORE, READ_MODEL_STORE, keyFor, readModelKeyFor } from './idb-store.js';
 import { normalizeBoardModelIds } from './board-serializer.js';
 import { READ_MODEL_KEYS } from './event-sourcing/read-model-projector.js';
 import { defaultLabels, defaultSettings, defaultTasks, legacyDefaultColumns } from './event-sourcing/read-model-seed.js';
 
 // The Read Model owns it; only these one-shot migrations write it, before the Read Model loads.
 const BOARDS_KEY = READ_MODEL_KEYS.boards;
-const ACTIVE_BOARD_KEY = 'kanbanActiveBoardId';
 
 // The legacy localStorage key; it only shares its name with the Read Model's IDB key and need not follow it.
 const LEGACY_BOARDS_KEY = 'kanbanBoards';
@@ -18,18 +18,10 @@ const LEGACY_TASKS_KEY = 'kanbanTasks';
 const LEGACY_LABELS_KEY = 'kanbanLabels';
 // Left behind by the removed whole-record LWW sync path (ADR-0004).
 const LEGACY_SYNC_KEYS = ['kanbanSyncMap', 'kanbanAutoSyncEnabled'];
+// Set once undated tasks stored before it have their column history stamped; tasks that arrive undated later are not (#330).
+const UNDATED_HISTORY_FLAG_KEY = 'kanvana:migrations:undatedColumnHistory:v1';
 
-const DEFAULT_BOARD_ID = 'default';
-
-function nowIso() {
-  return new Date().toISOString();
-}
-
-/**
- * Brings whatever an older version persisted into the shape the Read Model loads.
- * Migrates localStorage into IDB if IDB has no boards yet, then normalises the IDB board model ids.
- * Safe to run on every boot: a no-op once the state is current.
- */
+// Migrates localStorage into IDB if IDB has no boards yet, then normalises the IDB state; a no-op once it is current.
 export async function migrateLegacyState(db) {
   // Migrate from localStorage if IDB is empty but localStorage has data.
   const idbBoards = await db.get(KV_STORE, BOARDS_KEY);
@@ -50,9 +42,15 @@ export async function migrateLegacyState(db) {
 
 async function normalizeIdbState(db) {
   const rawBoards = safeParseArray(await db.get(KV_STORE, BOARDS_KEY));
-  if (!rawBoards) return;
+  const historyStamped = Boolean(await db.get(KV_STORE, UNDATED_HISTORY_FLAG_KEY));
+  if (!rawBoards) {
+    if (!historyStamped) await writeIfDataCurrent(KV_STORE, (store) => store.put({ at: nowIso() }, UNDATED_HISTORY_FLAG_KEY));
+    return;
+  }
 
   const rawActiveId = await db.get(KV_STORE, ACTIVE_BOARD_KEY);
+  const stampedAt = historyStamped ? null : nowIso();
+  const stamp = (task) => (stampedAt ? withSeededHistory(task, stampedAt) : task);
   const nextBoards = [];
   const activeIdMap = new Map();
   const tx = db.transaction([KV_STORE, READ_MODEL_STORE], 'readwrite');
@@ -74,7 +72,7 @@ async function normalizeIdbState(db) {
     const newBoardId = normalized.board.id;
     activeIdMap.set(oldBoardId, newBoardId);
     nextBoards.push(normalized.board);
-    await readModelStore.put(normalized.tasks, readModelKeyFor(newBoardId, 'tasks'));
+    await readModelStore.put(normalized.tasks.map(stamp), readModelKeyFor(newBoardId, 'tasks'));
     await readModelStore.put(normalized.columns, readModelKeyFor(newBoardId, 'columns'));
     await readModelStore.put(normalized.labels, readModelKeyFor(newBoardId, 'labels'));
     await store.put(normalized.settings, keyFor(newBoardId, 'settings'));
@@ -95,7 +93,24 @@ async function normalizeIdbState(db) {
   await store.put(nextBoards, BOARDS_KEY);
   const nextActiveId = activeIdMap.get(rawActiveId) || nextBoards[0]?.id || null;
   if (nextActiveId) await store.put(nextActiveId, ACTIVE_BOARD_KEY);
+  if (stampedAt) await store.put({ at: stampedAt }, UNDATED_HISTORY_FLAG_KEY);
   await tx.done;
+}
+
+// A task with no dates has nothing to date its column history from, so it is stamped once here (#330).
+function withSeededHistory(task, stampedAt) {
+  if (!task || typeof task !== 'object' || hasUsableColumnHistory(task.columnHistory)) return task;
+  const column = typeof task.column === 'string' ? task.column.trim() : '';
+  if (!column || isNonEmptyString(task.changeDate) || isNonEmptyString(task.creationDate)) return task;
+  return { ...task, columnHistory: [{ column, at: stampedAt }] };
+}
+
+function hasUsableColumnHistory(history) {
+  return Array.isArray(history) && history.some((e) => isNonEmptyString(e?.column) && isNonEmptyString(e?.at));
+}
+
+function isNonEmptyString(value) {
+  return typeof value === 'string' && value.trim() !== '';
 }
 
 async function migrateFromLocalStorage(db) {

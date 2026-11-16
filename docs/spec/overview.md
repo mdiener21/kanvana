@@ -86,7 +86,7 @@ All canonical specs live under `docs/spec/`. Start here when adding, changing, o
 - `src/modules/render.js` - centralized board rendering and incremental sync helpers (`renderBoard`, `syncTaskCounters`, `syncCollapsedTitles`)
 - `src/modules/idb-store.js` - IDB singleton, key helpers (`keyFor`, `getBoardEventsKey`), `schedulePersist`, `scheduleDelete`
 - `src/modules/board-serializer.js` - board import ID-remapping (`normalizeBoardModelIds`)
-- `src/modules/storage.js` - in-memory state, all CRUD helpers (`load*`/`save*`), `initStorage()`, board lifecycle
+- `src/modules/storage.js` - `initStorage()`, the normalised board reads (`loadBoard`, `load*`), board lifecycle and active board; content changes go through domain events
 - `src/modules/boot-migration.js` - boot migration of legacy localStorage / IDB state, run by `initStorage()`
 - `src/modules/event-sourcing/read-model-seed.js` - default board, demo tasks and new-board defaults
 - `src/modules/tasks.js` - task CRUD and drop-position updates

@@ -8,6 +8,10 @@ export function isDoneColumn(column) {
   return column?.role === DONE_COLUMN_ROLE || column?.id === LEGACY_DONE_COLUMN_ID;
 }
 
+// Where the active board id is persisted, and the id the oldest single-board data migrates into.
+export const ACTIVE_BOARD_KEY = 'kanbanActiveBoardId';
+export const DEFAULT_BOARD_ID = 'default';
+
 // Event scopes (ADR-0004). Events without a scope (legacy) are board-scoped.
 export const EVENT_SCOPE = Object.freeze({
   BOARD: 'board',

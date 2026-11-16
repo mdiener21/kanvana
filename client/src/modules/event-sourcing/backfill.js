@@ -20,9 +20,7 @@ function dedupKey(boardId, entityId) {
   return `${boardId}::${entityId}`;
 }
 
-/**
- * @param {{ boards: object[], boardFor: (boardId: string) => { columns: object[], labels: object[], tasks: object[], settings: object|null } }} source
- */
+// boardFor(boardId) gives that board's columns, labels, tasks and settings.
 export async function backfillEventLog({ boards, boardFor }) {
   const db = await openStore();
   if (await db.get(KV_STORE, BACKFILL_FLAG_KEY)) return { skipped: true, emitted: 0 };
