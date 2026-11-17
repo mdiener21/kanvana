@@ -69,6 +69,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
 
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !controlsActions.classList.contains('show')) return;
+      closeMenu();
+      menuBtn.focus();
+    });
+
     mobileMenuCloseBtn?.addEventListener('click', () => {
       closeMenu();
       menuBtn.focus();

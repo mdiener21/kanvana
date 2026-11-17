@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Board: on desktop the ⋮ controls menu opens as a full-height panel on the right, in the Time Tracker sidebar's style, instead of a dropdown. Escape closes it.
+
 ## [3.4.23] - 2026-11-16
 
 ### Changed
