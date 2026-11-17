@@ -132,8 +132,8 @@ added three object stores alongside the original `kv`:
 
 | Object store | Content |
 |---|---|
-| `kv` | Coordination + small values: board list, active board, global settings, HLC node id, catch-up watermarks |
-| `read_model` | Per-board projections (tasks / columns / labels / settings), keyed `{boardId}:{kind}` — what the UI renders. Also the board's event-log memory: `{boardId}:taskTombstones` (task delete records) and `{boardId}:appliedEventIds` (applied event ids not yet held by a snapshot). `deleteBoard()` removes all of a board's keys, these two included |
+| `kv` | Coordination + small values: board list, active board, global settings, board settings (`kanbanBoard:{boardId}:settings`), HLC node id, catch-up watermarks |
+| `read_model` | Per-board projections (tasks / columns / labels), keyed `{boardId}:{kind}` — what the UI renders. Also the board's event-log memory: `{boardId}:taskTombstones` (task delete records) and `{boardId}:appliedEventIds` (applied event ids not yet held by a snapshot). `deleteBoard()` removes all of a board's keys, these two included |
 | `events` | The domain-event log, keyed by event `id`; the `synced` flag drives the outbound queue |
 | `snapshots` | Local projection snapshots that bound replay and event GC |
 
@@ -161,14 +161,17 @@ The storage layer is split into three modules:
 | `kanvana:dataOwner` | Id of the account local data belongs to (§4 Data Owner); absent until the first sign-in |
 | `kanvana:sync:firstPullPending` | Set by a wipe, cleared when the leader tab's first pull finishes: the new owner's data has not been pulled yet |
 
-**Pattern:** `initStorage()` (async, called once at startup) → synchronous CRUD functions read/write
-in-memory `state` → fire-and-forget IDB writes via `scheduleReadModelPersist()` → `renderBoard()`.
+**Pattern:** `initStorage()` (async, called once at startup) → a mutation emits domain events → the
+projector applies them to in-memory `state` and schedules the IDB writes → `DATA_CHANGED` redraws the
+board.
 
 **Single write path into the read model** ([ADR-0005](docs/adr/0005-reducer-sole-read-model-writer.md)):
 a local mutation in `tasks.js`/`columns.js`/`labels.js` emits domain events and does **not** write the
 read model directly. The read-model projector (`read-model-projector.js`, the reducer projection) is
 the sole writer of `state`/`read_model`, for **both** local and remote (SSE/catch-up) events, and the only way an event
-reaches it is `ingestEvent()` (`event-sourcing/ingest.js`). Local events are ingested
+reaches it is `ingestEvent()` (`event-sourcing/ingest.js`). Known exceptions, writes no event carries:
+`addBoard`/`removeBoard` (board create, default seed, delete), `saveSettings()` (board settings, e.g.
+swim-lane UI state) and the boot migration (ADR-0005 Consequences). Local events are ingested
 **synchronously** by `scheduleDomainEvent()`, so the in-memory projection is updated before the
 mutation returns / `renderBoard()` runs (instant UI); only the IDB event persist and the PocketBase
 push are async. Each mutation's events are self-complete — they encode every read-model effect
@@ -360,7 +363,7 @@ Development runs without a service worker. Production lifecycle tests run with `
 | `on(event, handler)` | Subscribe |
 | `off(event, handler)` | Unsubscribe |
 | `emit(event, detail)` | Publish |
-| `BOARD_CHANGED` | `'board:changed'` — board-level structure changed |
+| `BOARD_CHANGED` | `'board:changed'` — defined but unused; redraws come from `DATA_CHANGED` |
 | `DATA_CHANGED` | `'data:changed'` — projection changed (a domain event was applied); UI re-render trigger |
 | `EVENT_EMITTED` | `'event:emitted'` — a domain event was ingested (local or remote), after projection; wakes the outbound queue. Notification only: emitting it does not project anything |
 | `EVENTS_STORED` | `'events:stored'` — events reached the `events` store (`{ ids, local }`); the sync leader tells the other tabs (#222) |
@@ -456,8 +459,8 @@ calculateDaysUntilDue → formatCountdown → getCountdownClassName
 ### Column Management
 ```
 createColumnElement → initializeColumnModalHandlers
-  → addColumn | updateColumn | deleteColumn
-  → emit(BOARD_CHANGED) → renderBoard()
+  → addColumn | updateColumn | deleteColumn (emit column.* events)
+  → emit(DATA_CHANGED) → renderBoard()
 ```
 
 ### Import Preflight Flow
@@ -516,7 +519,7 @@ ingestEvent (event-sourcing/ingest.js) — one path, origin is a parameter; Inge
 | UUID | All entity IDs use `generateUUID()` from `utils.js`; no numeric or legacy string IDs post-migration |
 | Keybindings | Never hardcode key strings; register in `DEFAULT_APP_KEYBINDINGS` in `constants.js` |
 | Entity factories | Always use `createTask()`, `createColumn()`, etc. from `schema.js` — never construct entities ad-hoc |
-| Domain events | Every entity mutation must emit a domain event via `scheduleDomainEvent()` (`event-sourcing/emitter.js`) so it syncs and replays — never mutate state silently. Event types are the `*.created`/`*.updated`/`*.deleted`/`*.moved` family handled by `reducer.js`. |
+| Domain events | Every entity mutation must emit a domain event via `scheduleDomainEvent()` (`event-sourcing/emitter.js`) so it syncs and replays — never mutate state silently. Reuse the types in `EVENT_TYPES` (`event-sourcing/event-validation.js`); validation drops any other type. Beyond `*.created`/`*.updated`/`*.deleted`/`task.moved` they include `column.reordered`, `subtask.*`, `relationship.*`, `label.added_to_task`/`removed_from_task`, `customer`/`project` `archived`/`unarchived` and `time_entry.*`. |
 | Task deletion | Task delete is permanent: emit `task.deleted`, remove from the active task list, and let sync propagate deletion through the domain-event stream/tombstone model. ADR-0002's soft-delete mode was superseded by ADR-0004 and removed in issue #111. |
 
 ---
@@ -560,7 +563,7 @@ during a rebuild are folded into it.
 A rebuild is the reducer's fold, with four exceptions so it does not lose state no event carries yet:
 board and global settings start from the live value under the snapshot's (they merge field by field);
 task delete records are kept (deletes are permanent); tasks, columns and labels that no snapshot,
-replayed event or (on adoption) replaced snapshot or covered stored event knows of (written by import, which emits no event yet) are kept as they are;
+replayed event or (on adoption) replaced snapshot or covered stored event knows of are kept as they are;
 and with no snapshot to start from, the fold starts from the demo tasks this device holds.
 A snapshot is folded from events alone, except for that same start from the demo tasks. Known limit until those writes emit events: a setting written
 without an event (swimlane grouping) is reset by a rebuild to the last replayed `settings.updated` that
@@ -633,14 +636,14 @@ Remaining windows:
 ```json
 {
   "id": "<uuid>",
-  "type": "task.priority_changed",
+  "type": "task.updated",
   "hlc": { /* HLC stamp */ },
   "at": "<ISO datetime>",
   "scope": "board",
   "board_id": "<board uuid | null for global / timetracking>",
   "entity_id": "<id of the affected entity>",
   "actor": { "type": "human", "id": null },
-  "payload": { "from": "high", "to": "medium" }
+  "payload": { "fields": { "priority": "medium" } }
 }
 ```
 

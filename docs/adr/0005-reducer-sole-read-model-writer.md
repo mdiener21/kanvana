@@ -1,9 +1,9 @@
 # Reducer is the sole writer of the read model — remove the direct projection-write path
 
-**Status: accepted** (branch `feature-event-driven`)
+**Status: accepted, implemented** (#141, #142, #177); known exceptions under Consequences.
 
 Refines [ADR-0004](0004-event-sourced-sync.md) — enforces its "the reducer is the sole writer of the
-IDB read model" decision in code, which the current implementation violates.
+IDB read model" decision in code, which the implementation then violated.
 
 ADR-0004 §"Decision details" states: *"The reducer is the **sole writer** of the IDB read model.
 Feature modules emit events; they never write projections directly."* The shipped code does not honour
@@ -26,8 +26,8 @@ A **remote** event (SSE / launch catch-up in `event-sourcing/realtime.js`) reach
 So a local `save*()` write and a remote event's reducer write **race the same `read_model` key with no
 ordering guarantee and no reconciliation**. The HLC total order lives in the event stream, not in the
 IDB persist queue; whichever async `put()` lands last wins. When a local edit and a remote event land
-close together, the projection can diverge from the HLC-ordered truth. This is documented honestly in
-`CONTEXT.md` §3 ("Two write paths into `state`").
+close together, the projection can diverge from the HLC-ordered truth. `CONTEXT.md` §3 documented this at
+the time.
 
 ## Considered Options
 
@@ -50,13 +50,14 @@ divergence bug surfaces. Rejected: leaves ADR-0004's headline invariant false, k
   writes from the local mutation paths in `tasks.js`, `columns.js`, `labels.js`. The
   `scheduleDomainEvent()` call stays and becomes the only effect of a local mutation on the read model.
 - **One writer for both origins.** Local and remote events both reach the read model exclusively via
-  `projectDomainEvent()` → `applyEvent()` (the pure reducer) → `scheduleReadModelPersist()`. There is
-  no longer a second, unordered writer to race.
+  `ingestEvent()` (`ingest.js`) → Read Model `apply()` (`read-model-projector.js`) → `applyEvent()`
+  (the pure reducer) → `scheduleReadModelPersist()`. There is no longer a second, unordered writer to
+  race.
 - **Local projection must update in-memory state synchronously before render.** Today `save*()` updates
   `state.*[boardId]` synchronously so the subsequent `renderBoard()` sees the change. After this
-  change, the local event's `EVENT_EMITTED` emission must drive `projectDomainEvent()` **synchronously**
-  (in-memory state updated before `renderBoard()` runs); only the IDB persist stays async (as it
-  already is). This preserves instant-UI / offline behaviour with no perceptible latency regression.
+  change, a local event projects **synchronously** inside `ingestEvent()` before it returns
+  (in-memory state updated before `renderBoard()` runs); `EVENT_EMITTED` fires after projection and
+  feeds the sync queue. Only the IDB persist stays async. This preserves instant-UI / offline behaviour with no perceptible latency regression.
   `scheduleDomainEvent()` must not debounce the local projection — only the PocketBase push may debounce.
 - **`saveLiveTasks` / `saveColumns` / `saveLabels` read-model writes are retired** from the live
   mutation path. The `*ForBoard` cross-board save helpers and migration/scaffold writes are out of
@@ -69,13 +70,17 @@ divergence bug surfaces. Rejected: leaves ADR-0004's headline invariant false, k
 - **The local/remote divergence race is eliminated** — there is exactly one writer ordered by HLC.
 - **Unblocks finding #3.** With the reducer the sole writer, the projection host
   (`registerDomainEventProjection` / `projectDomainEvent`) can be extracted out of `storage.js` into a
-  dedicated read-model-projector module without leaving a second writer behind. That extraction is
-  tracked separately and **blocked by this change**.
+  dedicated read-model-projector module without leaving a second writer behind. Done: the projection
+  host is `event-sourcing/read-model-projector.js`, created through `ingest.js` `createReadModel()`.
 - **Regression surface: render timing.** The main risk is a UI that no longer re-renders synchronously
   after a local edit. The acceptance criteria require proving synchronous in-memory projection before
   render (a DOM test) and a two-context race test (local edit + remote event on the same key converge
   to the HLC-ordered result).
 - **`CONTEXT.md` §3 is updated** to describe a single write path once this lands.
+- **Known exceptions (writes no event carries).** `addBoard` (board create or default seed) and
+  `removeBoard` write the board list and slices directly. `saveSettings()` writes board settings to
+  the kv key `kanbanBoard:{id}:settings` with no event (swim-lane UI state); `settings.js` also emits
+  `settings.updated`. `boot-migration.js` writes `read_model` before load.
 
 ## Amendment: commit scopes and selective persistence (#141, #142)
 
@@ -94,8 +99,8 @@ divergence bug surfaces. Rejected: leaves ADR-0004's headline invariant false, k
 ## References
 
 - ADR-0004: `docs/adr/0004-event-sourced-sync.md`
-- Domain model: `CONTEXT.md` §3 ("Two write paths into `state`")
+- Domain model: `CONTEXT.md` §3 (Storage Layer) and §8
 - PRD: `docs/temp/prd/PRD-event-sourced-sync.md`
-- Verified code sites: `tasks.js:145-151`, `columns.js:49-55`, `labels.js:58-64`,
+- Code sites as of the decision: `tasks.js:145-151`, `columns.js:49-55`, `labels.js:58-64`,
   `storage.js:472-509` (`projectDomainEvent`), `event-sourcing/realtime.js` (`ingest`/`catchUp`),
-  `event-sourcing/reducer.js` (`applyEvent`, pure).
+  `modules/reducer.js` (`applyEvent`, pure).

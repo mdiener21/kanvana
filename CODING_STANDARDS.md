@@ -6,7 +6,7 @@ covers the code itself. Each rule names the existing helper to reach for, so new
 
 ## Language and modules
 
-- Plain JavaScript ES modules in `client/src`. TypeScript appears only in some E2E specs.
+- Plain JavaScript ES modules in `client/src`. Tests are mostly TypeScript; a few E2E specs are `.js`.
 - **Named exports only.** Modules export functions and constants; no default exports, no classes.
   Stateful pieces are factory functions returning an object (`createReadModelProjector()`).
 - File names are kebab-case and grouped by feature prefix (`timetracking-*.js`, `event-sourcing/*`).
@@ -55,7 +55,8 @@ covers the code itself. Each rule names the existing helper to reach for, so new
 - When markup is assembled as a string for `innerHTML`, pass every interpolated value through
   `escapeHtml()` from `security.js`.
 - Icons are `<i data-lucide="name">` elements followed by `renderIcons()` from `icons.js`.
-- Key handling reads from `DEFAULT_APP_KEYBINDINGS`; key strings appear only there.
+- New key handling reads from `DEFAULT_APP_KEYBINDINGS` via `matchesKey()`. Older modules still
+  compare `e.key` directly; move them over when you touch them.
 
 ## Style
 
@@ -82,8 +83,10 @@ covers the code itself. Each rule names the existing helper to reach for, so new
 
 ## Change hygiene
 
-- Every user-visible change gets a `CHANGELOG.md` line under `[Unreleased]`, written for users and
-  ending with the issue number: `… (#237).`
+- Every user-visible change gets one `CHANGELOG.md` line under `[Unreleased]`: what users notice, in
+  their words, ending with the issue or PR number: `… (#237).` Internal changes get no line.
 - Update `CONTEXT.md` when a module's responsibility or a domain term changes; record structural
-  decisions as an ADR in `docs/adr/`.
+  decisions as an ADR in `docs/adr/` and keep ADRs true to the code.
+- When behaviour a `docs/spec/` file describes changes, update it in a line or two. Specs are
+  reference, not a gate.
 - Commits follow Conventional Commits: `perf(sync): …`, `fix(sync): …`, `test(perf): …`.
