@@ -238,9 +238,11 @@
     color: var(--text);
   }
 
-  .controls-actions .control-select {
-    margin: 4px 20px 8px;
+  /* ID beats the later max-width: 768px rule that sets width: 100%, which overflowed the margins */
+  #board-controls-menu .control-select {
+    width: auto;
     max-width: none;
+    margin: 4px 20px 8px;
   }
 
   /* Rows match .tt-nav-btn */

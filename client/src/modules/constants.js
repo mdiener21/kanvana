@@ -34,6 +34,7 @@ const NO_MODIFIERS = Object.freeze({ ctrlKey: false, shiftKey: false, altKey: fa
 // `seq` marks the second key of a two-key sequence; `key` is the prefix, matched with matchesKey.
 export const DEFAULT_APP_KEYBINDINGS = {
   openBoardsModal: { key: 'b', ctrlKey: true, shiftKey: false, altKey: false, metaKey: false },
+  closeControlsMenu: { key: 'Escape', ...NO_MODIFIERS },
   ttHelp: { key: '?', ctrlKey: false, shiftKey: true, altKey: false, metaKey: false },
   ttCloseModal: { key: 'Escape', ...NO_MODIFIERS },
   ttSubmitInline: { key: 'Enter', ...NO_MODIFIERS },

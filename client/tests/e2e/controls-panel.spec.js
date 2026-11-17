@@ -16,6 +16,7 @@ test.describe('Desktop controls panel', () => {
     await menuBtn.click();
     await expect(panel).toBeVisible();
     await expect(menuBtn).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('#mobile-menu-close-btn')).toBeFocused();
 
     // Measure after the slide-in settles
     await panel.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
@@ -34,5 +35,18 @@ test.describe('Desktop controls panel', () => {
     await page.locator('#desktop-menu-btn').click();
     await page.locator('#mobile-menu-close-btn').click();
     await expect(page.locator('#board-controls-menu')).toBeHidden();
+  });
+
+  test('fits its width on a tablet-sized screen', async ({ page }) => {
+    await page.setViewportSize({ width: 700, height: 800 });
+    await page.locator('#desktop-menu-btn').click();
+    const panel = page.locator('#board-controls-menu');
+    await expect(panel).toBeVisible();
+
+    const { scrollWidth, clientWidth } = await panel.evaluate((el) => ({
+      scrollWidth: el.scrollWidth,
+      clientWidth: el.clientWidth
+    }));
+    expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
   });
 });
