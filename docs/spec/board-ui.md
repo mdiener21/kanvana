@@ -31,6 +31,7 @@
 - Built-in templates may preload workflow-specific starter columns, grouped labels, and labeled tasks so a new board is immediately usable
 - The last remaining board cannot be deleted
 - On mobile, the board selector has a larger touch target and the controls menu stays open while the selector is used
+- On desktop (wider than 600px), the header's ⋮ button opens the controls menu as a full-height panel on the right, styled like the Time Tracker sidebar; it closes with its X button, Escape, a click outside, or choosing an action
 
 ## Modals and Dialogs
 

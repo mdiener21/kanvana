@@ -174,6 +174,141 @@
   background-color: var(--surface-muted);
 }
 
+/* Desktop: the controls menu is a full-height right panel in the time tracker's sidebar style.
+   Phones keep the full-screen sheet in responsive.css. */
+@media (min-width: 601px) {
+  .controls-actions {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 260px;
+    min-width: 0;
+    padding: 0 0 16px;
+    gap: 0;
+    border: 0;
+    border-left: 1px solid var(--border);
+    border-radius: 0;
+    box-shadow: -12px 0 32px rgba(15, 23, 42, 0.12);
+    z-index: 300;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    animation: controls-panel-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .controls-menu-mobile-header {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: 0 0 56px;
+    padding: 0 10px 0 20px;
+    margin-bottom: 8px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .controls-menu-mobile-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .controls-menu-close-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--touch-target);
+    min-height: var(--touch-target);
+    padding: 6px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+
+  .controls-menu-close-btn:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+  }
+
+  /* ID beats the later max-width: 768px rule that sets width: 100%, which overflowed the margins */
+  #board-controls-menu .control-select {
+    width: auto;
+    max-width: none;
+    margin: 4px 20px 8px;
+  }
+
+  /* Rows match .tt-nav-btn */
+  .controls-actions .control-btn {
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    gap: 10px;
+    padding: 12px 20px;
+    border-radius: 0;
+    color: var(--text-muted);
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  .controls-actions .control-btn:hover {
+    background-color: var(--surface-hover);
+    color: var(--text);
+  }
+
+  .controls-actions .control-btn:focus-visible {
+    outline: none;
+    background-color: var(--surface-hover);
+    color: var(--text);
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+
+  .controls-actions .control-btn [data-lucide],
+  .controls-actions .control-btn svg {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+  }
+
+  /* Reports and Calendar nest a link inside the row; let the row own the box */
+  .controls-actions .control-btn .control-btn {
+    padding: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+  }
+
+  .controls-actions .swimlane-toggle-label {
+    margin-bottom: 8px;
+    padding-bottom: 12px !important;
+  }
+
+  .controls-actions .legal-menu-link {
+    margin-top: auto;
+    padding-top: 12px !important;
+    font-size: 12px;
+    text-decoration: none;
+  }
+}
+
+@keyframes controls-panel-in {
+  from { transform: translateX(16px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@media (min-width: 601px) and (prefers-reduced-motion: reduce) {
+  .controls-actions { animation: none; }
+}
+
 /* Swimlane quick toggle in menu */
 .swimlane-toggle-label {
   display: flex;

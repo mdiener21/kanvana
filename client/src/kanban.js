@@ -12,6 +12,7 @@ import { ensureBoardsInitialized, setActiveBoardId } from './modules/storage.js'
 import { bootPage } from './modules/page-boot.js';
 import { initializeSwimLaneControls } from './modules/swimlanes.js';
 import { initializeHeaderPanels } from './modules/header-panels.js';
+import { DEFAULT_APP_KEYBINDINGS, matchesKey } from './modules/constants.js';
 
 // Add task button listeners
 document.addEventListener('DOMContentLoaded', async () => {
@@ -45,6 +46,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       menuBtn.setAttribute('aria-expanded', String(!isExpanded));
       controls?.classList.toggle('mobile-menu-open', !isExpanded);
       document.body.classList.toggle('mobile-menu-open', !isExpanded);
+      // The panel precedes the button in the DOM, so Tab from the button would skip it
+      if (!isExpanded) mobileMenuCloseBtn?.focus();
       
       // Close other menus if open (optional, but good practice)
       document.querySelectorAll('.column-menu').forEach(m => m.classList.add('hidden'));
@@ -67,6 +70,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (!controlsActions.contains(e.target) && !menuBtn.contains(e.target)) {
         closeMenu();
       }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (!matchesKey(e, DEFAULT_APP_KEYBINDINGS.closeControlsMenu)) return;
+      if (!controlsActions.classList.contains('show')) return;
+      closeMenu();
+      menuBtn.focus();
     });
 
     mobileMenuCloseBtn?.addEventListener('click', () => {
