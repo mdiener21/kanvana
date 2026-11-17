@@ -183,7 +183,7 @@ function updateReadmeBadge(readmePath, nextVersion) {
 
   const raw = fs.readFileSync(readmePath, 'utf8');
   const updated = raw.replace(
-    /(\[!\[Version\]\(https:\/\/img\.shields\.io\/badge\/version-)[^-]+(brightgreen\)\]\(CHANGELOG\.md\))/,
+    /(\[!\[Version\]\(https:\/\/img\.shields\.io\/badge\/version-)[^-]+-(brightgreen\)\]\(CHANGELOG\.md\))/,
     `$1${nextVersion}-$2`
   );
 

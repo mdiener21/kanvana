@@ -1,7 +1,10 @@
 # Global settings layer separate from per-board settings
 
+**Status: accepted**, amended by [ADR-0004](0004-event-sourced-sync.md): global settings are written
+only by `settings.updated` events with scope `global`.
+
 App-wide configuration that applies across all boards is stored under a dedicated IDB key
-(`kanvana:settings:global`) accessed via `loadGlobalSettings()` / `saveGlobalSettings()`.
+(`kanvana:settings:global`), read through `loadGlobalSettings()`.
 This is separate from the existing per-board settings (`kanbanBoard:{boardId}:settings`).
 
 The need emerged when `softDeleteEnabled` was introduced: the purge operation it governs spans
@@ -22,9 +25,10 @@ global settings are explicitly global. Scales naturally as future cross-board pr
 
 ## Consequences
 
-- `storage.js` gains `loadGlobalSettings()` and `saveGlobalSettings()` operating on the
-  `kanvana:settings:global` IDB key.
+- The Read Model owns the `kanvana:settings:global` kv key (`READ_MODEL_KEYS.globalSettings`);
+  `storage.js` exposes `loadGlobalSettings()` only.
 - The Settings UI should visually separate "Board settings" from "App settings" so users
-  understand which settings travel with a board and which are device-wide.
-- `softDeleteEnabled` was the first global setting, then removed in issue #111. The global
-  settings layer remains available for future app-wide preferences.
+  understand which settings travel with a board and which apply to every board of the account
+  (global-scope events sync across devices).
+- `softDeleteEnabled` was the first global setting, then removed in issue #111. Today the layer
+  holds only `timeTracking`.

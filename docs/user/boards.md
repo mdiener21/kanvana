@@ -23,15 +23,13 @@ Kanvana a personal + AI Agent Kanban Boards adapt to any workflow. Below, explor
 
 Jumpstart with these pre-built boards:
 
-- **[AI-Agent-Ops-Starter-Template.json](example-boards/AI-Agent-Ops-Starter-Template.json)** — Beginner-friendly workflow for running 2–5 agents in parallel.
-- **[RAID-Board-Template.json](example-boards/RAID-Board-Template.json)** — RAID Board for project management.
-- **[Eisenhower-Method-Board.json](example-boards/Eisenhower-Method-Board.json)** — Priority matrix for decisions.
-- **[Getting-Things-Done-Template.json](example-boards/Getting-Things-Done-Template.json)** — GTD productivity system.
-- **[Personal-Work-Kanban-Template.json](example-boards/Personal-Work-Kanban-Template.json)** — Balance personal and work tasks.
-- **[Personal_Demo_board.json](example-boards/Personal_Demo_board.json)** — Sample board with basics.
-- **[Development_board.json](example-boards/Development_board.json)** — Software dev workflow.
+- **[AI-Agent-Ops-Starter-Template.json](../example-boards/AI-Agent-Ops-Starter-Template.json)** — Beginner-friendly workflow for running 2–5 agents in parallel.
+- **[RAID-Board-Template.json](../example-boards/RAID-Board-Template.json)** — RAID Board for project management.
+- **[Eisenhower-Method-Board-Template.json](../example-boards/Eisenhower-Method-Board-Template.json)** — Priority matrix for decisions.
+- **[Getting-Things-Done-Template.json](../example-boards/Getting-Things-Done-Template.json)** — GTD productivity system.
+- **[Personal-Work-Kanban-Template.json](../example-boards/Personal-Work-Kanban-Template.json)** — Balance personal and work tasks.
 
-**Import Tip**: Click **Import** in the app and select a JSON file!
+**Import tip**: download a file, then in **Manage Boards** click **Import Board** and pick it. Import adds a new board and switches to it.
 
 ## 🎯 Standard Workflow Columns
 

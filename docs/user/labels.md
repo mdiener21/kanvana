@@ -13,16 +13,14 @@ Use **columns** to track workflow state (To Do → In Progress → Done) and use
 
 Kickstart your setup with these ready-to-import boards featuring label examples:
 
-- **[AI-Agent-Ops-Starter-Template.json](example-boards/AI-Agent-Ops-Starter-Template.json)** — Agent/Workstream/Artifact label groups for small multi-agent setups.
-- **[Eisenhower-Method-Board.json](example-boards/Eisenhower-Method-Board.json)** — Prioritize with urgent/important quadrants.
-- **[Getting-Things-Done-Template.json](example-boards/Getting-Things-Done-Template.json)** — GTD workflow for productivity.
-- **[Personal-Work-Kanban-Template.json](example-boards/Personal-Work-Kanban-Template.json)** — Balanced personal and work tasks.
-- **[Personal_Demo_board.json](example-boards/Personal_Demo_board.json)** — Demo board with sample labels.
-- **[Development_board.json](example-boards/Development_board.json)** — Software development kanban.
-- **[Project-Management-Board-Template.json](example-boards/Project-Management-Board-Template.json)** — Type/Area label groups.
-- **[Sales_board_template.json](example-boards/Sales_board_template.json)** — Source/Industry/Region/Activity groups.
+- **[AI-Agent-Ops-Starter-Template.json](../example-boards/AI-Agent-Ops-Starter-Template.json)** — Agent/Workstream/Artifact label groups for small multi-agent setups.
+- **[Eisenhower-Method-Board-Template.json](../example-boards/Eisenhower-Method-Board-Template.json)** — Prioritize with urgent/important quadrants.
+- **[Getting-Things-Done-Template.json](../example-boards/Getting-Things-Done-Template.json)** — GTD workflow for productivity.
+- **[Personal-Work-Kanban-Template.json](../example-boards/Personal-Work-Kanban-Template.json)** — Balanced personal and work tasks.
+- **[Project-Management-Board-Template.json](../example-boards/Project-Management-Board-Template.json)** — Type/Area label groups.
+- **[Sales-Board-Template.json](../example-boards/Sales-Board-Template.json)** — Source/Industry/Region/Activity groups.
 
-**Import Tip**: Click **Import** in the app and select any JSON file above!
+**Import tip**: download a file, then in **Manage Boards** click **Import Board** and pick it.
 
 Import creates a **new board** from the JSON and switches to it.
 

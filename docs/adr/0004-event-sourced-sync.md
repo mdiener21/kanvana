@@ -32,17 +32,20 @@ audit UI, all with no third-party CRDT dependency.
 
 ## Decision details
 
-- **Events are canonical; projections are derived.** `~24` event types (G1 granularity) cover task,
-  column, label, board, settings, subtask, and relationship mutations. The reducer is the **sole
-  writer** of the IDB read model. Feature modules emit events; they never write projections directly.
+- **Events are canonical; projections are derived.** 23 board and global event types (G1
+  granularity; 36 with the time-tracking types of #164) cover task, column, label, board, settings,
+  subtask, and relationship mutations. The reducer is the **sole writer** of the IDB read model
+  (known exceptions: [ADR-0005](0005-reducer-sole-read-model-writer.md) Consequences). Feature modules emit events; they never write projections directly.
 - **HLC total ordering.** Each event carries an HLC stamp (wall clock + logical counter + node id).
   The reducer re-sorts by HLC on replay, so **server insertion order is irrelevant**.
 - **PocketBase as a dumb event store.** PB holds an extended `events` collection (`hlc`, `scope`,
   `entity_id`, text `board`, `payload`, immutable updates) plus a `snapshots` collection. It runs no
-  business logic — no server-side projector. `events.board` is **TEXT** (a client-side local UUID,
+  projector. One hook refuses deletes of events inside the 30-day grace window, a unique index on
+  `(owner, local_id)` dedupes pushes, and the `created` autodate stamps the receipt time. `events.board` is **TEXT** (a client-side local UUID,
   not a relation), so board-scoped events validate on PocketBase v0.38.1.
-- **Client-side snapshots (W1).** Snapshots are computed on the client and uploaded (race-on-write);
-  old events are GC'd locally and on PB after each snapshot. Chosen over a server-side projector (W3)
+- **Client-side snapshots (W1).** Snapshots are computed on the client and uploaded (race-on-write).
+  Snapshots cover, and GC removes, only synced events older than the 30-day grace window (#179); a
+  late event received over 30 days after its HLC is dropped. Chosen over a server-side projector (W3)
   for simplicity.
 - **Realtime via SSE.** A PocketBase Server-Sent-Events subscription applies remote events live; a
   launch/reconnect **catch-up pull** converges a just-opened device. PB is optional — without an
@@ -51,7 +54,9 @@ audit UI, all with no third-party CRDT dependency.
   propagates it. The confirm dialog is the only safety net. This is why ADR-0002's `softDeleteEnabled`
   / `pendingHardDeletes` / purge machinery was removed.
 - **Migration is snapshot-as-v0 (M-B), server-mediated.** Existing PR-#89 LWW data is captured as an
-  initial snapshot rather than backfilled into individual events.
+  initial snapshot rather than backfilled into individual events. In practice, pre-event-sourcing
+  IDB data was backfilled once as synthetic `*.created` / `settings.updated` events
+  (`kanvana:migrations:eventBackfill:v1`).
 
 ## Consequences
 
@@ -61,15 +66,15 @@ audit UI, all with no third-party CRDT dependency.
   `docs/spec/audit-trail.md`.
 - **Soft-delete removed (ADR-0002 superseded).** No `softDeleteEnabled` toggle, no purge flow; delete
   is permanent via tombstone event.
-- **New IDB stores (v2):** `events`, `snapshots`, and reducer read-model stores, alongside the HLC's
-  persisted node id.
+- **New IDB stores (v2):** `events`, `snapshots` and `read_model`, beside `kv`, which holds the board
+  list, board and global settings, and the HLC node id (`kanvana:hlc:node`).
 - **Offline-first is non-negotiable.** Any change that makes a server connection mandatory is out of
   scope by design.
 - **Header sync-state indicator (#115)** replaces the manual Sync button; it derives `Live` /
   `Syncing… (N)` / `⚠ N unsynced` / `Offline` from queue depth, retry/pause state, and auth/online
   status.
-- **Legacy PocketBase collections** are locked read-only and scheduled for removal after a 30-day quiet
-  period (issue #116).
+- **Legacy PocketBase collections** are locked read-only (`boards` too, #216); removal is pending
+  (issue #116).
 
 ## Amendment: board-less `timetracking` scope (#164)
 

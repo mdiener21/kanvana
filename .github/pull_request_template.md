@@ -1,10 +1,10 @@
 ## Summary
 
-- Describe the change and why it is needed.
+- What changed and why.
 
 ## Checklist
 
-- [ ] Updated affected files in `docs/spec/` or `docs/specification-kanban.md`
-- [ ] Updated `CHANGELOG.md` under `Unreleased`
-- [ ] Updated contributor guidance (`CLAUDE.md`, `.github/copilot-instructions.md`) if architecture or workflow changed
-- [ ] Added or updated tests when behavior changed
+- [ ] Tests added or updated when behaviour changed
+- [ ] `CHANGELOG.md` `[Unreleased]`: one user-facing line, if users notice the change
+- [ ] `CONTEXT.md` or an ADR updated if architecture or a domain term changed
+- [ ] `docs/spec/` touched up, if a described behaviour changed (never blocks merging)
