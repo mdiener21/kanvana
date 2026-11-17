@@ -52,7 +52,7 @@ All canonical specs live under `docs/spec/`. Start here when adding, changing, o
 
 | Resource | Purpose |
 |---|---|
-| `docs/specification-kanban.md` | Spec index, update policy, code-to-spec ownership map — read first before any change |
+| `docs/specification-kanban.md` | Spec index: one line per spec file |
 | `docs/adr/` | Architecture decision records — one file per significant architectural decision |
 
 ## Technology Rules and Principles
