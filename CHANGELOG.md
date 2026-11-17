@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.25] - 2026-11-17
+
 ### Changed
 
 - Help: the in-app Help now covers everything you can do, including time tracking, swim lanes, reports, sync and backups (#347).
