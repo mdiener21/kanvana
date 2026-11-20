@@ -11,8 +11,7 @@ import { colorDotHtml } from './timetracking-markup.js';
 import { workWeekEditorHtml, bindWorkWeekEditors, captureWorkWeekState } from './timetracking-work-week.js';
 import { showToast } from './timetracking-toast.js';
 import { mountTrackerPanel } from './timetracking-tracker.js';
-import { timeTrackingPrefs } from './timetracking-time.js';
-import { loadTimeTrackingSettings } from './timetracking-settings.js';
+import { createStorageTimeTracking } from './timetracking-api-storage.js';
 import { mountSettingsPanel } from './timetracking-settings-panel.js';
 import { mountReportsPanel } from './timetracking-reports-panel.js';
 import { WEEK } from './timetracking-report.js';
@@ -496,21 +495,27 @@ function wireHelpModal(root) {
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
+// getPrefs overrides the display prefs for tests still on storage mocks; #336 moves them to the test adapter.
 export function mountTimeTracking(root = document, {
-  getSettings = loadTimeTrackingSettings,
-  getPrefs = () => timeTrackingPrefs(getSettings()),
+  timeTracking: given = createStorageTimeTracking(),
+  getPrefs,
   createChart
 } = {}) {
+  const timeTracking = getPrefs ? { ...given, prefs: getPrefs } : given;
   const help = wireHelpModal(root);
   const tracker = mountTrackerPanel(root.getElementById('tt-section-tracker'), {
-    getPrefs,
-    getSettings,
+    timeTracking,
     onOpenCurrentWeek: () => {
       reports.showCurrentPeriod(WEEK);
       nav.show('reports');
     }
   });
-  const reports = mountReportsPanel(root.getElementById('tt-section-reports'), { getPrefs, getSettings, createChart });
+  const reports = mountReportsPanel(root.getElementById('tt-section-reports'), {
+    getTimeTracking: timeTracking.state,
+    getPrefs: timeTracking.prefs,
+    getSettings: timeTracking.settings,
+    createChart
+  });
   const nav = createNavigator(root, { reports: reports.show });
   wireSidebar(root, nav);
   const unwireKeyboard = wireKeyboard(root, { tracker, reports, nav, help });

@@ -13,7 +13,8 @@ import { filterEntries, mountEntryFilter } from './timetracking-filter.js';
 import { formatDuration, formatYmd, formatShortWeekday, formatShortMonth, formatMonthYear, HOUR_MS } from './timetracking-time.js';
 import { summarizePeriod, currentPeriod, shiftPeriod, isSamePeriod, WEEK, MONTH, YEAR } from './timetracking-report.js';
 import { showBalance } from './timetracking-balance.js';
-import { loadTimeTrackingSettings, loadReportPeriodKind, rememberReportPeriodKind } from './timetracking-settings.js';
+import { loadReportPeriodKind, rememberReportPeriodKind } from './timetracking-settings.js';
+import { loadTimeTrackingSettings } from './timetracking-crud.js';
 
 echarts.use([GridComponent, LegendComponent, TooltipComponent, BarChart, CanvasRenderer]);
 

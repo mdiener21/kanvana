@@ -1,14 +1,8 @@
-import { loadTimeTracking } from './storage.js';
-import { on, off, DATA_CHANGED } from './events.js';
 import { renderIcons } from './icons.js';
 import { escapeHtml } from './security.js';
-import {
-  addTimeEntry, updateTimeEntry, duplicateTimeEntry, deleteTimeEntry
-} from './timetracking-crud.js';
 import { showToast } from './timetracking-toast.js';
 import { entryFieldsHtml, wireEntryFields } from './timetracking-entry-fields.js';
 import { filterEntries, mountEntryFilter } from './timetracking-filter.js';
-import { loadLastUsedProjectId, rememberLastUsedProject } from './timetracking-settings.js';
 import { projectById, customerById, prefillProjectId, CRUD_ERROR } from './timetracking-model.js';
 import { WEEK_HEADER_HTML, mountWeekStrip } from './timetracking-week-strip.js';
 import { groupEntriesByDay, formatTime, formatDuration, plusDaysBetween, newEntryTimes } from './timetracking-time.js';
@@ -152,7 +146,8 @@ function entryListHtml(tt, prefs, groups, view, gaps, dayEntries) {
 const DISPLAY_PREF_KEYS = ['tz', 'dateFormat', 'timeFormat', 'durationFormat'];
 const sameDisplayPrefs = (a, b) => DISPLAY_PREF_KEYS.every((key) => a[key] === b[key]);
 
-export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurrentWeek = () => {} }) {
+export function mountTrackerPanel(container, { timeTracking, onOpenCurrentWeek = () => {} }) {
+  const { state: getTimeTracking, prefs: getPrefs, settings: getSettings } = timeTracking;
   container.innerHTML = PANEL_HTML;
   renderIcons(container);
 
@@ -163,17 +158,17 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
   const list = container.querySelector('.tt-entry-list');
   const count = container.querySelector('.tt-entry-count');
   const filter = mountEntryFilter(container.querySelector('.tt-list-filter'), {
-    getTimeTracking: loadTimeTracking,
+    getTimeTracking,
     onChange: () => refresh()
   });
 
   const fields = wireEntryFields(bar, {
     getPrefs,
-    getTimeTracking: loadTimeTracking,
+    getTimeTracking,
     beforeSubmit: () => refreshDefaultTimes(),
     onSubmit(result) {
-      if (!saveSubmitted(result, addTimeEntry)) return;
-      rememberLastUsedProject(result.entry.projectId);
+      if (!saveSubmitted(result, timeTracking.addTimeEntry)) return;
+      timeTracking.rememberLastUsedProject(result.entry.projectId);
       reset();
       // On touch, focusing Description would reopen the soft keyboard over the new row.
       if (isTouch()) doc.activeElement?.blur();
@@ -185,7 +180,7 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     if (isTouch() && ev.target.matches('input')) bar.scrollIntoView?.({ block: 'start' });
   });
 
-  const currentPrefill = () => prefillProjectId(loadTimeTracking(), getSettings(), loadLastUsedProjectId());
+  const currentPrefill = () => prefillProjectId(getTimeTracking(), getSettings(), timeTracking.lastUsedProjectId());
   let lastPrefill = null;
 
   let defaultTimeValues = null;
@@ -194,7 +189,7 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
   function reset() {
     const { now, tz } = getPrefs();
     lastPrefill = currentPrefill();
-    fields.setEntry({ projectId: lastPrefill, ...newEntryTimes(loadTimeTracking().timeEntries, now, tz) });
+    fields.setEntry({ projectId: lastPrefill, ...newEntryTimes(getTimeTracking().timeEntries, now, tz) });
     defaultTimeValues = fields.timeValues();
   }
 
@@ -202,7 +197,7 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
   function refreshDefaultTimes() {
     if (!sameTimeValues(fields.timeValues(), defaultTimeValues)) return;
     const { now, tz } = getPrefs();
-    const { startMs, endMs } = newEntryTimes(loadTimeTracking().timeEntries, now, tz);
+    const { startMs, endMs } = newEntryTimes(getTimeTracking().timeEntries, now, tz);
     fields.setTimes(startMs, endMs);
     defaultTimeValues = fields.timeValues();
   }
@@ -221,14 +216,14 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     lastPrefill = prefill;
   }
 
-  const entryById = (id) => loadTimeTracking().timeEntries.find((e) => e.id === id);
+  const entryById = (id) => getTimeTracking().timeEntries.find((e) => e.id === id);
   const rowOf = (id) => [...list.querySelectorAll('[data-entry-id]')].find((r) => r.dataset.entryId === id);
   const view = { selectedId: null, confirmingId: null, menuId: null };
   const rename = mountRowRename({
     rowOf,
     onDone(id, save, value) {
       const entry = entryById(id);
-      if (save && entry) reportFailure(updateTimeEntry(id, { ...entry, description: value }));
+      if (save && entry) reportFailure(timeTracking.updateTimeEntry(id, { ...entry, description: value }));
       refresh();
     }
   });
@@ -252,7 +247,7 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
   });
 
   function refresh() {
-    const tt = loadTimeTracking();
+    const tt = getTimeTracking();
     const prefs = getPrefs();
     weekStrip.refresh(tt, prefs);
     redisplayOnFormatChange(prefs);
@@ -329,9 +324,9 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
 
     const editorFields = wireEntryFields(element.querySelector('.tt-edit-fields'), {
       getPrefs,
-      getTimeTracking: loadTimeTracking,
+      getTimeTracking,
       onSubmit(result) {
-        if (!saveSubmitted(result, (entry) => updateTimeEntry(id, entry))) return;
+        if (!saveSubmitted(result, (entry) => timeTracking.updateTimeEntry(id, entry))) return;
         closeEditor();
         select(id);
       }
@@ -354,9 +349,9 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
   }
 
   function duplicate(id) {
-    const result = duplicateTimeEntry(id, getPrefs().now);
+    const result = timeTracking.duplicateTimeEntry(id, getPrefs().now);
     if (!reportFailure(result)) return;
-    rememberLastUsedProject(result.timeEntry.projectId);
+    timeTracking.rememberLastUsedProject(result.timeEntry.projectId);
     select(result.timeEntry.id);
   }
 
@@ -377,7 +372,7 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     const index = visibleIds.indexOf(id);
     const neighbour = visibleIds[index + 1] ?? visibleIds[index - 1] ?? null;
     view.confirmingId = null;
-    select(reportFailure(deleteTimeEntry(id)) ? neighbour : id);
+    select(reportFailure(timeTracking.deleteTimeEntry(id)) ? neighbour : id);
   }
 
   function startRename(id) {
@@ -463,7 +458,7 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
 
   reset();
   refresh();
-  on(DATA_CHANGED, refresh);
+  const unsubscribe = timeTracking.subscribe(refresh);
   return {
     focusNewEntry: () => fields.focus(),
     focusFilter: () => filter.focus(),
@@ -487,7 +482,7 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     unmount() {
       rename.beforeRender();
       closeEditor();
-      off(DATA_CHANGED, refresh);
+      unsubscribe();
       doc.removeEventListener('click', onDocumentClick);
       for (const type of PLACEMENT_EVENTS) win.removeEventListener(type, placeRowMenu);
       for (const [target, type] of PAGE_RETURN_EVENTS) target.removeEventListener(type, onPageReturn);

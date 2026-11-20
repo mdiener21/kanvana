@@ -28,7 +28,9 @@ describe('pure Time Tracking modules', () => {
     'timetracking-report.js',
     'timetracking-filter.js',
     'timetracking-entry-fields.js',
-    'timetracking-balance.js'
+    'timetracking-balance.js',
+    'timetracking-settings.js',
+    'timetracking-api.js'
   ])('%s loads no storage, IndexedDB or emitter', (name) => {
     expect(impureImportsOf(name)).toEqual([]);
   });
