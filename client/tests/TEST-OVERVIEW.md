@@ -4,9 +4,9 @@ Generated from test source. Do not edit by hand; run `npm run test:overview` fro
 
 ## Fast Scan
 
-- Test files: 188
-- Test cases: 1651
-- Unit files: 64
+- Test files: 189
+- Test cases: 1665
+- Unit files: 65
 - DOM integration files: 56
 - E2E files: 66
 - Performance files: 1
@@ -33,8 +33,9 @@ These lists compare source/spec filenames against test file names and test title
 - `src/modules/impressum.js`
 - `src/modules/labels-modal.js`
 - `src/modules/swimlane-renderer.js`
+- `src/modules/timetracking-api-storage.js`
+- `src/modules/timetracking-api.js`
 - `src/modules/timetracking-coverage.js`
-- `src/modules/timetracking-crud.js`
 - `src/modules/timetracking-entry-fields.js`
 - `src/modules/timetracking-markup.js`
 - `src/modules/timetracking-reports-panel.js`
@@ -733,20 +734,20 @@ _No executable test cases detected._
 - Type: Unit
 - Test count: 14
 
-- `tests/unit/time-tracking/archive-delete.test.js:34` archive / unarchive > archiving a customer emits customer.archived
-- `tests/unit/time-tracking/archive-delete.test.js:41` archive / unarchive > unarchiving a project emits project.unarchived
-- `tests/unit/time-tracking/archive-delete.test.js:49` archive / unarchive > archiving an already archived item emits nothing
-- `tests/unit/time-tracking/archive-delete.test.js:55` archive / unarchive > an unknown id is rejected
-- `tests/unit/time-tracking/archive-delete.test.js:63` reference guard > a customer is in use while it has projects, archived or not
-- `tests/unit/time-tracking/archive-delete.test.js:69` reference guard > a project is in use while it has time entries
-- `tests/unit/time-tracking/archive-delete.test.js:75` reference guard > deleting an unreferenced project emits project.deleted with the project
-- `tests/unit/time-tracking/archive-delete.test.js:82` reference guard > deleting an unreferenced customer emits customer.deleted with the customer
-- `tests/unit/time-tracking/archive-delete.test.js:90` reference guard > a referenced project or customer is not deleted
-- `tests/unit/time-tracking/archive-delete.test.js:97` reference guard > deleting an unknown id is rejected
-- `tests/unit/time-tracking/archive-delete.test.js:109` archive filtering > a project is selectable only when neither it nor its customer is archived
-- `tests/unit/time-tracking/archive-delete.test.js:116` archive filtering > a project whose customer is missing is not selectable
-- `tests/unit/time-tracking/archive-delete.test.js:123` archive filtering > the picker offers only selectable projects
-- `tests/unit/time-tracking/archive-delete.test.js:127` archive filtering > validation rejects archived projects and projects of archived customers
+- `tests/unit/time-tracking/archive-delete.test.js:22` archive / unarchive > archiving a customer emits customer.archived
+- `tests/unit/time-tracking/archive-delete.test.js:29` archive / unarchive > unarchiving a project emits project.unarchived
+- `tests/unit/time-tracking/archive-delete.test.js:37` archive / unarchive > archiving an already archived item emits nothing
+- `tests/unit/time-tracking/archive-delete.test.js:43` archive / unarchive > an unknown id is rejected
+- `tests/unit/time-tracking/archive-delete.test.js:51` reference guard > a customer is in use while it has projects, archived or not
+- `tests/unit/time-tracking/archive-delete.test.js:57` reference guard > a project is in use while it has time entries
+- `tests/unit/time-tracking/archive-delete.test.js:63` reference guard > deleting an unreferenced project emits project.deleted with the project
+- `tests/unit/time-tracking/archive-delete.test.js:70` reference guard > deleting an unreferenced customer emits customer.deleted with the customer
+- `tests/unit/time-tracking/archive-delete.test.js:78` reference guard > a referenced project or customer is not deleted
+- `tests/unit/time-tracking/archive-delete.test.js:85` reference guard > deleting an unknown id is rejected
+- `tests/unit/time-tracking/archive-delete.test.js:97` archive filtering > a project is selectable only when neither it nor its customer is archived
+- `tests/unit/time-tracking/archive-delete.test.js:104` archive filtering > a project whose customer is missing is not selectable
+- `tests/unit/time-tracking/archive-delete.test.js:111` archive filtering > the picker offers only selectable projects
+- `tests/unit/time-tracking/archive-delete.test.js:115` archive filtering > validation rejects archived projects and projects of archived customers
 
 ### Balance
 
@@ -790,22 +791,22 @@ _No executable test cases detected._
 - Type: Unit
 - Test count: 16
 
-- `tests/unit/time-tracking/customers-projects.test.js:31` addCustomer succeeds with a valid name
-- `tests/unit/time-tracking/customers-projects.test.js:37` addCustomer trims whitespace from name
-- `tests/unit/time-tracking/customers-projects.test.js:43` addCustomer rejects empty name
-- `tests/unit/time-tracking/customers-projects.test.js:49` addCustomer rejects duplicate name (case-insensitive)
-- `tests/unit/time-tracking/customers-projects.test.js:60` addCustomer allows different customer names
-- `tests/unit/time-tracking/customers-projects.test.js:70` addCustomer assigns a color from the palette
-- `tests/unit/time-tracking/customers-projects.test.js:78` addProject succeeds with valid customerId and name
-- `tests/unit/time-tracking/customers-projects.test.js:90` addProject trims whitespace from name
-- `tests/unit/time-tracking/customers-projects.test.js:101` addProject rejects empty name
-- `tests/unit/time-tracking/customers-projects.test.js:112` addProject rejects missing customerId
-- `tests/unit/time-tracking/customers-projects.test.js:118` addProject rejects duplicate project name within same customer (case-insensitive)
-- `tests/unit/time-tracking/customers-projects.test.js:129` addProject allows same project name under different customers
-- `tests/unit/time-tracking/customers-projects.test.js:142` addProject assigns a color from the palette
-- `tests/unit/time-tracking/customers-projects.test.js:163` updateCustomerWorkWeek > emits a customer.updated patch of only the changed fields, with their before values
-- `tests/unit/time-tracking/customers-projects.test.js:171` updateCustomerWorkWeek > an unchanged value emits nothing
-- `tests/unit/time-tracking/customers-projects.test.js:185` updateCustomerWorkWeek > an unknown Customer is not found
+- `tests/unit/time-tracking/customers-projects.test.js:14` addCustomer succeeds with a valid name
+- `tests/unit/time-tracking/customers-projects.test.js:20` addCustomer trims whitespace from name
+- `tests/unit/time-tracking/customers-projects.test.js:26` addCustomer rejects empty name
+- `tests/unit/time-tracking/customers-projects.test.js:32` addCustomer rejects duplicate name (case-insensitive)
+- `tests/unit/time-tracking/customers-projects.test.js:43` addCustomer allows different customer names
+- `tests/unit/time-tracking/customers-projects.test.js:53` addCustomer assigns a color from the palette
+- `tests/unit/time-tracking/customers-projects.test.js:61` addProject succeeds with valid customerId and name
+- `tests/unit/time-tracking/customers-projects.test.js:73` addProject trims whitespace from name
+- `tests/unit/time-tracking/customers-projects.test.js:84` addProject rejects empty name
+- `tests/unit/time-tracking/customers-projects.test.js:95` addProject rejects missing customerId
+- `tests/unit/time-tracking/customers-projects.test.js:101` addProject rejects duplicate project name within same customer (case-insensitive)
+- `tests/unit/time-tracking/customers-projects.test.js:112` addProject allows same project name under different customers
+- `tests/unit/time-tracking/customers-projects.test.js:125` addProject assigns a color from the palette
+- `tests/unit/time-tracking/customers-projects.test.js:145` updateCustomerWorkWeek > emits a customer.updated patch of only the changed fields, with their before values
+- `tests/unit/time-tracking/customers-projects.test.js:153` updateCustomerWorkWeek > an unchanged value emits nothing
+- `tests/unit/time-tracking/customers-projects.test.js:167` updateCustomerWorkWeek > an unknown Customer is not found
 
 ### Day Coverage
 
@@ -879,25 +880,38 @@ _No executable test cases detected._
 - `tests/unit/time-tracking/entry-filter.test.js:81` reconcileFilter > clears a project that does not belong to the selected customer
 - `tests/unit/time-tracking/entry-filter.test.js:85` reconcileFilter > clears selections that no longer exist
 
+### Interface
+
+- Path: `tests/unit/time-tracking/interface.test.js`
+- Type: Unit
+- Test count: 6
+
+- `tests/unit/time-tracking/interface.test.js:11` Time Tracking interface (test adapter, real reducer) > a command emits its event and the reducer shows it in the state
+- `tests/unit/time-tracking/interface.test.js:19` Time Tracking interface (test adapter, real reducer) > subscribers hear every change until they unsubscribe
+- `tests/unit/time-tracking/interface.test.js:30` Time Tracking interface (test adapter, real reducer) > a rejected command emits nothing
+- `tests/unit/time-tracking/interface.test.js:36` Time Tracking interface (test adapter, real reducer) > settings resolve from the stored ones, and saving them goes through the reducer
+- `tests/unit/time-tracking/interface.test.js:44` Time Tracking interface (test adapter, real reducer) > device prefs stay on the device and emit nothing
+- `tests/unit/time-tracking/interface.test.js:54` Time Tracking interface (test adapter, real reducer) > a received event (another device) is folded like a local one, without counting as emitted
+
 ### Legacy Work Week
 
 - Path: `tests/unit/time-tracking/legacy-work-week.test.js`
 - Type: Unit
 - Test count: 13
 
-- `tests/unit/time-tracking/legacy-work-week.test.js:29` legacyWorkWeekMigration > legacy values plus a Default customer without Weekly hours: patch the Customer and clear the settings
-- `tests/unit/time-tracking/legacy-work-week.test.js:42` legacyWorkWeekMigration > legacy Weekly hours without Workdays move with the Mon–Fri default
-- `tests/unit/time-tracking/legacy-work-week.test.js:47` legacyWorkWeekMigration > no Default customer: clear the settings only
-- `tests/unit/time-tracking/legacy-work-week.test.js:52` legacyWorkWeekMigration > a Default customer that is not in the Time Tracking state: clear the settings only
-- `tests/unit/time-tracking/legacy-work-week.test.js:56` legacyWorkWeekMigration > a Default customer that already has Weekly hours: clear the settings only
-- `tests/unit/time-tracking/legacy-work-week.test.js:60` legacyWorkWeekMigration > legacy Workdays alone, or Weekly hours switched off, only clear the settings
-- `tests/unit/time-tracking/legacy-work-week.test.js:69` legacyWorkWeekMigration > nothing legacy: no events
-- `tests/unit/time-tracking/legacy-work-week.test.js:74` legacyWorkWeekMigration > running it on its own output: no events
-- `tests/unit/time-tracking/legacy-work-week.test.js:84` legacyWorkWeekMigration > the clear drops only the legacy fields and writes every other setting back as stored
-- `tests/unit/time-tracking/legacy-work-week.test.js:92` legacyWorkWeekMigration > a settings edit ordered after the clear survives it
-- `tests/unit/time-tracking/legacy-work-week.test.js:99` legacyWorkWeekMigration > two devices running it on the same state emit the same events
-- `tests/unit/time-tracking/legacy-work-week.test.js:127` migrateLegacyWorkWeek on a loaded read model > the Default customer keeps the same Balance as before the upgrade
-- `tests/unit/time-tracking/legacy-work-week.test.js:142` migrateLegacyWorkWeek on a loaded read model > emits through the normal emitter with the user's actor, and only once
+- `tests/unit/time-tracking/legacy-work-week.test.js:32` legacyWorkWeekMigration > legacy values plus a Default customer without Weekly hours: patch the Customer and clear the settings
+- `tests/unit/time-tracking/legacy-work-week.test.js:45` legacyWorkWeekMigration > legacy Weekly hours without Workdays move with the Mon–Fri default
+- `tests/unit/time-tracking/legacy-work-week.test.js:50` legacyWorkWeekMigration > no Default customer: clear the settings only
+- `tests/unit/time-tracking/legacy-work-week.test.js:55` legacyWorkWeekMigration > a Default customer that is not in the Time Tracking state: clear the settings only
+- `tests/unit/time-tracking/legacy-work-week.test.js:59` legacyWorkWeekMigration > a Default customer that already has Weekly hours: clear the settings only
+- `tests/unit/time-tracking/legacy-work-week.test.js:63` legacyWorkWeekMigration > legacy Workdays alone, or Weekly hours switched off, only clear the settings
+- `tests/unit/time-tracking/legacy-work-week.test.js:72` legacyWorkWeekMigration > nothing legacy: no events
+- `tests/unit/time-tracking/legacy-work-week.test.js:77` legacyWorkWeekMigration > running it on its own output: no events
+- `tests/unit/time-tracking/legacy-work-week.test.js:87` legacyWorkWeekMigration > the clear drops only the legacy fields and writes every other setting back as stored
+- `tests/unit/time-tracking/legacy-work-week.test.js:95` legacyWorkWeekMigration > a settings edit ordered after the clear survives it
+- `tests/unit/time-tracking/legacy-work-week.test.js:102` legacyWorkWeekMigration > two devices running it on the same state emit the same events
+- `tests/unit/time-tracking/legacy-work-week.test.js:130` migrateLegacyWorkWeek on a loaded read model > the Default customer keeps the same Balance as before the upgrade
+- `tests/unit/time-tracking/legacy-work-week.test.js:145` migrateLegacyWorkWeek on a loaded read model > emits through the normal emitter with the user's actor, and only once
 
 ### Linked Fields
 
@@ -930,9 +944,10 @@ _No executable test cases detected._
 
 - Path: `tests/unit/time-tracking/model-imports.test.js`
 - Type: Unit
-- Test count: 1
+- Test count: 2
 
-- `tests/unit/time-tracking/model-imports.test.js:36` pure Time Tracking modules > the import check sees storage behind the commands
+- `tests/unit/time-tracking/model-imports.test.js:40` pure Time Tracking modules > the import check sees storage behind the storage adapter
+- `tests/unit/time-tracking/model-imports.test.js:59` Time Tracking panels > the page shell reaches storage only through the storage adapter
 
 ### Model
 
@@ -1059,31 +1074,31 @@ _No executable test cases detected._
 - Type: Unit
 - Test count: 25
 
-- `tests/unit/time-tracking/settings.test.js:28` resolveTimeTrackingSettings (spec defaults and options) > defaults: no default customer/project, DD.MM.YYYY, 24-hour, browser zone, h:mm
-- `tests/unit/time-tracking/settings.test.js:39` resolveTimeTrackingSettings (spec defaults and options) > timezone falls back to Europe/Berlin when the browser reports none
-- `tests/unit/time-tracking/settings.test.js:45` resolveTimeTrackingSettings (spec defaults and options) > keeps valid choices
-- `tests/unit/time-tracking/settings.test.js:54` resolveTimeTrackingSettings (spec defaults and options) > legacy global Weekly hours and Workdays are not exposed: the Work week is per Customer
-- `tests/unit/time-tracking/settings.test.js:60` resolveTimeTrackingSettings (spec defaults and options) > unknown options fall back to defaults
-- `tests/unit/time-tracking/settings.test.js:71` timeTrackingPrefs maps settings to display preferences > carries every display setting and now
-- `tests/unit/time-tracking/settings.test.js:80` timeTrackingPrefs maps settings to display preferences > without settings uses the defaults
-- `tests/unit/time-tracking/settings.test.js:88` persistence in the global settings layer > saving emits a global settings.updated event and lands in global settings
-- `tests/unit/time-tracking/settings.test.js:102` persistence in the global settings layer > saved settings survive a session reset
-- `tests/unit/time-tracking/settings.test.js:110` persistence in the global settings layer > a synced settings.updated event from another device is applied
-- `tests/unit/time-tracking/settings.test.js:120` persistence in the global settings layer > saving another setting does not pin or sync the browser timezone
-- `tests/unit/time-tracking/settings.test.js:134` persistence in the global settings layer > a chosen timezone is kept when another setting is saved
-- `tests/unit/time-tracking/settings.test.js:140` persistence in the global settings layer > saving one setting keeps the others
-- `tests/unit/time-tracking/settings.test.js:160` default customer and project > changing the default customer resets the project to its first active project
-- `tests/unit/time-tracking/settings.test.js:168` default customer and project > the default project can be changed within the default customer
-- `tests/unit/time-tracking/settings.test.js:177` default customer and project > clearing the default customer clears the project
-- `tests/unit/time-tracking/settings.test.js:184` default customer and project > prefillProjectId uses the default project while it is active
-- `tests/unit/time-tracking/settings.test.js:190` default customer and project > prefillProjectId is empty without a default or once the default is no longer active
-- `tests/unit/time-tracking/settings.test.js:211` last-used project prefill > the last-used project wins over the default project
-- `tests/unit/time-tracking/settings.test.js:217` last-used project prefill > falls back to the default project without a last-used project
-- `tests/unit/time-tracking/settings.test.js:223` last-used project prefill > falls back to the default project when the last-used project is archived
-- `tests/unit/time-tracking/settings.test.js:230` last-used project prefill > falls back to the default project when the last-used project customer is archived
-- `tests/unit/time-tracking/settings.test.js:237` last-used project prefill > falls back to the default project when the last-used project was deleted
-- `tests/unit/time-tracking/settings.test.js:244` last-used project prefill > is empty when neither the last-used nor the default project is active
-- `tests/unit/time-tracking/settings.test.js:252` last-used project prefill > is remembered in local storage on this device, without a domain event
+- `tests/unit/time-tracking/settings.test.js:31` resolveTimeTrackingSettings (spec defaults and options) > defaults: no default customer/project, DD.MM.YYYY, 24-hour, browser zone, h:mm
+- `tests/unit/time-tracking/settings.test.js:42` resolveTimeTrackingSettings (spec defaults and options) > timezone falls back to Europe/Berlin when the browser reports none
+- `tests/unit/time-tracking/settings.test.js:48` resolveTimeTrackingSettings (spec defaults and options) > keeps valid choices
+- `tests/unit/time-tracking/settings.test.js:57` resolveTimeTrackingSettings (spec defaults and options) > legacy global Weekly hours and Workdays are not exposed: the Work week is per Customer
+- `tests/unit/time-tracking/settings.test.js:63` resolveTimeTrackingSettings (spec defaults and options) > unknown options fall back to defaults
+- `tests/unit/time-tracking/settings.test.js:74` timeTrackingPrefs maps settings to display preferences > carries every display setting and now
+- `tests/unit/time-tracking/settings.test.js:83` timeTrackingPrefs maps settings to display preferences > without settings uses the defaults
+- `tests/unit/time-tracking/settings.test.js:91` persistence in the global settings layer > saving emits a global settings.updated event and lands in global settings
+- `tests/unit/time-tracking/settings.test.js:105` persistence in the global settings layer > saved settings survive a session reset
+- `tests/unit/time-tracking/settings.test.js:113` persistence in the global settings layer > a synced settings.updated event from another device is applied
+- `tests/unit/time-tracking/settings.test.js:123` persistence in the global settings layer > saving another setting does not pin or sync the browser timezone
+- `tests/unit/time-tracking/settings.test.js:137` persistence in the global settings layer > a chosen timezone is kept when another setting is saved
+- `tests/unit/time-tracking/settings.test.js:143` persistence in the global settings layer > saving one setting keeps the others
+- `tests/unit/time-tracking/settings.test.js:163` default customer and project > changing the default customer resets the project to its first active project
+- `tests/unit/time-tracking/settings.test.js:171` default customer and project > the default project can be changed within the default customer
+- `tests/unit/time-tracking/settings.test.js:180` default customer and project > clearing the default customer clears the project
+- `tests/unit/time-tracking/settings.test.js:187` default customer and project > prefillProjectId uses the default project while it is active
+- `tests/unit/time-tracking/settings.test.js:193` default customer and project > prefillProjectId is empty without a default or once the default is no longer active
+- `tests/unit/time-tracking/settings.test.js:214` last-used project prefill > the last-used project wins over the default project
+- `tests/unit/time-tracking/settings.test.js:220` last-used project prefill > falls back to the default project without a last-used project
+- `tests/unit/time-tracking/settings.test.js:226` last-used project prefill > falls back to the default project when the last-used project is archived
+- `tests/unit/time-tracking/settings.test.js:233` last-used project prefill > falls back to the default project when the last-used project customer is archived
+- `tests/unit/time-tracking/settings.test.js:240` last-used project prefill > falls back to the default project when the last-used project was deleted
+- `tests/unit/time-tracking/settings.test.js:247` last-used project prefill > is empty when neither the last-used nor the default project is active
+- `tests/unit/time-tracking/settings.test.js:255` last-used project prefill > is remembered in local storage on this device, without a domain event
 
 ### Shorthand
 
@@ -1101,20 +1116,20 @@ _No executable test cases detected._
 - Type: Unit
 - Test count: 14
 
-- `tests/unit/time-tracking/time-entries.test.js:56` validateTimeEntry > a project is checked before the times
-- `tests/unit/time-tracking/time-entries.test.js:60` validateTimeEntry > a valid entry passes
-- `tests/unit/time-tracking/time-entries.test.js:66` addTimeEntry > emits time_entry.created in the timetracking scope with absolute instants
-- `tests/unit/time-tracking/time-entries.test.js:86` addTimeEntry > normalises instants to UTC ISO strings
-- `tests/unit/time-tracking/time-entries.test.js:91` addTimeEntry > invalid entries save nothing
-- `tests/unit/time-tracking/time-entries.test.js:105` updateTimeEntry > emits time_entry.updated with the changed fields after and before
-- `tests/unit/time-tracking/time-entries.test.js:121` updateTimeEntry > saving without changes emits nothing
-- `tests/unit/time-tracking/time-entries.test.js:126` updateTimeEntry > an entry may keep its already-archived project
-- `tests/unit/time-tracking/time-entries.test.js:143` updateTimeEntry > an unknown entry is rejected
-- `tests/unit/time-tracking/time-entries.test.js:156` duplicateTimeEntry > emits time_entry.created with the same project, description and duration, starting now
-- `tests/unit/time-tracking/time-entries.test.js:176` duplicateTimeEntry > an entry on an archived project cannot be duplicated
-- `tests/unit/time-tracking/time-entries.test.js:182` duplicateTimeEntry > an unknown entry is rejected
-- `tests/unit/time-tracking/time-entries.test.js:194` deleteTimeEntry > emits time_entry.deleted carrying the deleted entry
-- `tests/unit/time-tracking/time-entries.test.js:204` deleteTimeEntry > an unknown entry is rejected
+- `tests/unit/time-tracking/time-entries.test.js:44` validateTimeEntry > a project is checked before the times
+- `tests/unit/time-tracking/time-entries.test.js:48` validateTimeEntry > a valid entry passes
+- `tests/unit/time-tracking/time-entries.test.js:54` addTimeEntry > emits time_entry.created in the timetracking scope with absolute instants
+- `tests/unit/time-tracking/time-entries.test.js:74` addTimeEntry > normalises instants to UTC ISO strings
+- `tests/unit/time-tracking/time-entries.test.js:79` addTimeEntry > invalid entries save nothing
+- `tests/unit/time-tracking/time-entries.test.js:93` updateTimeEntry > emits time_entry.updated with the changed fields after and before
+- `tests/unit/time-tracking/time-entries.test.js:109` updateTimeEntry > saving without changes emits nothing
+- `tests/unit/time-tracking/time-entries.test.js:114` updateTimeEntry > an entry may keep its already-archived project
+- `tests/unit/time-tracking/time-entries.test.js:131` updateTimeEntry > an unknown entry is rejected
+- `tests/unit/time-tracking/time-entries.test.js:144` duplicateTimeEntry > emits time_entry.created with the same project, description and duration, starting now
+- `tests/unit/time-tracking/time-entries.test.js:164` duplicateTimeEntry > an entry on an archived project cannot be duplicated
+- `tests/unit/time-tracking/time-entries.test.js:170` duplicateTimeEntry > an unknown entry is rejected
+- `tests/unit/time-tracking/time-entries.test.js:182` deleteTimeEntry > emits time_entry.deleted carrying the deleted entry
+- `tests/unit/time-tracking/time-entries.test.js:192` deleteTimeEntry > an unknown entry is rejected
 
 ### Timezone
 
@@ -1950,15 +1965,15 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 9
 
-- `tests/dom/time-tracking/entry-bar.test.js:72` entry bar layout > every field has a visible label tied to its input, with the same accessible names as before
-- `tests/dom/time-tracking/entry-bar.test.js:85` entry bar layout > Date, Start, End and Duration form one time block with an arrow between Start and End
-- `tests/dom/time-tracking/entry-bar.test.js:96` entry bar layout > placeholder, sentence-case Add button with an Enter hint, and a shorthand hint row
-- `tests/dom/time-tracking/entry-bar.test.js:107` entry bar layout > the Project field shows the selected project colour dot, and none without a project
-- `tests/dom/time-tracking/entry-bar.test.js:118` switching section starts the new section at the top, so the taller entry bar never hides the header
-- `tests/dom/time-tracking/entry-bar.test.js:128` Start continues from the last entry > today has an entry ending at 14:45 and it is 15:20 → Start 14:45, End 15:20, 0:35
-- `tests/dom/time-tracking/entry-bar.test.js:136` Start continues from the last entry > today's latest End later than now → Start = End = now
-- `tests/dom/time-tracking/entry-bar.test.js:141` Start continues from the last entry > no entry today (only yesterday) → Start = End = now
-- `tests/dom/time-tracking/entry-bar.test.js:146` Start continues from the last entry > after saving, the new Start is the saved entry End and focus returns to Description
+- `tests/dom/time-tracking/entry-bar.test.js:53` entry bar layout > every field has a visible label tied to its input, with the same accessible names as before
+- `tests/dom/time-tracking/entry-bar.test.js:66` entry bar layout > Date, Start, End and Duration form one time block with an arrow between Start and End
+- `tests/dom/time-tracking/entry-bar.test.js:77` entry bar layout > placeholder, sentence-case Add button with an Enter hint, and a shorthand hint row
+- `tests/dom/time-tracking/entry-bar.test.js:88` entry bar layout > the Project field shows the selected project colour dot, and none without a project
+- `tests/dom/time-tracking/entry-bar.test.js:99` switching section starts the new section at the top, so the taller entry bar never hides the header
+- `tests/dom/time-tracking/entry-bar.test.js:109` Start continues from the last entry > today has an entry ending at 14:45 and it is 15:20 → Start 14:45, End 15:20, 0:35
+- `tests/dom/time-tracking/entry-bar.test.js:117` Start continues from the last entry > today's latest End later than now → Start = End = now
+- `tests/dom/time-tracking/entry-bar.test.js:122` Start continues from the last entry > no entry today (only yesterday) → Start = End = now
+- `tests/dom/time-tracking/entry-bar.test.js:127` Start continues from the last entry > after saving, the new Start is the saved entry End and focus returns to Description
 
 ### Entry Filter
 
@@ -1981,18 +1996,18 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 12
 
-- `tests/dom/time-tracking/fill-chips.test.js:95` fill chips below the entry bar > today's gaps show as Fill chips below the entry bar, newest first
-- `tests/dom/time-tracking/fill-chips.test.js:102` fill chips below the entry bar > with more than three gaps today only the three newest show
-- `tests/dom/time-tracking/fill-chips.test.js:110` fill chips below the entry bar > with no gaps today no chips show
-- `tests/dom/time-tracking/fill-chips.test.js:114` fill chips below the entry bar > a chip pre-fills the entry bar exactly as a gap row Fill does and saves nothing
-- `tests/dom/time-tracking/fill-chips.test.js:130` fill chips below the entry bar > chips hide while a customer or project filter is active, like gap rows
-- `tests/dom/time-tracking/fill-chips.test.js:141` fill chips below the entry bar > chips are keyboard-focusable buttons
-- `tests/dom/time-tracking/fill-chips.test.js:150` fill chips below the entry bar > chips update when an entry is saved, edited or deleted
-- `tests/dom/time-tracking/fill-chips.test.js:175` f fills the gap before the selected entry > f puts the gap before the selected entry into the entry bar and focuses Description
-- `tests/dom/time-tracking/fill-chips.test.js:185` f fills the gap before the selected entry > f with no gap before the selected entry changes nothing
-- `tests/dom/time-tracking/fill-chips.test.js:194` f fills the gap before the selected entry > f does nothing while a customer or project filter is active
-- `tests/dom/time-tracking/fill-chips.test.js:203` f fills the gap before the selected entry > f is listed in the cheat-sheet
-- `tests/dom/time-tracking/fill-chips.test.js:208` f fills the gap before the selected entry > f does nothing without a selection or while an input has focus
+- `tests/dom/time-tracking/fill-chips.test.js:72` fill chips below the entry bar > today's gaps show as Fill chips below the entry bar, newest first
+- `tests/dom/time-tracking/fill-chips.test.js:79` fill chips below the entry bar > with more than three gaps today only the three newest show
+- `tests/dom/time-tracking/fill-chips.test.js:87` fill chips below the entry bar > with no gaps today no chips show
+- `tests/dom/time-tracking/fill-chips.test.js:91` fill chips below the entry bar > a chip pre-fills the entry bar exactly as a gap row Fill does and saves nothing
+- `tests/dom/time-tracking/fill-chips.test.js:107` fill chips below the entry bar > chips hide while a customer or project filter is active, like gap rows
+- `tests/dom/time-tracking/fill-chips.test.js:118` fill chips below the entry bar > chips are keyboard-focusable buttons
+- `tests/dom/time-tracking/fill-chips.test.js:127` fill chips below the entry bar > chips update when an entry is saved, edited or deleted
+- `tests/dom/time-tracking/fill-chips.test.js:152` f fills the gap before the selected entry > f puts the gap before the selected entry into the entry bar and focuses Description
+- `tests/dom/time-tracking/fill-chips.test.js:162` f fills the gap before the selected entry > f with no gap before the selected entry changes nothing
+- `tests/dom/time-tracking/fill-chips.test.js:171` f fills the gap before the selected entry > f does nothing while a customer or project filter is active
+- `tests/dom/time-tracking/fill-chips.test.js:180` f fills the gap before the selected entry > f is listed in the cheat-sheet
+- `tests/dom/time-tracking/fill-chips.test.js:185` f fills the gap before the selected entry > f does nothing without a selection or while an input has focus
 
 ### Gap Rows
 
@@ -2000,13 +2015,13 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 7
 
-- `tests/dom/time-tracking/gap-rows.test.js:88` untracked gap rows > a gap row sits between the two entries it separates, with its span, minutes and a Fill button
-- `tests/dom/time-tracking/gap-rows.test.js:96` untracked gap rows > a gap after a long entry with a nested one sits directly above the entry it follows
-- `tests/dom/time-tracking/gap-rows.test.js:106` untracked gap rows > gap rows are hidden while a customer or project filter is active
-- `tests/dom/time-tracking/gap-rows.test.js:117` untracked gap rows > Fill puts the gap into Date, Start and End, keeps Project and Description, focuses Description and saves nothing
-- `tests/dom/time-tracking/gap-rows.test.js:134` untracked gap rows > Fill then Enter adds the entry and the gap disappears
-- `tests/dom/time-tracking/gap-rows.test.js:143` untracked gap rows > j / k skip gap rows and the entry count excludes them
-- `tests/dom/time-tracking/gap-rows.test.js:154` untracked gap rows > gaps are recomputed when entries arrive from sync, are edited or deleted
+- `tests/dom/time-tracking/gap-rows.test.js:64` untracked gap rows > a gap row sits between the two entries it separates, with its span, minutes and a Fill button
+- `tests/dom/time-tracking/gap-rows.test.js:72` untracked gap rows > a gap after a long entry with a nested one sits directly above the entry it follows
+- `tests/dom/time-tracking/gap-rows.test.js:82` untracked gap rows > gap rows are hidden while a customer or project filter is active
+- `tests/dom/time-tracking/gap-rows.test.js:93` untracked gap rows > Fill puts the gap into Date, Start and End, keeps Project and Description, focuses Description and saves nothing
+- `tests/dom/time-tracking/gap-rows.test.js:110` untracked gap rows > Fill then Enter adds the entry and the gap disappears
+- `tests/dom/time-tracking/gap-rows.test.js:119` untracked gap rows > j / k skip gap rows and the entry count excludes them
+- `tests/dom/time-tracking/gap-rows.test.js:130` untracked gap rows > gaps are recomputed when entries arrive from sync, are edited or deleted
 
 ### Inline Rename
 
@@ -2014,18 +2029,18 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 12
 
-- `tests/dom/time-tracking/inline-rename.test.js:83` inline rename > clicking a description puts a focused input with the current text in its place, caret at the end
-- `tests/dom/time-tracking/inline-rename.test.js:94` inline rename > row actions hide while renaming
-- `tests/dom/time-tracking/inline-rename.test.js:102` inline rename > Enter saves through time_entry.updated and the row re-renders with the new text
-- `tests/dom/time-tracking/inline-rename.test.js:115` inline rename > leaving the field saves
-- `tests/dom/time-tracking/inline-rename.test.js:123` inline rename > Esc restores the original description and emits nothing
-- `tests/dom/time-tracking/inline-rename.test.js:133` inline rename > saving unchanged text emits no event
-- `tests/dom/time-tracking/inline-rename.test.js:141` inline rename > saving cleared text stores no description and shows (no description)
-- `tests/dom/time-tracking/inline-rename.test.js:148` inline rename > F2 renames the selected row when focus is outside an input
-- `tests/dom/time-tracking/inline-rename.test.js:157` inline rename > F2 does nothing while an input has focus
-- `tests/dom/time-tracking/inline-rename.test.js:166` inline rename > F2 is listed in the cheat-sheet
-- `tests/dom/time-tracking/inline-rename.test.js:174` project / customer button > clicking the project or customer opens the edit modal for that entry, like the pencil
-- `tests/dom/time-tracking/inline-rename.test.js:187` project / customer button > the project / customer cell is a keyboard-operable button
+- `tests/dom/time-tracking/inline-rename.test.js:67` inline rename > clicking a description puts a focused input with the current text in its place, caret at the end
+- `tests/dom/time-tracking/inline-rename.test.js:78` inline rename > row actions hide while renaming
+- `tests/dom/time-tracking/inline-rename.test.js:86` inline rename > Enter saves through time_entry.updated and the row re-renders with the new text
+- `tests/dom/time-tracking/inline-rename.test.js:99` inline rename > leaving the field saves
+- `tests/dom/time-tracking/inline-rename.test.js:107` inline rename > Esc restores the original description and emits nothing
+- `tests/dom/time-tracking/inline-rename.test.js:117` inline rename > saving unchanged text emits no event
+- `tests/dom/time-tracking/inline-rename.test.js:125` inline rename > saving cleared text stores no description and shows (no description)
+- `tests/dom/time-tracking/inline-rename.test.js:132` inline rename > F2 renames the selected row when focus is outside an input
+- `tests/dom/time-tracking/inline-rename.test.js:141` inline rename > F2 does nothing while an input has focus
+- `tests/dom/time-tracking/inline-rename.test.js:150` inline rename > F2 is listed in the cheat-sheet
+- `tests/dom/time-tracking/inline-rename.test.js:158` project / customer button > clicking the project or customer opens the edit modal for that entry, like the pencil
+- `tests/dom/time-tracking/inline-rename.test.js:171` project / customer button > the project / customer cell is a keyboard-operable button
 
 ### Ledger Rows
 
@@ -2033,12 +2048,12 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 6
 
-- `tests/dom/time-tracking/ledger-rows.test.js:58` ledger rows > the project colour shows only on the row rail and the dot; names keep text colours
-- `tests/dom/time-tracking/ledger-rows.test.js:70` day coverage bar > today shows one block per entry in its project colour and a now-marker, hidden from assistive tech
-- `tests/dom/time-tracking/ledger-rows.test.js:87` day coverage bar > a past day has blocks but no now-marker
-- `tests/dom/time-tracking/ledger-rows.test.js:94` day coverage bar > an entry before 07:00 widens the bar to start at its hour
-- `tests/dom/time-tracking/ledger-rows.test.js:101` day coverage bar > under a project filter the bar still shows all of the day, like its gaps
-- `tests/dom/time-tracking/ledger-rows.test.js:111` day coverage bar > the bar is not a list item, so rows stay the only list entries
+- `tests/dom/time-tracking/ledger-rows.test.js:51` ledger rows > the project colour shows only on the row rail and the dot; names keep text colours
+- `tests/dom/time-tracking/ledger-rows.test.js:63` day coverage bar > today shows one block per entry in its project colour and a now-marker, hidden from assistive tech
+- `tests/dom/time-tracking/ledger-rows.test.js:80` day coverage bar > a past day has blocks but no now-marker
+- `tests/dom/time-tracking/ledger-rows.test.js:87` day coverage bar > an entry before 07:00 widens the bar to start at its hour
+- `tests/dom/time-tracking/ledger-rows.test.js:94` day coverage bar > under a project filter the bar still shows all of the day, like its gaps
+- `tests/dom/time-tracking/ledger-rows.test.js:104` day coverage bar > the bar is not a list item, so rows stay the only list entries
 
 ### Mobile Entry
 
@@ -2046,24 +2061,24 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 18
 
-- `tests/dom/time-tracking/mobile-entry.test.js:87` an idle entry bar keeps its default times current > coming back to the page moves an untouched End to now
-- `tests/dom/time-tracking/mobile-entry.test.js:101` an idle entry bar keeps its default times current > saving an untouched bar logs up to now, not up to when the page was opened
-- `tests/dom/time-tracking/mobile-entry.test.js:111` an idle entry bar keeps its default times current > typed or filled times are never replaced
-- `tests/dom/time-tracking/mobile-entry.test.js:131` phone keyboards > Start and End bring up the number pad, every field has a Done key, Duration keeps the text keyboard
-- `tests/dom/time-tracking/mobile-entry.test.js:144` phone keyboards > the inline rename input has a Done key
-- `tests/dom/time-tracking/mobile-entry.test.js:152` focus after saving and filling > on a touch device Add saves without focusing Description, so the keyboard stays closed
-- `tests/dom/time-tracking/mobile-entry.test.js:162` focus after saving and filling > on a touch device a Fill chip or gap row pre-fills the bar without focusing Description
-- `tests/dom/time-tracking/mobile-entry.test.js:173` focus after saving and filling > on a touch device focusing a bar field scrolls the bar to the top; focusing Add does not move it
-- `tests/dom/time-tracking/mobile-entry.test.js:185` focus after saving and filling > with a mouse and keyboard Add still returns focus to Description
-- `tests/dom/time-tracking/mobile-entry.test.js:197` the editor opens on the field that was tapped > tapping a row's time range opens the editor with Start focused and selected
-- `tests/dom/time-tracking/mobile-entry.test.js:206` the editor opens on the field that was tapped > tapping the project / customer opens the editor with Project focused and selected
-- `tests/dom/time-tracking/mobile-entry.test.js:215` the editor opens on the field that was tapped > the pencil still opens the editor on Description
-- `tests/dom/time-tracking/mobile-entry.test.js:221` the editor opens on the field that was tapped > focusing End, Duration or Date selects its value, so typing replaces it
-- `tests/dom/time-tracking/mobile-entry.test.js:237` row menu on touch devices > ⋯ opens a menu with edit, duplicate and delete for that row
-- `tests/dom/time-tracking/mobile-entry.test.js:246` row menu on touch devices > menu Edit opens the editor and closes the menu
-- `tests/dom/time-tracking/mobile-entry.test.js:254` row menu on touch devices > menu Duplicate copies the entry
-- `tests/dom/time-tracking/mobile-entry.test.js:262` row menu on touch devices > menu Delete asks inline first, then deletes
-- `tests/dom/time-tracking/mobile-entry.test.js:271` row menu on touch devices > Esc, tapping ⋯ again or tapping elsewhere closes the menu
+- `tests/dom/time-tracking/mobile-entry.test.js:65` an idle entry bar keeps its default times current > coming back to the page moves an untouched End to now
+- `tests/dom/time-tracking/mobile-entry.test.js:79` an idle entry bar keeps its default times current > saving an untouched bar logs up to now, not up to when the page was opened
+- `tests/dom/time-tracking/mobile-entry.test.js:89` an idle entry bar keeps its default times current > typed or filled times are never replaced
+- `tests/dom/time-tracking/mobile-entry.test.js:109` phone keyboards > Start and End bring up the number pad, every field has a Done key, Duration keeps the text keyboard
+- `tests/dom/time-tracking/mobile-entry.test.js:122` phone keyboards > the inline rename input has a Done key
+- `tests/dom/time-tracking/mobile-entry.test.js:130` focus after saving and filling > on a touch device Add saves without focusing Description, so the keyboard stays closed
+- `tests/dom/time-tracking/mobile-entry.test.js:140` focus after saving and filling > on a touch device a Fill chip or gap row pre-fills the bar without focusing Description
+- `tests/dom/time-tracking/mobile-entry.test.js:151` focus after saving and filling > on a touch device focusing a bar field scrolls the bar to the top; focusing Add does not move it
+- `tests/dom/time-tracking/mobile-entry.test.js:163` focus after saving and filling > with a mouse and keyboard Add still returns focus to Description
+- `tests/dom/time-tracking/mobile-entry.test.js:175` the editor opens on the field that was tapped > tapping a row's time range opens the editor with Start focused and selected
+- `tests/dom/time-tracking/mobile-entry.test.js:184` the editor opens on the field that was tapped > tapping the project / customer opens the editor with Project focused and selected
+- `tests/dom/time-tracking/mobile-entry.test.js:193` the editor opens on the field that was tapped > the pencil still opens the editor on Description
+- `tests/dom/time-tracking/mobile-entry.test.js:199` the editor opens on the field that was tapped > focusing End, Duration or Date selects its value, so typing replaces it
+- `tests/dom/time-tracking/mobile-entry.test.js:215` row menu on touch devices > ⋯ opens a menu with edit, duplicate and delete for that row
+- `tests/dom/time-tracking/mobile-entry.test.js:224` row menu on touch devices > menu Edit opens the editor and closes the menu
+- `tests/dom/time-tracking/mobile-entry.test.js:232` row menu on touch devices > menu Duplicate copies the entry
+- `tests/dom/time-tracking/mobile-entry.test.js:240` row menu on touch devices > menu Delete asks inline first, then deletes
+- `tests/dom/time-tracking/mobile-entry.test.js:249` row menu on touch devices > Esc, tapping ⋯ again or tapping elsewhere closes the menu
 
 ### Page Entry
 
@@ -2080,38 +2095,38 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 32
 
-- `tests/dom/time-tracking/projects.test.js:66` Enter in the customer input creates the customer and lists it
-- `tests/dom/time-tracking/projects.test.js:78` clicking Add customer creates the customer and keeps focus in the customer input
-- `tests/dom/time-tracking/projects.test.js:88` a new customer becomes selectable for projects
-- `tests/dom/time-tracking/projects.test.js:96` empty customer name shows a toast and emits nothing
-- `tests/dom/time-tracking/projects.test.js:105` duplicate customer name shows a toast and emits nothing
-- `tests/dom/time-tracking/projects.test.js:114` Enter in the project input creates the project nested under its customer
-- `tests/dom/time-tracking/projects.test.js:128` after adding a project the customer stays selected and focus stays in the project input
-- `tests/dom/time-tracking/projects.test.js:143` project without a selected customer shows a toast and emits nothing
-- `tests/dom/time-tracking/projects.test.js:152` empty project name shows a toast and emits nothing
-- `tests/dom/time-tracking/projects.test.js:161` duplicate project within the customer shows a toast and emits nothing
-- `tests/dom/time-tracking/projects.test.js:174` text typed in the other input survives a data-change re-render
-- `tests/dom/time-tracking/projects.test.js:185` a remote data change refreshes the list without touching the forms
-- `tests/dom/time-tracking/projects.test.js:200` selection falls back to the placeholder when the selected customer disappears
-- `tests/dom/time-tracking/projects.test.js:210` a customer can be renamed from the projects list
-- `tests/dom/time-tracking/projects.test.js:220` a project can be renamed while keeping its customer
-- `tests/dom/time-tracking/projects.test.js:231` Enter saves an edited name and Escape cancels an edit
-- `tests/dom/time-tracking/projects.test.js:244` an unrelated data refresh preserves an in-progress project rename
-- `tests/dom/time-tracking/projects.test.js:259` saving one rename preserves another draft and its keyboard controls
-- `tests/dom/time-tracking/projects.test.js:275` renaming rejects duplicate names and keeps the edit open
-- `tests/dom/time-tracking/projects.test.js:296` archive and delete > archiving a customer emits customer.archived, mutes the row and offers Unarchive
-- `tests/dom/time-tracking/projects.test.js:309` archive and delete > archiving a project emits project.archived and mutes the row; unarchive restores it
-- `tests/dom/time-tracking/projects.test.js:322` archive and delete > delete of a referenced item is disabled and explains why
-- `tests/dom/time-tracking/projects.test.js:336` archive and delete > delete of an unreferenced project emits project.deleted and removes it; then its customer can go
-- `tests/dom/time-tracking/projects.test.js:362` Work week editor > is collapsed by default and summarises a Customer stored before Work weeks as "No target"
-- `tests/dom/time-tracking/projects.test.js:373` Work week editor > summarises Weekly hours and Workdays
-- `tests/dom/time-tracking/projects.test.js:384` Work week editor > Weekly hours is a decimal input with step 0.5, above 0 and no maximum, and saves on change
-- `tests/dom/time-tracking/projects.test.js:398` Work week editor > keeps the editor open and focus on the input across the re-render a save causes
-- `tests/dom/time-tracking/projects.test.js:408` Work week editor > clearing Weekly hours removes them, switching the Target off
-- `tests/dom/time-tracking/projects.test.js:416` Work week editor > a zero or negative value is not saved
-- `tests/dom/time-tracking/projects.test.js:424` Work week editor > each Workday tick saves, and the last ticked day is disabled
-- `tests/dom/time-tracking/projects.test.js:438` Work week editor > an archived Customer\'s Work week stays editable
-- `tests/dom/time-tracking/projects.test.js:447` Work week editor > is keyboard operable with labelled controls
+- `tests/dom/time-tracking/projects.test.js:37` Enter in the customer input creates the customer and lists it
+- `tests/dom/time-tracking/projects.test.js:47` clicking Add customer creates the customer and keeps focus in the customer input
+- `tests/dom/time-tracking/projects.test.js:57` a new customer becomes selectable for projects
+- `tests/dom/time-tracking/projects.test.js:65` empty customer name shows a toast and emits nothing
+- `tests/dom/time-tracking/projects.test.js:74` duplicate customer name shows a toast and emits nothing
+- `tests/dom/time-tracking/projects.test.js:83` Enter in the project input creates the project nested under its customer
+- `tests/dom/time-tracking/projects.test.js:95` after adding a project the customer stays selected and focus stays in the project input
+- `tests/dom/time-tracking/projects.test.js:110` project without a selected customer shows a toast and emits nothing
+- `tests/dom/time-tracking/projects.test.js:119` empty project name shows a toast and emits nothing
+- `tests/dom/time-tracking/projects.test.js:128` duplicate project within the customer shows a toast and emits nothing
+- `tests/dom/time-tracking/projects.test.js:141` text typed in the other input survives a data-change re-render
+- `tests/dom/time-tracking/projects.test.js:152` a remote data change refreshes the list without touching the forms
+- `tests/dom/time-tracking/projects.test.js:166` selection falls back to the placeholder when the selected customer disappears
+- `tests/dom/time-tracking/projects.test.js:175` a customer can be renamed from the projects list
+- `tests/dom/time-tracking/projects.test.js:185` a project can be renamed while keeping its customer
+- `tests/dom/time-tracking/projects.test.js:196` Enter saves an edited name and Escape cancels an edit
+- `tests/dom/time-tracking/projects.test.js:209` an unrelated data refresh preserves an in-progress project rename
+- `tests/dom/time-tracking/projects.test.js:223` saving one rename preserves another draft and its keyboard controls
+- `tests/dom/time-tracking/projects.test.js:239` renaming rejects duplicate names and keeps the edit open
+- `tests/dom/time-tracking/projects.test.js:260` archive and delete > archiving a customer emits customer.archived, mutes the row and offers Unarchive
+- `tests/dom/time-tracking/projects.test.js:271` archive and delete > archiving a project emits project.archived and mutes the row; unarchive restores it
+- `tests/dom/time-tracking/projects.test.js:282` archive and delete > delete of a referenced item is disabled and explains why
+- `tests/dom/time-tracking/projects.test.js:296` archive and delete > delete of an unreferenced project emits project.deleted and removes it; then its customer can go
+- `tests/dom/time-tracking/projects.test.js:320` Work week editor > is collapsed by default and summarises a Customer stored before Work weeks as "No target"
+- `tests/dom/time-tracking/projects.test.js:331` Work week editor > summarises Weekly hours and Workdays
+- `tests/dom/time-tracking/projects.test.js:342` Work week editor > Weekly hours is a decimal input with step 0.5, above 0 and no maximum, and saves on change
+- `tests/dom/time-tracking/projects.test.js:356` Work week editor > keeps the editor open and focus on the input across the re-render a save causes
+- `tests/dom/time-tracking/projects.test.js:366` Work week editor > clearing Weekly hours removes them, switching the Target off
+- `tests/dom/time-tracking/projects.test.js:374` Work week editor > a zero or negative value is not saved
+- `tests/dom/time-tracking/projects.test.js:382` Work week editor > each Workday tick saves, and the last ticked day is disabled
+- `tests/dom/time-tracking/projects.test.js:396` Work week editor > an archived Customer\'s Work week stays editable
+- `tests/dom/time-tracking/projects.test.js:405` Work week editor > is keyboard operable with labelled controls
 
 ### Reports
 
@@ -2119,56 +2134,56 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 50
 
-- `tests/dom/time-tracking/reports.test.js:80` month navigation > defaults to the current month in the user timezone
-- `tests/dom/time-tracking/reports.test.js:85` month navigation > ‹ / › buttons switch the month and the label follows
-- `tests/dom/time-tracking/reports.test.js:95` month navigation > prevPeriod() / nextPeriod() (for [ / ]) step the month
-- `tests/dom/time-tracking/reports.test.js:104` month navigation > month buttons name their shortcut in the tooltip
-- `tests/dom/time-tracking/reports.test.js:110` month navigation > re-resolves the current month on show when the month was not changed
-- `tests/dom/time-tracking/reports.test.js:117` month navigation > keeps a month the user switched to when shown again
-- `tests/dom/time-tracking/reports.test.js:125` month navigation > follows the current month again after switching back to it
-- `tests/dom/time-tracking/reports.test.js:134` month navigation > a timezone change re-resolves the current month
-- `tests/dom/time-tracking/reports.test.js:147` KPIs and table > KPIs: total duration, number of entries, number of projects
-- `tests/dom/time-tracking/reports.test.js:154` KPIs and table > table: customers by total → projects by total with share; grand total matches the KPI
-- `tests/dom/time-tracking/reports.test.js:169` KPIs and table > an entry from 31st 22:00 to 1st 02:00 counts entirely to the earlier month
-- `tests/dom/time-tracking/reports.test.js:176` KPIs and table > durations follow the duration-format setting
-- `tests/dom/time-tracking/reports.test.js:182` KPIs and table > refreshes when the data changes
-- `tests/dom/time-tracking/reports.test.js:191` filters > reuses the entry filter controls; they apply to KPIs, chart and table
-- `tests/dom/time-tracking/reports.test.js:206` filters > the filter is kept when switching months
-- `tests/dom/time-tracking/reports.test.js:216` chart > one bar per calendar day, stacked series per project in the project colour, with a legend
-- `tests/dom/time-tracking/reports.test.js:235` chart > tooltip shows the day, project and duration in the duration format
-- `tests/dom/time-tracking/reports.test.js:244` chart > chart is created only once the section is visible, and is resized on show
-- `tests/dom/time-tracking/reports.test.js:257` chart > the chart is described for assistive technology
-- `tests/dom/time-tracking/reports.test.js:264` empty month > shows "No time tracked this month" and hides chart and table
-- `tests/dom/time-tracking/reports.test.js:274` empty month > a filter with no matching entries in the month shows the empty state too
-- `tests/dom/time-tracking/reports.test.js:289` Week \| Month switch > defaults to Month, with Month pressed
-- `tests/dom/time-tracking/reports.test.js:296` Week \| Month switch > Week shows the current week with its ISO label, and navigation steps whole weeks
-- `tests/dom/time-tracking/reports.test.js:309` Week \| Month switch > switching back to Month shows the month containing the current day
-- `tests/dom/time-tracking/reports.test.js:318` Week \| Month switch > the choice is remembered on this device
-- `tests/dom/time-tracking/reports.test.js:327` Week \| Month switch > showCurrentPeriod("week") opens the current week from any period
-- `tests/dom/time-tracking/reports.test.js:337` week view > per-day chart Monday to Sunday and the table for the week
-- `tests/dom/time-tracking/reports.test.js:359` week view > an empty week says so
-- `tests/dom/time-tracking/reports.test.js:367` balance card > unfiltered, a finished month at 40h shows the Default customer\'s Logged, full Target and signed Balance (October: 22 workdays, 176h)
-- `tests/dom/time-tracking/reports.test.js:380` balance card > a Monday at 40h over Mon–Fri has a Target of 8:00 so far
-- `tests/dom/time-tracking/reports.test.js:390` balance card > the current week counts the Target so far including today; a surplus is green
-- `tests/dom/time-tracking/reports.test.js:401` balance card > a finished week has a Target of exactly Weekly hours
-- `tests/dom/time-tracking/reports.test.js:409` balance card > Target and Balance follow the duration-format setting
-- `tests/dom/time-tracking/reports.test.js:417` balance card > is hidden when the Default customer has no Weekly hours
-- `tests/dom/time-tracking/reports.test.js:422` balance card > is hidden without a Default customer
-- `tests/dom/time-tracking/reports.test.js:427` balance card > a Customer filter shows that Customer\'s Balance against its own Work week, live as the filter changes
-- `tests/dom/time-tracking/reports.test.js:453` balance card > is hidden when the filtered Customer has no Weekly hours, even if the Default customer has
-- `tests/dom/time-tracking/reports.test.js:460` balance card > a Project filter hides the card
-- `tests/dom/time-tracking/reports.test.js:471` balance card > is hidden for a future period
-- `tests/dom/time-tracking/reports.test.js:477` balance card > is hidden for a period before the Customer\'s first entry
-- `tests/dom/time-tracking/reports.test.js:491` Year period > Year is offered in the switch and shows the current year, labelled 2026
-- `tests/dom/time-tracking/reports.test.js:499` Year period > ‹ / › and prevPeriod() / nextPeriod() (for [ / ]) step whole years
-- `tests/dom/time-tracking/reports.test.js:512` Year period > the choice is remembered on this device
-- `tests/dom/time-tracking/reports.test.js:521` Year period > per-month stacked bars (12 buckets) and the table for the year
-- `tests/dom/time-tracking/reports.test.js:545` Year period > the year tooltip names the month, project and duration
-- `tests/dom/time-tracking/reports.test.js:554` Year period > an empty year says so
-- `tests/dom/time-tracking/reports.test.js:563` year balance card > a finished 2026 at 40h has a Target of 2088h (261 workdays)
-- `tests/dom/time-tracking/reports.test.js:576` year balance card > the current year counts so far, from the Customer\'s first entry when that falls mid-year
-- `tests/dom/time-tracking/reports.test.js:584` year balance card > the Balance resets on 1 January
-- `tests/dom/time-tracking/reports.test.js:595` year balance card > is hidden for a Project filter, a future year and a year before the first entry
+- `tests/dom/time-tracking/reports.test.js:97` month navigation > defaults to the current month in the user timezone
+- `tests/dom/time-tracking/reports.test.js:102` month navigation > ‹ / › buttons switch the month and the label follows
+- `tests/dom/time-tracking/reports.test.js:112` month navigation > prevPeriod() / nextPeriod() (for [ / ]) step the month
+- `tests/dom/time-tracking/reports.test.js:121` month navigation > month buttons name their shortcut in the tooltip
+- `tests/dom/time-tracking/reports.test.js:127` month navigation > re-resolves the current month on show when the month was not changed
+- `tests/dom/time-tracking/reports.test.js:134` month navigation > keeps a month the user switched to when shown again
+- `tests/dom/time-tracking/reports.test.js:142` month navigation > follows the current month again after switching back to it
+- `tests/dom/time-tracking/reports.test.js:151` month navigation > a timezone change re-resolves the current month
+- `tests/dom/time-tracking/reports.test.js:163` KPIs and table > KPIs: total duration, number of entries, number of projects
+- `tests/dom/time-tracking/reports.test.js:170` KPIs and table > table: customers by total → projects by total with share; grand total matches the KPI
+- `tests/dom/time-tracking/reports.test.js:185` KPIs and table > an entry from 31st 22:00 to 1st 02:00 counts entirely to the earlier month
+- `tests/dom/time-tracking/reports.test.js:192` KPIs and table > durations follow the duration-format setting
+- `tests/dom/time-tracking/reports.test.js:198` KPIs and table > refreshes when the data changes
+- `tests/dom/time-tracking/reports.test.js:206` filters > reuses the entry filter controls; they apply to KPIs, chart and table
+- `tests/dom/time-tracking/reports.test.js:221` filters > the filter is kept when switching months
+- `tests/dom/time-tracking/reports.test.js:231` chart > one bar per calendar day, stacked series per project in the project colour, with a legend
+- `tests/dom/time-tracking/reports.test.js:250` chart > tooltip shows the day, project and duration in the duration format
+- `tests/dom/time-tracking/reports.test.js:259` chart > chart is created only once the section is visible, and is resized on show
+- `tests/dom/time-tracking/reports.test.js:271` chart > the chart is described for assistive technology
+- `tests/dom/time-tracking/reports.test.js:278` empty month > shows "No time tracked this month" and hides chart and table
+- `tests/dom/time-tracking/reports.test.js:288` empty month > a filter with no matching entries in the month shows the empty state too
+- `tests/dom/time-tracking/reports.test.js:303` Week \| Month switch > defaults to Month, with Month pressed
+- `tests/dom/time-tracking/reports.test.js:310` Week \| Month switch > Week shows the current week with its ISO label, and navigation steps whole weeks
+- `tests/dom/time-tracking/reports.test.js:323` Week \| Month switch > switching back to Month shows the month containing the current day
+- `tests/dom/time-tracking/reports.test.js:332` Week \| Month switch > the choice is remembered on this device
+- `tests/dom/time-tracking/reports.test.js:341` Week \| Month switch > showCurrentPeriod("week") opens the current week from any period
+- `tests/dom/time-tracking/reports.test.js:351` week view > per-day chart Monday to Sunday and the table for the week
+- `tests/dom/time-tracking/reports.test.js:373` week view > an empty week says so
+- `tests/dom/time-tracking/reports.test.js:381` balance card > unfiltered, a finished month at 40h shows the Default customer\'s Logged, full Target and signed Balance (October: 22 workdays, 176h)
+- `tests/dom/time-tracking/reports.test.js:394` balance card > a Monday at 40h over Mon–Fri has a Target of 8:00 so far
+- `tests/dom/time-tracking/reports.test.js:404` balance card > the current week counts the Target so far including today; a surplus is green
+- `tests/dom/time-tracking/reports.test.js:415` balance card > a finished week has a Target of exactly Weekly hours
+- `tests/dom/time-tracking/reports.test.js:423` balance card > Target and Balance follow the duration-format setting
+- `tests/dom/time-tracking/reports.test.js:431` balance card > is hidden when the Default customer has no Weekly hours
+- `tests/dom/time-tracking/reports.test.js:436` balance card > is hidden without a Default customer
+- `tests/dom/time-tracking/reports.test.js:441` balance card > a Customer filter shows that Customer\'s Balance against its own Work week, live as the filter changes
+- `tests/dom/time-tracking/reports.test.js:467` balance card > is hidden when the filtered Customer has no Weekly hours, even if the Default customer has
+- `tests/dom/time-tracking/reports.test.js:474` balance card > a Project filter hides the card
+- `tests/dom/time-tracking/reports.test.js:485` balance card > is hidden for a future period
+- `tests/dom/time-tracking/reports.test.js:491` balance card > is hidden for a period before the Customer\'s first entry
+- `tests/dom/time-tracking/reports.test.js:505` Year period > Year is offered in the switch and shows the current year, labelled 2026
+- `tests/dom/time-tracking/reports.test.js:513` Year period > ‹ / › and prevPeriod() / nextPeriod() (for [ / ]) step whole years
+- `tests/dom/time-tracking/reports.test.js:526` Year period > the choice is remembered on this device
+- `tests/dom/time-tracking/reports.test.js:535` Year period > per-month stacked bars (12 buckets) and the table for the year
+- `tests/dom/time-tracking/reports.test.js:559` Year period > the year tooltip names the month, project and duration
+- `tests/dom/time-tracking/reports.test.js:568` Year period > an empty year says so
+- `tests/dom/time-tracking/reports.test.js:577` year balance card > a finished 2026 at 40h has a Target of 2088h (261 workdays)
+- `tests/dom/time-tracking/reports.test.js:590` year balance card > the current year counts so far, from the Customer\'s first entry when that falls mid-year
+- `tests/dom/time-tracking/reports.test.js:598` year balance card > the Balance resets on 1 January
+- `tests/dom/time-tracking/reports.test.js:609` year balance card > is hidden for a Project filter, a future year and a year before the first entry
 
 ### Settings
 
@@ -2176,21 +2191,21 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 15
 
-- `tests/dom/time-tracking/settings.test.js:88` Settings section > shows all six settings with the spec options and defaults
-- `tests/dom/time-tracking/settings.test.js:103` Settings section > live preview shows the current date, time and a sample duration and updates on change
-- `tests/dom/time-tracking/settings.test.js:120` Settings section > changes are saved to the global settings layer
-- `tests/dom/time-tracking/settings.test.js:130` Settings section > default project offers only active projects of the default customer; changing the customer resets it
-- `tests/dom/time-tracking/settings.test.js:146` Settings section > an archived default customer stays visible, marked archived, and does not prefill
-- `tests/dom/time-tracking/settings.test.js:153` Settings section > an archived default project stays visible, marked archived, and does not prefill
-- `tests/dom/time-tracking/settings.test.js:163` Settings section > re-renders from settings synced from another device
-- `tests/dom/time-tracking/settings.test.js:174` no global Work week > the Settings panel renders neither Weekly hours nor Workdays: the Work week is per Customer
-- `tests/dom/time-tracking/settings.test.js:183` the page follows the settings > a stored legacy global Weekly hours gives a Default customer without a Work week no "This week" badge
-- `tests/dom/time-tracking/settings.test.js:189` the page follows the settings > the badge follows a change of Default customer live
-- `tests/dom/time-tracking/settings.test.js:205` the page follows the settings > changing a format re-renders the entry list, day totals and entry bar
-- `tests/dom/time-tracking/settings.test.js:225` the page follows the settings > changing the timezone re-displays and re-groups entries without rewriting them
-- `tests/dom/time-tracking/settings.test.js:238` the page follows the settings > shorthand date parsing follows the chosen date format
-- `tests/dom/time-tracking/settings.test.js:247` the page follows the settings > the default project prefills the entry bar
-- `tests/dom/time-tracking/settings.test.js:252` the page follows the settings > choosing a default project prefills an untouched entry bar right away
+- `tests/dom/time-tracking/settings.test.js:65` Settings section > shows all six settings with the spec options and defaults
+- `tests/dom/time-tracking/settings.test.js:80` Settings section > live preview shows the current date, time and a sample duration and updates on change
+- `tests/dom/time-tracking/settings.test.js:97` Settings section > changes are saved to the global settings layer
+- `tests/dom/time-tracking/settings.test.js:107` Settings section > default project offers only active projects of the default customer; changing the customer resets it
+- `tests/dom/time-tracking/settings.test.js:123` Settings section > an archived default customer stays visible, marked archived, and does not prefill
+- `tests/dom/time-tracking/settings.test.js:130` Settings section > an archived default project stays visible, marked archived, and does not prefill
+- `tests/dom/time-tracking/settings.test.js:140` Settings section > re-renders from settings synced from another device
+- `tests/dom/time-tracking/settings.test.js:152` no global Work week > the Settings panel renders neither Weekly hours nor Workdays: the Work week is per Customer
+- `tests/dom/time-tracking/settings.test.js:161` the page follows the settings > a stored legacy global Weekly hours gives a Default customer without a Work week no "This week" badge
+- `tests/dom/time-tracking/settings.test.js:167` the page follows the settings > the badge follows a change of Default customer live
+- `tests/dom/time-tracking/settings.test.js:185` the page follows the settings > changing a format re-renders the entry list, day totals and entry bar
+- `tests/dom/time-tracking/settings.test.js:205` the page follows the settings > changing the timezone re-displays and re-groups entries without rewriting them
+- `tests/dom/time-tracking/settings.test.js:218` the page follows the settings > shorthand date parsing follows the chosen date format
+- `tests/dom/time-tracking/settings.test.js:227` the page follows the settings > the default project prefills the entry bar
+- `tests/dom/time-tracking/settings.test.js:232` the page follows the settings > choosing a default project prefills an untouched entry bar right away
 
 ### Shell
 
@@ -2198,105 +2213,112 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 16
 
-- `tests/dom/time-tracking/shell.test.js:40` starts on the Time Tracker section
-- `tests/dom/time-tracking/shell.test.js:47` ? opens the cheat-sheet and Escape closes it
-- `tests/dom/time-tracking/shell.test.js:55` cheat-sheet lists only implemented shortcuts
-- `tests/dom/time-tracking/shell.test.js:63` g then t switches to the Time Tracker section
-- `tests/dom/time-tracking/shell.test.js:72` goto sequences are ignored while typing in an input
-- `tests/dom/time-tracking/shell.test.js:81` clicking a sidebar entry switches section
-- `tests/dom/time-tracking/shell.test.js:92` g then r opens Reports on the current month
-- `tests/dom/time-tracking/shell.test.js:102` [ and ] switch the month on Reports
-- `tests/dom/time-tracking/shell.test.js:114` with Week selected, [ and ] step whole weeks
-- `tests/dom/time-tracking/shell.test.js:126` [ and ] do nothing outside Reports or while typing
-- `tests/dom/time-tracking/shell.test.js:140` / on Reports focuses the report filter and stays on Reports
-- `tests/dom/time-tracking/shell.test.js:160` switching sections by shortcut keeps the heading out of the Tab order
-- `tests/dom/time-tracking/shell.test.js:165` ? moves focus into the cheat-sheet and Escape restores it
-- `tests/dom/time-tracking/shell.test.js:175` Tab and Shift+Tab stay inside the open cheat-sheet
-- `tests/dom/time-tracking/shell.test.js:184` closing the cheat-sheet with its Close button restores focus
-- `tests/dom/time-tracking/shell.test.js:193` shortcuts other than Esc do not reach the page behind the open cheat-sheet
+- `tests/dom/time-tracking/shell.test.js:32` starts on the Time Tracker section
+- `tests/dom/time-tracking/shell.test.js:39` ? opens the cheat-sheet and Escape closes it
+- `tests/dom/time-tracking/shell.test.js:47` cheat-sheet lists only implemented shortcuts
+- `tests/dom/time-tracking/shell.test.js:55` g then t switches to the Time Tracker section
+- `tests/dom/time-tracking/shell.test.js:64` goto sequences are ignored while typing in an input
+- `tests/dom/time-tracking/shell.test.js:73` clicking a sidebar entry switches section
+- `tests/dom/time-tracking/shell.test.js:84` g then r opens Reports on the current month
+- `tests/dom/time-tracking/shell.test.js:94` [ and ] switch the month on Reports
+- `tests/dom/time-tracking/shell.test.js:106` with Week selected, [ and ] step whole weeks
+- `tests/dom/time-tracking/shell.test.js:118` [ and ] do nothing outside Reports or while typing
+- `tests/dom/time-tracking/shell.test.js:132` / on Reports focuses the report filter and stays on Reports
+- `tests/dom/time-tracking/shell.test.js:152` switching sections by shortcut keeps the heading out of the Tab order
+- `tests/dom/time-tracking/shell.test.js:157` ? moves focus into the cheat-sheet and Escape restores it
+- `tests/dom/time-tracking/shell.test.js:167` Tab and Shift+Tab stay inside the open cheat-sheet
+- `tests/dom/time-tracking/shell.test.js:176` closing the cheat-sheet with its Close button restores focus
+- `tests/dom/time-tracking/shell.test.js:185` shortcuts other than Esc do not reach the page behind the open cheat-sheet
 
 ### Tracker
 
 - Path: `tests/dom/time-tracking/tracker.test.js`
 - Type: DOM Integration
-- Test count: 76
+- Test count: 83
 
-- `tests/dom/time-tracking/tracker.test.js:87` entry bar > opens on the Time Tracker with defaults (no entry today): today, start = end = now, 0:00, no project
-- `tests/dom/time-tracking/tracker.test.js:96` entry bar > project type-ahead offers active projects as Customer / Project only
-- `tests/dom/time-tracking/tracker.test.js:102` entry bar > keyboard-only flow: n → description → project → duration → Enter saves, resets and refocuses
-- `tests/dom/time-tracking/tracker.test.js:142` entry bar > Enter saves from any field, e.g. Description, with an exact project label
-- `tests/dom/time-tracking/tracker.test.js:153` entry bar > Enter resolves the field being edited without a prior blur
-- `tests/dom/time-tracking/tracker.test.js:166` linked fields > fields normalise on blur and Start / End recompute Duration
-- `tests/dom/time-tracking/tracker.test.js:176` linked fields > Duration recomputes End
-- `tests/dom/time-tracking/tracker.test.js:183` linked fields > End before Start rolls over and shows +1 day
-- `tests/dom/time-tracking/tracker.test.js:198` linked fields > invalid input reverts to the last valid value on blur
-- `tests/dom/time-tracking/tracker.test.js:205` linked fields > Alt+↑ / Alt+↓ adjust Start, End and Duration by 15 minutes
-- `tests/dom/time-tracking/tracker.test.js:215` linked fields > Alt+arrow does nothing on Description
-- `tests/dom/time-tracking/tracker.test.js:223` keyboard > n is ignored while typing in a field
-- `tests/dom/time-tracking/tracker.test.js:230` keyboard > Esc leaves the field
-- `tests/dom/time-tracking/tracker.test.js:249` validation: toast, nothing saved, values kept > project required
-- `tests/dom/time-tracking/tracker.test.js:256` validation: toast, nothing saved, values kept > unmatched project label counts as no project
-- `tests/dom/time-tracking/tracker.test.js:261` validation: toast, nothing saved, values kept > archived project
-- `tests/dom/time-tracking/tracker.test.js:267` validation: toast, nothing saved, values kept > project of an archived customer
-- `tests/dom/time-tracking/tracker.test.js:272` validation: toast, nothing saved, values kept > zero duration
-- `tests/dom/time-tracking/tracker.test.js:279` validation: toast, nothing saved, values kept > unparsable time typed right before Enter
-- `tests/dom/time-tracking/tracker.test.js:293` entry list > groups by start day with Today / Yesterday / Ddd, date headings and day totals
-- `tests/dom/time-tracking/tracker.test.js:312` entry list > a row shows description, project with its colour dot, customer and duration
-- `tests/dom/time-tracking/tracker.test.js:321` entry list > entries on archived projects and archived customers still render and count in the day total
-- `tests/dom/time-tracking/tracker.test.js:335` entry list > an entry whose project is not known yet renders as Unknown project
-- `tests/dom/time-tracking/tracker.test.js:340` entry list > empty state
-- `tests/dom/time-tracking/tracker.test.js:366` selection > j / k move the selection through the visible list, clamped at both ends, and keep it in view
-- `tests/dom/time-tracking/tracker.test.js:384` selection > single-key shortcuts are ignored while an input is focused
-- `tests/dom/time-tracking/tracker.test.js:395` selection > clicking a row selects it
-- `tests/dom/time-tracking/tracker.test.js:403` selection > selection survives a re-render and is dropped when the entry disappears
-- `tests/dom/time-tracking/tracker.test.js:414` selection > shortcuts with no selection do nothing
-- `tests/dom/time-tracking/tracker.test.js:424` selection > a selected row shows edit, duplicate and delete actions, plus the touch ⋯ menu
-- `tests/dom/time-tracking/tracker.test.js:447` edit modal > e opens the selected entry with its values and focuses Description
-- `tests/dom/time-tracking/tracker.test.js:456` edit modal > linked fields behave as in the entry bar and Enter saves time_entry.updated with before / after
-- `tests/dom/time-tracking/tracker.test.js:480` edit modal > Esc cancels without saving
-- `tests/dom/time-tracking/tracker.test.js:489` edit modal > validation errors toast and keep the modal open
-- `tests/dom/time-tracking/tracker.test.js:499` edit modal > switching to an archived project is rejected
-- `tests/dom/time-tracking/tracker.test.js:507` edit modal > an entry may keep its already-archived project
-- `tests/dom/time-tracking/tracker.test.js:518` edit modal > saving without changes just closes the modal
-- `tests/dom/time-tracking/tracker.test.js:525` edit modal > single-key shortcuts are suppressed while the modal is open
-- `tests/dom/time-tracking/tracker.test.js:534` edit modal > double-click and the row edit action also open the modal
-- `tests/dom/time-tracking/tracker.test.js:551` duplicate > d copies project, description and duration, starting now, and selects the copy
-- `tests/dom/time-tracking/tracker.test.js:572` duplicate > the row duplicate action does the same
-- `tests/dom/time-tracking/tracker.test.js:578` duplicate > an entry on an archived project is not duplicated
-- `tests/dom/time-tracking/tracker.test.js:596` delete > Del asks inline with description, project and duration
-- `tests/dom/time-tracking/tracker.test.js:602` delete > y deletes permanently, removes the row and selects the next one
-- `tests/dom/time-tracking/tracker.test.js:617` delete > deleting the last row selects the previous one
-- `tests/dom/time-tracking/tracker.test.js:623` delete > Esc cancels and leaves the entry untouched
-- `tests/dom/time-tracking/tracker.test.js:632` delete > any other key cancels the confirmation and is then handled normally
-- `tests/dom/time-tracking/tracker.test.js:646` delete > Tab cancels the confirmation without being swallowed
-- `tests/dom/time-tracking/tracker.test.js:655` delete > the row delete action asks too; Cancel and Delete buttons work with the mouse
-- `tests/dom/time-tracking/tracker.test.js:682` entry list filter > filter controls sit above the list and start at All
-- `tests/dom/time-tracking/tracker.test.js:691` entry list filter > by customer, by project, both, and All resets
-- `tests/dom/time-tracking/tracker.test.js:710` entry list filter > day totals and the entry count reflect the filtered entries
-- `tests/dom/time-tracking/tracker.test.js:721` entry list filter > a filter that matches nothing says so
-- `tests/dom/time-tracking/tracker.test.js:728` entry list filter > j / k only walk the visible entries and a hidden selection is dropped
-- `tests/dom/time-tracking/tracker.test.js:742` entry list filter > / focuses the customer filter; it is ignored while typing
-- `tests/dom/time-tracking/tracker.test.js:753` entry list filter > the filter survives new data and archived items stay selectable
-- `tests/dom/time-tracking/tracker.test.js:763` entry list filter > / is listed in the shortcut cheat-sheet
-- `tests/dom/time-tracking/tracker.test.js:779` last-used project > saving from the entry bar prefills that project for the next entry, without an extra event
-- `tests/dom/time-tracking/tracker.test.js:787` last-used project > survives a reload
-- `tests/dom/time-tracking/tracker.test.js:794` last-used project > duplicating an entry records its project as last-used
-- `tests/dom/time-tracking/tracker.test.js:804` last-used project > editing an existing entry does not change it
-- `tests/dom/time-tracking/tracker.test.js:819` last-used project > an archived last-used project is not prefilled
-- `tests/dom/time-tracking/tracker.test.js:844` "This week" Balance badge > shows the week total without a Balance when no Default customer is set
-- `tests/dom/time-tracking/tracker.test.js:851` "This week" Balance badge > is hidden for a Default customer without a Work week, even with a stored legacy global Weekly hours
-- `tests/dom/time-tracking/tracker.test.js:858` "This week" Balance badge > shows a signed surplus in green as a button in the tracker header
-- `tests/dom/time-tracking/tracker.test.js:869` "This week" Balance badge > shows a signed deficit in red
-- `tests/dom/time-tracking/tracker.test.js:877` "This week" Balance badge > updates live after a Time Entry is created, edited and deleted
-- `tests/dom/time-tracking/tracker.test.js:902` "This week" Balance badge > ignores the entry list filter and another Customer's entries
-- `tests/dom/time-tracking/tracker.test.js:912` "This week" Balance badge > updates live when the Default customer's Work week is edited in Projects & Customers
-- `tests/dom/time-tracking/tracker.test.js:929` "This week" Balance badge > another Customer's earlier entries do not start the Default customer's Target
-- `tests/dom/time-tracking/tracker.test.js:936` "This week" Balance badge > an archived Default customer keeps a Balance frozen at its last entry
-- `tests/dom/time-tracking/tracker.test.js:944` "This week" Balance badge > is hidden while the current week precedes the first-ever Time Entry
-- `tests/dom/time-tracking/tracker.test.js:950` "This week" Balance badge > activating it shows Reports with Week selected on the current week and the Default customer's Balance
-- `tests/dom/time-tracking/tracker.test.js:962` "This week" Balance badge > activating it returns to the current week after browsing other periods
-- `tests/dom/time-tracking/tracker.test.js:972` "This week" Balance badge > is operable from the keyboard
-- `tests/dom/time-tracking/tracker.test.js:981` "This week" Balance badge > activating it does not change the remembered Reports period
+- `tests/dom/time-tracking/tracker.test.js:64` entry bar > opens on the Time Tracker with defaults (no entry today): today, start = end = now, 0:00, no project
+- `tests/dom/time-tracking/tracker.test.js:73` entry bar > project type-ahead offers active projects as Customer / Project only
+- `tests/dom/time-tracking/tracker.test.js:79` entry bar > keyboard-only flow: n → description → project → duration → Enter saves, resets and refocuses
+- `tests/dom/time-tracking/tracker.test.js:119` entry bar > Enter saves from any field, e.g. Description, with an exact project label
+- `tests/dom/time-tracking/tracker.test.js:130` entry bar > Enter resolves the field being edited without a prior blur
+- `tests/dom/time-tracking/tracker.test.js:143` linked fields > fields normalise on blur and Start / End recompute Duration
+- `tests/dom/time-tracking/tracker.test.js:153` linked fields > Duration recomputes End
+- `tests/dom/time-tracking/tracker.test.js:160` linked fields > End before Start rolls over and shows +1 day
+- `tests/dom/time-tracking/tracker.test.js:175` linked fields > invalid input reverts to the last valid value on blur
+- `tests/dom/time-tracking/tracker.test.js:182` linked fields > Alt+↑ / Alt+↓ adjust Start, End and Duration by 15 minutes
+- `tests/dom/time-tracking/tracker.test.js:192` linked fields > Alt+arrow does nothing on Description
+- `tests/dom/time-tracking/tracker.test.js:200` keyboard > n is ignored while typing in a field
+- `tests/dom/time-tracking/tracker.test.js:207` keyboard > Esc leaves the field
+- `tests/dom/time-tracking/tracker.test.js:226` validation: toast, nothing saved, values kept > project required
+- `tests/dom/time-tracking/tracker.test.js:233` validation: toast, nothing saved, values kept > unmatched project label counts as no project
+- `tests/dom/time-tracking/tracker.test.js:238` validation: toast, nothing saved, values kept > archived project
+- `tests/dom/time-tracking/tracker.test.js:244` validation: toast, nothing saved, values kept > project of an archived customer
+- `tests/dom/time-tracking/tracker.test.js:249` validation: toast, nothing saved, values kept > zero duration
+- `tests/dom/time-tracking/tracker.test.js:256` validation: toast, nothing saved, values kept > unparsable time typed right before Enter
+- `tests/dom/time-tracking/tracker.test.js:270` entry list > groups by start day with Today / Yesterday / Ddd, date headings and day totals
+- `tests/dom/time-tracking/tracker.test.js:289` entry list > a row shows description, project with its colour dot, customer and duration
+- `tests/dom/time-tracking/tracker.test.js:298` entry list > entries on archived projects and archived customers still render and count in the day total
+- `tests/dom/time-tracking/tracker.test.js:312` entry list > an entry whose project is not known yet renders as Unknown project
+- `tests/dom/time-tracking/tracker.test.js:317` entry list > empty state
+- `tests/dom/time-tracking/tracker.test.js:344` selection > j / k move the selection through the visible list, clamped at both ends, and keep it in view
+- `tests/dom/time-tracking/tracker.test.js:362` selection > single-key shortcuts are ignored while an input is focused
+- `tests/dom/time-tracking/tracker.test.js:373` selection > clicking a row selects it
+- `tests/dom/time-tracking/tracker.test.js:381` selection > selection survives a re-render and is dropped when the entry disappears
+- `tests/dom/time-tracking/tracker.test.js:390` selection > shortcuts with no selection do nothing
+- `tests/dom/time-tracking/tracker.test.js:400` selection > a selected row shows edit, duplicate and delete actions, plus the touch ⋯ menu
+- `tests/dom/time-tracking/tracker.test.js:423` edit modal > e opens the selected entry with its values and focuses Description
+- `tests/dom/time-tracking/tracker.test.js:432` edit modal > linked fields behave as in the entry bar and Enter saves time_entry.updated with before / after
+- `tests/dom/time-tracking/tracker.test.js:456` edit modal > Esc cancels without saving
+- `tests/dom/time-tracking/tracker.test.js:465` edit modal > validation errors toast and keep the modal open
+- `tests/dom/time-tracking/tracker.test.js:475` edit modal > switching to an archived project is rejected
+- `tests/dom/time-tracking/tracker.test.js:483` edit modal > an entry may keep its already-archived project
+- `tests/dom/time-tracking/tracker.test.js:494` edit modal > saving without changes just closes the modal
+- `tests/dom/time-tracking/tracker.test.js:501` edit modal > single-key shortcuts are suppressed while the modal is open
+- `tests/dom/time-tracking/tracker.test.js:510` edit modal > double-click and the row edit action also open the modal
+- `tests/dom/time-tracking/tracker.test.js:527` duplicate > d copies project, description and duration, starting now, and selects the copy
+- `tests/dom/time-tracking/tracker.test.js:548` duplicate > the row duplicate action does the same
+- `tests/dom/time-tracking/tracker.test.js:554` duplicate > an entry on an archived project is not duplicated
+- `tests/dom/time-tracking/tracker.test.js:572` delete > Del asks inline with description, project and duration
+- `tests/dom/time-tracking/tracker.test.js:578` delete > y deletes permanently, removes the row and selects the next one
+- `tests/dom/time-tracking/tracker.test.js:593` delete > deleting the last row selects the previous one
+- `tests/dom/time-tracking/tracker.test.js:599` delete > Esc cancels and leaves the entry untouched
+- `tests/dom/time-tracking/tracker.test.js:608` delete > any other key cancels the confirmation and is then handled normally
+- `tests/dom/time-tracking/tracker.test.js:622` delete > Tab cancels the confirmation without being swallowed
+- `tests/dom/time-tracking/tracker.test.js:631` delete > the row delete action asks too; Cancel and Delete buttons work with the mouse
+- `tests/dom/time-tracking/tracker.test.js:658` entry list filter > filter controls sit above the list and start at All
+- `tests/dom/time-tracking/tracker.test.js:667` entry list filter > by customer, by project, both, and All resets
+- `tests/dom/time-tracking/tracker.test.js:686` entry list filter > day totals and the entry count reflect the filtered entries
+- `tests/dom/time-tracking/tracker.test.js:697` entry list filter > a filter that matches nothing says so
+- `tests/dom/time-tracking/tracker.test.js:704` entry list filter > j / k only walk the visible entries and a hidden selection is dropped
+- `tests/dom/time-tracking/tracker.test.js:718` entry list filter > / focuses the customer filter; it is ignored while typing
+- `tests/dom/time-tracking/tracker.test.js:729` entry list filter > the filter survives new data and archived items stay selectable
+- `tests/dom/time-tracking/tracker.test.js:739` entry list filter > / is listed in the shortcut cheat-sheet
+- `tests/dom/time-tracking/tracker.test.js:761` last-used project > saving from the entry bar prefills that project for the next entry, without an extra event
+- `tests/dom/time-tracking/tracker.test.js:769` last-used project > survives a reload
+- `tests/dom/time-tracking/tracker.test.js:776` last-used project > duplicating an entry records its project as last-used
+- `tests/dom/time-tracking/tracker.test.js:786` last-used project > editing an existing entry does not change it
+- `tests/dom/time-tracking/tracker.test.js:801` last-used project > an archived last-used project is not prefilled
+- `tests/dom/time-tracking/tracker.test.js:825` "This week" Balance badge > shows the week total without a Balance when no Default customer is set
+- `tests/dom/time-tracking/tracker.test.js:832` "This week" Balance badge > is hidden for a Default customer without a Work week, even with a stored legacy global Weekly hours
+- `tests/dom/time-tracking/tracker.test.js:839` "This week" Balance badge > shows a signed surplus in green as a button in the tracker header
+- `tests/dom/time-tracking/tracker.test.js:850` "This week" Balance badge > shows a signed deficit in red
+- `tests/dom/time-tracking/tracker.test.js:858` "This week" Balance badge > updates live after a Time Entry is created, edited and deleted
+- `tests/dom/time-tracking/tracker.test.js:883` "This week" Balance badge > ignores the entry list filter and another Customer's entries
+- `tests/dom/time-tracking/tracker.test.js:893` "This week" Balance badge > updates live when the Default customer's Work week is edited in Projects & Customers
+- `tests/dom/time-tracking/tracker.test.js:910` "This week" Balance badge > another Customer's earlier entries do not start the Default customer's Target
+- `tests/dom/time-tracking/tracker.test.js:917` "This week" Balance badge > an archived Default customer keeps a Balance frozen at its last entry
+- `tests/dom/time-tracking/tracker.test.js:925` "This week" Balance badge > is hidden while the current week precedes the first-ever Time Entry
+- `tests/dom/time-tracking/tracker.test.js:931` "This week" Balance badge > activating it shows Reports with Week selected on the current week and the Default customer's Balance
+- `tests/dom/time-tracking/tracker.test.js:943` "This week" Balance badge > activating it returns to the current week after browsing other periods
+- `tests/dom/time-tracking/tracker.test.js:953` "This week" Balance badge > is operable from the keyboard
+- `tests/dom/time-tracking/tracker.test.js:962` "This week" Balance badge > activating it does not change the remembered Reports period
+- `tests/dom/time-tracking/tracker.test.js:986` archive, restore and guarded delete > an archived project leaves the type-ahead and takes no new entries, while its entries keep its name
+- `tests/dom/time-tracking/tracker.test.js:997` archive, restore and guarded delete > archiving a Customer closes its projects to new entries
+- `tests/dom/time-tracking/tracker.test.js:1005` archive, restore and guarded delete > an untouched entry bar drops a prefilled project once it is archived
+- `tests/dom/time-tracking/tracker.test.js:1013` archive, restore and guarded delete > unarchiving a project offers it again and takes entries on it
+- `tests/dom/time-tracking/tracker.test.js:1024` archive, restore and guarded delete > a project in use can not be deleted
+- `tests/dom/time-tracking/tracker.test.js:1030` archive, restore and guarded delete > a project delete that raced an entry on it archives the project, so the entry keeps its project
+- `tests/dom/time-tracking/tracker.test.js:1038` archive, restore and guarded delete > an entry logged elsewhere on a deleted project restores the project as archived
 
 ### Week Strip
 
@@ -2304,21 +2326,21 @@ _No executable test cases detected._
 - Type: DOM Integration
 - Test count: 15
 
-- `tests/dom/time-tracking/week-strip.test.js:94` week strip > shows the ISO week and seven day cells, Monday to Sunday, in the tracker header
-- `tests/dom/time-tracking/week-strip.test.js:103` week strip > each day cell shows its attributed Duration and days without entries show –
-- `tests/dom/time-tracking/week-strip.test.js:111` week strip > with the Default customer's Weekly hours 40 a day at or above Target has a full success meter, a half day a half primary meter
-- `tests/dom/time-tracking/week-strip.test.js:121` week strip > a future day has no Target yet, so its meter stays empty however much is logged
-- `tests/dom/time-tracking/week-strip.test.js:129` week strip > without a Default customer day totals show without meters and the header shows the week total without a Balance
-- `tests/dom/time-tracking/week-strip.test.js:138` week strip > a Default customer without a Work week shows no meters and no Balance
-- `tests/dom/time-tracking/week-strip.test.js:145` week strip > the header shows the all-Customer week total beside the Default customer's Balance
-- `tests/dom/time-tracking/week-strip.test.js:154` week strip > another Customer's entries fill neither its day meter nor the Balance, but count in the day total
-- `tests/dom/time-tracking/week-strip.test.js:163` week strip > Workdays Mon–Wed give Thu–Sun a Target of 0, so logged time there fills the meter
-- `tests/dom/time-tracking/week-strip.test.js:173` week strip > a stored legacy global Weekly hours gives a Default customer without a Work week no meters or Balance
-- `tests/dom/time-tracking/week-strip.test.js:180` week strip > highlights today and mutes future days
-- `tests/dom/time-tracking/week-strip.test.js:186` week strip > clicking a day with entries scrolls its day group into view; a day without entries does nothing
-- `tests/dom/time-tracking/week-strip.test.js:200` week strip > clicking the week total opens the current week in Reports
-- `tests/dom/time-tracking/week-strip.test.js:207` week strip > totals still count all entries under an active list filter
-- `tests/dom/time-tracking/week-strip.test.js:217` week strip > updates live when a Time Entry is added
+- `tests/dom/time-tracking/week-strip.test.js:76` week strip > shows the ISO week and seven day cells, Monday to Sunday, in the tracker header
+- `tests/dom/time-tracking/week-strip.test.js:85` week strip > each day cell shows its attributed Duration and days without entries show –
+- `tests/dom/time-tracking/week-strip.test.js:93` week strip > with the Default customer's Weekly hours 40 a day at or above Target has a full success meter, a half day a half primary meter
+- `tests/dom/time-tracking/week-strip.test.js:103` week strip > a future day has no Target yet, so its meter stays empty however much is logged
+- `tests/dom/time-tracking/week-strip.test.js:111` week strip > without a Default customer day totals show without meters and the header shows the week total without a Balance
+- `tests/dom/time-tracking/week-strip.test.js:120` week strip > a Default customer without a Work week shows no meters and no Balance
+- `tests/dom/time-tracking/week-strip.test.js:127` week strip > the header shows the all-Customer week total beside the Default customer's Balance
+- `tests/dom/time-tracking/week-strip.test.js:136` week strip > another Customer's entries fill neither its day meter nor the Balance, but count in the day total
+- `tests/dom/time-tracking/week-strip.test.js:145` week strip > Workdays Mon–Wed give Thu–Sun a Target of 0, so logged time there fills the meter
+- `tests/dom/time-tracking/week-strip.test.js:155` week strip > a stored legacy global Weekly hours gives a Default customer without a Work week no meters or Balance
+- `tests/dom/time-tracking/week-strip.test.js:162` week strip > highlights today and mutes future days
+- `tests/dom/time-tracking/week-strip.test.js:168` week strip > clicking a day with entries scrolls its day group into view; a day without entries does nothing
+- `tests/dom/time-tracking/week-strip.test.js:182` week strip > clicking the week total opens the current week in Reports
+- `tests/dom/time-tracking/week-strip.test.js:189` week strip > totals still count all entries under an active list filter
+- `tests/dom/time-tracking/week-strip.test.js:199` week strip > updates live when a Time Entry is added
 
 ### Wip Limit
 

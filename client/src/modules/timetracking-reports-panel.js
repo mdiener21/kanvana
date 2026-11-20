@@ -2,8 +2,6 @@ import * as echarts from 'echarts/core';
 import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components';
 import { BarChart } from 'echarts/charts';
 import { CanvasRenderer } from 'echarts/renderers';
-import { loadTimeTracking } from './storage.js';
-import { on, off, DATA_CHANGED } from './events.js';
 import { renderIcons } from './icons.js';
 import { escapeHtml } from './security.js';
 import { DEFAULT_APP_KEYBINDINGS, keyLabel } from './constants.js';
@@ -13,8 +11,6 @@ import { filterEntries, mountEntryFilter } from './timetracking-filter.js';
 import { formatDuration, formatYmd, formatShortWeekday, formatShortMonth, formatMonthYear, HOUR_MS } from './timetracking-time.js';
 import { summarizePeriod, currentPeriod, shiftPeriod, isSamePeriod, WEEK, MONTH, YEAR } from './timetracking-report.js';
 import { showBalance } from './timetracking-balance.js';
-import { loadReportPeriodKind, rememberReportPeriodKind } from './timetracking-settings.js';
-import { loadTimeTrackingSettings } from './timetracking-crud.js';
 
 echarts.use([GridComponent, LegendComponent, TooltipComponent, BarChart, CanvasRenderer]);
 
@@ -170,12 +166,7 @@ const isVisible = (element) => !element.closest('[hidden]');
 const balanceCustomerOf = ({ customerId, projectId }, { defaultCustomerId }) =>
   projectId ? null : customerId || defaultCustomerId || null;
 
-export function mountReportsPanel(container, {
-  getPrefs,
-  getTimeTracking = loadTimeTracking,
-  getSettings = loadTimeTrackingSettings,
-  createChart = createEChart
-}) {
+export function mountReportsPanel(container, { timeTracking, createChart = createEChart }) {
   container.innerHTML = PANEL_HTML;
   renderIcons(container);
 
@@ -191,13 +182,13 @@ export function mountReportsPanel(container, {
   const tfoot = container.querySelector('.tt-report-table tfoot');
   const kpis = Object.fromEntries([...container.querySelectorAll('[data-kpi]')].map((el) => [el.dataset.kpi, el]));
   const filter = mountEntryFilter(container.querySelector('.tt-report-filter'), {
-    getTimeTracking,
+    getTimeTracking: timeTracking.state,
     onChange: () => refresh(),
     labels: REPORT_FILTER_LABELS
   });
 
-  let prefs = getPrefs();
-  let kind = offeredKind(loadReportPeriodKind());
+  let prefs = timeTracking.prefs();
+  let kind = offeredKind(timeTracking.reportPeriodKind());
   let period = currentPeriod(kind, prefs.now, prefs.tz);
   // Until the user picks another period, the report tracks "now" (midnight rollover, timezone change).
   let followsCurrentPeriod = true;
@@ -230,15 +221,15 @@ export function mountReportsPanel(container, {
   }
 
   function refresh() {
-    const tt = getTimeTracking();
-    prefs = getPrefs();
+    const tt = timeTracking.state();
+    prefs = timeTracking.prefs();
     if (followsCurrentPeriod) period = currentPeriod(kind, prefs.now, prefs.tz);
     filter.refresh();
     const activeFilter = filter.getFilter();
     summary = summarizePeriod(tt, filterEntries(tt, activeFilter), period, {
       tz: prefs.tz,
       now: prefs.now,
-      balanceCustomerId: balanceCustomerOf(activeFilter, getSettings())
+      balanceCustomerId: balanceCustomerOf(activeFilter, timeTracking.settings())
     });
     const name = summary.label;
     label.textContent = name;
@@ -259,7 +250,7 @@ export function mountReportsPanel(container, {
 
   function step(delta) {
     period = shiftPeriod(period, delta);
-    const { now, tz } = getPrefs();
+    const { now, tz } = timeTracking.prefs();
     followsCurrentPeriod = isSamePeriod(period, currentPeriod(kind, now, tz));
     refresh();
   }
@@ -278,7 +269,7 @@ export function mountReportsPanel(container, {
     const btn = ev.target.closest('[data-period-kind]');
     if (!btn) return;
     showCurrentPeriod(btn.dataset.periodKind);
-    rememberReportPeriodKind(kind);
+    timeTracking.rememberReportPeriodKind(kind);
   });
 
   const onResize = () => chart?.resize();
@@ -287,7 +278,7 @@ export function mountReportsPanel(container, {
   window.addEventListener('resize', onResize);
 
   refresh();
-  on(DATA_CHANGED, refresh);
+  const unsubscribe = timeTracking.subscribe(refresh);
   return {
     show: refresh,
     prevPeriod: () => step(-1),
@@ -295,7 +286,7 @@ export function mountReportsPanel(container, {
     showCurrentPeriod,
     focusFilter: () => filter.focus(),
     unmount() {
-      off(DATA_CHANGED, refresh);
+      unsubscribe();
       window.removeEventListener('resize', onResize);
       themeObserver?.disconnect();
       chart?.dispose();

@@ -1,6 +1,5 @@
 import { escapeHtml } from './security.js';
 import { resolveWorkWeek, hasTarget } from './timetracking-model.js';
-import { updateCustomerWorkWeek } from './timetracking-crud.js';
 
 // ISO weekdays 1–7.
 export const ISO_WEEKDAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -59,7 +58,7 @@ export function workWeekEditorHtml(customer) {
         </details>`;
 }
 
-function saveWeeklyHours(input) {
+function saveWeeklyHours(input, updateCustomerWorkWeek) {
   const raw = input.value.trim();
   const hours = Number(raw);
   // Unparseable typing also reads as '', which must not switch the Target off.
@@ -67,7 +66,7 @@ function saveWeeklyHours(input) {
   else if (raw !== '' && Number.isFinite(hours) && hours > 0) updateCustomerWorkWeek(input.dataset.workWeekHours, { weeklyHours: hours });
 }
 
-function saveWorkdays(box) {
+function saveWorkdays(box, updateCustomerWorkWeek) {
   const id = box.dataset.workWeekDay;
   const boxes = [...box.closest('.tt-workdays').querySelectorAll('[data-work-week-day]')];
   const workdays = boxes.filter((b) => b.checked).map((b) => Number(b.value));
@@ -75,10 +74,10 @@ function saveWorkdays(box) {
 }
 
 // An invalid value saves nothing and emits no event, so `refresh` puts the stored value back.
-export function bindWorkWeekEditors(list, refresh) {
+export function bindWorkWeekEditors(list, { updateCustomerWorkWeek }, refresh) {
   list.addEventListener('change', (ev) => {
-    if (ev.target.matches('[data-work-week-hours]')) saveWeeklyHours(ev.target);
-    else if (ev.target.matches('[data-work-week-day]')) saveWorkdays(ev.target);
+    if (ev.target.matches('[data-work-week-hours]')) saveWeeklyHours(ev.target, updateCustomerWorkWeek);
+    else if (ev.target.matches('[data-work-week-day]')) saveWorkdays(ev.target, updateCustomerWorkWeek);
     else return;
     refresh();
   });

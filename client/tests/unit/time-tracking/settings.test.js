@@ -6,15 +6,18 @@ import {
 } from '../../../src/modules/storage.js';
 import { scheduleDomainEvent } from '../../../src/modules/event-sourcing/emitter.js';
 import { on, off, EVENT_EMITTED } from '../../../src/modules/events.js';
-import {
-  addCustomer, addProject, setCustomerArchived, setProjectArchived, deleteProject,
-  loadTimeTrackingSettings, saveTimeTrackingSettings
-} from '../../../src/modules/timetracking-crud.js';
+import { createStorageTimeTracking } from '../../../src/modules/timetracking-api-storage.js';
 import {
   resolveTimeTrackingSettings, loadLastUsedProjectId, rememberLastUsedProject
 } from '../../../src/modules/timetracking-settings.js';
 import { prefillProjectId } from '../../../src/modules/timetracking-model.js';
 import { timeTrackingPrefs } from '../../../src/modules/timetracking-time.js';
+
+// The app's storage adapter: settings persist through the real Read Model and emitter.
+const {
+  addCustomer, addProject, setCustomerArchived, setProjectArchived, deleteProject,
+  settings: loadTimeTrackingSettings, saveSettings: saveTimeTrackingSettings
+} = createStorageTimeTracking();
 
 const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 

@@ -890,17 +890,20 @@ describe('"This week" Balance badge', () => {
     expect(value()).toBe('+1:30');
   });
 
-  // Through the interface until the Projects panel takes it too (#336); then drive its Work week editor here again.
-  test("updates live when the Default customer's Work week changes", () => {
+  test("updates live when the Default customer's Work week is edited in Projects & Customers", () => {
     withWeeklyHours(5);
     mount({ timeEntries: THREE_ENTRIES });
     expect(value()).toBe('+1:30');
-    tt.updateCustomerWorkWeek('c1', { weeklyHours: 15 });
+    fireEvent.click(document.getElementById('tt-nav-projects'));
+    const projects = document.getElementById('tt-section-projects');
+    fireEvent.change(within(projects).getByLabelText('Weekly hours for Acme'), { target: { value: '15' } });
     expect(value()).toBe('−2:30');
     // Only Wednesday left: today (Thursday) adds no Target, 15h / 1 day.
-    tt.updateCustomerWorkWeek('c1', { workdays: [3] });
+    for (const day of ['Mon', 'Tue', 'Thu', 'Fri']) {
+      fireEvent.click(within(within(projects).getByRole('group', { name: 'Workdays for Acme' })).getByRole('checkbox', { name: day }));
+    }
     expect(value()).toBe('−11:30');
-    tt.updateCustomerWorkWeek('c1', { weeklyHours: null });
+    fireEvent.change(within(projects).getByLabelText('Weekly hours for Acme'), { target: { value: '' } });
     expect(badge().hidden).toBe(true);
   });
 

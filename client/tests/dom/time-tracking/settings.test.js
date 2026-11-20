@@ -3,35 +3,13 @@ import { fireEvent, within } from '@testing-library/dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { mountToBody } from '../setup.js';
-
-const state = { customers: [], projects: [], timeEntries: [] };
-const global = { settings: {} };
-
-vi.mock('../../../src/modules/storage.js', () => ({
-  loadTimeTracking: vi.fn(() => state),
-  loadGlobalSettings: vi.fn(() => global.settings)
-}));
+import { createTestTimeTracking } from '../../fixtures/time-tracking.js';
 
 vi.mock('../../../src/modules/icons.js', () => ({
   renderIcons: vi.fn()
 }));
 
-vi.mock('../../../src/modules/event-sourcing/emitter.js', async () => {
-  const { emit, DATA_CHANGED } = await import('../../../src/modules/events.js');
-  return {
-    scheduleDomainEvent: vi.fn((event) => {
-      if (event.type === 'settings.updated' && event.scope === 'global') {
-        global.settings = { ...global.settings, ...event.payload.fields };
-      }
-      if (event.type === 'time_entry.created') state.timeEntries = [...state.timeEntries, event.payload.timeEntry];
-      emit(DATA_CHANGED);
-      return Promise.resolve();
-    })
-  };
-});
-
 const { mountTimeTracking } = await import('../../../src/modules/timetracking-ui.js');
-const { scheduleDomainEvent } = await import('../../../src/modules/event-sourcing/emitter.js');
 
 const pageHtml = readFileSync(resolve(__dirname, '../../../src/timetracking.html'), 'utf-8');
 const bodyHtml = pageHtml.slice(pageHtml.indexOf('<body>') + 6, pageHtml.indexOf('</body>'));
@@ -53,14 +31,13 @@ const LATE = {
 };
 
 let unmount = null;
+let tt = null;
 
-function mount({ settings = { timezone: 'Europe/Berlin' }, timeEntries = [] } = {}) {
-  state.customers = [ACME, BETA, GONE];
-  state.projects = [WEBSITE, SHOP, OLD, APP];
-  state.timeEntries = timeEntries;
-  global.settings = { timeTracking: settings };
+// The Time Tracking interface folds every event through the real reducer.
+function mount({ settings = { timezone: 'Europe/Berlin' }, timeEntries = [], customers = [ACME, BETA, GONE] } = {}) {
+  tt = createTestTimeTracking({ customers, projects: [WEBSITE, SHOP, OLD, APP], timeEntries, settings });
   mountToBody(bodyHtml);
-  unmount = mountTimeTracking(document);
+  unmount = mountTimeTracking(document, { timeTracking: tt });
   fireEvent.click(document.getElementById('tt-nav-settings'));
 }
 
@@ -120,7 +97,7 @@ describe('Settings section', () => {
   test('changes are saved to the global settings layer', () => {
     mount();
     choose('Date format', 'MM/DD/YYYY');
-    expect(scheduleDomainEvent).toHaveBeenCalledWith(expect.objectContaining({
+    expect(tt.emitted).toContainEqual(expect.objectContaining({
       type: 'settings.updated',
       scope: 'global',
       payload: { fields: { timeTracking: expect.objectContaining({ dateFormat: 'MM/DD/YYYY' }) } }
@@ -160,11 +137,12 @@ describe('Settings section', () => {
     expect(optionLabels('Default project')).toEqual(['None', 'App']);
   });
 
-  test('re-renders from settings synced from another device', async () => {
+  test('re-renders from settings synced from another device', () => {
     mount();
-    const { emit, DATA_CHANGED } = await import('../../../src/modules/events.js');
-    global.settings = { timeTracking: { timezone: 'Europe/Berlin', dateFormat: 'YYYY-MM-DD' } };
-    emit(DATA_CHANGED);
+    tt.receive({
+      type: 'settings.updated', scope: 'global', entityId: 'timeTracking',
+      payload: { fields: { timeTracking: { timezone: 'Europe/Berlin', dateFormat: 'YYYY-MM-DD' } } }
+    });
     expect(setting('Date format').value).toBe('YYYY-MM-DD');
     expect(preview('date')).toBe('2026-10-08');
   });
@@ -189,8 +167,10 @@ describe('the page follows the settings', () => {
   test('the badge follows a change of Default customer live', () => {
     const onApp = { ...LATE, id: 'e3', projectId: 'p4', start: '2026-10-05T06:00:00.000Z', end: '2026-10-05T16:00:00.000Z' };
     const onWebsite = { ...LATE, id: 'e2', start: '2026-10-05T06:00:00.000Z', end: '2026-10-05T14:00:00.000Z' };
-    mount({ timeEntries: [onWebsite, onApp] });
-    state.customers = [{ ...ACME, weeklyHours: 25 }, { ...BETA, weeklyHours: 10, workdays: [1] }, GONE];
+    mount({
+      timeEntries: [onWebsite, onApp],
+      customers: [{ ...ACME, weeklyHours: 25 }, { ...BETA, weeklyHours: 10, workdays: [1] }, GONE]
+    });
     choose('Default customer', 'c1');
     const value = () => document.querySelector('.tt-week-balance-value').textContent;
     // Acme: Mon–Thu so far at 25h = 20h Target, 8h logged.
@@ -230,8 +210,8 @@ describe('the page follows the settings', () => {
 
     expect(entryList().querySelector('.tt-day-heading').textContent).toBe('Today');
     expect(entryList().querySelector('.tt-entry-range').textContent).toBe('22:30 – 06:00+1');
-    expect(state.timeEntries).toEqual([LATE]);
-    const entryEvents = vi.mocked(scheduleDomainEvent).mock.calls.filter(([e]) => e.type.startsWith('time_entry.'));
+    expect(tt.state().timeEntries).toEqual([LATE]);
+    const entryEvents = tt.emitted.filter((e) => e.type.startsWith('time_entry.'));
     expect(entryEvents).toEqual([]);
   });
 

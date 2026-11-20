@@ -3,63 +3,47 @@ import { screen, fireEvent, within } from '@testing-library/dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { mountToBody } from '../setup.js';
-
-const state = { customers: [], projects: [], timeEntries: [] };
-
-vi.mock('../../../src/modules/storage.js', () => ({
-  loadTimeTracking: vi.fn(() => state),
-  loadGlobalSettings: vi.fn(() => ({}))
-}));
+import { createTestTimeTracking } from '../../fixtures/time-tracking.js';
 
 vi.mock('../../../src/modules/icons.js', () => ({
   renderIcons: vi.fn()
 }));
 
-vi.mock('../../../src/modules/event-sourcing/emitter.js', async () => {
-  const { emit, DATA_CHANGED } = await import('../../../src/modules/events.js');
-  return {
-    scheduleDomainEvent: vi.fn((event) => {
-      if (event.type === 'time_entry.updated') {
-        state.timeEntries = state.timeEntries.map((e) => (e.id === event.entityId ? { ...e, ...event.payload.fields } : e));
-      }
-      emit(DATA_CHANGED);
-      return Promise.resolve();
-    })
-  };
-});
-
 const { mountTimeTracking } = await import('../../../src/modules/timetracking-ui.js');
-const { scheduleDomainEvent } = await import('../../../src/modules/event-sourcing/emitter.js');
 
 const pageHtml = readFileSync(resolve(__dirname, '../../../src/timetracking.html'), 'utf-8');
 const bodyHtml = pageHtml.slice(pageHtml.indexOf('<body>') + 6, pageHtml.indexOf('</body>'));
 
 const NOW = '2026-10-08T10:00:00.000Z'; // 12:00 in Europe/Berlin
-const prefs = () => ({ tz: 'Europe/Berlin', dateFormat: 'DD.MM.YYYY', timeFormat: '24h', now: Date.now() });
+const DISPLAY_SETTINGS = { timezone: 'Europe/Berlin', dateFormat: 'DD.MM.YYYY', timeFormat: '24h' };
 
 const ACME = { id: 'c1', name: 'Acme', color: '#000000', archived: false };
 const WEBSITE = { id: 'p1', customerId: 'c1', name: 'Website', color: '#03a9f4', archived: false };
 
 let unmount = null;
+let tt = null;
 const fakeChart = () => ({ setOption() {}, resize() {}, dispose() {} });
 
 function mount() {
-  state.customers = [ACME];
-  state.projects = [WEBSITE];
-  state.timeEntries = [
-    { id: 'e1', projectId: 'p1', description: 'Write report', start: '2026-10-08T07:00:00.000Z', end: '2026-10-08T08:00:00.000Z' },
-    { id: 'e2', projectId: 'p1', description: 'Review', start: '2026-10-08T08:00:00.000Z', end: '2026-10-08T09:00:00.000Z' }
-  ];
+  tt = createTestTimeTracking({
+    customers: [ACME],
+    projects: [WEBSITE],
+    timeEntries: [
+      { id: 'e1', projectId: 'p1', description: 'Write report', start: '2026-10-08T07:00:00.000Z', end: '2026-10-08T08:00:00.000Z' },
+      { id: 'e2', projectId: 'p1', description: 'Review', start: '2026-10-08T08:00:00.000Z', end: '2026-10-08T09:00:00.000Z' }
+    ],
+    settings: DISPLAY_SETTINGS
+  });
   mountToBody(bodyHtml);
-  unmount = mountTimeTracking(document, { getPrefs: prefs, createChart: fakeChart });
+  unmount = mountTimeTracking(document, { timeTracking: tt, createChart: fakeChart });
 }
 
 const entryList = () => screen.getByRole('region', { name: 'Time entries' });
 const rowOf = (text) => within(entryList()).getByText(text).closest('li');
 const renameInput = () => within(entryList()).getByRole('textbox', { name: 'Description' });
 const press = (el, key) => fireEvent.keyDown(el, { key });
-const descriptionOf = (id) => state.timeEntries.find((e) => e.id === id).description;
-const updates = () => scheduleDomainEvent.mock.calls.filter(([event]) => event.type === 'time_entry.updated');
+const descriptionOf = (id) => tt.state().timeEntries.find((e) => e.id === id).description;
+const updates = () => tt.emitted.filter((event) => event.type === 'time_entry.updated');
 
 function rename(text, value) {
   fireEvent.click(within(entryList()).getByText(text));
@@ -103,7 +87,7 @@ describe('inline rename', () => {
     mount();
     press(rename('Write report', 'Write final report'), 'Enter');
     expect(updates()).toHaveLength(1);
-    expect(updates()[0][0]).toMatchObject({
+    expect(updates()[0]).toMatchObject({
       type: 'time_entry.updated',
       entityId: 'e1',
       payload: { fields: { description: 'Write final report' }, before: { description: 'Write report' } }

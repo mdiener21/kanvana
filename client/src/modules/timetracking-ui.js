@@ -1,10 +1,5 @@
-import { loadTimeTracking } from './storage.js';
-import { on, off, DATA_CHANGED } from './events.js';
 import { renderIcons } from './icons.js';
 import { DEFAULT_APP_KEYBINDINGS, matchesKey, keyLabel } from './constants.js';
-import {
-  addCustomer, addProject, updateCustomerName, updateProjectName, setCustomerArchived, setProjectArchived, deleteCustomer, deleteProject
-} from './timetracking-crud.js';
 import { isCustomerInUse, isProjectInUse, CRUD_ERROR } from './timetracking-model.js';
 import { escapeHtml } from './security.js';
 import { colorDotHtml } from './timetracking-markup.js';
@@ -34,11 +29,6 @@ const ERROR_MESSAGES = {
 // ── Projects panel ─────────────────────────────────────────────────────────────
 
 const IN_USE_MESSAGE = 'In use — archive instead';
-
-const ITEM_ACTIONS = {
-  customer: { setArchived: setCustomerArchived, remove: deleteCustomer },
-  project: { setArchived: setProjectArchived, remove: deleteProject }
-};
 
 // aria-disabled rather than disabled: the control stays focusable and hoverable so it can explain itself.
 function itemActionsHtml(kind, item, inUse) {
@@ -124,7 +114,11 @@ function customerOptionsHtml(tt) {
     + tt.customers.filter((c) => !c.archived).map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join('');
 }
 
-export function mountProjectsPanel(container) {
+export function mountProjectsPanel(container, { timeTracking }) {
+  const itemActions = {
+    customer: { setArchived: timeTracking.setCustomerArchived, remove: timeTracking.deleteCustomer },
+    project: { setArchived: timeTracking.setProjectArchived, remove: timeTracking.deleteProject }
+  };
   container.innerHTML = PANEL_HTML;
   renderIcons(container);
 
@@ -141,7 +135,7 @@ export function mountProjectsPanel(container) {
       return { ...button.dataset, input, actions: button.parentElement, focused: document.activeElement === input,
         start: input.selectionStart, end: input.selectionEnd };
     }).filter(({ kind, id }) => !closingEdit || closingEdit.kind !== kind || closingEdit.id !== id);
-    const tt = loadTimeTracking();
+    const tt = timeTracking.state();
     const selected = customerSelect.value;
     customerSelect.innerHTML = customerOptionsHtml(tt);
     customerSelect.value = [...customerSelect.options].some((o) => o.value === selected) ? selected : '';
@@ -169,8 +163,8 @@ export function mountProjectsPanel(container) {
     input.focus();
   }
 
-  const submitCustomer = () => submit(customerInput, 'customer', addCustomer);
-  const submitProject = () => submit(projectInput, 'project', (name) => addProject(customerSelect.value, name));
+  const submitCustomer = () => submit(customerInput, 'customer', timeTracking.addCustomer);
+  const submitProject = () => submit(projectInput, 'project', (name) => timeTracking.addProject(customerSelect.value, name));
 
   customerInput.addEventListener('keydown', (ev) => {
     if (matchesKey(ev, DEFAULT_APP_KEYBINDINGS.ttSubmitInline)) { ev.preventDefault(); submitCustomer(); }
@@ -181,7 +175,7 @@ export function mountProjectsPanel(container) {
   container.querySelector('#tt-add-customer-btn').addEventListener('click', submitCustomer);
   container.querySelector('#tt-add-project-btn').addEventListener('click', submitProject);
 
-  bindWorkWeekEditors(list, refresh);
+  bindWorkWeekEditors(list, timeTracking, refresh);
 
   list.addEventListener('click', (ev) => {
     const btn = ev.target.closest('button[data-action]');
@@ -217,20 +211,19 @@ export function mountProjectsPanel(container) {
     if (action === 'save') {
       const row = btn.closest(kind === 'customer' ? '.tt-customer-row' : '.tt-project-row');
       closingEdit = { kind, id };
-      const result = (kind === 'customer' ? updateCustomerName : updateProjectName)(id, $('input', row).value);
+      const result = (kind === 'customer' ? timeTracking.updateCustomerName : timeTracking.updateProjectName)(id, $('input', row).value);
       if (!result.ok) showToast(ERROR_MESSAGES[kind][result.reason]);
       else refresh();
       closingEdit = null;
       return;
     }
-    const actions = ITEM_ACTIONS[kind];
+    const actions = itemActions[kind];
     const result = action === 'delete' ? actions.remove(id) : actions.setArchived(id, action === 'archive');
     if (result.reason === CRUD_ERROR.IN_USE) showToast(IN_USE_MESSAGE);
   });
 
   refresh();
-  on(DATA_CHANGED, refresh);
-  return () => off(DATA_CHANGED, refresh);
+  return timeTracking.subscribe(refresh);
 }
 
 // ── Sidebar navigation ─────────────────────────────────────────────────────────
@@ -495,13 +488,11 @@ function wireHelpModal(root) {
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
-// getPrefs overrides the display prefs for tests still on storage mocks; #336 moves them to the test adapter.
+// The page creates the Time Tracking interface once and hands the same one to every panel.
 export function mountTimeTracking(root = document, {
-  timeTracking: given = createStorageTimeTracking(),
-  getPrefs,
+  timeTracking = createStorageTimeTracking(),
   createChart
 } = {}) {
-  const timeTracking = getPrefs ? { ...given, prefs: getPrefs } : given;
   const help = wireHelpModal(root);
   const tracker = mountTrackerPanel(root.getElementById('tt-section-tracker'), {
     timeTracking,
@@ -510,19 +501,14 @@ export function mountTimeTracking(root = document, {
       nav.show('reports');
     }
   });
-  const reports = mountReportsPanel(root.getElementById('tt-section-reports'), {
-    getTimeTracking: timeTracking.state,
-    getPrefs: timeTracking.prefs,
-    getSettings: timeTracking.settings,
-    createChart
-  });
+  const reports = mountReportsPanel(root.getElementById('tt-section-reports'), { timeTracking, createChart });
   const nav = createNavigator(root, { reports: reports.show });
   wireSidebar(root, nav);
   const unwireKeyboard = wireKeyboard(root, { tracker, reports, nav, help });
   const projects = root.getElementById('tt-section-projects');
-  const unmountProjects = projects ? mountProjectsPanel(projects) : () => {};
+  const unmountProjects = projects ? mountProjectsPanel(projects, { timeTracking }) : () => {};
   const settings = root.getElementById('tt-section-settings');
-  const unmountSettings = settings ? mountSettingsPanel(settings) : () => {};
+  const unmountSettings = settings ? mountSettingsPanel(settings, { timeTracking }) : () => {};
   nav.show('tracker');
   return () => {
     unwireKeyboard();

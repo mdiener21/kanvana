@@ -1,18 +1,13 @@
-import { afterEach, describe, test, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, test, expect, vi } from 'vitest';
 import { screen, fireEvent, within } from '@testing-library/dom';
 import { mountToBody } from '../setup.js';
-
-vi.mock('../../../src/modules/storage.js', () => ({
-  loadTimeTracking: vi.fn(() => ({ customers: [], projects: [], timeEntries: [] })),
-  loadGlobalSettings: vi.fn(() => ({}))
-}));
+import { createTestTimeTracking, createMemoryDevice } from '../../fixtures/time-tracking.js';
 
 vi.mock('../../../src/modules/icons.js', () => ({
   renderIcons: vi.fn()
 }));
 
 const { mountReportsPanel } = await import('../../../src/modules/timetracking-reports-panel.js');
-const { emit, DATA_CHANGED } = await import('../../../src/modules/events.js');
 
 const entry = (id, projectId, start, end) => ({ id, projectId, description: '', start, end });
 
@@ -38,9 +33,13 @@ function makeState() {
   };
 }
 
-let state;
+const NOW = '2026-10-12T10:00:00Z';
+const DISPLAY_SETTINGS = { timezone: 'Europe/Berlin', dateFormat: 'DD.MM.YYYY', timeFormat: '24h' };
+
+let tt = null;
 let panel = null;
-let prefs;
+// This device's prefs (the remembered period kind) survive a remount within a test, as a reload.
+let device;
 
 function fakeChart() {
   return { setOption: vi.fn(), resize: vi.fn(), dispose: vi.fn() };
@@ -51,23 +50,41 @@ function mount({
   durationFormat = 'h:mm', weeklyHours = null, workdays = [1, 2, 3, 4, 5], workWeeks = {},
   defaultCustomerId = 'c1'
 } = {}) {
-  state = makeState();
+  const state = makeState();
   const weeks = { c1: { weeklyHours, workdays }, ...workWeeks };
   state.customers = state.customers.map((c) => ({ ...c, ...(weeks[c.id] ?? {}) }));
-  prefs = { tz: 'Europe/Berlin', dateFormat: 'DD.MM.YYYY', timeFormat: '24h', durationFormat, now: Date.parse('2026-10-12T10:00:00Z') };
+  tt = createTestTimeTracking({ ...state, settings: { ...DISPLAY_SETTINGS, durationFormat, defaultCustomerId }, device });
   const host = mountToBody('<section id="host"></section>').querySelector('#host');
   const charts = [];
   panel = mountReportsPanel(host, {
-    getPrefs: () => prefs,
-    getTimeTracking: () => state,
-    getSettings: () => ({ defaultCustomerId }),
+    timeTracking: tt,
     createChart: () => { const chart = fakeChart(); charts.push(chart); return chart; }
   });
   panel.show();
   return { host, charts, lastOption: () => charts.at(-1).setOption.mock.calls.at(-1)[0] };
 }
 
-afterEach(() => { panel?.unmount(); panel = null; });
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date(NOW));
+  device = createMemoryDevice();
+});
+
+afterEach(() => {
+  panel?.unmount();
+  panel = null;
+  vi.useRealTimers();
+});
+
+const setNow = (iso) => vi.setSystemTime(new Date(iso));
+// Events from another device: synced settings and Time Entries.
+const receiveSettings = (fields) => tt.receive({
+  type: 'settings.updated', scope: 'global', entityId: 'timeTracking',
+  payload: { fields: { timeTracking: { ...DISPLAY_SETTINGS, ...fields } } }
+});
+const receiveEntry = (timeEntry) => tt.receive({
+  type: 'time_entry.created', scope: 'timetracking', entityId: timeEntry.id, payload: { timeEntry }
+});
 
 const monthLabel = () => screen.getByTestId('tt-report-period');
 const kpi = (name) => screen.getByLabelText(name, { selector: 'dd' }).textContent;
@@ -109,7 +126,7 @@ describe('month navigation', () => {
 
   test('re-resolves the current month on show when the month was not changed', () => {
     mount();
-    prefs.now = Date.parse('2026-11-02T10:00:00Z');
+    setNow('2026-11-02T10:00:00Z');
     panel.show();
     expect(monthLabel().textContent).toBe('November 2026');
   });
@@ -117,7 +134,7 @@ describe('month navigation', () => {
   test('keeps a month the user switched to when shown again', () => {
     mount();
     panel.prevPeriod();
-    prefs.now = Date.parse('2026-11-02T10:00:00Z');
+    setNow('2026-11-02T10:00:00Z');
     panel.show();
     expect(monthLabel().textContent).toBe('September 2026');
   });
@@ -126,7 +143,7 @@ describe('month navigation', () => {
     mount();
     panel.prevPeriod();
     panel.nextPeriod();
-    prefs.now = Date.parse('2026-11-02T10:00:00Z');
+    setNow('2026-11-02T10:00:00Z');
     panel.show();
     expect(monthLabel().textContent).toBe('November 2026');
   });
@@ -134,11 +151,10 @@ describe('month navigation', () => {
   test('a timezone change re-resolves the current month', () => {
     mount();
     // 31 Oct 23:30 UTC is already 1 Nov in Berlin
-    prefs = { ...prefs, tz: 'UTC', now: Date.parse('2026-10-31T23:30:00Z') };
-    emit(DATA_CHANGED);
+    setNow('2026-10-31T23:30:00Z');
+    receiveSettings({ timezone: 'UTC' });
     expect(monthLabel().textContent).toBe('October 2026');
-    prefs = { ...prefs, tz: 'Europe/Berlin' };
-    emit(DATA_CHANGED);
+    receiveSettings({ timezone: 'Europe/Berlin' });
     expect(monthLabel().textContent).toBe('November 2026');
   });
 });
@@ -181,8 +197,7 @@ describe('KPIs and table', () => {
 
   test('refreshes when the data changes', () => {
     mount();
-    state.timeEntries = [...state.timeEntries, entry('new', 'p2', '2026-10-05T07:00:00.000Z', '2026-10-05T08:00:00.000Z')];
-    emit(DATA_CHANGED);
+    receiveEntry(entry('new', 'p2', '2026-10-05T07:00:00.000Z', '2026-10-05T08:00:00.000Z'));
     expect(kpi('Total')).toBe('9:30');
   });
 });
@@ -242,11 +257,10 @@ describe('chart', () => {
   });
 
   test('chart is created only once the section is visible, and is resized on show', () => {
-    state = makeState();
-    prefs = { tz: 'Europe/Berlin', dateFormat: 'DD.MM.YYYY', durationFormat: 'h:mm', now: Date.parse('2026-10-12T10:00:00Z') };
+    tt = createTestTimeTracking({ ...makeState(), settings: DISPLAY_SETTINGS });
     const host = mountToBody('<section id="host" hidden></section>').querySelector('#host');
     const createChart = vi.fn(fakeChart);
-    panel = mountReportsPanel(host, { getPrefs: () => prefs, getTimeTracking: () => state, createChart });
+    panel = mountReportsPanel(host, { timeTracking: tt, createChart });
     expect(createChart).not.toHaveBeenCalled();
     host.hidden = false;
     panel.show();
@@ -283,7 +297,7 @@ const periodLabel = () => screen.getByTestId('tt-report-period');
 const periodButton = (name) => screen.getByRole('button', { name });
 const card = () => screen.queryByTestId('tt-balance-card');
 const cardValue = (name) => within(card()).getByLabelText(name, { selector: 'dd' });
-const addEntries = (...entries) => { state.timeEntries = [...state.timeEntries, ...entries]; emit(DATA_CHANGED); };
+const addEntries = (...entries) => entries.forEach(receiveEntry);
 
 describe('Week | Month switch', () => {
   test('defaults to Month, with Month pressed', () => {
@@ -366,7 +380,7 @@ describe('week view', () => {
 describe('balance card', () => {
   test('unfiltered, a finished month at 40h shows the Default customer\'s Logged, full Target and signed Balance (October: 22 workdays, 176h)', () => {
     mount({ weeklyHours: 40 });
-    prefs.now = Date.parse('2026-11-16T10:00:00Z');
+    setNow('2026-11-16T10:00:00Z');
     panel.show();
     panel.prevPeriod();
     expect(periodLabel().textContent).toBe('October 2026');
@@ -563,7 +577,7 @@ describe('year balance card', () => {
   test('a finished 2026 at 40h has a Target of 2088h (261 workdays)', () => {
     mount({ weeklyHours: 40 });
     addEntries(entry('jan1', 'p1', '2026-01-01T08:00:00.000Z', '2026-01-01T10:00:00.000Z'));
-    prefs.now = Date.parse('2027-01-10T10:00:00Z');
+    setNow('2027-01-10T10:00:00Z');
     fireEvent.click(periodButton('Year'));
     panel.prevPeriod();
     expect(periodLabel().textContent).toBe('2026');
@@ -583,7 +597,7 @@ describe('year balance card', () => {
 
   test('the Balance resets on 1 January', () => {
     mount({ weeklyHours: 35 });
-    prefs.now = Date.parse('2027-01-02T10:00:00Z');
+    setNow('2027-01-02T10:00:00Z');
     fireEvent.click(periodButton('Year'));
     expect(periodLabel().textContent).toBe('2027');
     expect(cardValue('Logged').textContent).toBe('0:00');

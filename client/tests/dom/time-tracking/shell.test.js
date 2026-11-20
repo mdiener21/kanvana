@@ -3,18 +3,10 @@ import { screen, fireEvent, within } from '@testing-library/dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { mountToBody, isKeyboardOperable } from '../setup.js';
-
-vi.mock('../../../src/modules/storage.js', () => ({
-  loadTimeTracking: vi.fn(() => ({ customers: [], projects: [], timeEntries: [] })),
-  loadGlobalSettings: vi.fn(() => ({}))
-}));
+import { createTestTimeTracking } from '../../fixtures/time-tracking.js';
 
 vi.mock('../../../src/modules/icons.js', () => ({
   renderIcons: vi.fn()
-}));
-
-vi.mock('../../../src/modules/event-sourcing/emitter.js', () => ({
-  scheduleDomainEvent: vi.fn(() => Promise.resolve())
 }));
 
 const { mountTimeTracking } = await import('../../../src/modules/timetracking-ui.js');
@@ -26,7 +18,7 @@ let unmount = null;
 
 beforeEach(() => {
   mountToBody(bodyHtml);
-  unmount = mountTimeTracking(document);
+  unmount = mountTimeTracking(document, { timeTracking: createTestTimeTracking() });
 });
 
 afterEach(() => {
