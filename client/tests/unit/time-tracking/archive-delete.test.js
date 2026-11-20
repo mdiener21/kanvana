@@ -1,7 +1,7 @@
 import { beforeEach, describe, test, expect } from 'vitest';
 import { createTestTimeTracking } from '../../fixtures/time-tracking.js';
 import {
-  isCustomerInUse, isProjectInUse, isProjectActive, validateTimeEntry, CRUD_ERROR
+  isCustomerInUse, isProjectInUse, isProjectActive, validateTimeEntry, TT_ERROR
 } from '../../../src/modules/timetracking-model.js';
 import { pickableProjects } from '../../../src/modules/timetracking-entry-fields.js';
 
@@ -41,7 +41,7 @@ describe('archive / unarchive', () => {
   });
 
   test('an unknown id is rejected', () => {
-    expect(tt.setCustomerArchived('ghost', true)).toEqual({ ok: false, reason: CRUD_ERROR.NOT_FOUND });
+    expect(tt.setCustomerArchived('ghost', true)).toEqual({ ok: false, reason: TT_ERROR.NOT_FOUND });
   });
 });
 
@@ -77,13 +77,13 @@ describe('reference guard', () => {
 
   test('a referenced project or customer is not deleted', () => {
     seed({ timeEntries: [entry] });
-    expect(tt.deleteProject('p1')).toEqual({ ok: false, reason: CRUD_ERROR.IN_USE });
-    expect(tt.deleteCustomer('c1')).toEqual({ ok: false, reason: CRUD_ERROR.IN_USE });
+    expect(tt.deleteProject('p1')).toEqual({ ok: false, reason: TT_ERROR.IN_USE });
+    expect(tt.deleteCustomer('c1')).toEqual({ ok: false, reason: TT_ERROR.IN_USE });
     expect(tt.emitted).toEqual([]);
   });
 
   test('deleting an unknown id is rejected', () => {
-    expect(tt.deleteProject('ghost')).toEqual({ ok: false, reason: CRUD_ERROR.NOT_FOUND });
+    expect(tt.deleteProject('ghost')).toEqual({ ok: false, reason: TT_ERROR.NOT_FOUND });
   });
 });
 
@@ -114,7 +114,7 @@ describe('archive filtering', () => {
 
   test('validation rejects archived projects and projects of archived customers', () => {
     expect(validateTimeEntry({ projectId: 'p1', ...span }, tt).ok).toBe(true);
-    expect(validateTimeEntry({ projectId: 'p2', ...span }, tt).reason).toBe(CRUD_ERROR.ARCHIVED_PROJECT);
-    expect(validateTimeEntry({ projectId: 'p3', ...span }, tt).reason).toBe(CRUD_ERROR.ARCHIVED_PROJECT);
+    expect(validateTimeEntry({ projectId: 'p2', ...span }, tt).reason).toBe(TT_ERROR.ARCHIVED_PROJECT);
+    expect(validateTimeEntry({ projectId: 'p3', ...span }, tt).reason).toBe(TT_ERROR.ARCHIVED_PROJECT);
   });
 });

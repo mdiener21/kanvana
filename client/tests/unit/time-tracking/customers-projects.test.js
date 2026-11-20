@@ -1,6 +1,6 @@
 import { beforeEach, describe, test, expect } from 'vitest';
 import { createTestTimeTracking } from '../../fixtures/time-tracking.js';
-import { CRUD_ERROR } from '../../../src/modules/timetracking-model.js';
+import { TT_ERROR } from '../../../src/modules/timetracking-model.js';
 
 let tt = null;
 const seed = (state = {}) => { tt = createTestTimeTracking(state); };
@@ -26,7 +26,7 @@ test('addCustomer trims whitespace from name', () => {
 test('addCustomer rejects empty name', () => {
   expect(tt.addCustomer('').ok).toBe(false);
   expect(tt.addCustomer('   ').ok).toBe(false);
-  expect(tt.addCustomer('').reason).toBe(CRUD_ERROR.EMPTY_NAME);
+  expect(tt.addCustomer('').reason).toBe(TT_ERROR.EMPTY_NAME);
 });
 
 test('addCustomer rejects duplicate name (case-insensitive)', () => {
@@ -37,7 +37,7 @@ test('addCustomer rejects duplicate name (case-insensitive)', () => {
   });
   const result = tt.addCustomer('acme');
   expect(result.ok).toBe(false);
-  expect(result.reason).toBe(CRUD_ERROR.DUPLICATE_NAME);
+  expect(result.reason).toBe(TT_ERROR.DUPLICATE_NAME);
 });
 
 test('addCustomer allows different customer names', () => {
@@ -89,13 +89,13 @@ test('addProject rejects empty name', () => {
   });
   const result = tt.addProject('c1', '');
   expect(result.ok).toBe(false);
-  expect(result.reason).toBe(CRUD_ERROR.EMPTY_NAME);
+  expect(result.reason).toBe(TT_ERROR.EMPTY_NAME);
 });
 
 test('addProject rejects missing customerId', () => {
   const result = tt.addProject('', 'MVP');
   expect(result.ok).toBe(false);
-  expect(result.reason).toBe(CRUD_ERROR.NO_CUSTOMER);
+  expect(result.reason).toBe(TT_ERROR.NO_CUSTOMER);
 });
 
 test('addProject rejects duplicate project name within same customer (case-insensitive)', () => {
@@ -106,7 +106,7 @@ test('addProject rejects duplicate project name within same customer (case-insen
   });
   const result = tt.addProject('c1', 'website');
   expect(result.ok).toBe(false);
-  expect(result.reason).toBe(CRUD_ERROR.DUPLICATE_NAME);
+  expect(result.reason).toBe(TT_ERROR.DUPLICATE_NAME);
 });
 
 test('addProject allows same project name under different customers', () => {
@@ -156,15 +156,15 @@ describe('updateCustomerWorkWeek', () => {
   });
 
   test.each([[0], [-1], [Number.NaN], [Infinity], ['40']])('rejects Weekly hours %s', (weeklyHours) => {
-    expect(tt.updateCustomerWorkWeek('c1', { weeklyHours })).toEqual({ ok: false, reason: CRUD_ERROR.INVALID_WORK_WEEK });
+    expect(tt.updateCustomerWorkWeek('c1', { weeklyHours })).toEqual({ ok: false, reason: TT_ERROR.INVALID_WORK_WEEK });
     expect(events()).toEqual([]);
   });
 
   test.each([[[]], [[0]], [[8]], [[1.5]], [null]])('rejects Workdays %j', (workdays) => {
-    expect(tt.updateCustomerWorkWeek('c1', { workdays })).toEqual({ ok: false, reason: CRUD_ERROR.INVALID_WORK_WEEK });
+    expect(tt.updateCustomerWorkWeek('c1', { workdays })).toEqual({ ok: false, reason: TT_ERROR.INVALID_WORK_WEEK });
   });
 
   test('an unknown Customer is not found', () => {
-    expect(tt.updateCustomerWorkWeek('nope', { weeklyHours: 8 })).toEqual({ ok: false, reason: CRUD_ERROR.NOT_FOUND });
+    expect(tt.updateCustomerWorkWeek('nope', { weeklyHours: 8 })).toEqual({ ok: false, reason: TT_ERROR.NOT_FOUND });
   });
 });

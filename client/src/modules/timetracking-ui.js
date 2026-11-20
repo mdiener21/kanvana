@@ -1,6 +1,6 @@
 import { renderIcons } from './icons.js';
 import { DEFAULT_APP_KEYBINDINGS, matchesKey, keyLabel } from './constants.js';
-import { isCustomerInUse, isProjectInUse, CRUD_ERROR } from './timetracking-model.js';
+import { isCustomerInUse, isProjectInUse, TT_ERROR } from './timetracking-model.js';
 import { escapeHtml } from './security.js';
 import { colorDotHtml } from './timetracking-markup.js';
 import { workWeekEditorHtml, bindWorkWeekEditors, captureWorkWeekState } from './timetracking-work-week.js';
@@ -16,13 +16,13 @@ import { h, $, $$ } from './dom.js';
 
 const ERROR_MESSAGES = {
   customer: {
-    [CRUD_ERROR.EMPTY_NAME]: 'Customer name is required.',
-    [CRUD_ERROR.DUPLICATE_NAME]: 'A customer with that name already exists.'
+    [TT_ERROR.EMPTY_NAME]: 'Customer name is required.',
+    [TT_ERROR.DUPLICATE_NAME]: 'A customer with that name already exists.'
   },
   project: {
-    [CRUD_ERROR.EMPTY_NAME]: 'Project name is required.',
-    [CRUD_ERROR.NO_CUSTOMER]: 'Select a customer first.',
-    [CRUD_ERROR.DUPLICATE_NAME]: 'A project with that name already exists for this customer.'
+    [TT_ERROR.EMPTY_NAME]: 'Project name is required.',
+    [TT_ERROR.NO_CUSTOMER]: 'Select a customer first.',
+    [TT_ERROR.DUPLICATE_NAME]: 'A project with that name already exists for this customer.'
   }
 };
 
@@ -116,8 +116,8 @@ function customerOptionsHtml(tt) {
 
 export function mountProjectsPanel(container, { timeTracking }) {
   const itemActions = {
-    customer: { setArchived: timeTracking.setCustomerArchived, remove: timeTracking.deleteCustomer },
-    project: { setArchived: timeTracking.setProjectArchived, remove: timeTracking.deleteProject }
+    customer: { rename: timeTracking.updateCustomerName, setArchived: timeTracking.setCustomerArchived, remove: timeTracking.deleteCustomer },
+    project: { rename: timeTracking.updateProjectName, setArchived: timeTracking.setProjectArchived, remove: timeTracking.deleteProject }
   };
   container.innerHTML = PANEL_HTML;
   renderIcons(container);
@@ -211,7 +211,7 @@ export function mountProjectsPanel(container, { timeTracking }) {
     if (action === 'save') {
       const row = btn.closest(kind === 'customer' ? '.tt-customer-row' : '.tt-project-row');
       closingEdit = { kind, id };
-      const result = (kind === 'customer' ? timeTracking.updateCustomerName : timeTracking.updateProjectName)(id, $('input', row).value);
+      const result = itemActions[kind].rename(id, $('input', row).value);
       if (!result.ok) showToast(ERROR_MESSAGES[kind][result.reason]);
       else refresh();
       closingEdit = null;
@@ -219,7 +219,7 @@ export function mountProjectsPanel(container, { timeTracking }) {
     }
     const actions = itemActions[kind];
     const result = action === 'delete' ? actions.remove(id) : actions.setArchived(id, action === 'archive');
-    if (result.reason === CRUD_ERROR.IN_USE) showToast(IN_USE_MESSAGE);
+    if (result.reason === TT_ERROR.IN_USE) showToast(IN_USE_MESSAGE);
   });
 
   refresh();

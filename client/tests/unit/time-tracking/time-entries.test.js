@@ -1,6 +1,6 @@
 import { beforeEach, describe, test, expect } from 'vitest';
 import { createTestTimeTracking } from '../../fixtures/time-tracking.js';
-import { validateTimeEntry, CRUD_ERROR } from '../../../src/modules/timetracking-model.js';
+import { validateTimeEntry, TT_ERROR } from '../../../src/modules/timetracking-model.js';
 
 const customers = [
   { id: 'c1', name: 'Acme', color: '#000', archived: false },
@@ -29,20 +29,20 @@ beforeEach(() => {
 
 describe('validateTimeEntry', () => {
   test.each([
-    ['no project', { projectId: '' }, CRUD_ERROR.NO_PROJECT],
-    ['unknown project', { projectId: 'nope' }, CRUD_ERROR.NO_PROJECT],
-    ['archived project', { projectId: 'p2' }, CRUD_ERROR.ARCHIVED_PROJECT],
-    ['project of an archived customer', { projectId: 'p3' }, CRUD_ERROR.ARCHIVED_PROJECT],
-    ['missing start', { start: '' }, CRUD_ERROR.INVALID_TIME],
-    ['unparsable end', { end: 'later' }, CRUD_ERROR.INVALID_TIME],
-    ['zero duration', { end: valid.start }, CRUD_ERROR.ZERO_DURATION],
-    ['negative duration', { end: '2026-10-31T20:00:00.000Z' }, CRUD_ERROR.ZERO_DURATION]
+    ['no project', { projectId: '' }, TT_ERROR.NO_PROJECT],
+    ['unknown project', { projectId: 'nope' }, TT_ERROR.NO_PROJECT],
+    ['archived project', { projectId: 'p2' }, TT_ERROR.ARCHIVED_PROJECT],
+    ['project of an archived customer', { projectId: 'p3' }, TT_ERROR.ARCHIVED_PROJECT],
+    ['missing start', { start: '' }, TT_ERROR.INVALID_TIME],
+    ['unparsable end', { end: 'later' }, TT_ERROR.INVALID_TIME],
+    ['zero duration', { end: valid.start }, TT_ERROR.ZERO_DURATION],
+    ['negative duration', { end: '2026-10-31T20:00:00.000Z' }, TT_ERROR.ZERO_DURATION]
   ])('%s is rejected', (_name, overrides, reason) => {
     expect(validateTimeEntry({ ...valid, ...overrides }, tt)).toEqual({ ok: false, reason });
   });
 
   test('a project is checked before the times', () => {
-    expect(validateTimeEntry({ ...valid, projectId: '', end: valid.start }, tt).reason).toBe(CRUD_ERROR.NO_PROJECT);
+    expect(validateTimeEntry({ ...valid, projectId: '', end: valid.start }, tt).reason).toBe(TT_ERROR.NO_PROJECT);
   });
 
   test('a valid entry passes', () => {
@@ -77,8 +77,8 @@ describe('addTimeEntry', () => {
   });
 
   test('invalid entries save nothing', () => {
-    expect(timeTracking.addTimeEntry({ ...valid, projectId: 'p2' })).toEqual({ ok: false, reason: CRUD_ERROR.ARCHIVED_PROJECT });
-    expect(timeTracking.addTimeEntry({ ...valid, end: valid.start })).toEqual({ ok: false, reason: CRUD_ERROR.ZERO_DURATION });
+    expect(timeTracking.addTimeEntry({ ...valid, projectId: 'p2' })).toEqual({ ok: false, reason: TT_ERROR.ARCHIVED_PROJECT });
+    expect(timeTracking.addTimeEntry({ ...valid, end: valid.start })).toEqual({ ok: false, reason: TT_ERROR.ZERO_DURATION });
     expect(timeTracking.emitted).toEqual([]);
   });
 });
@@ -119,17 +119,17 @@ describe('updateTimeEntry', () => {
   });
 
   test.each([
-    ['switching to an archived project', { projectId: 'p2' }, CRUD_ERROR.ARCHIVED_PROJECT],
-    ['switching to a project of an archived customer', { projectId: 'p3' }, CRUD_ERROR.ARCHIVED_PROJECT],
-    ['no project', { projectId: '' }, CRUD_ERROR.NO_PROJECT],
-    ['zero duration', { end: existing.start }, CRUD_ERROR.ZERO_DURATION]
+    ['switching to an archived project', { projectId: 'p2' }, TT_ERROR.ARCHIVED_PROJECT],
+    ['switching to a project of an archived customer', { projectId: 'p3' }, TT_ERROR.ARCHIVED_PROJECT],
+    ['no project', { projectId: '' }, TT_ERROR.NO_PROJECT],
+    ['zero duration', { end: existing.start }, TT_ERROR.ZERO_DURATION]
   ])('%s is rejected', (_name, overrides, reason) => {
     expect(timeTracking.updateTimeEntry('te-1', { ...existing, ...overrides })).toEqual({ ok: false, reason });
     expect(timeTracking.emitted).toEqual([]);
   });
 
   test('an unknown entry is rejected', () => {
-    expect(timeTracking.updateTimeEntry('ghost', existing)).toEqual({ ok: false, reason: CRUD_ERROR.NOT_FOUND });
+    expect(timeTracking.updateTimeEntry('ghost', existing)).toEqual({ ok: false, reason: TT_ERROR.NOT_FOUND });
   });
 });
 
@@ -163,12 +163,12 @@ describe('duplicateTimeEntry', () => {
 
   test('an entry on an archived project cannot be duplicated', () => {
     seed([{ ...existing, projectId: 'p2' }]);
-    expect(timeTracking.duplicateTimeEntry('te-1', now)).toEqual({ ok: false, reason: CRUD_ERROR.ARCHIVED_PROJECT });
+    expect(timeTracking.duplicateTimeEntry('te-1', now)).toEqual({ ok: false, reason: TT_ERROR.ARCHIVED_PROJECT });
     expect(timeTracking.emitted).toEqual([]);
   });
 
   test('an unknown entry is rejected', () => {
-    expect(timeTracking.duplicateTimeEntry('ghost', now)).toEqual({ ok: false, reason: CRUD_ERROR.NOT_FOUND });
+    expect(timeTracking.duplicateTimeEntry('ghost', now)).toEqual({ ok: false, reason: TT_ERROR.NOT_FOUND });
   });
 });
 
@@ -190,7 +190,7 @@ describe('deleteTimeEntry', () => {
   });
 
   test('an unknown entry is rejected', () => {
-    expect(timeTracking.deleteTimeEntry('ghost')).toEqual({ ok: false, reason: CRUD_ERROR.NOT_FOUND });
+    expect(timeTracking.deleteTimeEntry('ghost')).toEqual({ ok: false, reason: TT_ERROR.NOT_FOUND });
     expect(timeTracking.emitted).toEqual([]);
   });
 });

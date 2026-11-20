@@ -1,7 +1,7 @@
 import { loadGlobalSettings, loadTimeTracking } from './storage.js';
 import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 import { EVENT_SCOPE } from './constants.js';
-import { WORK_WEEK_FIELDS, hasTarget, resolveWorkWeek } from './timetracking-model.js';
+import { WORK_WEEK_FIELDS, customerById, hasTarget, resolveWorkWeek } from './timetracking-model.js';
 
 // Moves the legacy global Work week onto the Default customer when it has none yet. Pure and
 // deterministic, so two devices migrating the same state emit the same values.
@@ -11,7 +11,7 @@ export function legacyWorkWeekMigration(storedSettings, tt) {
 
   const events = [];
   const legacy = resolveWorkWeek(stored);
-  const customer = tt.customers.find((c) => c.id === stored.defaultCustomerId) ?? null;
+  const customer = customerById(tt, stored.defaultCustomerId);
   const current = resolveWorkWeek(customer);
   if (customer && hasTarget(legacy) && !hasTarget(current)) {
     events.push({

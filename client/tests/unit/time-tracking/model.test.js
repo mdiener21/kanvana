@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import {
-  CRUD_ERROR, projectById, customerById, isProjectActive, activeProjectsOf, isCustomerInUse, isProjectInUse,
+  TT_ERROR, projectById, customerById, isProjectActive, activeProjectsOf, isCustomerInUse, isProjectInUse,
   validateCustomerName, validateProjectName, validateTimeEntry,
   hasTarget, resolveWorkWeek, patchWorkWeek, customerWorkWeek, prefillProjectId
 } from '../../../src/modules/timetracking-model.js';
@@ -50,24 +50,24 @@ describe('active and in-use rules', () => {
 describe('validation', () => {
   test('a customer name is trimmed and must be unique, ignoring case', () => {
     expect(validateCustomerName('  Globex ', tt.customers)).toEqual({ ok: true, name: 'Globex' });
-    expect(validateCustomerName(' ', tt.customers).reason).toBe(CRUD_ERROR.EMPTY_NAME);
-    expect(validateCustomerName('acme', tt.customers).reason).toBe(CRUD_ERROR.DUPLICATE_NAME);
+    expect(validateCustomerName(' ', tt.customers).reason).toBe(TT_ERROR.EMPTY_NAME);
+    expect(validateCustomerName('acme', tt.customers).reason).toBe(TT_ERROR.DUPLICATE_NAME);
     expect(validateCustomerName('acme', tt.customers, 'c1').ok).toBe(true);
   });
 
   test('a project name needs a customer and is unique within it', () => {
-    expect(validateProjectName('website', 'c1', tt.projects).reason).toBe(CRUD_ERROR.DUPLICATE_NAME);
+    expect(validateProjectName('website', 'c1', tt.projects).reason).toBe(TT_ERROR.DUPLICATE_NAME);
     expect(validateProjectName('website', 'c2', tt.projects).ok).toBe(true);
-    expect(validateProjectName('Site', null, tt.projects).reason).toBe(CRUD_ERROR.NO_CUSTOMER);
+    expect(validateProjectName('Site', null, tt.projects).reason).toBe(TT_ERROR.NO_CUSTOMER);
   });
 
   test('a time entry needs an active project and a positive span', () => {
     expect(validateTimeEntry({ projectId: 'p1', ...span }, tt)).toEqual({ ok: true });
-    expect(validateTimeEntry({ projectId: 'zz', ...span }, tt).reason).toBe(CRUD_ERROR.NO_PROJECT);
-    expect(validateTimeEntry({ projectId: 'p2', ...span }, tt).reason).toBe(CRUD_ERROR.ARCHIVED_PROJECT);
-    expect(validateTimeEntry({ projectId: 'p1', start: 'x', end: span.end }, tt).reason).toBe(CRUD_ERROR.INVALID_TIME);
+    expect(validateTimeEntry({ projectId: 'zz', ...span }, tt).reason).toBe(TT_ERROR.NO_PROJECT);
+    expect(validateTimeEntry({ projectId: 'p2', ...span }, tt).reason).toBe(TT_ERROR.ARCHIVED_PROJECT);
+    expect(validateTimeEntry({ projectId: 'p1', start: 'x', end: span.end }, tt).reason).toBe(TT_ERROR.INVALID_TIME);
     expect(validateTimeEntry({ projectId: 'p1', start: span.end, end: span.end }, tt).reason)
-      .toBe(CRUD_ERROR.ZERO_DURATION);
+      .toBe(TT_ERROR.ZERO_DURATION);
   });
 
   test('an edited entry may stay on its own archived project', () => {

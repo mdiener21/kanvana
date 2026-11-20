@@ -1,7 +1,7 @@
 import { DEFAULT_APP_KEYBINDINGS, matchesKey } from './constants.js';
 import { escapeHtml } from './security.js';
 import { resolveLinkedFields, adjustLinkedField, describeEntryTimes } from './timetracking-time.js';
-import { isProjectActive, projectById, customerById, CRUD_ERROR } from './timetracking-model.js';
+import { isProjectActive, projectById, customerById, TT_ERROR } from './timetracking-model.js';
 
 const { ttSubmitInline, ttAdjustUp, ttAdjustDown } = DEFAULT_APP_KEYBINDINGS;
 
@@ -111,7 +111,7 @@ export function wireEntryFields(root, { getPrefs, getTimeTracking, onSubmit, bef
     const changed = LINKED_FIELDS.includes(field) ? field : null;
     const resolved = resolveLinkedFields(typedValues(), changed, getPrefs());
     if (!resolved) {
-      onSubmit({ ok: false, reason: CRUD_ERROR.INVALID_TIME });
+      onSubmit({ ok: false, reason: TT_ERROR.INVALID_TIME });
       return;
     }
     show(resolved);
