@@ -10,9 +10,10 @@ import {
   addCustomer, addProject, setCustomerArchived, setProjectArchived, deleteProject
 } from '../../../src/modules/timetracking-crud.js';
 import {
-  resolveTimeTrackingSettings, loadTimeTrackingSettings, saveTimeTrackingSettings, prefillProjectId,
+  resolveTimeTrackingSettings, loadTimeTrackingSettings, saveTimeTrackingSettings,
   loadLastUsedProjectId, rememberLastUsedProject
 } from '../../../src/modules/timetracking-settings.js';
+import { prefillProjectId } from '../../../src/modules/timetracking-model.js';
 import { timeTrackingPrefs } from '../../../src/modules/timetracking-time.js';
 
 const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone;

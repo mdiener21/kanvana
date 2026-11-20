@@ -1,5 +1,5 @@
 import { escapeHtml } from './security.js';
-import { resolveWorkWeek, hasTarget } from './timetracking-work-week-model.js';
+import { resolveWorkWeek, hasTarget } from './timetracking-model.js';
 import { updateCustomerWorkWeek } from './timetracking-crud.js';
 
 // ISO weekdays 1–7.

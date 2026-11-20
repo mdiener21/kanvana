@@ -4,11 +4,11 @@ Generated from test source. Do not edit by hand; run `npm run test:overview` fro
 
 ## Fast Scan
 
-- Test files: 185
-- Test cases: 1636
-- Unit files: 62
+- Test files: 188
+- Test cases: 1651
+- Unit files: 64
 - DOM integration files: 56
-- E2E files: 65
+- E2E files: 66
 - Performance files: 1
 
 ## How To Use This
@@ -37,12 +37,10 @@ These lists compare source/spec filenames against test file names and test title
 - `src/modules/timetracking-crud.js`
 - `src/modules/timetracking-entry-fields.js`
 - `src/modules/timetracking-markup.js`
-- `src/modules/timetracking-references.js`
 - `src/modules/timetracking-reports-panel.js`
 - `src/modules/timetracking-settings-panel.js`
 - `src/modules/timetracking-toast.js`
 - `src/modules/timetracking-ui.js`
-- `src/modules/timetracking-work-week-model.js`
 
 ### Specs Without Obvious Named Coverage
 
@@ -735,20 +733,20 @@ _No executable test cases detected._
 - Type: Unit
 - Test count: 14
 
-- `tests/unit/time-tracking/archive-delete.test.js:33` archive / unarchive > archiving a customer emits customer.archived
-- `tests/unit/time-tracking/archive-delete.test.js:40` archive / unarchive > unarchiving a project emits project.unarchived
-- `tests/unit/time-tracking/archive-delete.test.js:48` archive / unarchive > archiving an already archived item emits nothing
-- `tests/unit/time-tracking/archive-delete.test.js:54` archive / unarchive > an unknown id is rejected
-- `tests/unit/time-tracking/archive-delete.test.js:62` reference guard > a customer is in use while it has projects, archived or not
-- `tests/unit/time-tracking/archive-delete.test.js:68` reference guard > a project is in use while it has time entries
-- `tests/unit/time-tracking/archive-delete.test.js:74` reference guard > deleting an unreferenced project emits project.deleted with the project
-- `tests/unit/time-tracking/archive-delete.test.js:81` reference guard > deleting an unreferenced customer emits customer.deleted with the customer
-- `tests/unit/time-tracking/archive-delete.test.js:89` reference guard > a referenced project or customer is not deleted
-- `tests/unit/time-tracking/archive-delete.test.js:96` reference guard > deleting an unknown id is rejected
-- `tests/unit/time-tracking/archive-delete.test.js:108` archive filtering > a project is selectable only when neither it nor its customer is archived
-- `tests/unit/time-tracking/archive-delete.test.js:115` archive filtering > a project whose customer is missing is not selectable
-- `tests/unit/time-tracking/archive-delete.test.js:122` archive filtering > the picker offers only selectable projects
-- `tests/unit/time-tracking/archive-delete.test.js:126` archive filtering > validation rejects archived projects and projects of archived customers
+- `tests/unit/time-tracking/archive-delete.test.js:34` archive / unarchive > archiving a customer emits customer.archived
+- `tests/unit/time-tracking/archive-delete.test.js:41` archive / unarchive > unarchiving a project emits project.unarchived
+- `tests/unit/time-tracking/archive-delete.test.js:49` archive / unarchive > archiving an already archived item emits nothing
+- `tests/unit/time-tracking/archive-delete.test.js:55` archive / unarchive > an unknown id is rejected
+- `tests/unit/time-tracking/archive-delete.test.js:63` reference guard > a customer is in use while it has projects, archived or not
+- `tests/unit/time-tracking/archive-delete.test.js:69` reference guard > a project is in use while it has time entries
+- `tests/unit/time-tracking/archive-delete.test.js:75` reference guard > deleting an unreferenced project emits project.deleted with the project
+- `tests/unit/time-tracking/archive-delete.test.js:82` reference guard > deleting an unreferenced customer emits customer.deleted with the customer
+- `tests/unit/time-tracking/archive-delete.test.js:90` reference guard > a referenced project or customer is not deleted
+- `tests/unit/time-tracking/archive-delete.test.js:97` reference guard > deleting an unknown id is rejected
+- `tests/unit/time-tracking/archive-delete.test.js:109` archive filtering > a project is selectable only when neither it nor its customer is archived
+- `tests/unit/time-tracking/archive-delete.test.js:116` archive filtering > a project whose customer is missing is not selectable
+- `tests/unit/time-tracking/archive-delete.test.js:123` archive filtering > the picker offers only selectable projects
+- `tests/unit/time-tracking/archive-delete.test.js:127` archive filtering > validation rejects archived projects and projects of archived customers
 
 ### Balance
 
@@ -792,22 +790,22 @@ _No executable test cases detected._
 - Type: Unit
 - Test count: 16
 
-- `tests/unit/time-tracking/customers-projects.test.js:30` addCustomer succeeds with a valid name
-- `tests/unit/time-tracking/customers-projects.test.js:36` addCustomer trims whitespace from name
-- `tests/unit/time-tracking/customers-projects.test.js:42` addCustomer rejects empty name
-- `tests/unit/time-tracking/customers-projects.test.js:48` addCustomer rejects duplicate name (case-insensitive)
-- `tests/unit/time-tracking/customers-projects.test.js:59` addCustomer allows different customer names
-- `tests/unit/time-tracking/customers-projects.test.js:69` addCustomer assigns a color from the palette
-- `tests/unit/time-tracking/customers-projects.test.js:77` addProject succeeds with valid customerId and name
-- `tests/unit/time-tracking/customers-projects.test.js:89` addProject trims whitespace from name
-- `tests/unit/time-tracking/customers-projects.test.js:100` addProject rejects empty name
-- `tests/unit/time-tracking/customers-projects.test.js:111` addProject rejects missing customerId
-- `tests/unit/time-tracking/customers-projects.test.js:117` addProject rejects duplicate project name within same customer (case-insensitive)
-- `tests/unit/time-tracking/customers-projects.test.js:128` addProject allows same project name under different customers
-- `tests/unit/time-tracking/customers-projects.test.js:141` addProject assigns a color from the palette
-- `tests/unit/time-tracking/customers-projects.test.js:162` updateCustomerWorkWeek > emits a customer.updated patch of only the changed fields, with their before values
-- `tests/unit/time-tracking/customers-projects.test.js:170` updateCustomerWorkWeek > an unchanged value emits nothing
-- `tests/unit/time-tracking/customers-projects.test.js:184` updateCustomerWorkWeek > an unknown Customer is not found
+- `tests/unit/time-tracking/customers-projects.test.js:31` addCustomer succeeds with a valid name
+- `tests/unit/time-tracking/customers-projects.test.js:37` addCustomer trims whitespace from name
+- `tests/unit/time-tracking/customers-projects.test.js:43` addCustomer rejects empty name
+- `tests/unit/time-tracking/customers-projects.test.js:49` addCustomer rejects duplicate name (case-insensitive)
+- `tests/unit/time-tracking/customers-projects.test.js:60` addCustomer allows different customer names
+- `tests/unit/time-tracking/customers-projects.test.js:70` addCustomer assigns a color from the palette
+- `tests/unit/time-tracking/customers-projects.test.js:78` addProject succeeds with valid customerId and name
+- `tests/unit/time-tracking/customers-projects.test.js:90` addProject trims whitespace from name
+- `tests/unit/time-tracking/customers-projects.test.js:101` addProject rejects empty name
+- `tests/unit/time-tracking/customers-projects.test.js:112` addProject rejects missing customerId
+- `tests/unit/time-tracking/customers-projects.test.js:118` addProject rejects duplicate project name within same customer (case-insensitive)
+- `tests/unit/time-tracking/customers-projects.test.js:129` addProject allows same project name under different customers
+- `tests/unit/time-tracking/customers-projects.test.js:142` addProject assigns a color from the palette
+- `tests/unit/time-tracking/customers-projects.test.js:163` updateCustomerWorkWeek > emits a customer.updated patch of only the changed fields, with their before values
+- `tests/unit/time-tracking/customers-projects.test.js:171` updateCustomerWorkWeek > an unchanged value emits nothing
+- `tests/unit/time-tracking/customers-projects.test.js:185` updateCustomerWorkWeek > an unknown Customer is not found
 
 ### Day Coverage
 
@@ -928,6 +926,32 @@ _No executable test cases detected._
 - `tests/unit/time-tracking/linked-fields.test.js:129` adjustLinkedField (Alt+↑ / Alt+↓, ±15 min) > Start moved past midnight carries the Date along
 - `tests/unit/time-tracking/linked-fields.test.js:134` adjustLinkedField (Alt+↑ / Alt+↓, ±15 min) > returns null when the current values do not parse
 
+### Model Imports
+
+- Path: `tests/unit/time-tracking/model-imports.test.js`
+- Type: Unit
+- Test count: 1
+
+- `tests/unit/time-tracking/model-imports.test.js:36` pure Time Tracking modules > the import check sees storage behind the commands
+
+### Model
+
+- Path: `tests/unit/time-tracking/model.test.js`
+- Type: Unit
+- Test count: 11
+
+- `tests/unit/time-tracking/model.test.js:19` lookups > finds a project and a customer by id, or null when unknown
+- `tests/unit/time-tracking/model.test.js:28` active and in-use rules > a project is active only while it and its existing customer are not archived
+- `tests/unit/time-tracking/model.test.js:37` active and in-use rules > the active projects of a customer leave out archived ones
+- `tests/unit/time-tracking/model.test.js:42` active and in-use rules > a customer with projects and a project with entries are in use
+- `tests/unit/time-tracking/model.test.js:51` validation > a customer name is trimmed and must be unique, ignoring case
+- `tests/unit/time-tracking/model.test.js:58` validation > a project name needs a customer and is unique within it
+- `tests/unit/time-tracking/model.test.js:64` validation > a time entry needs an active project and a positive span
+- `tests/unit/time-tracking/model.test.js:73` validation > an edited entry may stay on its own archived project
+- `tests/unit/time-tracking/model.test.js:79` work week > the work week of a customer resolves from its fields; an unknown customer has no target
+- `tests/unit/time-tracking/model.test.js:85` work week > a work week edit is rejected rather than repaired
+- `tests/unit/time-tracking/model.test.js:95` prefill > a new entry starts on the last-used project while it is active, else on the default
+
 ### Period Summary
 
 - Path: `tests/unit/time-tracking/period-summary.test.js`
@@ -1035,31 +1059,31 @@ _No executable test cases detected._
 - Type: Unit
 - Test count: 25
 
-- `tests/unit/time-tracking/settings.test.js:27` resolveTimeTrackingSettings (spec defaults and options) > defaults: no default customer/project, DD.MM.YYYY, 24-hour, browser zone, h:mm
-- `tests/unit/time-tracking/settings.test.js:38` resolveTimeTrackingSettings (spec defaults and options) > timezone falls back to Europe/Berlin when the browser reports none
-- `tests/unit/time-tracking/settings.test.js:44` resolveTimeTrackingSettings (spec defaults and options) > keeps valid choices
-- `tests/unit/time-tracking/settings.test.js:53` resolveTimeTrackingSettings (spec defaults and options) > legacy global Weekly hours and Workdays are not exposed: the Work week is per Customer
-- `tests/unit/time-tracking/settings.test.js:59` resolveTimeTrackingSettings (spec defaults and options) > unknown options fall back to defaults
-- `tests/unit/time-tracking/settings.test.js:70` timeTrackingPrefs maps settings to display preferences > carries every display setting and now
-- `tests/unit/time-tracking/settings.test.js:79` timeTrackingPrefs maps settings to display preferences > without settings uses the defaults
-- `tests/unit/time-tracking/settings.test.js:87` persistence in the global settings layer > saving emits a global settings.updated event and lands in global settings
-- `tests/unit/time-tracking/settings.test.js:101` persistence in the global settings layer > saved settings survive a session reset
-- `tests/unit/time-tracking/settings.test.js:109` persistence in the global settings layer > a synced settings.updated event from another device is applied
-- `tests/unit/time-tracking/settings.test.js:119` persistence in the global settings layer > saving another setting does not pin or sync the browser timezone
-- `tests/unit/time-tracking/settings.test.js:133` persistence in the global settings layer > a chosen timezone is kept when another setting is saved
-- `tests/unit/time-tracking/settings.test.js:139` persistence in the global settings layer > saving one setting keeps the others
-- `tests/unit/time-tracking/settings.test.js:159` default customer and project > changing the default customer resets the project to its first active project
-- `tests/unit/time-tracking/settings.test.js:167` default customer and project > the default project can be changed within the default customer
-- `tests/unit/time-tracking/settings.test.js:176` default customer and project > clearing the default customer clears the project
-- `tests/unit/time-tracking/settings.test.js:183` default customer and project > prefillProjectId uses the default project while it is active
-- `tests/unit/time-tracking/settings.test.js:189` default customer and project > prefillProjectId is empty without a default or once the default is no longer active
-- `tests/unit/time-tracking/settings.test.js:210` last-used project prefill > the last-used project wins over the default project
-- `tests/unit/time-tracking/settings.test.js:216` last-used project prefill > falls back to the default project without a last-used project
-- `tests/unit/time-tracking/settings.test.js:222` last-used project prefill > falls back to the default project when the last-used project is archived
-- `tests/unit/time-tracking/settings.test.js:229` last-used project prefill > falls back to the default project when the last-used project customer is archived
-- `tests/unit/time-tracking/settings.test.js:236` last-used project prefill > falls back to the default project when the last-used project was deleted
-- `tests/unit/time-tracking/settings.test.js:243` last-used project prefill > is empty when neither the last-used nor the default project is active
-- `tests/unit/time-tracking/settings.test.js:251` last-used project prefill > is remembered in local storage on this device, without a domain event
+- `tests/unit/time-tracking/settings.test.js:28` resolveTimeTrackingSettings (spec defaults and options) > defaults: no default customer/project, DD.MM.YYYY, 24-hour, browser zone, h:mm
+- `tests/unit/time-tracking/settings.test.js:39` resolveTimeTrackingSettings (spec defaults and options) > timezone falls back to Europe/Berlin when the browser reports none
+- `tests/unit/time-tracking/settings.test.js:45` resolveTimeTrackingSettings (spec defaults and options) > keeps valid choices
+- `tests/unit/time-tracking/settings.test.js:54` resolveTimeTrackingSettings (spec defaults and options) > legacy global Weekly hours and Workdays are not exposed: the Work week is per Customer
+- `tests/unit/time-tracking/settings.test.js:60` resolveTimeTrackingSettings (spec defaults and options) > unknown options fall back to defaults
+- `tests/unit/time-tracking/settings.test.js:71` timeTrackingPrefs maps settings to display preferences > carries every display setting and now
+- `tests/unit/time-tracking/settings.test.js:80` timeTrackingPrefs maps settings to display preferences > without settings uses the defaults
+- `tests/unit/time-tracking/settings.test.js:88` persistence in the global settings layer > saving emits a global settings.updated event and lands in global settings
+- `tests/unit/time-tracking/settings.test.js:102` persistence in the global settings layer > saved settings survive a session reset
+- `tests/unit/time-tracking/settings.test.js:110` persistence in the global settings layer > a synced settings.updated event from another device is applied
+- `tests/unit/time-tracking/settings.test.js:120` persistence in the global settings layer > saving another setting does not pin or sync the browser timezone
+- `tests/unit/time-tracking/settings.test.js:134` persistence in the global settings layer > a chosen timezone is kept when another setting is saved
+- `tests/unit/time-tracking/settings.test.js:140` persistence in the global settings layer > saving one setting keeps the others
+- `tests/unit/time-tracking/settings.test.js:160` default customer and project > changing the default customer resets the project to its first active project
+- `tests/unit/time-tracking/settings.test.js:168` default customer and project > the default project can be changed within the default customer
+- `tests/unit/time-tracking/settings.test.js:177` default customer and project > clearing the default customer clears the project
+- `tests/unit/time-tracking/settings.test.js:184` default customer and project > prefillProjectId uses the default project while it is active
+- `tests/unit/time-tracking/settings.test.js:190` default customer and project > prefillProjectId is empty without a default or once the default is no longer active
+- `tests/unit/time-tracking/settings.test.js:211` last-used project prefill > the last-used project wins over the default project
+- `tests/unit/time-tracking/settings.test.js:217` last-used project prefill > falls back to the default project without a last-used project
+- `tests/unit/time-tracking/settings.test.js:223` last-used project prefill > falls back to the default project when the last-used project is archived
+- `tests/unit/time-tracking/settings.test.js:230` last-used project prefill > falls back to the default project when the last-used project customer is archived
+- `tests/unit/time-tracking/settings.test.js:237` last-used project prefill > falls back to the default project when the last-used project was deleted
+- `tests/unit/time-tracking/settings.test.js:244` last-used project prefill > is empty when neither the last-used nor the default project is active
+- `tests/unit/time-tracking/settings.test.js:252` last-used project prefill > is remembered in local storage on this device, without a domain event
 
 ### Shorthand
 
@@ -1077,20 +1101,20 @@ _No executable test cases detected._
 - Type: Unit
 - Test count: 14
 
-- `tests/unit/time-tracking/time-entries.test.js:55` validateTimeEntry > a project is checked before the times
-- `tests/unit/time-tracking/time-entries.test.js:59` validateTimeEntry > a valid entry passes
-- `tests/unit/time-tracking/time-entries.test.js:65` addTimeEntry > emits time_entry.created in the timetracking scope with absolute instants
-- `tests/unit/time-tracking/time-entries.test.js:85` addTimeEntry > normalises instants to UTC ISO strings
-- `tests/unit/time-tracking/time-entries.test.js:90` addTimeEntry > invalid entries save nothing
-- `tests/unit/time-tracking/time-entries.test.js:104` updateTimeEntry > emits time_entry.updated with the changed fields after and before
-- `tests/unit/time-tracking/time-entries.test.js:120` updateTimeEntry > saving without changes emits nothing
-- `tests/unit/time-tracking/time-entries.test.js:125` updateTimeEntry > an entry may keep its already-archived project
-- `tests/unit/time-tracking/time-entries.test.js:142` updateTimeEntry > an unknown entry is rejected
-- `tests/unit/time-tracking/time-entries.test.js:155` duplicateTimeEntry > emits time_entry.created with the same project, description and duration, starting now
-- `tests/unit/time-tracking/time-entries.test.js:175` duplicateTimeEntry > an entry on an archived project cannot be duplicated
-- `tests/unit/time-tracking/time-entries.test.js:181` duplicateTimeEntry > an unknown entry is rejected
-- `tests/unit/time-tracking/time-entries.test.js:193` deleteTimeEntry > emits time_entry.deleted carrying the deleted entry
-- `tests/unit/time-tracking/time-entries.test.js:203` deleteTimeEntry > an unknown entry is rejected
+- `tests/unit/time-tracking/time-entries.test.js:56` validateTimeEntry > a project is checked before the times
+- `tests/unit/time-tracking/time-entries.test.js:60` validateTimeEntry > a valid entry passes
+- `tests/unit/time-tracking/time-entries.test.js:66` addTimeEntry > emits time_entry.created in the timetracking scope with absolute instants
+- `tests/unit/time-tracking/time-entries.test.js:86` addTimeEntry > normalises instants to UTC ISO strings
+- `tests/unit/time-tracking/time-entries.test.js:91` addTimeEntry > invalid entries save nothing
+- `tests/unit/time-tracking/time-entries.test.js:105` updateTimeEntry > emits time_entry.updated with the changed fields after and before
+- `tests/unit/time-tracking/time-entries.test.js:121` updateTimeEntry > saving without changes emits nothing
+- `tests/unit/time-tracking/time-entries.test.js:126` updateTimeEntry > an entry may keep its already-archived project
+- `tests/unit/time-tracking/time-entries.test.js:143` updateTimeEntry > an unknown entry is rejected
+- `tests/unit/time-tracking/time-entries.test.js:156` duplicateTimeEntry > emits time_entry.created with the same project, description and duration, starting now
+- `tests/unit/time-tracking/time-entries.test.js:176` duplicateTimeEntry > an entry on an archived project cannot be duplicated
+- `tests/unit/time-tracking/time-entries.test.js:182` duplicateTimeEntry > an unknown entry is rejected
+- `tests/unit/time-tracking/time-entries.test.js:194` deleteTimeEntry > emits time_entry.deleted carrying the deleted entry
+- `tests/unit/time-tracking/time-entries.test.js:204` deleteTimeEntry > an unknown entry is rejected
 
 ### Timezone
 
@@ -2384,6 +2408,16 @@ _No executable test cases detected._
 - `tests/e2e/columns.spec.ts:115` deleting a column asks first and takes its tasks with it
 - `tests/e2e/columns.spec.ts:135` a deleted column stays deleted after an immediate reload
 - `tests/e2e/columns.spec.ts:152` the Done column cannot be deleted
+
+### Controls Panel
+
+- Path: `tests/e2e/controls-panel.spec.js`
+- Type: End-to-End
+- Test count: 3
+
+- `tests/e2e/controls-panel.spec.js:12` Desktop controls panel > opens as a full-height panel on the right and closes with Escape
+- `tests/e2e/controls-panel.spec.js:34` Desktop controls panel > closes with its close button
+- `tests/e2e/controls-panel.spec.js:40` Desktop controls panel > fits its width on a tablet-sized screen
 
 ### Create Task
 

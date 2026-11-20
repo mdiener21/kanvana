@@ -3,12 +3,13 @@ import { on, off, DATA_CHANGED } from './events.js';
 import { renderIcons } from './icons.js';
 import { escapeHtml } from './security.js';
 import {
-  addTimeEntry, updateTimeEntry, duplicateTimeEntry, deleteTimeEntry, projectById, customerById, CRUD_ERROR
+  addTimeEntry, updateTimeEntry, duplicateTimeEntry, deleteTimeEntry
 } from './timetracking-crud.js';
 import { showToast } from './timetracking-toast.js';
 import { entryFieldsHtml, wireEntryFields } from './timetracking-entry-fields.js';
 import { filterEntries, mountEntryFilter } from './timetracking-filter.js';
-import { prefillProjectId, loadLastUsedProjectId, rememberLastUsedProject } from './timetracking-settings.js';
+import { loadLastUsedProjectId, rememberLastUsedProject } from './timetracking-settings.js';
+import { projectById, customerById, prefillProjectId, CRUD_ERROR } from './timetracking-model.js';
 import { WEEK_HEADER_HTML, mountWeekStrip } from './timetracking-week-strip.js';
 import { groupEntriesByDay, formatTime, formatDuration, plusDaysBetween, newEntryTimes } from './timetracking-time.js';
 import { colorDotHtml } from './timetracking-markup.js';

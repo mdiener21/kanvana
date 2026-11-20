@@ -10,8 +10,9 @@ vi.mock('../../../src/modules/storage.js', async (importOriginal) => ({
 }));
 
 const {
-  addTimeEntry, updateTimeEntry, duplicateTimeEntry, deleteTimeEntry, validateTimeEntry, CRUD_ERROR
+  addTimeEntry, updateTimeEntry, duplicateTimeEntry, deleteTimeEntry
 } = await import('../../../src/modules/timetracking-crud.js');
+const { validateTimeEntry, CRUD_ERROR } = await import('../../../src/modules/timetracking-model.js');
 const { loadTimeTracking } = await import('../../../src/modules/storage.js');
 const { scheduleDomainEvent } = await import('../../../src/modules/event-sourcing/emitter.js');
 

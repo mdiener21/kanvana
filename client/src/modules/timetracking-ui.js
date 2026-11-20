@@ -3,9 +3,9 @@ import { on, off, DATA_CHANGED } from './events.js';
 import { renderIcons } from './icons.js';
 import { DEFAULT_APP_KEYBINDINGS, matchesKey, keyLabel } from './constants.js';
 import {
-  addCustomer, addProject, updateCustomerName, updateProjectName, setCustomerArchived, setProjectArchived, deleteCustomer, deleteProject, CRUD_ERROR
+  addCustomer, addProject, updateCustomerName, updateProjectName, setCustomerArchived, setProjectArchived, deleteCustomer, deleteProject
 } from './timetracking-crud.js';
-import { isCustomerInUse, isProjectInUse } from './timetracking-references.js';
+import { isCustomerInUse, isProjectInUse, CRUD_ERROR } from './timetracking-model.js';
 import { escapeHtml } from './security.js';
 import { colorDotHtml } from './timetracking-markup.js';
 import { workWeekEditorHtml, bindWorkWeekEditors, captureWorkWeekState } from './timetracking-work-week.js';

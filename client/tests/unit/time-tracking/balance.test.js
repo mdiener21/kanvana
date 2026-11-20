@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import { periodBalance, customerBalance, formatBalance } from '../../../src/modules/timetracking-balance.js';
-import { customerWorkWeek, resolveWorkWeek } from '../../../src/modules/timetracking-work-week-model.js';
+import { customerWorkWeek, resolveWorkWeek } from '../../../src/modules/timetracking-model.js';
 import { currentPeriod } from '../../../src/modules/timetracking-report.js';
 import { formatDuration } from '../../../src/modules/timetracking-time.js';
 

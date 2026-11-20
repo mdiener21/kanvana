@@ -1,7 +1,8 @@
 import { loadTimeTracking } from './storage.js';
 import { on, off, DATA_CHANGED } from './events.js';
 import { escapeHtml } from './security.js';
-import { loadTimeTrackingSettings, saveTimeTrackingSettings, activeProjectsOf } from './timetracking-settings.js';
+import { loadTimeTrackingSettings, saveTimeTrackingSettings } from './timetracking-settings.js';
+import { activeProjectsOf } from './timetracking-model.js';
 import {
   DATE_FORMATS, TIME_FORMATS, DURATION_FORMATS, timeTrackingPrefs, formatDate, formatTime, formatDuration
 } from './timetracking-time.js';

@@ -1,7 +1,7 @@
 import { loadGlobalSettings, loadTimeTracking } from './storage.js';
 import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 import { EVENT_SCOPE } from './constants.js';
-import { isProjectActive, projectById } from './timetracking-crud.js';
+import { activeProjectsOf } from './timetracking-model.js';
 import { DATE_FORMATS, TIME_FORMATS, DURATION_FORMATS, browserTimezone } from './timetracking-time.js';
 
 export function isValidTimezone(tz) {
@@ -40,10 +40,6 @@ const storedTimeTrackingSettings = () => {
 
 export const loadTimeTrackingSettings = () => resolveTimeTrackingSettings(storedTimeTrackingSettings());
 
-export function activeProjectsOf(tt, customerId) {
-  return tt.projects.filter((p) => p.customerId === customerId && isProjectActive(p, tt));
-}
-
 // Persists only what the user chose: unset fields (notably timezone) keep resolving per device.
 export function saveTimeTrackingSettings(patch) {
   const next = { ...storedTimeTrackingSettings(), ...patch };
@@ -78,13 +74,4 @@ export const loadReportPeriodKind = () => localStorage.getItem(REPORT_PERIOD_KIN
 
 export function rememberReportPeriodKind(kind) {
   localStorage.setItem(REPORT_PERIOD_KIND_KEY, kind);
-}
-
-const activeProjectId = (tt, id) => {
-  const project = projectById(tt, id);
-  return project && isProjectActive(project, tt) ? project.id : null;
-};
-
-export function prefillProjectId(tt, settings, lastUsedProjectId = null) {
-  return activeProjectId(tt, lastUsedProjectId) ?? activeProjectId(tt, settings.defaultProjectId);
 }

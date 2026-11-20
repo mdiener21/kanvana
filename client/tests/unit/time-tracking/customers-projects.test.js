@@ -16,7 +16,8 @@ vi.mock('../../../src/modules/storage.js', async (importOriginal) => {
 });
 
 // Import the pure CRUD module — no DOM/icons dependency
-const { addCustomer, addProject, updateCustomerWorkWeek, CRUD_ERROR } = await import('../../../src/modules/timetracking-crud.js');
+const { addCustomer, addProject, updateCustomerWorkWeek } = await import('../../../src/modules/timetracking-crud.js');
+const { CRUD_ERROR } = await import('../../../src/modules/timetracking-model.js');
 const { loadTimeTracking } = await import('../../../src/modules/storage.js');
 const { scheduleDomainEvent } = await import('../../../src/modules/event-sourcing/emitter.js');
 

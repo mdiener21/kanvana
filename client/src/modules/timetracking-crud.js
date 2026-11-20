@@ -3,74 +3,18 @@ import { scheduleDomainEvent } from './event-sourcing/emitter.js';
 import { createCustomer, createProject, createTimeEntry } from './schema.js';
 import { EVENT_SCOPE, TT_COLOR_PALETTE } from './constants.js';
 import { floorToMinute } from './timetracking-time.js';
-import { isCustomerInUse, isProjectInUse } from './timetracking-references.js';
-import { WORK_WEEK_FIELDS, resolveWorkWeek, patchWorkWeek } from './timetracking-work-week-model.js';
-
-export const CRUD_ERROR = Object.freeze({
-  EMPTY_NAME: 'EMPTY_NAME',
-  DUPLICATE_NAME: 'DUPLICATE_NAME',
-  NO_CUSTOMER: 'NO_CUSTOMER',
-  NO_PROJECT: 'NO_PROJECT',
-  ARCHIVED_PROJECT: 'ARCHIVED_PROJECT',
-  INVALID_TIME: 'INVALID_TIME',
-  ZERO_DURATION: 'ZERO_DURATION',
-  NOT_FOUND: 'NOT_FOUND',
-  IN_USE: 'IN_USE',
-  INVALID_WORK_WEEK: 'INVALID_WORK_WEEK'
-});
+import {
+  CRUD_ERROR, projectById, customerById, isCustomerInUse, isProjectInUse,
+  validateCustomerName, validateProjectName, validateTimeEntry,
+  WORK_WEEK_FIELDS, resolveWorkWeek, patchWorkWeek
+} from './timetracking-model.js';
 
 const EDITABLE_ENTRY_FIELDS = ['projectId', 'description', 'start', 'end'];
-
-export const projectById = (tt, id) => tt.projects.find((p) => p.id === id) ?? null;
-export const customerById = (tt, id) => tt.customers.find((c) => c.id === id) ?? null;
 
 // ── Color auto-assignment ──────────────────────────────────────────────────────
 
 function nextColorIndex(collection) {
   return collection.length % TT_COLOR_PALETTE.length;
-}
-
-// ── Validation ─────────────────────────────────────────────────────────────────
-
-export function validateCustomerName(name, customers, skipId = null) {
-  const trimmed = name.trim();
-  if (!trimmed) return { ok: false, reason: CRUD_ERROR.EMPTY_NAME };
-  const lower = trimmed.toLowerCase();
-  const dup = customers.find((c) => c.id !== skipId && c.name.trim().toLowerCase() === lower);
-  if (dup) return { ok: false, reason: CRUD_ERROR.DUPLICATE_NAME };
-  return { ok: true, name: trimmed };
-}
-
-export function validateProjectName(name, customerId, projects, skipId = null) {
-  const trimmed = name.trim();
-  if (!trimmed) return { ok: false, reason: CRUD_ERROR.EMPTY_NAME };
-  if (!customerId) return { ok: false, reason: CRUD_ERROR.NO_CUSTOMER };
-  const lower = trimmed.toLowerCase();
-  const dup = projects.find(
-    (p) => p.id !== skipId && p.customerId === customerId && p.name.trim().toLowerCase() === lower
-  );
-  if (dup) return { ok: false, reason: CRUD_ERROR.DUPLICATE_NAME };
-  return { ok: true, name: trimmed };
-}
-
-export function isProjectActive(project, tt) {
-  if (!project || project.archived) return false;
-  const customer = customerById(tt, project.customerId);
-  return !!customer && !customer.archived;
-}
-
-// keepProjectId: an edited entry may stay on its own project even after that project was archived.
-export function validateTimeEntry({ projectId, start, end }, tt, { keepProjectId = null } = {}) {
-  const project = projectById(tt, projectId);
-  if (!project) return { ok: false, reason: CRUD_ERROR.NO_PROJECT };
-  if (project.id !== keepProjectId && !isProjectActive(project, tt)) {
-    return { ok: false, reason: CRUD_ERROR.ARCHIVED_PROJECT };
-  }
-  const startMs = Date.parse(start);
-  const endMs = Date.parse(end);
-  if (Number.isNaN(startMs) || Number.isNaN(endMs)) return { ok: false, reason: CRUD_ERROR.INVALID_TIME };
-  if (endMs <= startMs) return { ok: false, reason: CRUD_ERROR.ZERO_DURATION };
-  return { ok: true };
 }
 
 // ── CRUD ───────────────────────────────────────────────────────────────────────

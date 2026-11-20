@@ -1,7 +1,7 @@
 import { DEFAULT_APP_KEYBINDINGS, matchesKey } from './constants.js';
 import { escapeHtml } from './security.js';
 import { resolveLinkedFields, adjustLinkedField, describeEntryTimes } from './timetracking-time.js';
-import { isProjectActive, projectById, customerById, CRUD_ERROR } from './timetracking-crud.js';
+import { isProjectActive, projectById, customerById, CRUD_ERROR } from './timetracking-model.js';
 
 const { ttSubmitInline, ttAdjustUp, ttAdjustDown } = DEFAULT_APP_KEYBINDINGS;
 
