@@ -1,7 +1,5 @@
-import { loadTimeTracking } from './storage.js';
-import { on, off, DATA_CHANGED } from './events.js';
 import { escapeHtml } from './security.js';
-import { loadTimeTrackingSettings, saveTimeTrackingSettings, activeProjectsOf } from './timetracking-settings.js';
+import { activeProjectsOf } from './timetracking-model.js';
 import {
   DATE_FORMATS, TIME_FORMATS, DURATION_FORMATS, timeTrackingPrefs, formatDate, formatTime, formatDuration
 } from './timetracking-time.js';
@@ -79,7 +77,7 @@ const optionsHtml = (pairs) => pairs
   .map(([value, label]) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`)
   .join('');
 
-export function mountSettingsPanel(container) {
+export function mountSettingsPanel(container, { timeTracking }) {
   container.innerHTML = PANEL_HTML;
   const selects = Object.fromEntries(
     [...container.querySelectorAll('[data-setting]')].map((select) => [select.dataset.setting, select])
@@ -87,8 +85,8 @@ export function mountSettingsPanel(container) {
   const previewOf = (name) => container.querySelector(`[data-testid="tt-preview-${name}"]`);
 
   function refresh() {
-    const settings = loadTimeTrackingSettings();
-    const tt = loadTimeTracking();
+    const settings = timeTracking.settings();
+    const tt = timeTracking.state();
     for (const { key, options } of SETTINGS) {
       const select = selects[key];
       select.innerHTML = optionsHtml(options(settings, tt));
@@ -105,11 +103,10 @@ export function mountSettingsPanel(container) {
   container.addEventListener('change', (ev) => {
     const key = ev.target.dataset?.setting;
     if (!key) return;
-    saveTimeTrackingSettings({ [key]: ev.target.value || null });
+    timeTracking.saveSettings({ [key]: ev.target.value || null });
     refresh();
   });
 
   refresh();
-  on(DATA_CHANGED, refresh);
-  return () => off(DATA_CHANGED, refresh);
+  return timeTracking.subscribe(refresh);
 }

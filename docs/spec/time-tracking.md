@@ -324,7 +324,7 @@ Target and Balance.
   customer (its entries, its Work week, the archived stop). The badge, week-strip meters and Reports Balance card
   all use `customerBalance`: the main screen for the default customer, Reports for the filtered
   customer or else the default customer
-- Reading and validating a Work week lives in `timetracking-work-week-model.js` (`resolveWorkWeek`
+- Reading and validating a Work week lives in the pure model `timetracking-model.js` (`resolveWorkWeek`
   for stored values, `patchWorkWeek` for user edits, `WORK_WEEK_FIELDS`), used by the Balance, the
   Work week editor, `updateCustomerWorkWeek` and the legacy migration
 - **"This week" badge** in the Time Tracker header: `This week ±h:mm`, the current week's Balance in

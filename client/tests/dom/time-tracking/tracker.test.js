@@ -3,47 +3,19 @@ import { screen, fireEvent, within } from '@testing-library/dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { mountToBody, isKeyboardOperable } from '../setup.js';
-
-const state = { customers: [], projects: [], timeEntries: [] };
-
-vi.mock('../../../src/modules/storage.js', () => ({
-  loadTimeTracking: vi.fn(() => state),
-  loadGlobalSettings: vi.fn(() => ({}))
-}));
+import { createTestTimeTracking } from '../../fixtures/time-tracking.js';
 
 vi.mock('../../../src/modules/icons.js', () => ({
   renderIcons: vi.fn()
 }));
 
-vi.mock('../../../src/modules/event-sourcing/emitter.js', async () => {
-  const { emit, DATA_CHANGED } = await import('../../../src/modules/events.js');
-  return {
-    scheduleDomainEvent: vi.fn((event) => {
-      if (event.type === 'time_entry.created') state.timeEntries = [...state.timeEntries, event.payload.timeEntry];
-      if (event.type === 'time_entry.updated') {
-        state.timeEntries = state.timeEntries.map((e) => (e.id === event.entityId ? { ...e, ...event.payload.fields } : e));
-      }
-      if (event.type === 'time_entry.deleted') state.timeEntries = state.timeEntries.filter((e) => e.id !== event.entityId);
-      if (event.type === 'customer.updated') {
-        state.customers = state.customers.map((c) => (c.id === event.entityId ? { ...c, ...event.payload.fields } : c));
-      }
-      emit(DATA_CHANGED);
-      return Promise.resolve();
-    })
-  };
-});
-
 const { mountTimeTracking } = await import('../../../src/modules/timetracking-ui.js');
-const { scheduleDomainEvent } = await import('../../../src/modules/event-sourcing/emitter.js');
-const { loadGlobalSettings } = await import('../../../src/modules/storage.js');
-const { emit, DATA_CHANGED } = await import('../../../src/modules/events.js');
-const emitDataChanged = () => emit(DATA_CHANGED);
 
 const pageHtml = readFileSync(resolve(__dirname, '../../../src/timetracking.html'), 'utf-8');
 const bodyHtml = pageHtml.slice(pageHtml.indexOf('<body>') + 6, pageHtml.indexOf('</body>'));
 
 const NOW = '2026-10-08T10:00:00.000Z'; // 12:00 in Europe/Berlin
-const prefs = () => ({ tz: 'Europe/Berlin', dateFormat: 'DD.MM.YYYY', timeFormat: '24h', now: Date.now() });
+const DISPLAY_SETTINGS = { timezone: 'Europe/Berlin', dateFormat: 'DD.MM.YYYY', timeFormat: '24h' };
 
 const ACME = { id: 'c1', name: 'Acme', color: '#000000', archived: false };
 const OLD_CO = { id: 'c2', name: 'Old Co', color: '#111111', archived: true };
@@ -54,14 +26,19 @@ const SUPPORT = { id: 'p3', customerId: 'c2', name: 'Support', color: '#8bc34a',
 let unmount = null;
 const fakeChart = () => ({ setOption() {}, resize() {}, dispose() {} });
 let customers = [ACME, OLD_CO];
+let settings = DISPLAY_SETTINGS;
+let tt = null;
 
-function mount({ timeEntries = [], extraProjects = [] } = {}) {
-  state.customers = customers;
-  state.projects = [WEBSITE, LEGACY, SUPPORT, ...extraProjects];
-  state.timeEntries = timeEntries;
+// The Time Tracking interface folds every event through the real reducer; `device` carries device prefs over a remount.
+function mount({ timeEntries = [], extraProjects = [], device } = {}) {
+  tt = createTestTimeTracking({
+    customers, projects: [WEBSITE, LEGACY, SUPPORT, ...extraProjects], timeEntries, settings, device
+  });
   mountToBody(bodyHtml);
-  unmount = mountTimeTracking(document, { getPrefs: prefs, createChart: fakeChart });
+  unmount = mountTimeTracking(document, { timeTracking: tt, createChart: fakeChart });
 }
+
+const emitted = () => tt.emitted;
 
 const field = (name) => screen.getByLabelText(name);
 const type = (name, value) => fireEvent.input(field(name), { target: { value } });
@@ -115,8 +92,8 @@ describe('entry bar', () => {
     type('Duration', '1h30');
     press(field('Duration'), 'Enter');
 
-    expect(scheduleDomainEvent).toHaveBeenCalledOnce();
-    expect(scheduleDomainEvent).toHaveBeenCalledWith(expect.objectContaining({
+    expect(emitted()).toHaveLength(1);
+    expect(emitted()).toContainEqual(expect.objectContaining({
       type: 'time_entry.created',
       scope: 'timetracking',
       payload: {
@@ -145,7 +122,7 @@ describe('entry bar', () => {
     type('End', '13');
     blur('End');
     press(field('Description'), 'Enter');
-    expect(scheduleDomainEvent).toHaveBeenCalledWith(expect.objectContaining({
+    expect(emitted()).toContainEqual(expect.objectContaining({
       payload: { timeEntry: expect.objectContaining({ projectId: 'p1', description: '', end: '2026-10-08T11:00:00.000Z' }) }
     }));
   });
@@ -156,7 +133,7 @@ describe('entry bar', () => {
     field('End').focus();
     type('End', '1430');
     press(field('End'), 'Enter');
-    expect(scheduleDomainEvent).toHaveBeenCalledWith(expect.objectContaining({
+    expect(emitted()).toContainEqual(expect.objectContaining({
       payload: { timeEntry: expect.objectContaining({ end: '2026-10-08T12:30:00.000Z' }) }
     }));
   });
@@ -249,7 +226,7 @@ describe('validation: toast, nothing saved, values kept', () => {
   test('project required', () => {
     attempt({ project: '' });
     expect(toastText()).toBe('Select a project.');
-    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(emitted()).toEqual([]);
     expect(field('Description').value).toBe('Work');
   });
 
@@ -261,7 +238,7 @@ describe('validation: toast, nothing saved, values kept', () => {
   test('archived project', () => {
     attempt({ project: 'Acme / Legacy' });
     expect(toastText()).toBe('That project is archived.');
-    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(emitted()).toEqual([]);
   });
 
   test('project of an archived customer', () => {
@@ -272,7 +249,7 @@ describe('validation: toast, nothing saved, values kept', () => {
   test('zero duration', () => {
     attempt({ project: 'Acme / Website', duration: '0:00' });
     expect(toastText()).toBe('Duration must be greater than zero.');
-    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(emitted()).toEqual([]);
     expect(field('Project').value).toBe('Acme / Website');
   });
 
@@ -283,7 +260,7 @@ describe('validation: toast, nothing saved, values kept', () => {
     type('Start', 'soon');
     press(field('Start'), 'Enter');
     expect(toastText()).toBe('Enter a valid date and time.');
-    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(emitted()).toEqual([]);
   });
 });
 
@@ -354,6 +331,7 @@ const row = (description) => rows().find((r) => within(r).queryByText(descriptio
 const selected = () => rows().filter((r) => r.getAttribute('aria-current') === 'true')
   .map((r) => r.querySelector('.tt-entry-desc').textContent);
 const key = (k, init) => press(document.body, k, init);
+const deletedOnAnotherDevice = (id) => ({ type: 'time_entry.deleted', scope: 'timetracking', entityId: id, payload: {} });
 
 describe('selection', () => {
   let scrollIntoView;
@@ -389,7 +367,7 @@ describe('selection', () => {
     }
     expect(selected()).toEqual([]);
     expect(screen.queryByRole('dialog', { name: 'Edit entry' })).toBeNull();
-    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(emitted()).toEqual([]);
   });
 
   test('clicking a row selects it', () => {
@@ -403,11 +381,9 @@ describe('selection', () => {
   test('selection survives a re-render and is dropped when the entry disappears', () => {
     mount({ timeEntries: THREE_ENTRIES });
     key('j');
-    state.timeEntries = THREE_ENTRIES.filter((e) => e.id !== 'morning');
-    emitDataChanged();
+    tt.receive(deletedOnAnotherDevice('morning'));
     expect(selected()).toEqual(['late']);
-    state.timeEntries = THREE_ENTRIES.filter((e) => e.id !== 'late');
-    emitDataChanged();
+    tt.receive(deletedOnAnotherDevice('late'));
     expect(selected()).toEqual([]);
   });
 
@@ -417,7 +393,7 @@ describe('selection', () => {
     key('d');
     key('Delete');
     expect(screen.queryByRole('dialog', { name: 'Edit entry' })).toBeNull();
-    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(emitted()).toEqual([]);
     expect(rows()).toHaveLength(3);
   });
 
@@ -462,8 +438,8 @@ describe('edit modal', () => {
     typeIn('Start', '930');
     press(inDialog('Start'), 'Enter');
 
-    expect(scheduleDomainEvent).toHaveBeenCalledOnce();
-    expect(scheduleDomainEvent).toHaveBeenCalledWith({
+    expect(emitted()).toHaveLength(1);
+    expect(emitted()).toContainEqual({
       type: 'time_entry.updated',
       scope: 'timetracking',
       entityId: 'late',
@@ -482,7 +458,7 @@ describe('edit modal', () => {
     typeIn('Description', 'Changed');
     press(inDialog('Description'), 'Escape');
     expect(dialog()).toBeNull();
-    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(emitted()).toEqual([]);
     expect(row('late')).toBeTruthy();
   });
 
@@ -492,7 +468,7 @@ describe('edit modal', () => {
     fireEvent.blur(inDialog('Duration'));
     press(inDialog('Description'), 'Enter');
     expect(toastText()).toBe('Duration must be greater than zero.');
-    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(emitted()).toEqual([]);
     expect(dialog()).toBeTruthy();
   });
 
@@ -501,7 +477,7 @@ describe('edit modal', () => {
     typeIn('Project', 'Acme / Legacy');
     press(inDialog('Description'), 'Enter');
     expect(toastText()).toBe('That project is archived.');
-    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(emitted()).toEqual([]);
   });
 
   test('an entry may keep its already-archived project', () => {
@@ -509,7 +485,7 @@ describe('edit modal', () => {
     expect(inDialog('Project').value).toBe('Acme / Legacy');
     typeIn('Description', 'old cleanup');
     press(inDialog('Description'), 'Enter');
-    expect(scheduleDomainEvent).toHaveBeenCalledWith(expect.objectContaining({
+    expect(emitted()).toContainEqual(expect.objectContaining({
       type: 'time_entry.updated',
       payload: { fields: { description: 'old cleanup' }, before: { description: 'old' } }
     }));
@@ -519,7 +495,7 @@ describe('edit modal', () => {
     openEditorOn('late');
     press(inDialog('Description'), 'Enter');
     expect(dialog()).toBeNull();
-    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(emitted()).toEqual([]);
   });
 
   test('single-key shortcuts are suppressed while the modal is open', () => {
@@ -528,7 +504,7 @@ describe('edit modal', () => {
     key('j');
     key('d');
     expect(selected()).toEqual(['late']);
-    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(emitted()).toEqual([]);
   });
 
   test('double-click and the row edit action also open the modal', () => {
@@ -543,7 +519,7 @@ describe('edit modal', () => {
     expect(dialogValues()[0]).toBe('07.10.2026');
     typeIn('Description', 'Retro');
     fireEvent.click(within(dialog()).getByRole('button', { name: 'Save' }));
-    expect(scheduleDomainEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'time_entry.updated', entityId: 'yesterday' }));
+    expect(emitted()).toContainEqual(expect.objectContaining({ type: 'time_entry.updated', entityId: 'yesterday' }));
   });
 });
 
@@ -554,8 +530,8 @@ describe('duplicate', () => {
     fireEvent.click(row('yesterday'));
     key('d');
 
-    expect(scheduleDomainEvent).toHaveBeenCalledOnce();
-    const [{ type, payload }] = scheduleDomainEvent.mock.calls[0];
+    expect(emitted()).toHaveLength(1);
+    const [{ type, payload }] = emitted();
     expect(type).toBe('time_entry.created');
     expect(payload.timeEntry).toMatchObject({
       projectId: 'p1',
@@ -572,7 +548,7 @@ describe('duplicate', () => {
   test('the row duplicate action does the same', () => {
     mount({ timeEntries: THREE_ENTRIES });
     fireEvent.click(within(row('late')).getByRole('button', { name: 'Duplicate entry' }));
-    expect(scheduleDomainEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'time_entry.created' }));
+    expect(emitted()).toContainEqual(expect.objectContaining({ type: 'time_entry.created' }));
   });
 
   test('an entry on an archived project is not duplicated', () => {
@@ -580,7 +556,7 @@ describe('duplicate', () => {
     key('j');
     key('d');
     expect(toastText()).toBe('That project is archived.');
-    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(emitted()).toEqual([]);
   });
 });
 
@@ -596,14 +572,14 @@ describe('delete', () => {
   test('Del asks inline with description, project and duration', () => {
     confirmDeleteOf('late');
     expect(confirmRow().textContent).toContain('Delete “late” · Website · 1:30?');
-    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(emitted()).toEqual([]);
   });
 
   test('y deletes permanently, removes the row and selects the next one', () => {
     confirmDeleteOf('late');
     key('y');
-    expect(scheduleDomainEvent).toHaveBeenCalledOnce();
-    expect(scheduleDomainEvent).toHaveBeenCalledWith({
+    expect(emitted()).toHaveLength(1);
+    expect(emitted()).toContainEqual({
       type: 'time_entry.deleted',
       scope: 'timetracking',
       entityId: 'late',
@@ -626,7 +602,7 @@ describe('delete', () => {
     expect(confirmRow()).toBeNull();
     expect(row('late')).toBeTruthy();
     expect(selected()).toEqual(['late']);
-    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(emitted()).toEqual([]);
   });
 
   test('any other key cancels the confirmation and is then handled normally', () => {
@@ -634,13 +610,13 @@ describe('delete', () => {
     key('j');
     expect(confirmRow()).toBeNull();
     expect(selected()).toEqual(['morning']);
-    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(emitted()).toEqual([]);
 
     key('Delete');
     key('e');
     expect(confirmRow()).toBeNull();
     expect(screen.queryByRole('dialog', { name: 'Edit entry' })).toBeTruthy();
-    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(emitted()).toEqual([]);
   });
 
   test('Tab cancels the confirmation without being swallowed', () => {
@@ -649,7 +625,7 @@ describe('delete', () => {
     expect(confirmRow()).toBeNull();
     expect(row('late')).toBeTruthy();
     key('y');
-    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(emitted()).toEqual([]);
   });
 
   test('the row delete action asks too; Cancel and Delete buttons work with the mouse', () => {
@@ -657,11 +633,11 @@ describe('delete', () => {
     fireEvent.click(within(row('late')).getByRole('button', { name: 'Delete entry' }));
     fireEvent.click(within(confirmRow()).getByRole('button', { name: 'Cancel' }));
     expect(confirmRow()).toBeNull();
-    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(emitted()).toEqual([]);
 
     fireEvent.click(within(row('late')).getByRole('button', { name: 'Delete entry' }));
     fireEvent.click(within(confirmRow()).getByRole('button', { name: 'Delete' }));
-    expect(scheduleDomainEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'time_entry.deleted', entityId: 'late' }));
+    expect(emitted()).toContainEqual(expect.objectContaining({ type: 'time_entry.deleted', entityId: 'late' }));
   });
 });
 
@@ -753,8 +729,8 @@ describe('entry list filter', () => {
   test('the filter survives new data and archived items stay selectable', () => {
     mount({ timeEntries: FILTERED });
     choose(customerFilter(), 'c2');
-    state.timeEntries = [...FILTERED, entry('support-new', '2026-10-08T08:00:00.000Z', '2026-10-08T08:15:00.000Z', { projectId: 'p3' })];
-    emitDataChanged();
+    const supportNew = entry('support-new', '2026-10-08T08:00:00.000Z', '2026-10-08T08:15:00.000Z', { projectId: 'p3' });
+    tt.receive({ type: 'time_entry.created', scope: 'timetracking', entityId: 'support-new', payload: { timeEntry: supportNew } });
     expect(customerFilter().value).toBe('c2');
     expect(descriptions()).toEqual(['support-new', 'support-today', 'support-yesterday']);
     expect(customerFilter().selectedOptions[0].textContent).toBe('Old Co (archived)');
@@ -768,7 +744,13 @@ describe('entry list filter', () => {
 
 describe('last-used project', () => {
   const SHOP = { id: 'p4', customerId: 'c1', name: 'Shop', color: '#ff9800', archived: false };
-  const remount = (options) => { unmount(); mount(options); };
+  // A reload: the same entries and device prefs, mounted afresh.
+  const remount = (options) => {
+    const { device } = tt;
+    const timeEntries = tt.state().timeEntries;
+    unmount();
+    mount({ timeEntries, device, ...options });
+  };
 
   function saveFromBar(project) {
     type('Project', project);
@@ -779,15 +761,15 @@ describe('last-used project', () => {
   test('saving from the entry bar prefills that project for the next entry, without an extra event', () => {
     mount({ extraProjects: [SHOP] });
     saveFromBar('Shop');
-    expect(scheduleDomainEvent).toHaveBeenCalledOnce();
-    expect(scheduleDomainEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'time_entry.created' }));
+    expect(emitted()).toHaveLength(1);
+    expect(emitted()).toContainEqual(expect.objectContaining({ type: 'time_entry.created' }));
     expect(field('Project').value).toBe('Acme / Shop');
   });
 
   test('survives a reload', () => {
     mount({ extraProjects: [SHOP] });
     saveFromBar('Shop');
-    remount({ extraProjects: [SHOP], timeEntries: state.timeEntries });
+    remount({ extraProjects: [SHOP] });
     expect(field('Project').value).toBe('Acme / Shop');
   });
 
@@ -797,7 +779,7 @@ describe('last-used project', () => {
     key('j');
     key('d');
     expect(field('Project').value).toBe('Acme / Shop');
-    remount({ extraProjects: [SHOP], timeEntries: state.timeEntries });
+    remount({ extraProjects: [SHOP] });
     expect(field('Project').value).toBe('Acme / Shop');
   });
 
@@ -810,16 +792,16 @@ describe('last-used project', () => {
     const dialog = screen.getByRole('dialog', { name: 'Edit entry' });
     fireEvent.input(within(dialog).getByLabelText('Project'), { target: { value: 'Shop' } });
     press(within(dialog).getByLabelText('Project'), 'Enter');
-    expect(scheduleDomainEvent).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'time_entry.updated' }));
+    expect(emitted().at(-1)).toEqual(expect.objectContaining({ type: 'time_entry.updated' }));
     expect(field('Project').value).toBe('Acme / Website');
-    remount({ extraProjects: [SHOP], timeEntries: state.timeEntries });
+    remount({ extraProjects: [SHOP] });
     expect(field('Project').value).toBe('Acme / Website');
   });
 
   test('an archived last-used project is not prefilled', () => {
     mount({ extraProjects: [SHOP] });
     saveFromBar('Shop');
-    remount({ extraProjects: [{ ...SHOP, archived: true }], timeEntries: state.timeEntries });
+    remount({ extraProjects: [{ ...SHOP, archived: true }] });
     expect(field('Project').value).toBe('');
   });
 });
@@ -827,8 +809,7 @@ describe('last-used project', () => {
 describe('"This week" Balance badge', () => {
   const badge = () => screen.getByTestId('tt-week-balance');
   const value = () => badge().querySelector('.tt-week-balance-value').textContent;
-  const asDefault = (timeTracking = {}) => vi.mocked(loadGlobalSettings)
-    .mockImplementation(() => ({ timeTracking: { defaultCustomerId: 'c1', ...timeTracking } }));
+  const asDefault = (stored = {}) => { settings = { ...DISPLAY_SETTINGS, defaultCustomerId: 'c1', ...stored }; };
   // Acme, the Default customer, gets the Work week.
   function withWeeklyHours(weeklyHours, workdays = [1, 2, 3, 4, 5]) {
     customers = [{ ...ACME, weeklyHours, workdays }, OLD_CO];
@@ -836,7 +817,7 @@ describe('"This week" Balance badge', () => {
   }
 
   afterEach(() => {
-    vi.mocked(loadGlobalSettings).mockImplementation(() => ({}));
+    settings = DISPLAY_SETTINGS;
     customers = [ACME, OLD_CO];
   });
 
@@ -987,5 +968,81 @@ describe('"This week" Balance badge', () => {
     fireEvent.click(document.getElementById('tt-nav-reports'));
     expect(screen.getByRole('button', { name: 'Month' }).getAttribute('aria-pressed')).toBe('true');
     expect(screen.getByTestId('tt-report-period').textContent).toBe('October 2026');
+  });
+});
+
+// Archived, unarchived and deleted Customers and Projects reach the tracker through the real reducer.
+describe('archive, restore and guarded delete', () => {
+  const SHOP = { id: 'p4', customerId: 'c1', name: 'Shop', color: '#ff9800', archived: false };
+  const projectOptions = () => [...document.getElementById(field('Project').getAttribute('list')).options].map((o) => o.value);
+  const onWebsite = entry('site-work', '2026-10-08T07:00:00.000Z', '2026-10-08T08:00:00.000Z');
+
+  function saveFromBar(project) {
+    type('Project', project);
+    type('Duration', '1h');
+    press(field('Duration'), 'Enter');
+  }
+
+  test('an archived project leaves the type-ahead and takes no new entries, while its entries keep its name', () => {
+    mount({ timeEntries: [onWebsite] });
+    tt.setProjectArchived('p1', true);
+    expect(projectOptions()).toEqual([]);
+    expect(within(row('site-work')).getByText('Website')).toBeTruthy();
+    const before = emitted().length;
+    saveFromBar('Acme / Website');
+    expect(toastText()).toBe('That project is archived.');
+    expect(emitted()).toHaveLength(before);
+  });
+
+  test('archiving a Customer closes its projects to new entries', () => {
+    mount({ extraProjects: [SHOP] });
+    tt.setCustomerArchived('c1', true);
+    expect(projectOptions()).toEqual([]);
+    saveFromBar('Acme / Shop');
+    expect(toastText()).toBe('That project is archived.');
+  });
+
+  test('an untouched entry bar drops a prefilled project once it is archived', () => {
+    mount({ extraProjects: [SHOP] });
+    saveFromBar('Shop');
+    expect(field('Project').value).toBe('Acme / Shop');
+    tt.setProjectArchived('p4', true);
+    expect(field('Project').value).toBe('');
+  });
+
+  test('unarchiving a project offers it again and takes entries on it', () => {
+    mount();
+    tt.setProjectArchived('p2', false);
+    expect(projectOptions()).toEqual(['Acme / Website', 'Acme / Legacy']);
+    saveFromBar('Acme / Legacy');
+    expect(emitted().at(-1)).toEqual(expect.objectContaining({
+      type: 'time_entry.created', payload: { timeEntry: expect.objectContaining({ projectId: 'p2' }) }
+    }));
+    expect(within(entryList()).getByText('Legacy')).toBeTruthy();
+  });
+
+  test('a project in use can not be deleted', () => {
+    mount({ timeEntries: [onWebsite] });
+    expect(tt.deleteProject('p1')).toEqual({ ok: false, reason: 'IN_USE' });
+    expect(projectOptions()).toEqual(['Acme / Website']);
+  });
+
+  test('a project delete that raced an entry on it archives the project, so the entry keeps its project', () => {
+    mount({ timeEntries: [onWebsite] });
+    tt.receive({ type: 'project.deleted', scope: 'timetracking', entityId: 'p1', payload: { project: WEBSITE } });
+    expect(within(row('site-work')).getByText('Website')).toBeTruthy();
+    expect(within(entryList()).queryByText('Unknown project')).toBeNull();
+    expect(projectOptions()).toEqual([]);
+  });
+
+  test('an entry logged elsewhere on a deleted project restores the project as archived', () => {
+    mount({ extraProjects: [SHOP] });
+    expect(tt.deleteProject('p4')).toEqual({ ok: true });
+    expect(projectOptions()).toEqual(['Acme / Website']);
+    const onShop = entry('shop-work', '2026-10-08T07:00:00.000Z', '2026-10-08T08:00:00.000Z', { projectId: 'p4' });
+    tt.receive({ type: 'time_entry.created', scope: 'timetracking', entityId: 'shop-work', payload: { timeEntry: onShop } });
+    expect(within(row('shop-work')).getByText('Shop')).toBeTruthy();
+    expect(within(entryList()).queryByText('Unknown project')).toBeNull();
+    expect(projectOptions()).toEqual(['Acme / Website']);
   });
 });

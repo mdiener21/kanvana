@@ -1,5 +1,5 @@
 import { EVENT_SCOPE, isDoneColumn } from './constants.js';
-import { isCustomerInUse, isProjectInUse } from './timetracking-references.js';
+import { isCustomerInUse, isProjectInUse } from './timetracking-model.js';
 
 const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
 

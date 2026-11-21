@@ -1,73 +1,57 @@
-import { beforeEach, describe, test, expect, vi } from 'vitest';
-import { resetLocalStorage } from '../setup.js';
+import { beforeEach, describe, test, expect } from 'vitest';
+import { createTestTimeTracking } from '../../fixtures/time-tracking.js';
+import { TT_ERROR } from '../../../src/modules/timetracking-model.js';
 
-// Mock scheduleDomainEvent so tests don't need a real DB
-vi.mock('../../../src/modules/event-sourcing/emitter.js', () => ({
-  scheduleDomainEvent: vi.fn(() => Promise.resolve())
-}));
-
-// loadTimeTracking drives validation — we control it via mock
-vi.mock('../../../src/modules/storage.js', async (importOriginal) => {
-  const original = await importOriginal();
-  return {
-    ...original,
-    loadTimeTracking: vi.fn(() => ({ customers: [], projects: [], timeEntries: [] }))
-  };
-});
-
-// Import the pure CRUD module — no DOM/icons dependency
-const { addCustomer, addProject, updateCustomerWorkWeek, CRUD_ERROR } = await import('../../../src/modules/timetracking-crud.js');
-const { loadTimeTracking } = await import('../../../src/modules/storage.js');
-const { scheduleDomainEvent } = await import('../../../src/modules/event-sourcing/emitter.js');
+let tt = null;
+const seed = (state = {}) => { tt = createTestTimeTracking(state); };
 
 beforeEach(() => {
-  resetLocalStorage();
-  vi.mocked(loadTimeTracking).mockReturnValue({ customers: [], projects: [], timeEntries: [] });
+  seed();
 });
 
 // ── addCustomer ────────────────────────────────────────────────────────────────
 
 test('addCustomer succeeds with a valid name', () => {
-  const result = addCustomer('Acme');
+  const result = tt.addCustomer('Acme');
   expect(result.ok).toBe(true);
   expect(result.customer.name).toBe('Acme');
 });
 
 test('addCustomer trims whitespace from name', () => {
-  const result = addCustomer('  Acme  ');
+  const result = tt.addCustomer('  Acme  ');
   expect(result.ok).toBe(true);
   expect(result.customer.name).toBe('Acme');
 });
 
 test('addCustomer rejects empty name', () => {
-  expect(addCustomer('').ok).toBe(false);
-  expect(addCustomer('   ').ok).toBe(false);
-  expect(addCustomer('').reason).toBe(CRUD_ERROR.EMPTY_NAME);
+  expect(tt.addCustomer('').ok).toBe(false);
+  expect(tt.addCustomer('   ').ok).toBe(false);
+  expect(tt.addCustomer('').reason).toBe(TT_ERROR.EMPTY_NAME);
 });
 
 test('addCustomer rejects duplicate name (case-insensitive)', () => {
-  vi.mocked(loadTimeTracking).mockReturnValue({
+  seed({
     customers: [{ id: 'c1', name: 'Acme', archived: false }],
     projects: [],
     timeEntries: []
   });
-  const result = addCustomer('acme');
+  const result = tt.addCustomer('acme');
   expect(result.ok).toBe(false);
-  expect(result.reason).toBe(CRUD_ERROR.DUPLICATE_NAME);
+  expect(result.reason).toBe(TT_ERROR.DUPLICATE_NAME);
 });
 
 test('addCustomer allows different customer names', () => {
-  vi.mocked(loadTimeTracking).mockReturnValue({
+  seed({
     customers: [{ id: 'c1', name: 'Acme', archived: false }],
     projects: [],
     timeEntries: []
   });
-  const result = addCustomer('Globex');
+  const result = tt.addCustomer('Globex');
   expect(result.ok).toBe(true);
 });
 
 test('addCustomer assigns a color from the palette', () => {
-  const result = addCustomer('Acme');
+  const result = tt.addCustomer('Acme');
   expect(typeof result.customer.color).toBe('string');
   expect(result.customer.color).toMatch(/^#/);
 });
@@ -75,58 +59,58 @@ test('addCustomer assigns a color from the palette', () => {
 // ── addProject ─────────────────────────────────────────────────────────────────
 
 test('addProject succeeds with valid customerId and name', () => {
-  vi.mocked(loadTimeTracking).mockReturnValue({
+  seed({
     customers: [{ id: 'c1', name: 'Acme', archived: false }],
     projects: [],
     timeEntries: []
   });
-  const result = addProject('c1', 'Website');
+  const result = tt.addProject('c1', 'Website');
   expect(result.ok).toBe(true);
   expect(result.project.name).toBe('Website');
   expect(result.project.customerId).toBe('c1');
 });
 
 test('addProject trims whitespace from name', () => {
-  vi.mocked(loadTimeTracking).mockReturnValue({
+  seed({
     customers: [{ id: 'c1', name: 'Acme', archived: false }],
     projects: [],
     timeEntries: []
   });
-  const result = addProject('c1', '  MVP  ');
+  const result = tt.addProject('c1', '  MVP  ');
   expect(result.ok).toBe(true);
   expect(result.project.name).toBe('MVP');
 });
 
 test('addProject rejects empty name', () => {
-  vi.mocked(loadTimeTracking).mockReturnValue({
+  seed({
     customers: [{ id: 'c1', name: 'Acme', archived: false }],
     projects: [],
     timeEntries: []
   });
-  const result = addProject('c1', '');
+  const result = tt.addProject('c1', '');
   expect(result.ok).toBe(false);
-  expect(result.reason).toBe(CRUD_ERROR.EMPTY_NAME);
+  expect(result.reason).toBe(TT_ERROR.EMPTY_NAME);
 });
 
 test('addProject rejects missing customerId', () => {
-  const result = addProject('', 'MVP');
+  const result = tt.addProject('', 'MVP');
   expect(result.ok).toBe(false);
-  expect(result.reason).toBe(CRUD_ERROR.NO_CUSTOMER);
+  expect(result.reason).toBe(TT_ERROR.NO_CUSTOMER);
 });
 
 test('addProject rejects duplicate project name within same customer (case-insensitive)', () => {
-  vi.mocked(loadTimeTracking).mockReturnValue({
+  seed({
     customers: [{ id: 'c1', name: 'Acme', archived: false }],
     projects: [{ id: 'p1', customerId: 'c1', name: 'Website', archived: false }],
     timeEntries: []
   });
-  const result = addProject('c1', 'website');
+  const result = tt.addProject('c1', 'website');
   expect(result.ok).toBe(false);
-  expect(result.reason).toBe(CRUD_ERROR.DUPLICATE_NAME);
+  expect(result.reason).toBe(TT_ERROR.DUPLICATE_NAME);
 });
 
 test('addProject allows same project name under different customers', () => {
-  vi.mocked(loadTimeTracking).mockReturnValue({
+  seed({
     customers: [
       { id: 'c1', name: 'Acme', archived: false },
       { id: 'c2', name: 'Globex', archived: false }
@@ -134,17 +118,17 @@ test('addProject allows same project name under different customers', () => {
     projects: [{ id: 'p1', customerId: 'c1', name: 'Website', archived: false }],
     timeEntries: []
   });
-  const result = addProject('c2', 'Website');
+  const result = tt.addProject('c2', 'Website');
   expect(result.ok).toBe(true);
 });
 
 test('addProject assigns a color from the palette', () => {
-  vi.mocked(loadTimeTracking).mockReturnValue({
+  seed({
     customers: [{ id: 'c1', name: 'Acme', archived: false }],
     projects: [],
     timeEntries: []
   });
-  const result = addProject('c1', 'MVP');
+  const result = tt.addProject('c1', 'MVP');
   expect(result.project.color).toMatch(/^#/);
 });
 
@@ -152,15 +136,14 @@ test('addProject assigns a color from the palette', () => {
 
 describe('updateCustomerWorkWeek', () => {
   const legacyCustomer = { id: 'c1', name: 'Acme', color: '#000000', archived: true };
-  const events = () => vi.mocked(scheduleDomainEvent).mock.calls.map(([event]) => event);
+  const events = () => tt.emitted;
 
   beforeEach(() => {
-    vi.mocked(scheduleDomainEvent).mockClear();
-    vi.mocked(loadTimeTracking).mockReturnValue({ customers: [legacyCustomer], projects: [], timeEntries: [] });
+    seed({ customers: [legacyCustomer], projects: [], timeEntries: [] });
   });
 
   test('emits a customer.updated patch of only the changed fields, with their before values', () => {
-    expect(updateCustomerWorkWeek('c1', { weeklyHours: 24, workdays: [3, 1, 2, 2] })).toEqual({ ok: true, changed: true });
+    expect(tt.updateCustomerWorkWeek('c1', { weeklyHours: 24, workdays: [3, 1, 2, 2] })).toEqual({ ok: true, changed: true });
     expect(events()).toEqual([expect.objectContaining({
       type: 'customer.updated', scope: 'timetracking', entityId: 'c1',
       payload: { fields: { weeklyHours: 24, workdays: [1, 2, 3] }, before: { weeklyHours: null, workdays: [1, 2, 3, 4, 5] } }
@@ -168,20 +151,20 @@ describe('updateCustomerWorkWeek', () => {
   });
 
   test('an unchanged value emits nothing', () => {
-    expect(updateCustomerWorkWeek('c1', { weeklyHours: null, workdays: [1, 2, 3, 4, 5] })).toEqual({ ok: true, changed: false });
+    expect(tt.updateCustomerWorkWeek('c1', { weeklyHours: null, workdays: [1, 2, 3, 4, 5] })).toEqual({ ok: true, changed: false });
     expect(events()).toEqual([]);
   });
 
   test.each([[0], [-1], [Number.NaN], [Infinity], ['40']])('rejects Weekly hours %s', (weeklyHours) => {
-    expect(updateCustomerWorkWeek('c1', { weeklyHours })).toEqual({ ok: false, reason: CRUD_ERROR.INVALID_WORK_WEEK });
+    expect(tt.updateCustomerWorkWeek('c1', { weeklyHours })).toEqual({ ok: false, reason: TT_ERROR.INVALID_WORK_WEEK });
     expect(events()).toEqual([]);
   });
 
   test.each([[[]], [[0]], [[8]], [[1.5]], [null]])('rejects Workdays %j', (workdays) => {
-    expect(updateCustomerWorkWeek('c1', { workdays })).toEqual({ ok: false, reason: CRUD_ERROR.INVALID_WORK_WEEK });
+    expect(tt.updateCustomerWorkWeek('c1', { workdays })).toEqual({ ok: false, reason: TT_ERROR.INVALID_WORK_WEEK });
   });
 
   test('an unknown Customer is not found', () => {
-    expect(updateCustomerWorkWeek('nope', { weeklyHours: 8 })).toEqual({ ok: false, reason: CRUD_ERROR.NOT_FOUND });
+    expect(tt.updateCustomerWorkWeek('nope', { weeklyHours: 8 })).toEqual({ ok: false, reason: TT_ERROR.NOT_FOUND });
   });
 });

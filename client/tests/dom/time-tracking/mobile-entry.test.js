@@ -3,32 +3,11 @@ import { screen, fireEvent, within } from '@testing-library/dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { mountToBody } from '../setup.js';
-
-const state = { customers: [], projects: [], timeEntries: [] };
-
-vi.mock('../../../src/modules/storage.js', () => ({
-  loadTimeTracking: vi.fn(() => state),
-  loadGlobalSettings: vi.fn(() => ({}))
-}));
+import { createTestTimeTracking } from '../../fixtures/time-tracking.js';
 
 vi.mock('../../../src/modules/icons.js', () => ({
   renderIcons: vi.fn()
 }));
-
-vi.mock('../../../src/modules/event-sourcing/emitter.js', async () => {
-  const { emit, DATA_CHANGED } = await import('../../../src/modules/events.js');
-  return {
-    scheduleDomainEvent: vi.fn((event) => {
-      if (event.type === 'time_entry.created') state.timeEntries = [...state.timeEntries, event.payload.timeEntry];
-      if (event.type === 'time_entry.updated') {
-        state.timeEntries = state.timeEntries.map((e) => (e.id === event.entityId ? { ...e, ...event.payload.fields } : e));
-      }
-      if (event.type === 'time_entry.deleted') state.timeEntries = state.timeEntries.filter((e) => e.id !== event.entityId);
-      emit(DATA_CHANGED);
-      return Promise.resolve();
-    })
-  };
-});
 
 const { mountTimeTracking } = await import('../../../src/modules/timetracking-ui.js');
 
@@ -36,7 +15,7 @@ const pageHtml = readFileSync(resolve(__dirname, '../../../src/timetracking.html
 const bodyHtml = pageHtml.slice(pageHtml.indexOf('<body>') + 6, pageHtml.indexOf('</body>'));
 
 const NOW = '2026-10-15T13:00:00.000Z'; // Thu 15 Oct 2026, 15:00 in Europe/Berlin
-const prefs = () => ({ tz: 'Europe/Berlin', dateFormat: 'DD.MM.YYYY', timeFormat: '24h', now: Date.now() });
+const DISPLAY_SETTINGS = { timezone: 'Europe/Berlin', dateFormat: 'DD.MM.YYYY', timeFormat: '24h' };
 const MINUTE = 60 * 1000;
 
 const ACME = { id: 'c1', name: 'Acme', color: '#000000', archived: false };
@@ -48,14 +27,13 @@ const entry = (id, start, end, projectId = 'p1') => ({ id, projectId, descriptio
 const DAY = () => [entry('review', '09:00', '10:30'), entry('call', '11:00', '11:45'), entry('deploy', '13:00', '14:15', 'p2')];
 
 let unmount = null;
+let tt = null;
 const fakeChart = () => ({ setOption() {}, resize() {}, dispose() {} });
 
 function mount(timeEntries = DAY()) {
-  state.customers = [ACME];
-  state.projects = [ALPHA, BETA];
-  state.timeEntries = timeEntries;
+  tt = createTestTimeTracking({ customers: [ACME], projects: [ALPHA, BETA], timeEntries, settings: DISPLAY_SETTINGS });
   mountToBody(bodyHtml);
-  unmount = mountTimeTracking(document, { getPrefs: prefs, createChart: fakeChart });
+  unmount = mountTimeTracking(document, { timeTracking: tt, createChart: fakeChart });
 }
 
 const bar = () => screen.getByRole('group', { name: 'New time entry' });
@@ -104,7 +82,7 @@ describe('an idle entry bar keeps its default times current', () => {
     fireEvent.input(field('Project'), { target: { value: 'Acme / Alpha' } });
     fireEvent.input(field('Description'), { target: { value: 'Review' } });
     fireEvent.keyDown(field('Description'), { key: 'Enter' });
-    const saved = state.timeEntries.at(-1);
+    const saved = tt.state().timeEntries.at(-1);
     expect([saved.start, saved.end]).toEqual([at('14:15'), at('16:30')]);
   });
 
@@ -122,7 +100,7 @@ describe('an idle entry bar keeps its default times current', () => {
     window.dispatchEvent(new Event('focus'));
     fireEvent.input(field('Project'), { target: { value: 'Acme / Alpha' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add entry' }));
-    const saved = state.timeEntries.at(-1);
+    const saved = tt.state().timeEntries.at(-1);
     expect([saved.start, saved.end]).toEqual([at('11:45'), at('13:00')]);
   });
 });
@@ -155,7 +133,7 @@ describe('focus after saving and filling', () => {
     fireEvent.input(field('Project'), { target: { value: 'Acme / Alpha' } });
     field('Description').focus();
     fireEvent.click(screen.getByRole('button', { name: 'Add entry' }));
-    expect(state.timeEntries).toHaveLength(4);
+    expect(tt.state().timeEntries).toHaveLength(4);
     expect(document.activeElement).not.toBe(field('Description'));
   });
 
@@ -255,7 +233,7 @@ describe('row menu on touch devices', () => {
     mount();
     fireEvent.click(more('call'));
     fireEvent.click(within(menu()).getByRole('menuitem', { name: 'Duplicate' }));
-    expect(state.timeEntries).toHaveLength(4);
+    expect(tt.state().timeEntries).toHaveLength(4);
     expect(menu()).toBeNull();
   });
 
@@ -263,9 +241,9 @@ describe('row menu on touch devices', () => {
     mount();
     fireEvent.click(more('call'));
     fireEvent.click(within(menu()).getByRole('menuitem', { name: 'Delete' }));
-    expect(state.timeEntries).toHaveLength(3);
+    expect(tt.state().timeEntries).toHaveLength(3);
     fireEvent.click(within(row('call')).getByRole('button', { name: 'Delete' }));
-    expect(state.timeEntries.map((e) => e.id)).not.toContain('call');
+    expect(tt.state().timeEntries.map((e) => e.id)).not.toContain('call');
   });
 
   test('Esc, tapping ⋯ again or tapping elsewhere closes the menu', () => {

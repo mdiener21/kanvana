@@ -1,14 +1,9 @@
-import { loadTimeTracking } from './storage.js';
-import { on, off, DATA_CHANGED } from './events.js';
 import { renderIcons } from './icons.js';
 import { escapeHtml } from './security.js';
-import {
-  addTimeEntry, updateTimeEntry, duplicateTimeEntry, deleteTimeEntry, projectById, customerById, CRUD_ERROR
-} from './timetracking-crud.js';
 import { showToast } from './timetracking-toast.js';
 import { entryFieldsHtml, wireEntryFields } from './timetracking-entry-fields.js';
 import { filterEntries, mountEntryFilter } from './timetracking-filter.js';
-import { prefillProjectId, loadLastUsedProjectId, rememberLastUsedProject } from './timetracking-settings.js';
+import { projectById, customerById, prefillProjectId, TT_ERROR } from './timetracking-model.js';
 import { WEEK_HEADER_HTML, mountWeekStrip } from './timetracking-week-strip.js';
 import { groupEntriesByDay, formatTime, formatDuration, plusDaysBetween, newEntryTimes } from './timetracking-time.js';
 import { colorDotHtml } from './timetracking-markup.js';
@@ -19,11 +14,11 @@ import { untrackedGaps } from './timetracking-gaps.js';
 import { dayRowsHtml, fillChipsHtml, gapBefore, gapOfFillButton } from './timetracking-gap-rows.js';
 
 export const ENTRY_ERROR_MESSAGES = {
-  [CRUD_ERROR.NO_PROJECT]: 'Select a project.',
-  [CRUD_ERROR.ARCHIVED_PROJECT]: 'That project is archived.',
-  [CRUD_ERROR.INVALID_TIME]: 'Enter a valid date and time.',
-  [CRUD_ERROR.ZERO_DURATION]: 'Duration must be greater than zero.',
-  [CRUD_ERROR.NOT_FOUND]: 'That entry no longer exists.'
+  [TT_ERROR.NO_PROJECT]: 'Select a project.',
+  [TT_ERROR.ARCHIVED_PROJECT]: 'That project is archived.',
+  [TT_ERROR.INVALID_TIME]: 'Enter a valid date and time.',
+  [TT_ERROR.ZERO_DURATION]: 'Duration must be greater than zero.',
+  [TT_ERROR.NOT_FOUND]: 'That entry no longer exists.'
 };
 
 const PANEL_HTML = `
@@ -151,7 +146,7 @@ function entryListHtml(tt, prefs, groups, view, gaps, dayEntries) {
 const DISPLAY_PREF_KEYS = ['tz', 'dateFormat', 'timeFormat', 'durationFormat'];
 const sameDisplayPrefs = (a, b) => DISPLAY_PREF_KEYS.every((key) => a[key] === b[key]);
 
-export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurrentWeek = () => {} }) {
+export function mountTrackerPanel(container, { timeTracking, onOpenCurrentWeek = () => {} }) {
   container.innerHTML = PANEL_HTML;
   renderIcons(container);
 
@@ -162,17 +157,17 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
   const list = container.querySelector('.tt-entry-list');
   const count = container.querySelector('.tt-entry-count');
   const filter = mountEntryFilter(container.querySelector('.tt-list-filter'), {
-    getTimeTracking: loadTimeTracking,
+    getTimeTracking: timeTracking.state,
     onChange: () => refresh()
   });
 
   const fields = wireEntryFields(bar, {
-    getPrefs,
-    getTimeTracking: loadTimeTracking,
+    getPrefs: timeTracking.prefs,
+    getTimeTracking: timeTracking.state,
     beforeSubmit: () => refreshDefaultTimes(),
     onSubmit(result) {
-      if (!saveSubmitted(result, addTimeEntry)) return;
-      rememberLastUsedProject(result.entry.projectId);
+      if (!saveSubmitted(result, timeTracking.addTimeEntry)) return;
+      timeTracking.rememberLastUsedProject(result.entry.projectId);
       reset();
       // On touch, focusing Description would reopen the soft keyboard over the new row.
       if (isTouch()) doc.activeElement?.blur();
@@ -184,24 +179,24 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     if (isTouch() && ev.target.matches('input')) bar.scrollIntoView?.({ block: 'start' });
   });
 
-  const currentPrefill = () => prefillProjectId(loadTimeTracking(), getSettings(), loadLastUsedProjectId());
+  const currentPrefill = () => prefillProjectId(timeTracking.state(), timeTracking.settings(), timeTracking.lastUsedProjectId());
   let lastPrefill = null;
 
   let defaultTimeValues = null;
   const sameTimeValues = (a, b) => Object.keys(a).every((key) => a[key] === b?.[key]);
 
   function reset() {
-    const { now, tz } = getPrefs();
+    const { now, tz } = timeTracking.prefs();
     lastPrefill = currentPrefill();
-    fields.setEntry({ projectId: lastPrefill, ...newEntryTimes(loadTimeTracking().timeEntries, now, tz) });
+    fields.setEntry({ projectId: lastPrefill, ...newEntryTimes(timeTracking.state().timeEntries, now, tz) });
     defaultTimeValues = fields.timeValues();
   }
 
   // An open page goes stale: untouched default times move to now; typed or filled ones stay.
   function refreshDefaultTimes() {
     if (!sameTimeValues(fields.timeValues(), defaultTimeValues)) return;
-    const { now, tz } = getPrefs();
-    const { startMs, endMs } = newEntryTimes(loadTimeTracking().timeEntries, now, tz);
+    const { now, tz } = timeTracking.prefs();
+    const { startMs, endMs } = newEntryTimes(timeTracking.state().timeEntries, now, tz);
     fields.setTimes(startMs, endMs);
     defaultTimeValues = fields.timeValues();
   }
@@ -220,14 +215,14 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     lastPrefill = prefill;
   }
 
-  const entryById = (id) => loadTimeTracking().timeEntries.find((e) => e.id === id);
+  const entryById = (id) => timeTracking.state().timeEntries.find((e) => e.id === id);
   const rowOf = (id) => [...list.querySelectorAll('[data-entry-id]')].find((r) => r.dataset.entryId === id);
   const view = { selectedId: null, confirmingId: null, menuId: null };
   const rename = mountRowRename({
     rowOf,
     onDone(id, save, value) {
       const entry = entryById(id);
-      if (save && entry) reportFailure(updateTimeEntry(id, { ...entry, description: value }));
+      if (save && entry) reportFailure(timeTracking.updateTimeEntry(id, { ...entry, description: value }));
       refresh();
     }
   });
@@ -245,14 +240,14 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
   }
 
   const weekStrip = mountWeekStrip(container, {
-    getSettings,
+    getSettings: timeTracking.settings,
     onOpenCurrentWeek,
     onSelectDay: (key) => list.querySelector(`[data-day="${key}"]`)?.scrollIntoView?.({ block: 'start' })
   });
 
   function refresh() {
-    const tt = loadTimeTracking();
-    const prefs = getPrefs();
+    const tt = timeTracking.state();
+    const prefs = timeTracking.prefs();
     weekStrip.refresh(tt, prefs);
     redisplayOnFormatChange(prefs);
     followPrefill();
@@ -327,10 +322,10 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     doc.body.appendChild(element);
 
     const editorFields = wireEntryFields(element.querySelector('.tt-edit-fields'), {
-      getPrefs,
-      getTimeTracking: loadTimeTracking,
+      getPrefs: timeTracking.prefs,
+      getTimeTracking: timeTracking.state,
       onSubmit(result) {
-        if (!saveSubmitted(result, (entry) => updateTimeEntry(id, entry))) return;
+        if (!saveSubmitted(result, (entry) => timeTracking.updateTimeEntry(id, entry))) return;
         closeEditor();
         select(id);
       }
@@ -353,9 +348,9 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
   }
 
   function duplicate(id) {
-    const result = duplicateTimeEntry(id, getPrefs().now);
+    const result = timeTracking.duplicateTimeEntry(id, timeTracking.prefs().now);
     if (!reportFailure(result)) return;
-    rememberLastUsedProject(result.timeEntry.projectId);
+    timeTracking.rememberLastUsedProject(result.timeEntry.projectId);
     select(result.timeEntry.id);
   }
 
@@ -376,7 +371,7 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     const index = visibleIds.indexOf(id);
     const neighbour = visibleIds[index + 1] ?? visibleIds[index - 1] ?? null;
     view.confirmingId = null;
-    select(reportFailure(deleteTimeEntry(id)) ? neighbour : id);
+    select(reportFailure(timeTracking.deleteTimeEntry(id)) ? neighbour : id);
   }
 
   function startRename(id) {
@@ -462,7 +457,7 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
 
   reset();
   refresh();
-  on(DATA_CHANGED, refresh);
+  const unsubscribe = timeTracking.subscribe(refresh);
   return {
     focusNewEntry: () => fields.focus(),
     focusFilter: () => filter.focus(),
@@ -486,7 +481,7 @@ export function mountTrackerPanel(container, { getPrefs, getSettings, onOpenCurr
     unmount() {
       rename.beforeRender();
       closeEditor();
-      off(DATA_CHANGED, refresh);
+      unsubscribe();
       doc.removeEventListener('click', onDocumentClick);
       for (const type of PLACEMENT_EVENTS) win.removeEventListener(type, placeRowMenu);
       for (const [target, type] of PAGE_RETURN_EVENTS) target.removeEventListener(type, onPageReturn);

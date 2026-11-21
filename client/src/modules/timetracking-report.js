@@ -1,4 +1,4 @@
-import { projectById, customerById } from './timetracking-crud.js';
+import { projectById, customerById } from './timetracking-model.js';
 import { customerBalance } from './timetracking-balance.js';
 import {
   zonedParts, addDays, daysInMonth, daysBetween, startOfIsoWeek, isoWeek, ymdToUtcMs, formatShortMonth as shortMonth, formatMonthYear

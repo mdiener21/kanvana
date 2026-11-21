@@ -3,42 +3,19 @@ import { screen, fireEvent, within } from '@testing-library/dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { mountToBody } from '../setup.js';
-
-const state = { customers: [], projects: [], timeEntries: [] };
-
-vi.mock('../../../src/modules/storage.js', () => ({
-  loadTimeTracking: vi.fn(() => state),
-  loadGlobalSettings: vi.fn(() => ({}))
-}));
+import { createTestTimeTracking } from '../../fixtures/time-tracking.js';
 
 vi.mock('../../../src/modules/icons.js', () => ({
   renderIcons: vi.fn()
 }));
 
-vi.mock('../../../src/modules/event-sourcing/emitter.js', async () => {
-  const { emit, DATA_CHANGED } = await import('../../../src/modules/events.js');
-  return {
-    scheduleDomainEvent: vi.fn((event) => {
-      if (event.type === 'time_entry.created') state.timeEntries = [...state.timeEntries, event.payload.timeEntry];
-      if (event.type === 'time_entry.updated') {
-        state.timeEntries = state.timeEntries.map((e) => (e.id === event.entityId ? { ...e, ...event.payload.fields } : e));
-      }
-      if (event.type === 'time_entry.deleted') state.timeEntries = state.timeEntries.filter((e) => e.id !== event.entityId);
-      emit(DATA_CHANGED);
-      return Promise.resolve();
-    })
-  };
-});
-
 const { mountTimeTracking } = await import('../../../src/modules/timetracking-ui.js');
-const { scheduleDomainEvent } = await import('../../../src/modules/event-sourcing/emitter.js');
-const { emit, DATA_CHANGED } = await import('../../../src/modules/events.js');
 
 const pageHtml = readFileSync(resolve(__dirname, '../../../src/timetracking.html'), 'utf-8');
 const bodyHtml = pageHtml.slice(pageHtml.indexOf('<body>') + 6, pageHtml.indexOf('</body>'));
 
 const NOW = '2026-10-08T14:00:00.000Z'; // 16:00 in Europe/Berlin (CEST, UTC+2)
-const prefs = () => ({ tz: 'Europe/Berlin', dateFormat: 'DD.MM.YYYY', timeFormat: '24h', now: Date.now() });
+const DISPLAY_SETTINGS = { timezone: 'Europe/Berlin', dateFormat: 'DD.MM.YYYY', timeFormat: '24h' };
 
 const ACME = { id: 'c1', name: 'Acme', color: '#000000', archived: false };
 const GLOBEX = { id: 'c2', name: 'Globex', color: '#000000', archived: false };
@@ -46,6 +23,7 @@ const WEBSITE = { id: 'p1', customerId: 'c1', name: 'Website', color: '#03a9f4',
 const LIME = { id: 'p2', customerId: 'c2', name: 'Lime', color: '#8bc34a', archived: false };
 
 let unmount = null;
+let tt = null;
 const fakeChart = () => ({ setOption() {}, resize() {}, dispose() {} });
 const entry = (id, start, end, projectId = 'p1') => ({ id, projectId, description: id, start, end });
 
@@ -54,11 +32,9 @@ const MORNING = entry('morning', '2026-10-08T07:00:00.000Z', '2026-10-08T08:30:0
 const MIDDAY = entry('midday', '2026-10-08T08:45:00.000Z', '2026-10-08T10:45:00.000Z', 'p2');
 
 function mount(timeEntries) {
-  state.customers = [ACME, GLOBEX];
-  state.projects = [WEBSITE, LIME];
-  state.timeEntries = timeEntries;
+  tt = createTestTimeTracking({ customers: [ACME, GLOBEX], projects: [WEBSITE, LIME], timeEntries, settings: DISPLAY_SETTINGS });
   mountToBody(bodyHtml);
-  unmount = mountTimeTracking(document, { getPrefs: prefs, createChart: fakeChart });
+  unmount = mountTimeTracking(document, { timeTracking: tt, createChart: fakeChart });
 }
 
 const entryList = () => screen.getByRole('region', { name: 'Time entries' });
@@ -127,8 +103,8 @@ describe('untracked gap rows', () => {
     expect(field('Project').value).toBe('Globex / Lime');
     expect(field('Description').value).toBe('Review');
     expect(document.activeElement).toBe(field('Description'));
-    expect(scheduleDomainEvent).not.toHaveBeenCalled();
-    expect(state.timeEntries).toHaveLength(2);
+    expect(tt.emitted).toEqual([]);
+    expect(tt.state().timeEntries).toHaveLength(2);
   });
 
   test('Fill then Enter adds the entry and the gap disappears', () => {
@@ -136,7 +112,7 @@ describe('untracked gap rows', () => {
     field('Project').value = 'Acme / Website';
     fireEvent.click(within(gapRows()[0]).getByRole('button', { name: /^Fill/ }));
     fireEvent.keyDown(field('Description'), { key: 'Enter' });
-    expect(state.timeEntries).toHaveLength(3);
+    expect(tt.state().timeEntries).toHaveLength(3);
     expect(gapRows()).toHaveLength(0);
   });
 
@@ -154,17 +130,14 @@ describe('untracked gap rows', () => {
   test('gaps are recomputed when entries arrive from sync, are edited or deleted', () => {
     mount([MORNING]);
     expect(gapRows()).toHaveLength(0);
-    state.timeEntries = [MORNING, MIDDAY];
-    emit(DATA_CHANGED);
+    tt.receive({ type: 'time_entry.created', scope: 'timetracking', entityId: MIDDAY.id, payload: { timeEntry: MIDDAY } });
     expect(gapRows()).toHaveLength(1);
-    state.timeEntries = [MORNING, { ...MIDDAY, start: '2026-10-08T08:30:00.000Z' }];
-    emit(DATA_CHANGED);
+    const moveMidday = (start) => tt.receive({ type: 'time_entry.updated', scope: 'timetracking', entityId: MIDDAY.id, payload: { fields: { start } } });
+    moveMidday('2026-10-08T08:30:00.000Z');
     expect(gapRows()).toHaveLength(0);
-    state.timeEntries = [MORNING, { ...MIDDAY, start: '2026-10-08T09:00:00.000Z' }];
-    emit(DATA_CHANGED);
+    moveMidday('2026-10-08T09:00:00.000Z');
     expect(text(gapRows()[0])).toBe('10:30 – 11:00 · 30 min untracked Fill');
-    state.timeEntries = [MIDDAY];
-    emit(DATA_CHANGED);
+    tt.receive({ type: 'time_entry.deleted', scope: 'timetracking', entityId: MORNING.id, payload: { timeEntry: MORNING } });
     expect(gapRows()).toHaveLength(0);
   });
 });

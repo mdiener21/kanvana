@@ -3,13 +3,7 @@ import { screen, within, fireEvent } from '@testing-library/dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { mountToBody } from '../setup.js';
-
-const state = { customers: [], projects: [], timeEntries: [] };
-
-vi.mock('../../../src/modules/storage.js', () => ({
-  loadTimeTracking: vi.fn(() => state),
-  loadGlobalSettings: vi.fn(() => ({}))
-}));
+import { createTestTimeTracking } from '../../fixtures/time-tracking.js';
 
 vi.mock('../../../src/modules/icons.js', () => ({
   renderIcons: vi.fn()
@@ -21,22 +15,21 @@ const pageHtml = readFileSync(resolve(__dirname, '../../../src/timetracking.html
 const bodyHtml = pageHtml.slice(pageHtml.indexOf('<body>') + 6, pageHtml.indexOf('</body>'));
 
 const NOW = '2026-10-08T10:00:00.000Z'; // 12:00 in Europe/Berlin
-const prefs = () => ({ tz: 'Europe/Berlin', dateFormat: 'DD.MM.YYYY', timeFormat: '24h', now: Date.now() });
+const DISPLAY_SETTINGS = { timezone: 'Europe/Berlin', dateFormat: 'DD.MM.YYYY', timeFormat: '24h' };
 
 const ACME = { id: 'c1', name: 'Acme', color: '#000000', archived: false };
 const WEBSITE = { id: 'p1', customerId: 'c1', name: 'Website', color: '#03a9f4', archived: false };
 const LIME = { id: 'p2', customerId: 'c1', name: 'Lime', color: '#8bc34a', archived: false };
 
 let unmount = null;
+let tt = null;
 const fakeChart = () => ({ setOption() {}, resize() {}, dispose() {} });
 const entry = (id, start, end, projectId = 'p1') => ({ id, projectId, description: id, start, end });
 
 function mount(timeEntries) {
-  state.customers = [ACME];
-  state.projects = [WEBSITE, LIME];
-  state.timeEntries = timeEntries;
+  tt = createTestTimeTracking({ customers: [ACME], projects: [WEBSITE, LIME], timeEntries, settings: DISPLAY_SETTINGS });
   mountToBody(bodyHtml);
-  unmount = mountTimeTracking(document, { getPrefs: prefs, createChart: fakeChart });
+  unmount = mountTimeTracking(document, { timeTracking: tt, createChart: fakeChart });
 }
 
 const entryList = () => screen.getByRole('region', { name: 'Time entries' });

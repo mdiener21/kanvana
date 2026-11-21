@@ -3,41 +3,19 @@ import { screen, fireEvent, within } from '@testing-library/dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { mountToBody } from '../setup.js';
-
-const state = { customers: [], projects: [], timeEntries: [] };
-
-vi.mock('../../../src/modules/storage.js', () => ({
-  loadTimeTracking: vi.fn(() => state),
-  loadGlobalSettings: vi.fn(() => ({}))
-}));
+import { createTestTimeTracking } from '../../fixtures/time-tracking.js';
 
 vi.mock('../../../src/modules/icons.js', () => ({
   renderIcons: vi.fn()
 }));
 
-vi.mock('../../../src/modules/event-sourcing/emitter.js', async () => {
-  const { emit, DATA_CHANGED } = await import('../../../src/modules/events.js');
-  return {
-    scheduleDomainEvent: vi.fn((event) => {
-      if (event.type === 'time_entry.created') state.timeEntries = [...state.timeEntries, event.payload.timeEntry];
-      if (event.type === 'time_entry.updated') {
-        state.timeEntries = state.timeEntries.map((e) => (e.id === event.entityId ? { ...e, ...event.payload.fields } : e));
-      }
-      if (event.type === 'time_entry.deleted') state.timeEntries = state.timeEntries.filter((e) => e.id !== event.entityId);
-      emit(DATA_CHANGED);
-      return Promise.resolve();
-    })
-  };
-});
-
 const { mountTimeTracking } = await import('../../../src/modules/timetracking-ui.js');
-const { scheduleDomainEvent } = await import('../../../src/modules/event-sourcing/emitter.js');
 
 const pageHtml = readFileSync(resolve(__dirname, '../../../src/timetracking.html'), 'utf-8');
 const bodyHtml = pageHtml.slice(pageHtml.indexOf('<body>') + 6, pageHtml.indexOf('</body>'));
 
 const NOW = '2026-10-08T14:00:00.000Z'; // 16:00 in Europe/Berlin (CEST, UTC+2)
-const prefs = () => ({ tz: 'Europe/Berlin', dateFormat: 'DD.MM.YYYY', timeFormat: '24h', now: Date.now() });
+const DISPLAY_SETTINGS = { timezone: 'Europe/Berlin', dateFormat: 'DD.MM.YYYY', timeFormat: '24h' };
 
 const ACME = { id: 'c1', name: 'Acme', color: '#000000', archived: false };
 const GLOBEX = { id: 'c2', name: 'Globex', color: '#000000', archived: false };
@@ -45,6 +23,7 @@ const WEBSITE = { id: 'p1', customerId: 'c1', name: 'Website', color: '#03a9f4',
 const LIME = { id: 'p2', customerId: 'c2', name: 'Lime', color: '#8bc34a', archived: false };
 
 let unmount = null;
+let tt = null;
 const fakeChart = () => ({ setOption() {}, resize() {}, dispose() {} });
 let nextId = 0;
 // Times are Berlin wall-clock (UTC+2 in October 2026).
@@ -60,11 +39,9 @@ const today = () => [entry('08', '09:00', '10:30'), entry('08', '10:45', '12:45'
 const yesterday = () => [entry('07', '09:00', '10:00'), entry('07', '11:00', '12:00')];
 
 function mount(timeEntries) {
-  state.customers = [ACME, GLOBEX];
-  state.projects = [WEBSITE, LIME];
-  state.timeEntries = timeEntries;
+  tt = createTestTimeTracking({ customers: [ACME, GLOBEX], projects: [WEBSITE, LIME], timeEntries, settings: DISPLAY_SETTINGS });
   mountToBody(bodyHtml);
-  unmount = mountTimeTracking(document, { getPrefs: prefs, createChart: fakeChart });
+  unmount = mountTimeTracking(document, { timeTracking: tt, createChart: fakeChart });
 }
 
 const entryList = () => screen.getByRole('region', { name: 'Time entries' });
@@ -123,8 +100,8 @@ describe('fill chips below the entry bar', () => {
     fireEvent.click(within(entryList()).getByRole('button', { name: 'Fill 10:30 – 10:45' }));
     fireEvent.click(within(entryList()).getByRole('button', { name: 'Fill 12:45 – 13:00' }));
     expect(['Date', 'Start', 'End', 'Duration', 'Project', 'Description'].map((name) => field(name).value)).toEqual(viaChip);
-    expect(scheduleDomainEvent).not.toHaveBeenCalled();
-    expect(state.timeEntries).toHaveLength(3);
+    expect(tt.emitted).toEqual([]);
+    expect(tt.state().timeEntries).toHaveLength(3);
   });
 
   test('chips hide while a customer or project filter is active, like gap rows', () => {
@@ -179,7 +156,7 @@ describe('f fills the gap before the selected entry', () => {
     expect(field('Start').value).toBe('12:45');
     expect(field('End').value).toBe('13:00');
     expect(document.activeElement).toBe(field('Description'));
-    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(tt.emitted).toEqual([]);
   });
 
   test('f with no gap before the selected entry changes nothing', () => {

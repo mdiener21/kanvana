@@ -415,6 +415,9 @@ Development runs without a service worker. Production lifecycle tests run with `
 | `utils.js` | `generateUUID()` and other pure utilities |
 | `constants.js` | Domain constants: priorities, column roles, keybindings |
 | `impressum.js` | Impressum/legal page |
+| `timetracking-model.js` | Pure Time Tracking rules over `{ customers, projects, timeEntries }`: lookups (`customerById`, `projectById`), active/in-use rules, validation, Work week, prefill. Shared with `reducer.js`; no storage or emitter |
+| `timetracking-api.js` | `createTimeTracking(port)` — the per-page Time Tracking interface: state, settings, prefs, device prefs, commands (emit events), `subscribe`. Adapters: `timetracking-api-storage.js` (storage + emitter, the app) and `tests/fixtures/time-tracking.js` (real reducer, tests) |
+| `timetracking-{tracker,ui,reports-panel,settings-panel}.js` | Time Tracking panels. Each takes the injected `timeTracking` interface and never reads storage or the emitter; only the page shell `mountTimeTracking()` creates the storage adapter |
 
 ---
 

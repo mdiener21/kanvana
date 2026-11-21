@@ -5,10 +5,13 @@ import { applyEvents, createProjectionState } from '../../../src/modules/reducer
 import { initStorage, loadGlobalSettings, loadTimeTracking } from '../../../src/modules/storage.js';
 import { scheduleDomainEvent } from '../../../src/modules/event-sourcing/emitter.js';
 import { on, off, EVENT_EMITTED } from '../../../src/modules/events.js';
-import { addCustomer, addProject, addTimeEntry } from '../../../src/modules/timetracking-crud.js';
+import { createStorageTimeTracking } from '../../../src/modules/timetracking-api-storage.js';
 import { customerBalance, periodBalance } from '../../../src/modules/timetracking-balance.js';
 import { periodOf } from '../../../src/modules/timetracking-report.js';
 import { legacyWorkWeekMigration, migrateLegacyWorkWeek } from '../../../src/modules/timetracking-legacy-work-week.js';
+
+// The app's storage adapter: these tests run on the real Read Model and emitter.
+const { addCustomer, addProject, addTimeEntry } = createStorageTimeTracking();
 
 const acme = { id: 'c1', name: 'Acme', color: '#000000', archived: false, weeklyHours: null, workdays: [1, 2, 3, 4, 5] };
 const ttOf = (customers = [acme]) => ({ customers, projects: [], timeEntries: [] });

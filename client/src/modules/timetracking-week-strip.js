@@ -1,6 +1,6 @@
 import { escapeHtml } from './security.js';
 import { periodLogged, customerBalance, showBalance } from './timetracking-balance.js';
-import { customerWorkWeek, hasTarget } from './timetracking-work-week-model.js';
+import { customerWorkWeek, hasTarget } from './timetracking-model.js';
 import { currentPeriod, WEEK } from './timetracking-report.js';
 import {
   zonedParts, addDays, dayNumber, dayKey, ymdToUtcMs, isoWeek, formatShortWeekday, formatShortMonth, formatDuration

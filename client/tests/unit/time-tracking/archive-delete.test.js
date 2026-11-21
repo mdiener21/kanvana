@@ -1,58 +1,47 @@
-import { beforeEach, describe, test, expect, vi } from 'vitest';
-
-vi.mock('../../../src/modules/event-sourcing/emitter.js', () => ({
-  scheduleDomainEvent: vi.fn(() => Promise.resolve())
-}));
-
-vi.mock('../../../src/modules/storage.js', () => ({
-  loadTimeTracking: vi.fn()
-}));
-
-const {
-  setCustomerArchived, setProjectArchived, deleteCustomer, deleteProject,
-  isProjectActive, validateTimeEntry, CRUD_ERROR
-} = await import('../../../src/modules/timetracking-crud.js');
-const { isCustomerInUse, isProjectInUse } = await import('../../../src/modules/timetracking-references.js');
-const { pickableProjects } = await import('../../../src/modules/timetracking-entry-fields.js');
-const { loadTimeTracking } = await import('../../../src/modules/storage.js');
-const { scheduleDomainEvent } = await import('../../../src/modules/event-sourcing/emitter.js');
+import { beforeEach, describe, test, expect } from 'vitest';
+import { createTestTimeTracking } from '../../fixtures/time-tracking.js';
+import {
+  isCustomerInUse, isProjectInUse, isProjectActive, validateTimeEntry, TT_ERROR
+} from '../../../src/modules/timetracking-model.js';
+import { pickableProjects } from '../../../src/modules/timetracking-entry-fields.js';
 
 const ACME = { id: 'c1', name: 'Acme', color: '#000', archived: false };
 const WEBSITE = { id: 'p1', customerId: 'c1', name: 'Website', color: '#000', archived: false };
 
+let tt = null;
+
 function seed({ customers = [ACME], projects = [WEBSITE], timeEntries = [] } = {}) {
-  vi.mocked(loadTimeTracking).mockReturnValue({ customers, projects, timeEntries });
+  tt = createTestTimeTracking({ customers, projects, timeEntries });
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   seed();
 });
 
 describe('archive / unarchive', () => {
   test('archiving a customer emits customer.archived', () => {
-    expect(setCustomerArchived('c1', true)).toEqual({ ok: true });
-    expect(scheduleDomainEvent).toHaveBeenCalledWith({
+    expect(tt.setCustomerArchived('c1', true)).toEqual({ ok: true });
+    expect(tt.emitted).toContainEqual({
       type: 'customer.archived', scope: 'timetracking', entityId: 'c1', payload: {}
     });
   });
 
   test('unarchiving a project emits project.unarchived', () => {
     seed({ projects: [{ ...WEBSITE, archived: true }] });
-    expect(setProjectArchived('p1', false)).toEqual({ ok: true });
-    expect(scheduleDomainEvent).toHaveBeenCalledWith({
+    expect(tt.setProjectArchived('p1', false)).toEqual({ ok: true });
+    expect(tt.emitted).toContainEqual({
       type: 'project.unarchived', scope: 'timetracking', entityId: 'p1', payload: {}
     });
   });
 
   test('archiving an already archived item emits nothing', () => {
     seed({ projects: [{ ...WEBSITE, archived: true }] });
-    expect(setProjectArchived('p1', true)).toEqual({ ok: true });
-    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(tt.setProjectArchived('p1', true)).toEqual({ ok: true });
+    expect(tt.emitted).toEqual([]);
   });
 
   test('an unknown id is rejected', () => {
-    expect(setCustomerArchived('ghost', true)).toEqual({ ok: false, reason: CRUD_ERROR.NOT_FOUND });
+    expect(tt.setCustomerArchived('ghost', true)).toEqual({ ok: false, reason: TT_ERROR.NOT_FOUND });
   });
 });
 
@@ -72,29 +61,29 @@ describe('reference guard', () => {
   });
 
   test('deleting an unreferenced project emits project.deleted with the project', () => {
-    expect(deleteProject('p1')).toEqual({ ok: true });
-    expect(scheduleDomainEvent).toHaveBeenCalledWith({
+    expect(tt.deleteProject('p1')).toEqual({ ok: true });
+    expect(tt.emitted).toContainEqual({
       type: 'project.deleted', scope: 'timetracking', entityId: 'p1', payload: { project: WEBSITE }
     });
   });
 
   test('deleting an unreferenced customer emits customer.deleted with the customer', () => {
     seed({ projects: [] });
-    expect(deleteCustomer('c1')).toEqual({ ok: true });
-    expect(scheduleDomainEvent).toHaveBeenCalledWith({
+    expect(tt.deleteCustomer('c1')).toEqual({ ok: true });
+    expect(tt.emitted).toContainEqual({
       type: 'customer.deleted', scope: 'timetracking', entityId: 'c1', payload: { customer: ACME }
     });
   });
 
   test('a referenced project or customer is not deleted', () => {
     seed({ timeEntries: [entry] });
-    expect(deleteProject('p1')).toEqual({ ok: false, reason: CRUD_ERROR.IN_USE });
-    expect(deleteCustomer('c1')).toEqual({ ok: false, reason: CRUD_ERROR.IN_USE });
-    expect(scheduleDomainEvent).not.toHaveBeenCalled();
+    expect(tt.deleteProject('p1')).toEqual({ ok: false, reason: TT_ERROR.IN_USE });
+    expect(tt.deleteCustomer('c1')).toEqual({ ok: false, reason: TT_ERROR.IN_USE });
+    expect(tt.emitted).toEqual([]);
   });
 
   test('deleting an unknown id is rejected', () => {
-    expect(deleteProject('ghost')).toEqual({ ok: false, reason: CRUD_ERROR.NOT_FOUND });
+    expect(tt.deleteProject('ghost')).toEqual({ ok: false, reason: TT_ERROR.NOT_FOUND });
   });
 });
 
@@ -125,7 +114,7 @@ describe('archive filtering', () => {
 
   test('validation rejects archived projects and projects of archived customers', () => {
     expect(validateTimeEntry({ projectId: 'p1', ...span }, tt).ok).toBe(true);
-    expect(validateTimeEntry({ projectId: 'p2', ...span }, tt).reason).toBe(CRUD_ERROR.ARCHIVED_PROJECT);
-    expect(validateTimeEntry({ projectId: 'p3', ...span }, tt).reason).toBe(CRUD_ERROR.ARCHIVED_PROJECT);
+    expect(validateTimeEntry({ projectId: 'p2', ...span }, tt).reason).toBe(TT_ERROR.ARCHIVED_PROJECT);
+    expect(validateTimeEntry({ projectId: 'p3', ...span }, tt).reason).toBe(TT_ERROR.ARCHIVED_PROJECT);
   });
 });

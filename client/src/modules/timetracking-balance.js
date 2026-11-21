@@ -1,5 +1,5 @@
 import { zonedParts, formatDuration, dayNumber, MINUTE_MS, HOUR_MS, DEFAULT_WORKDAYS } from './timetracking-time.js';
-import { customerOf, customerWorkWeek } from './timetracking-work-week-model.js';
+import { customerById, customerWorkWeek } from './timetracking-model.js';
 
 // Judged on the displayed minutes, so a few seconds short never shows as "−0:00".
 const isDeficit = (balanceMs) => Math.round(balanceMs / MINUTE_MS) < 0;
@@ -66,7 +66,7 @@ export function periodBalance(entries, period, workWeek, { now, tz, endsAtLastEn
 // Only the Customer's own entries count, so its Target starts at its first entry day and, while
 // it is archived, stops at its last.
 export function customerBalance(tt, customerId, period, { now, tz }) {
-  const customer = customerOf(tt, customerId);
+  const customer = customerById(tt, customerId);
   const projectIds = new Set(tt.projects.filter((p) => p.customerId === customer?.id).map((p) => p.id));
   const entries = customer ? (tt.timeEntries ?? []).filter((e) => projectIds.has(e.projectId)) : [];
   return periodBalance(entries, period, customerWorkWeek(tt, customerId), {

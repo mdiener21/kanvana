@@ -3,50 +3,31 @@ import { screen, fireEvent, within } from '@testing-library/dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { mountToBody } from '../setup.js';
-
-const state = { customers: [], projects: [], timeEntries: [] };
-
-vi.mock('../../../src/modules/storage.js', () => ({
-  loadTimeTracking: vi.fn(() => state),
-  loadGlobalSettings: vi.fn(() => ({}))
-}));
+import { createTestTimeTracking } from '../../fixtures/time-tracking.js';
 
 vi.mock('../../../src/modules/icons.js', () => ({
   renderIcons: vi.fn()
 }));
 
-vi.mock('../../../src/modules/event-sourcing/emitter.js', async () => {
-  const { emit, DATA_CHANGED } = await import('../../../src/modules/events.js');
-  return {
-    scheduleDomainEvent: vi.fn((event) => {
-      if (event.type === 'time_entry.created') state.timeEntries = [...state.timeEntries, event.payload.timeEntry];
-      emit(DATA_CHANGED);
-      return Promise.resolve();
-    })
-  };
-});
-
 const { mountTimeTracking } = await import('../../../src/modules/timetracking-ui.js');
-const { scheduleDomainEvent } = await import('../../../src/modules/event-sourcing/emitter.js');
 
 const pageHtml = readFileSync(resolve(__dirname, '../../../src/timetracking.html'), 'utf-8');
 const bodyHtml = pageHtml.slice(pageHtml.indexOf('<body>') + 6, pageHtml.indexOf('</body>'));
 
 const NOW = '2026-10-08T13:20:00.000Z'; // 15:20 in Europe/Berlin
-const prefs = () => ({ tz: 'Europe/Berlin', dateFormat: 'DD.MM.YYYY', timeFormat: '24h', now: Date.now() });
+const DISPLAY_SETTINGS = { timezone: 'Europe/Berlin', dateFormat: 'DD.MM.YYYY', timeFormat: '24h' };
 
 const ACME = { id: 'c1', name: 'Acme', color: '#000000', archived: false };
 const WEBSITE = { id: 'p1', customerId: 'c1', name: 'Website', color: '#03a9f4', archived: false };
 
 let unmount = null;
+let tt = null;
 const fakeChart = () => ({ setOption() {}, resize() {}, dispose() {} });
 
 function mount(timeEntries = []) {
-  state.customers = [ACME];
-  state.projects = [WEBSITE];
-  state.timeEntries = timeEntries;
+  tt = createTestTimeTracking({ customers: [ACME], projects: [WEBSITE], timeEntries, settings: DISPLAY_SETTINGS });
   mountToBody(bodyHtml);
-  unmount = mountTimeTracking(document, { getPrefs: prefs, createChart: fakeChart });
+  unmount = mountTimeTracking(document, { timeTracking: tt, createChart: fakeChart });
 }
 
 const entry = (id, start, end) => ({ id, projectId: 'p1', description: '', start, end });
@@ -150,7 +131,7 @@ describe('Start continues from the last entry', () => {
     type('End', '14:10');
     fireEvent.keyDown(field('End'), { key: 'Enter' });
 
-    expect(scheduleDomainEvent).toHaveBeenCalledOnce();
+    expect(tt.emitted).toHaveLength(1);
     expect(times()).toEqual(['14:10', '15:20', '1:10']);
     expect(document.activeElement).toBe(field('Description'));
   });

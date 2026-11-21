@@ -1,4 +1,4 @@
-import { projectById, customerById } from './timetracking-crud.js';
+import { projectById, customerById } from './timetracking-model.js';
 import { escapeHtml } from './security.js';
 
 export const ALL_ENTRIES = Object.freeze({ customerId: null, projectId: null });

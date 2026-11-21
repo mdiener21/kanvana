@@ -3,37 +3,19 @@ import { screen, fireEvent, within } from '@testing-library/dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { mountToBody } from '../setup.js';
-
-const state = { customers: [], projects: [], timeEntries: [] };
-
-vi.mock('../../../src/modules/storage.js', () => ({
-  loadTimeTracking: vi.fn(() => state),
-  loadGlobalSettings: vi.fn(() => ({}))
-}));
+import { createTestTimeTracking } from '../../fixtures/time-tracking.js';
 
 vi.mock('../../../src/modules/icons.js', () => ({
   renderIcons: vi.fn()
 }));
 
-vi.mock('../../../src/modules/event-sourcing/emitter.js', async () => {
-  const { emit, DATA_CHANGED } = await import('../../../src/modules/events.js');
-  return {
-    scheduleDomainEvent: vi.fn((event) => {
-      if (event.type === 'time_entry.created') state.timeEntries = [...state.timeEntries, event.payload.timeEntry];
-      emit(DATA_CHANGED);
-      return Promise.resolve();
-    })
-  };
-});
-
 const { mountTimeTracking } = await import('../../../src/modules/timetracking-ui.js');
-const { loadGlobalSettings } = await import('../../../src/modules/storage.js');
 
 const pageHtml = readFileSync(resolve(__dirname, '../../../src/timetracking.html'), 'utf-8');
 const bodyHtml = pageHtml.slice(pageHtml.indexOf('<body>') + 6, pageHtml.indexOf('</body>'));
 
 const NOW = '2026-11-12T11:00:00.000Z'; // Thursday 12 Nov 2026, 12:00 in Europe/Berlin
-const prefs = () => ({ tz: 'Europe/Berlin', dateFormat: 'DD.MM.YYYY', timeFormat: '24h', now: Date.now() });
+const DISPLAY_SETTINGS = { timezone: 'Europe/Berlin', dateFormat: 'DD.MM.YYYY', timeFormat: '24h' };
 
 const ACME = { id: 'c1', name: 'Acme', color: '#000000', archived: false };
 const GLOBEX = { id: 'c2', name: 'Globex', color: '#111111', archived: false };
@@ -49,22 +31,22 @@ const WEEK_ENTRIES = [
 ];
 
 let unmount = null;
+let tt = null;
 const fakeChart = () => ({ setOption() {}, resize() {}, dispose() {} });
 
 let customers = [ACME, GLOBEX];
+let settings = DISPLAY_SETTINGS;
 
 function mount(timeEntries = WEEK_ENTRIES) {
-  state.customers = customers;
-  state.projects = [WEBSITE, SUPPORT];
-  state.timeEntries = timeEntries;
+  tt = createTestTimeTracking({ customers, projects: [WEBSITE, SUPPORT], timeEntries, settings });
   mountToBody(bodyHtml);
-  unmount = mountTimeTracking(document, { getPrefs: prefs, createChart: fakeChart });
+  unmount = mountTimeTracking(document, { timeTracking: tt, createChart: fakeChart });
 }
 
 // Acme, the Default customer, gets the Work week.
 function withWorkWeek(weeklyHours, workdays = [1, 2, 3, 4, 5]) {
   customers = [{ ...ACME, weeklyHours, workdays }, GLOBEX];
-  vi.mocked(loadGlobalSettings).mockImplementation(() => ({ timeTracking: { defaultCustomerId: 'c1' } }));
+  settings = { ...DISPLAY_SETTINGS, defaultCustomerId: 'c1' };
 }
 
 const strip = () => screen.getByRole('list', { name: 'This week' });
@@ -86,7 +68,7 @@ afterEach(() => {
   unmount?.();
   unmount = null;
   vi.useRealTimers();
-  vi.mocked(loadGlobalSettings).mockImplementation(() => ({}));
+  settings = DISPLAY_SETTINGS;
   customers = [ACME, GLOBEX];
 });
 
@@ -136,7 +118,7 @@ describe('week strip', () => {
   });
 
   test('a Default customer without a Work week shows no meters and no Balance', () => {
-    vi.mocked(loadGlobalSettings).mockImplementation(() => ({ timeTracking: { defaultCustomerId: 'c1' } }));
+    settings = { ...DISPLAY_SETTINGS, defaultCustomerId: 'c1' };
     mount();
     expect(cells().every((c) => c.querySelector('.tt-week-meter') === null)).toBe(true);
     expect(badge().hidden).toBe(true);
@@ -171,7 +153,7 @@ describe('week strip', () => {
   });
 
   test('a stored legacy global Weekly hours gives a Default customer without a Work week no meters or Balance', () => {
-    vi.mocked(loadGlobalSettings).mockImplementation(() => ({ timeTracking: { defaultCustomerId: 'c1', weeklyHours: 40 } }));
+    settings = { ...DISPLAY_SETTINGS, defaultCustomerId: 'c1', weeklyHours: 40 };
     mount();
     expect(cells().every((c) => c.querySelector('.tt-week-meter') === null)).toBe(true);
     expect(badge().hidden).toBe(true);

@@ -1,7 +1,3 @@
-import { loadGlobalSettings, loadTimeTracking } from './storage.js';
-import { scheduleDomainEvent } from './event-sourcing/emitter.js';
-import { EVENT_SCOPE } from './constants.js';
-import { isProjectActive, projectById } from './timetracking-crud.js';
 import { DATE_FORMATS, TIME_FORMATS, DURATION_FORMATS, browserTimezone } from './timetracking-time.js';
 
 export function isValidTimezone(tz) {
@@ -33,58 +29,21 @@ export function resolveTimeTrackingSettings(raw) {
   };
 }
 
-const storedTimeTrackingSettings = () => {
-  const stored = loadGlobalSettings().timeTracking;
-  return stored && typeof stored === 'object' ? stored : {};
-};
-
-export const loadTimeTrackingSettings = () => resolveTimeTrackingSettings(storedTimeTrackingSettings());
-
-export function activeProjectsOf(tt, customerId) {
-  return tt.projects.filter((p) => p.customerId === customerId && isProjectActive(p, tt));
-}
-
-// Persists only what the user chose: unset fields (notably timezone) keep resolving per device.
-export function saveTimeTrackingSettings(patch) {
-  const next = { ...storedTimeTrackingSettings(), ...patch };
-  if ('defaultCustomerId' in patch) {
-    next.defaultProjectId = next.defaultCustomerId
-      ? activeProjectsOf(loadTimeTracking(), next.defaultCustomerId)[0]?.id ?? null
-      : null;
-  }
-  scheduleDomainEvent({
-    type: 'settings.updated',
-    scope: EVENT_SCOPE.GLOBAL,
-    entityId: 'timeTracking',
-    payload: { fields: { timeTracking: next } }
-  });
-  return resolveTimeTrackingSettings(next);
-}
-
 // Per-device convenience state: deliberately local storage, not a domain event, so it never syncs.
 const LAST_USED_PROJECT_KEY = 'kanvana:timetracking:lastUsedProjectId';
 
 // A project of the account that used this browser last; it does not outlive that account here.
-export const clearLastUsedProjectId = () => localStorage.removeItem(LAST_USED_PROJECT_KEY);
-export const loadLastUsedProjectId = () => idOrNull(localStorage.getItem(LAST_USED_PROJECT_KEY));
+export const clearLastUsedProjectId = (device = localStorage) => device.removeItem(LAST_USED_PROJECT_KEY);
+export const loadLastUsedProjectId = (device = localStorage) => idOrNull(device.getItem(LAST_USED_PROJECT_KEY));
 
-export function rememberLastUsedProject(projectId) {
-  if (idOrNull(projectId)) localStorage.setItem(LAST_USED_PROJECT_KEY, projectId);
+export function rememberLastUsedProject(projectId, device = localStorage) {
+  if (idOrNull(projectId)) device.setItem(LAST_USED_PROJECT_KEY, projectId);
 }
 
 const REPORT_PERIOD_KIND_KEY = 'kanvana:timetracking:reportPeriodKind';
 
-export const loadReportPeriodKind = () => localStorage.getItem(REPORT_PERIOD_KIND_KEY);
+export const loadReportPeriodKind = (device = localStorage) => device.getItem(REPORT_PERIOD_KIND_KEY);
 
-export function rememberReportPeriodKind(kind) {
-  localStorage.setItem(REPORT_PERIOD_KIND_KEY, kind);
-}
-
-const activeProjectId = (tt, id) => {
-  const project = projectById(tt, id);
-  return project && isProjectActive(project, tt) ? project.id : null;
-};
-
-export function prefillProjectId(tt, settings, lastUsedProjectId = null) {
-  return activeProjectId(tt, lastUsedProjectId) ?? activeProjectId(tt, settings.defaultProjectId);
+export function rememberReportPeriodKind(kind, device = localStorage) {
+  device.setItem(REPORT_PERIOD_KIND_KEY, kind);
 }
