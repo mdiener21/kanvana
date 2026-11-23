@@ -117,3 +117,26 @@ test('creating or deleting a board stores the board list as listed, without a bo
   deleteBoard(created.id);
   expect(await storedIds()).toEqual(listBoards().map((item) => item.id));
 });
+
+test('projects the remote name when a newer rename arrives before the board create', async () => {
+  const boardId = crypto.randomUUID();
+  const wallTime = Date.now();
+  const remoteBoardEvent = (type, counter, payload) => ingestEvent({
+    id: crypto.randomUUID(),
+    type,
+    hlc: { wallTime, counter, nodeId: 'node-b' },
+    at: new Date(wallTime).toISOString(),
+    actor: { type: 'human', id: null },
+    scope: 'board',
+    board_id: boardId,
+    entity_id: boardId,
+    payload
+  }, { origin: EVENT_ORIGIN.REMOTE });
+
+  await remoteBoardEvent('board.updated', 1, { fields: { name: 'Renamed remotely' } });
+  expect(listBoards().find(({ id }) => id === boardId)).toBeUndefined();
+
+  await remoteBoardEvent('board.created', 0, { board: { id: boardId, name: 'Original name' } });
+
+  expect(listBoards().find(({ id }) => id === boardId)?.name).toBe('Renamed remotely');
+});

@@ -4,39 +4,18 @@ import {
   ensureBoardsInitialized,
   listBoards,
   getActiveBoardId,
-  setActiveBoardId,
-  getActiveBoardName,
   renameBoard,
   deleteBoard as deleteBoardById
 } from './storage.js';
 import { confirmDialog, alertDialog } from './dialog.js';
 import { renderIcons } from './icons.js';
+import { selectBoard } from './board-selection.js';
 import { exportBoard } from './importexport.js';
-import { emit, DATA_CHANGED } from './events.js';
+import { BOARDS_CHANGED, DATA_CHANGED, emit, on } from './events.js';
 import { DEFAULT_APP_KEYBINDINGS, matchesKey } from './constants.js';
-import { $id, $, h } from './dom.js';
+import { $id, h } from './dom.js';
 
 let editingBoardId = null;
-let keyboardNavIndex = -1;
-
-function renderBoardsSelect() {
-  const selectEl = $id('board-select');
-  if (!selectEl) return;
-
-  const boards = listBoards();
-  const active = getActiveBoardId();
-  selectEl.innerHTML = '';
-
-  boards.forEach((b) => {
-    const name = (typeof b.name === 'string' && b.name.trim()) ? b.name.trim() : 'Untitled board';
-    selectEl.appendChild(h('option', { value: b.id }, name));
-  });
-
-  if (active) selectEl.value = active;
-
-  const brandEl = $id('brand-text') || $('.brand-text');
-  if (brandEl) brandEl.textContent = getActiveBoardName();
-}
 
 function renderBoardsList() {
   ensureBoardsInitialized();
@@ -55,7 +34,7 @@ function renderBoardsList() {
 
     const switchBtn = h('button', {
       class: 'btn-small', title: 'Open board',
-      onClick: async () => { setActiveBoardId(board.id); renderBoardsSelect(); renderBoardsList(); emit(DATA_CHANGED); hideBoardsModal(); }
+      onClick: () => openBoard(board.id)
     }, 'Open');
 
     const exportBtn = h('button', {
@@ -83,13 +62,12 @@ function renderBoardsList() {
           await alertDialog({ title: 'Unable to Delete', message: 'Unable to delete board (you may be trying to delete the last board).' });
           return;
         }
-        renderBoardsSelect();
         renderBoardsList();
         emit(DATA_CHANGED);
       }
     }, h('span', { 'data-lucide': 'trash-2' }));
 
-    container.appendChild(h('div', { class: 'label-item' },
+    container.appendChild(h('div', { class: 'label-item', 'data-board-id': board.id },
       nameWrap,
       h('div', { class: 'label-actions' }, switchBtn, exportBtn, editBtn, deleteBtn)
     ));
@@ -99,23 +77,29 @@ function renderBoardsList() {
 }
 
 export function showBoardsModal() {
-  keyboardNavIndex = -1;
   renderBoardsList();
   const modal = $id('boards-modal');
   modal?.classList.remove('hidden');
 }
 
 function hideBoardsModal() {
-  keyboardNavIndex = -1;
   const modal = $id('boards-modal');
   modal?.classList.add('hidden');
 }
 
-function updateBoardKeyboardFocus(items) {
+function openBoard(boardId) {
+  if (!selectBoard(boardId)) {
+    renderBoardsList();
+    return;
+  }
+  hideBoardsModal();
+}
+
+function updateBoardKeyboardFocus(items, index) {
   items.forEach((item, i) => {
-    item.classList.toggle('keyboard-focused', i === keyboardNavIndex);
+    item.classList.toggle('keyboard-focused', i === index);
   });
-  items[keyboardNavIndex]?.scrollIntoView?.({ block: 'nearest' });
+  items[index]?.scrollIntoView?.({ block: 'nearest' });
 }
 
 export function refreshBoardsModalList() {
@@ -150,9 +134,7 @@ function hideBoardRenameModal() {
 }
 
 export function initializeBoardsModalHandlers(setupModalCloseHandlers) {
-  document.addEventListener('kanban:boards-changed', () => {
-    refreshBoardsModalList();
-  });
+  on(BOARDS_CHANGED, refreshBoardsModalList);
 
   // Event delegation: brand-text click survives DOM resets.
   document.addEventListener('click', (e) => {
@@ -177,30 +159,23 @@ export function initializeBoardsModalHandlers(setupModalCloseHandlers) {
     if (!modal || modal.classList.contains('hidden')) return;
     const renameModal = $id('board-rename-modal');
     if (renameModal && !renameModal.classList.contains('hidden')) return;
-    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Enter') return;
+    const { boardsSelectNext, boardsSelectPrevious, boardsOpenSelected } = DEFAULT_APP_KEYBINDINGS;
+    const next = matchesKey(e, boardsSelectNext);
+    const previous = matchesKey(e, boardsSelectPrevious);
+    const open = matchesKey(e, boardsOpenSelected);
+    if (!next && !previous && !open) return;
 
     const items = Array.from(document.querySelectorAll('#boards-list .label-item'));
     if (!items.length) return;
 
-    if (e.key === 'ArrowDown') {
+    const index = items.findIndex((item) => item.classList.contains('keyboard-focused'));
+    if (next || previous) {
       e.preventDefault();
-      keyboardNavIndex = Math.min(keyboardNavIndex + 1, items.length - 1);
-      updateBoardKeyboardFocus(items);
-    } else if (e.key === 'ArrowUp') {
+      const targetIndex = next ? Math.min(index + 1, items.length - 1) : Math.max(index - 1, 0);
+      updateBoardKeyboardFocus(items, targetIndex);
+    } else if (index >= 0) {
       e.preventDefault();
-      keyboardNavIndex = Math.max(keyboardNavIndex - 1, 0);
-      updateBoardKeyboardFocus(items);
-    } else if (e.key === 'Enter' && keyboardNavIndex >= 0) {
-      e.preventDefault();
-      const boards = listBoards();
-      const board = boards[keyboardNavIndex];
-      if (board) {
-        setActiveBoardId(board.id);
-        renderBoardsSelect();
-        renderBoardsList();
-        emit(DATA_CHANGED);
-        hideBoardsModal();
-      }
+      openBoard(items[index].dataset.boardId);
     }
   });
 
@@ -238,9 +213,7 @@ export function initializeBoardsModalHandlers(setupModalCloseHandlers) {
     }
 
     hideBoardRenameModal();
-    renderBoardsSelect();
     renderBoardsList();
-    renderIcons();
   });
 
   setupModalCloseHandlers('board-rename-modal', hideBoardRenameModal);

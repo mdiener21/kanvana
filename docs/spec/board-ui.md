@@ -25,7 +25,9 @@
 ## Boards UI
 
 - Board selection persists and restores on page load
-- Manage Boards supports create, open, export, import, rename, and delete actions
+- Creating or importing a board selects it and displays its name in the page title. Synced boards appear in the picker, and synced renames update the title of the active board.
+- Manage Boards supports create, open, export, import, rename, and delete actions. Opening a board or renaming the active board updates the picker and page title. Deleting the active board selects the first remaining board.
+- In Manage Boards, the arrow keys highlight a board and Enter opens it. If that board was deleted on another device, Enter refreshes the list and keeps the current board open.
 - Clicking the brand text (desktop) or pressing `Ctrl+B` opens the Manage Boards modal; the shortcut is ignored while focus is in an input, textarea, or select
 - New boards can be blank or created from a template
 - Built-in templates may preload workflow-specific starter columns, grouped labels, and labeled tasks so a new board is immediately usable

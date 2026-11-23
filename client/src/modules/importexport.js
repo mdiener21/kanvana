@@ -1,6 +1,6 @@
-import { createBoard, getActiveBoardName, listBoards, loadBoard, setActiveBoardId } from './storage.js';
+import { createBoard, listBoards, loadBoard } from './storage.js';
 import { normalizeBoardModelIds } from './board-serializer.js';
-import { emit, DATA_CHANGED } from './events.js';
+import { emit, BOARDS_CHANGED, DATA_CHANGED } from './events.js';
 import { normalizePriority, isHexColor, boardDisplayName, normalizeCountdownThreshold, normalizeDueDate, normalizeSubTasks } from './normalize.js';
 import { DONE_COLUMN_ID, isDoneColumn } from './constants.js';
 import { formatBytes } from './security.js';
@@ -49,26 +49,6 @@ function exportFilename(boardName) {
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
   return `${boardName}-${now.getFullYear()}-${month}-${day}.json`;
-}
-
-function refreshBoardsUI(activeBoardId) {
-  const brandEl = document.getElementById('brand-text') || document.querySelector('.brand-text');
-  if (brandEl) brandEl.textContent = getActiveBoardName();
-
-  const selectEl = document.getElementById('board-select');
-  if (!selectEl) return;
-
-  const boards = listBoards();
-  selectEl.innerHTML = '';
-
-  boards.forEach((b) => {
-    const option = document.createElement('option');
-    option.value = b.id;
-    option.textContent = boardDisplayName(b);
-    selectEl.appendChild(option);
-  });
-
-  if (activeBoardId) selectEl.value = activeBoardId;
 }
 
 function boardNameFromFile(file) {
@@ -608,18 +588,14 @@ export function importTasks(file) {
       // createBoard emits the created events, so the import syncs to other devices.
       // Missing sections fall back to the board defaults.
       const importedName = preview.importedName || 'Imported board';
-      const newBoard = createBoard(importedName, {
+      createBoard(importedName, {
         columns: preview.normalizedColumns ?? undefined,
         tasks: preview.normalizedTasks,
         labels: preview.normalizedLabels ?? undefined,
         settings: preview.normalizedSettings ?? undefined
       });
-      if (newBoard?.id) setActiveBoardId(newBoard.id);
-
-      refreshBoardsUI(newBoard?.id);
-
       emit(DATA_CHANGED);
-      document.dispatchEvent(new CustomEvent('kanban:boards-changed'));
+      emit(BOARDS_CHANGED);
       const { alertDialog } = await import('./dialog.js');
       await alertDialog({ title: 'Import Complete', message: 'Board imported successfully!' });
     } catch (error) {
