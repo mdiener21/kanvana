@@ -1,15 +1,15 @@
 import { $, $id, h } from './dom.js';
 import { setupModalCloseHandlers } from './modals.js';
-import { emit, on, DATA_CHANGED } from './events.js';
+import { emit, on, BOARDS_CHANGED, DATA_CHANGED } from './events.js';
 import {
   ensureBoardsInitialized,
   listBoards,
   createBoard,
-  getActiveBoardId,
-  setActiveBoardId
+  getActiveBoardId
 } from './storage.js';
 import { normalizeBoardModelIds } from './board-serializer.js';
 import { alertDialog } from './dialog.js';
+import { selectBoard } from './board-selection.js';
 import { boardDisplayName } from './normalize.js';
 
 const builtInTemplateModules = import.meta.glob('../templates/*.json', {
@@ -63,7 +63,7 @@ function populateTemplateSelect(selectEl) {
 }
 
 // Preserve the option elements when only the active board or its contents change.
-function boardSelectMatchesState(selectEl, boards) {
+function boardOptionsMatch(selectEl, boards) {
   if (selectEl.options.length !== boards.length) return false;
   return boards.every(
     (b, i) =>
@@ -74,7 +74,7 @@ function boardSelectMatchesState(selectEl, boards) {
 
 function refreshBoardNavigation(selectEl) {
   const boards = listBoards();
-  if (!boardSelectMatchesState(selectEl, boards)) {
+  if (!boardOptionsMatch(selectEl, boards)) {
     selectEl.replaceChildren(...boards.map((board) =>
       h('option', { value: board.id }, boardDisplayName(board))
     ));
@@ -122,10 +122,7 @@ export function initializeBoardsUI() {
   });
 
   selectEl.addEventListener('change', () => {
-    const id = selectEl.value;
-    if (!id) return;
-    setActiveBoardId(id);
-    emit(DATA_CHANGED);
+    if (!selectBoard(selectEl.value)) return;
 
     // Collapse the dropdown menu after a selection.
     const controlsActions = document.getElementById('board-controls-menu');
@@ -181,9 +178,7 @@ export function initializeBoardsUI() {
       emit(DATA_CHANGED);
       hideBoardCreateModal();
 
-      // Let other UI modules (e.g., Manage Boards modal) react without introducing
-      // cross-module imports that can complicate bundling/chunking.
-      document.dispatchEvent(new CustomEvent('kanban:boards-changed'));
+      emit(BOARDS_CHANGED);
     });
   }
 }

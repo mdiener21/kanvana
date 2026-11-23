@@ -32,6 +32,7 @@ export function emit(event, detail) {
 
 // Well-known event names
 export const BOARD_CHANGED = 'board:changed';
+export const BOARDS_CHANGED = 'boards:changed';
 export const DATA_CHANGED = 'data:changed';
 export const EVENT_EMITTED = 'event:emitted';
 export const EVENTS_STORED = 'events:stored';

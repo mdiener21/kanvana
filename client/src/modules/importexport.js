@@ -1,6 +1,6 @@
 import { createBoard, listBoards, loadBoard } from './storage.js';
 import { normalizeBoardModelIds } from './board-serializer.js';
-import { emit, DATA_CHANGED } from './events.js';
+import { emit, BOARDS_CHANGED, DATA_CHANGED } from './events.js';
 import { normalizePriority, isHexColor, boardDisplayName, normalizeCountdownThreshold, normalizeDueDate, normalizeSubTasks } from './normalize.js';
 import { DONE_COLUMN_ID, isDoneColumn } from './constants.js';
 import { formatBytes } from './security.js';
@@ -595,7 +595,7 @@ export function importTasks(file) {
         settings: preview.normalizedSettings ?? undefined
       });
       emit(DATA_CHANGED);
-      document.dispatchEvent(new CustomEvent('kanban:boards-changed'));
+      emit(BOARDS_CHANGED);
       const { alertDialog } = await import('./dialog.js');
       await alertDialog({ title: 'Import Complete', message: 'Board imported successfully!' });
     } catch (error) {

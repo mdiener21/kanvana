@@ -11,7 +11,7 @@ vi.mock('../../src/modules/storage.js', () => ({
     { id: 'board-2', name: 'Personal' },
   ]),
   getActiveBoardId: vi.fn(() => 'board-1'),
-  setActiveBoardId: vi.fn(),
+  setActiveBoardId: vi.fn(() => true),
   getActiveBoardName: vi.fn(() => 'Work'),
   renameBoard: vi.fn(() => true),
   deleteBoard: vi.fn(() => true),
@@ -32,6 +32,8 @@ vi.mock('../../src/modules/importexport.js', () => ({
 
 vi.mock('../../src/modules/events.js', () => ({
   emit: vi.fn(),
+  on: vi.fn(),
+  BOARDS_CHANGED: 'boards:changed',
   DATA_CHANGED: 'data:changed',
 }));
 
@@ -233,7 +235,7 @@ describe('keyboard navigation in open boards modal', () => {
 
   it('Enter does nothing when no item is highlighted', () => {
     fireEvent.click(document.getElementById('brand-text'));
-    // navIndex = -1, no ArrowDown pressed
+    // No ArrowDown pressed
     fireEvent.keyDown(document, { key: 'Enter' });
 
     expect(setActiveBoardId).not.toHaveBeenCalled();

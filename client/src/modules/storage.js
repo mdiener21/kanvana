@@ -137,11 +137,12 @@ export function getActiveBoardId() {
 
 export function setActiveBoardId(boardId) {
   const id = typeof boardId === 'string' ? boardId : '';
-  if (!id) return;
+  if (!id) return false;
   const boards = listBoards();
-  if (!boards.some((b) => b.id === id)) return;
+  if (!boards.some((b) => b.id === id)) return false;
   activeBoardId = id;
   schedulePersist(ACTIVE_BOARD_KEY, id);
+  return true;
 }
 
 export function ensureBoardsInitialized() {
