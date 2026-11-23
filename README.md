@@ -7,7 +7,7 @@ kanvana == "Kanban" + "Nirvana" # smooth flow
 [![GitHub stars](https://img.shields.io/github/stars/mdiener21/kanvana.svg?style=social)](https://github.com/mdiener21/kanvana/stargazers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Visit%20Now-blue)](https://kanvana.com)
-[![Version](https://img.shields.io/badge/version-3.4.26-brightgreen)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-3.4.27-brightgreen)](CHANGELOG.md)
 [![CI](https://github.com/mdiener21/kanvana/actions/workflows/ci.yml/badge.svg)](https://github.com/mdiener21/kanvana/actions/workflows/ci.yml)
 
 > **A sleek, local-first Kanban board and time tracker that runs in your browser.** No account needed, no tracking.
