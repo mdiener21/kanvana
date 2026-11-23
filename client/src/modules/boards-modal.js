@@ -5,7 +5,6 @@ import {
   listBoards,
   getActiveBoardId,
   setActiveBoardId,
-  getActiveBoardName,
   renameBoard,
   deleteBoard as deleteBoardById
 } from './storage.js';
@@ -14,29 +13,10 @@ import { renderIcons } from './icons.js';
 import { exportBoard } from './importexport.js';
 import { emit, DATA_CHANGED } from './events.js';
 import { DEFAULT_APP_KEYBINDINGS, matchesKey } from './constants.js';
-import { $id, $, h } from './dom.js';
+import { $id, h } from './dom.js';
 
 let editingBoardId = null;
 let keyboardNavIndex = -1;
-
-function renderBoardsSelect() {
-  const selectEl = $id('board-select');
-  if (!selectEl) return;
-
-  const boards = listBoards();
-  const active = getActiveBoardId();
-  selectEl.innerHTML = '';
-
-  boards.forEach((b) => {
-    const name = (typeof b.name === 'string' && b.name.trim()) ? b.name.trim() : 'Untitled board';
-    selectEl.appendChild(h('option', { value: b.id }, name));
-  });
-
-  if (active) selectEl.value = active;
-
-  const brandEl = $id('brand-text') || $('.brand-text');
-  if (brandEl) brandEl.textContent = getActiveBoardName();
-}
 
 function renderBoardsList() {
   ensureBoardsInitialized();
@@ -55,7 +35,7 @@ function renderBoardsList() {
 
     const switchBtn = h('button', {
       class: 'btn-small', title: 'Open board',
-      onClick: async () => { setActiveBoardId(board.id); renderBoardsSelect(); renderBoardsList(); emit(DATA_CHANGED); hideBoardsModal(); }
+      onClick: () => openBoard(board.id)
     }, 'Open');
 
     const exportBtn = h('button', {
@@ -83,7 +63,6 @@ function renderBoardsList() {
           await alertDialog({ title: 'Unable to Delete', message: 'Unable to delete board (you may be trying to delete the last board).' });
           return;
         }
-        renderBoardsSelect();
         renderBoardsList();
         emit(DATA_CHANGED);
       }
@@ -109,6 +88,13 @@ function hideBoardsModal() {
   keyboardNavIndex = -1;
   const modal = $id('boards-modal');
   modal?.classList.add('hidden');
+}
+
+function openBoard(boardId) {
+  setActiveBoardId(boardId);
+  renderBoardsList();
+  emit(DATA_CHANGED);
+  hideBoardsModal();
 }
 
 function updateBoardKeyboardFocus(items) {
@@ -194,13 +180,7 @@ export function initializeBoardsModalHandlers(setupModalCloseHandlers) {
       e.preventDefault();
       const boards = listBoards();
       const board = boards[keyboardNavIndex];
-      if (board) {
-        setActiveBoardId(board.id);
-        renderBoardsSelect();
-        renderBoardsList();
-        emit(DATA_CHANGED);
-        hideBoardsModal();
-      }
+      if (board) openBoard(board.id);
     }
   });
 
@@ -238,9 +218,7 @@ export function initializeBoardsModalHandlers(setupModalCloseHandlers) {
     }
 
     hideBoardRenameModal();
-    renderBoardsSelect();
     renderBoardsList();
-    renderIcons();
   });
 
   setupModalCloseHandlers('board-rename-modal', hideBoardRenameModal);

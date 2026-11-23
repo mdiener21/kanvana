@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Board: the picker and page title stay in sync with the active board after creation, import, and remote updates (#353).
 
+- Board: opening, renaming, or deleting a board in Manage Boards keeps the picker and page title in sync (#354).
+
 ## [3.4.26] - 2026-11-21
 
 ### Changed
