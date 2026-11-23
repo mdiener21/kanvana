@@ -1,4 +1,4 @@
-import { generateUUID } from './utils.js';
+import { $, $id, h } from './dom.js';
 import { setupModalCloseHandlers } from './modals.js';
 import { emit, on, DATA_CHANGED } from './events.js';
 import {
@@ -6,8 +6,7 @@ import {
   listBoards,
   createBoard,
   getActiveBoardId,
-  setActiveBoardId,
-  getActiveBoardName
+  setActiveBoardId
 } from './storage.js';
 import { normalizeBoardModelIds } from './board-serializer.js';
 import { alertDialog } from './dialog.js';
@@ -63,26 +62,8 @@ function populateTemplateSelect(selectEl) {
   });
 }
 
-function refreshBoardSelect(selectEl) {
-  const boards = listBoards();
-  const activeId = getActiveBoardId();
-
-  selectEl.innerHTML = '';
-
-  boards.forEach((b) => {
-    const option = document.createElement('option');
-    option.value = b.id;
-    option.textContent = boardDisplayName(b);
-    selectEl.appendChild(option);
-  });
-
-  if (activeId) selectEl.value = activeId;
-}
-
-// True when #board-select already reflects the current board list (ids + labels).
-// Lets us skip rebuilding on unrelated DATA_CHANGED churn (task moves, etc.).
-function boardSelectMatchesState(selectEl) {
-  const boards = listBoards();
+// Preserve the option elements when only the active board or its contents change.
+function boardSelectMatchesState(selectEl, boards) {
   if (selectEl.options.length !== boards.length) return false;
   return boards.every(
     (b, i) =>
@@ -91,10 +72,21 @@ function boardSelectMatchesState(selectEl) {
   );
 }
 
-function refreshBrandText() {
-  const brandEl = document.getElementById('brand-text') || document.querySelector('.brand-text');
+function refreshBoardNavigation(selectEl) {
+  const boards = listBoards();
+  if (!boardSelectMatchesState(selectEl, boards)) {
+    selectEl.replaceChildren(...boards.map((board) =>
+      h('option', { value: board.id }, boardDisplayName(board))
+    ));
+  }
+
+  const activeId = getActiveBoardId() || '';
+  if (selectEl.value !== activeId) selectEl.value = activeId;
+
+  const brandEl = $id('brand-text') || $('.brand-text');
   if (!brandEl) return;
-  brandEl.textContent = getActiveBoardName();
+  const activeName = boardDisplayName(boards.find((board) => board.id === activeId));
+  if (brandEl.textContent !== activeName) brandEl.textContent = activeName;
 }
 
 // Board Create Modal helpers
@@ -122,18 +114,8 @@ export function initializeBoardsUI() {
 
   if (!selectEl) return;
 
-  refreshBoardSelect(selectEl);
-  refreshBrandText();
-
-  // A remote board.created/renamed (catch-up or SSE) updates state.boards and
-  // emits DATA_CHANGED, but the dropdown was built once at startup. Rebuild it
-  // when the board list changes so new boards appear without a reload.
-  on(DATA_CHANGED, () => {
-    if (!boardSelectMatchesState(selectEl)) {
-      refreshBoardSelect(selectEl);
-      refreshBrandText();
-    }
-  });
+  refreshBoardNavigation(selectEl);
+  on(DATA_CHANGED, () => refreshBoardNavigation(selectEl));
 
   document.addEventListener('kanban:open-board-create', () => {
     showBoardCreateModal();
@@ -143,7 +125,6 @@ export function initializeBoardsUI() {
     const id = selectEl.value;
     if (!id) return;
     setActiveBoardId(id);
-    refreshBrandText();
     emit(DATA_CHANGED);
 
     // Collapse the dropdown menu after a selection.
@@ -195,11 +176,8 @@ export function initializeBoardsUI() {
       const templates = selectedTemplateId ? getBuiltInBoardTemplates() : [];
       const template = selectedTemplateId ? templates.find((t) => t.id === selectedTemplateId) : null;
 
-      const board = createBoard(trimmed, template ? normalizeBoardModelIds(template.board) : {});
-      setActiveBoardId(board.id);
+      createBoard(trimmed, template ? normalizeBoardModelIds(template.board) : {});
 
-      refreshBoardSelect(selectEl);
-      refreshBrandText();
       emit(DATA_CHANGED);
       hideBoardCreateModal();
 

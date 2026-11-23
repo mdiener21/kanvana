@@ -378,7 +378,7 @@ Development runs without a service worker. Production lifecycle tests run with `
 | Module | Responsibility |
 |---|---|
 | `kanban.js` | Entry point — initialises storage, renders board |
-| `boards.js` | Board lifecycle: create, rename, switch, template apply |
+| `boards.js` | Board navigation: refreshes the picker and page title from projected Boards and the active Board, and handles selection and creation |
 | `header-panels.js` | Phone header drop-in panels (search, session): `initializeHeaderPanels()` wires the quick-action buttons, outside-click close and close on sign-out (from `isAuthenticated()`), names the cloud button from `getSyncStateLabel()`, and returns `{ closeAll, dismissSearch }` |
 | `boards-modal.js` | Board selector / management modal |
 | `columns.js` | Column CRUD |

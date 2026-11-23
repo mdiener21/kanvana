@@ -25,6 +25,7 @@
 ## Boards UI
 
 - Board selection persists and restores on page load
+- Creating or importing a board selects it and displays its name in the page title. Synced boards appear in the picker, and synced renames update the title of the active board.
 - Manage Boards supports create, open, export, import, rename, and delete actions
 - Clicking the brand text (desktop) or pressing `Ctrl+B` opens the Manage Boards modal; the shortcut is ignored while focus is in an input, textarea, or select
 - New boards can be blank or created from a template

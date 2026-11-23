@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Board: the picker and page title stay in sync with the active board after creation, import, and remote updates (#353).
+
 ## [3.4.26] - 2026-11-21
 
 ### Changed
