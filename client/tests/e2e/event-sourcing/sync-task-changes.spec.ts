@@ -2,10 +2,47 @@
 // reload. Each step waits on B before A goes on, so a later event can't hide a lost one.
 import { test, expect } from '@playwright/test';
 import { dragByMouse } from '../dragdrop.helpers.js';
-import { addTask, allCards, card, columnTasks, confirm, dialog, moveTaskWithEditor, taskTitle } from '../journey.helpers.js';
-import { boardView, expectLive, expectSameBoard, expectSameBoardAfterReload, registerAccount, requirePocketBase, serverEvents, signedInDevice, SYNC_TIMEOUT, twoDevices, twoDevicesOnNewBoard } from './live.helpers.js';
+import { addTask, allCards, card, columnTasks, confirm, dialog, moveTaskWithEditor, openApp, taskTitle } from '../journey.helpers.js';
+import { boardView, expectLive, expectSameBoard, expectSameBoardAfterReload, registerAccount, requirePocketBase, serverEvents, signedInDevice, SYNC_TIMEOUT, syncIndicator, twoDevices, twoDevicesOnNewBoard } from './live.helpers.js';
 
 requirePocketBase();
+
+test('a second device shows sync progress until its board catches up', async ({ browser }) => {
+  const email = await registerAccount('catch-up-status');
+  const a = await signedInDevice(browser, email);
+  const title = 'Task from the first device';
+  await addTask(a, 'To Do', title);
+  await expect.poll(() => serverEvents(email)).toContainEqual(expect.objectContaining({
+    event_type: 'task.created',
+    payload: expect.objectContaining({ task: expect.objectContaining({ title }) }),
+  }));
+
+  const context = await browser.newContext({ storageState: await a.context().storageState() });
+  const b = await context.newPage();
+  const pull = Promise.withResolvers<void>();
+  await b.route('**/api/collections/events/records?*', async (route) => {
+    await pull.promise;
+    await route.continue();
+  });
+
+  try {
+    await openApp(b);
+    await expect(syncIndicator(b)).toHaveText('Syncing changes');
+    await expect(syncIndicator(b)).toBeVisible();
+    await expect(card(b, title)).toHaveCount(0);
+
+    await b.setViewportSize({ width: 320, height: 740 });
+    await expect(b.getByRole('button', { name: 'Controls', exact: true })).toHaveAttribute('aria-expanded', 'false');
+    await expect(syncIndicator(b)).toBeInViewport({ ratio: 1 });
+
+    pull.resolve();
+    await expect(card(b, title)).toBeVisible({ timeout: SYNC_TIMEOUT });
+    await expect(b.getByText('Syncing changes', { exact: true })).toHaveCount(0);
+  } finally {
+    pull.resolve();
+    await Promise.all([context.close(), a.context().close()]);
+  }
+});
 
 test('a task created, edited, moved and deleted on A shows on B without a reload', async ({ browser }) => {
   test.slow();

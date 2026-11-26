@@ -80,16 +80,27 @@ describe('sync state indicator', () => {
     });
   });
 
-  it('catching up with an empty queue still reads Live (the labels do not change, #219)', async () => {
+  it('shows incoming sync progress with an empty queue and goes live after catch-up', async () => {
     fake.session = 'catching-up';
     initSyncIndicator();
+    await waitFor(() => {
+      expect(el().textContent).toBe('Syncing changes');
+      expect(getSyncStateLabel()).toBe('Syncing changes');
+    });
+
+    fake.session = 'live';
+    window.dispatchEvent(new CustomEvent('sync:status-changed'));
     await waitFor(() => expect(el().textContent).toContain('Live'));
   });
 
-  it('catching up with queued events reads Syncing (N)', async () => {
+  it('shows the outgoing queue count after incoming sync finishes', async () => {
     fake.session = 'catching-up';
     fake.status = { depth: 2, retrying: false };
     initSyncIndicator();
+    await waitFor(() => expect(el().textContent).toBe('Syncing changes'));
+
+    fake.session = 'live';
+    window.dispatchEvent(new CustomEvent('sync:status-changed'));
     await waitFor(() => expect(el().textContent).toContain('Syncing… (2)'));
   });
 

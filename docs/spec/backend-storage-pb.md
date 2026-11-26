@@ -148,7 +148,7 @@ the `kanbanSyncMap` mapping) was removed in #215. New sync work goes through the
 - "Go Online" button in the header opens the login modal (when the health probe succeeded).
 - Once logged in: header shows the user-name chip + logout.
 - The header **sync-state indicator** (`event-sourcing/sync-indicator.js`) replaces the old manual Sync
-  button: `Live ●` / `Syncing… (N)` / `⚠ N unsynced` / `Offline` (#115).
+  button: `Syncing changes` (incoming catch-up) / `Live ●` / `Syncing… (N)` / `⚠ N unsynced` / `Offline`.
 - Feedback uses `alertDialog` from `dialog.js` — never `alert()` / `window.confirm()`.
 
 ## Module Map

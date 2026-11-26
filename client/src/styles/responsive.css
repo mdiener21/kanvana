@@ -118,8 +118,27 @@
 
   /* Sign-in and sync state live in the Controls sheet, as the first row under its title.
      #session-status sits outside #board-controls-menu in the markup, so it docks there. */
-  .session-status {
+  .controls:not(.mobile-menu-open) .session-status {
+    position: fixed;
+    bottom: calc(var(--board-tab-bar-height) + 8px + env(safe-area-inset-bottom));
+    left: 50%;
+    z-index: 364;
+    pointer-events: none;
+  }
+
+  .controls:not(.mobile-menu-open) .session-status > :not(.sync-indicator) {
     display: none;
+  }
+
+  .controls:not(.mobile-menu-open) .sync-indicator {
+    position: absolute;
+    bottom: 0;
+    transform: translateX(-50%);
+  }
+
+  /* Keep the live region mounted so the start of catch-up can be announced. */
+  .controls:not(.mobile-menu-open) .sync-indicator:not(.sync-indicator--catching-up) {
+    clip-path: inset(50%);
   }
 
   /* Docks inside the sheet's fixed title area (.controls-menu-mobile-header grows to hold it),

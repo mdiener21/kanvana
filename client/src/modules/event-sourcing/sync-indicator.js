@@ -1,6 +1,7 @@
 // Header sync-state indicator (#115). Single read-only element that renders the sync
-// session's state and the queue depth — never mutates sync state. Four states per PRD §5.7:
+// session's state and the queue depth — never mutates sync state.
 //   Live ●        green   — online, logged in, queue empty
+//   Syncing changes       — catching up on remote changes
 //   Syncing… (N)  yellow  — N events draining
 //   ⚠ N unsynced  orange  — events stuck (network/5xx retry, or auth-paused)
 //   Offline       gray    — no network or not logged in
@@ -15,6 +16,7 @@ const ELEMENT_ID = 'sync-indicator';
 const STATE = {
   offline: () => ({ text: 'Offline', label: 'Offline', cls: 'sync-indicator--offline' }),
   live: () => ({ text: 'Live ●', label: 'Live', cls: 'sync-indicator--live' }),
+  catchingUp: () => ({ text: 'Syncing changes', label: 'Syncing changes', cls: 'sync-indicator--catching-up' }),
   syncing: (n) => ({ text: `Syncing… (${n})`, label: `Syncing… (${n})`, cls: 'sync-indicator--syncing' }),
   unsynced: (n) => ({ text: `⚠ ${n} unsynced`, label: `${n} unsynced`, cls: 'sync-indicator--unsynced' }),
 };
@@ -22,6 +24,7 @@ const STATE = {
 async function deriveState() {
   const session = getSyncSessionState();
   if (session === SESSION_STATE.SIGNED_OUT || session === SESSION_STATE.OFFLINE || session === SESSION_STATE.PAUSED_OFFLINE) return STATE.offline();
+  if (session === SESSION_STATE.CATCHING_UP) return STATE.catchingUp();
 
   const { depth, retrying } = await getSyncStatus();
   if (depth === 0) return STATE.live();
@@ -32,6 +35,7 @@ async function deriveState() {
 let _el = null;
 let _handlers = null;
 let _label = STATE.offline().label;
+let _renderVersion = 0;
 
 // The shown state without its glyphs, for accessible names elsewhere in the header.
 export function getSyncStateLabel() {
@@ -41,8 +45,10 @@ export function getSyncStateLabel() {
 export async function renderSyncIndicator() {
   const el = _el;
   if (!el) return;
+  const version = ++_renderVersion;
   const { text, label, cls } = await deriveState();
-  el.textContent = text;
+  if (el !== _el || version !== _renderVersion) return;
+  if (el.textContent !== text) el.textContent = text;
   el.className = `sync-indicator ${cls}`;
   _label = label;
   emit(SYNC_INDICATOR_CHANGED);
