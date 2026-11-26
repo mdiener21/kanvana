@@ -237,8 +237,8 @@ exchange domain events (not whole records), ordered by a Hybrid Logical Clock. F
 
 **Online Mode:** User-facing name for the optional authenticated PocketBase path — the `Go Online`
 header button, backend health probe, login/register/OAuth. Once signed in, sync is automatic (no
-manual push/pull); the header **sync-state indicator** shows `Live` / `Syncing… (N)` / `⚠ N unsynced`
-/ `Offline`.
+manual push/pull); the board **sync-state indicator** shows `Syncing changes` during catch-up,
+then `Live` / `Syncing… (N)` / `⚠ N unsynced` / `Offline` as appropriate.
 
 | Module | Responsibility |
 |---|---|

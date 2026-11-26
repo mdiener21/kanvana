@@ -104,7 +104,8 @@ Once authenticated, sync runs without user action:
 | Outbound | The event queue (`event-sourcing/sync-queue.js`) drains unsynced domain events to PocketBase in HLC order, always under the Data Owner. |
 | Inbound | An SSE subscription (`event-sourcing/realtime.js`) applies remote events live, plus a catch-up pull on launch/reconnect. |
 
-The board shows **Syncing changes** while it catches up on incoming updates at launch or reconnect.
-On phones it appears above the bottom bar when Controls is closed. When catch-up ends, the
+The board shows **Syncing changes** while it catches up on incoming updates at launch or reconnect,
+including a follow-up pull after a slow realtime connection. On phones it appears above the bottom
+bar when Controls is closed and moves to the top while Search is open. When catch-up ends, the
 sync-state indicator returns to `Live ●`, `Syncing… (N)`, `⚠ N unsynced`, or `Offline`.
 See `backend-storage-pb.md` and [ADR-0004](../adr/0004-event-sourced-sync.md) for the full architecture.

@@ -19,9 +19,9 @@ test('a second device shows sync progress until its board catches up', async ({ 
 
   const context = await browser.newContext({ storageState: await a.context().storageState() });
   const b = await context.newPage();
-  const pull = Promise.withResolvers<void>();
+  const releasePull = Promise.withResolvers<void>();
   await b.route('**/api/collections/events/records?*', async (route) => {
-    await pull.promise;
+    await releasePull.promise;
     await route.continue();
   });
 
@@ -35,11 +35,18 @@ test('a second device shows sync progress until its board catches up', async ({ 
     await expect(b.getByRole('button', { name: 'Controls', exact: true })).toHaveAttribute('aria-expanded', 'false');
     await expect(syncIndicator(b)).toBeInViewport({ ratio: 1 });
 
-    pull.resolve();
+    await b.getByRole('button', { name: 'Search tasks', exact: true }).click();
+    await expect.poll(async () => {
+      const status = await syncIndicator(b).boundingBox();
+      const search = await b.getByRole('search', { name: 'Filter tasks' }).boundingBox();
+      return Boolean(status && search && status.y + status.height <= search.y);
+    }).toBe(true);
+
+    releasePull.resolve();
     await expect(card(b, title)).toBeVisible({ timeout: SYNC_TIMEOUT });
     await expect(b.getByText('Syncing changes', { exact: true })).toHaveCount(0);
   } finally {
-    pull.resolve();
+    releasePull.resolve();
     await Promise.all([context.close(), a.context().close()]);
   }
 });

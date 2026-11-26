@@ -17,6 +17,7 @@ const USER = { id: 'user1', email: 't@e.st' };
 
 class FakeEventSource {
   static instances = [];
+  static connectOnOpen = true;
 
   constructor(url) {
     this.url = url;
@@ -25,7 +26,7 @@ class FakeEventSource {
     FakeEventSource.instances.push(this);
     // The server answers the stream as soon as it opens, which the SDK waits for.
     setTimeout(() => {
-      if (!this.closed) this.fire('PB_CONNECT', { lastEventId: 'client-id', data: '{}' });
+      if (!this.closed && FakeEventSource.connectOnOpen) this.connect();
     }, 0);
   }
 
@@ -40,6 +41,10 @@ class FakeEventSource {
 
   close() {
     this.closed = true;
+  }
+
+  connect() {
+    this.fire('PB_CONNECT', { lastEventId: 'client-id', data: '{}' });
   }
 
   fire(type, event) {
@@ -164,6 +169,7 @@ afterEach(async () => {
   page = null;
   pushResponse = () => null;
   FakeEventSource.instances = [];
+  FakeEventSource.connectOnOpen = true;
   setBrowserOnline(true);
   server.events.removeListener('request:start', track);
   server.resetHandlers();
@@ -200,6 +206,32 @@ describe('sign-in through the page boot (#219 AC-001)', () => {
     expect(requests).toContain('POST /api/collections/users/auth-refresh');
     expect(eventPulls()).toBe(1);
     expect(sessionState()).toBe('live');
+  }, 20000);
+
+  it('shows sync progress during a follow-up pull when realtime connects late', async () => {
+    serveBackend();
+    FakeEventSource.connectOnOpen = false;
+    const releasePull = Promise.withResolvers();
+    server.use(http.get(EVT_LIST, async () => {
+      if (eventPulls() > 1) await releasePull.promise;
+      return listResponse([]);
+    }));
+
+    try {
+      await openBoard({ signedIn: true });
+      await goLive();
+      await waitFor(() => expect(indicator().textContent).toBe('Live ●'));
+      openSources()[0].connect();
+
+      await waitFor(() => expect(eventPulls()).toBe(2));
+      expect(sessionState()).toBe('live');
+      expect(indicator().textContent).toBe('Syncing changes');
+
+      releasePull.resolve();
+      await waitFor(() => expect(indicator().textContent).toBe('Live ●'));
+    } finally {
+      releasePull.resolve();
+    }
   }, 20000);
 
   it('catches up once more, once, when SSE reconnects', async () => {

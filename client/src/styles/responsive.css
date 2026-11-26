@@ -52,6 +52,7 @@
      time tracker's (.tt-sidebar). Four tabs per screen; the rest scroll in, snapping. */
   /* Active-tab text: --accent is under 4.5:1 on white at 11px; same pair as --tt-accent-text */
   :root { --board-tab-bar-height: 57px; --board-tab-accent: #1d4ed8; --board-session-row-height: 58px; }
+  .controls { --board-tab-overlay-bottom: calc(var(--board-tab-bar-height) + 8px + env(safe-area-inset-bottom)); }
   :root[data-theme="dark"] { --board-tab-accent: var(--accent); }
 
   .toolbar-quick-actions {
@@ -86,7 +87,7 @@
     position: fixed;
     left: 10px;
     right: 10px;
-    bottom: calc(var(--board-tab-bar-height) + 8px + env(safe-area-inset-bottom));
+    bottom: var(--board-tab-overlay-bottom);
     z-index: 366;
     flex: none;
     min-height: 48px;
@@ -120,7 +121,7 @@
      #session-status sits outside #board-controls-menu in the markup, so it docks there. */
   .controls:not(.mobile-menu-open) .session-status {
     position: fixed;
-    bottom: calc(var(--board-tab-bar-height) + 8px + env(safe-area-inset-bottom));
+    bottom: var(--board-tab-overlay-bottom);
     left: 50%;
     z-index: 364;
     pointer-events: none;
@@ -134,6 +135,16 @@
     position: absolute;
     bottom: 0;
     transform: translateX(-50%);
+  }
+
+  .controls.search-open:not(.mobile-menu-open) .session-status {
+    top: calc(8px + env(safe-area-inset-top));
+    bottom: auto;
+  }
+
+  .controls.search-open:not(.mobile-menu-open) .sync-indicator {
+    top: 0;
+    bottom: auto;
   }
 
   /* Keep the live region mounted so the start of catch-up can be announced. */

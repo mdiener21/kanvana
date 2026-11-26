@@ -11,6 +11,7 @@ import { EVENT_ORIGIN, adoptSnapshot, ingestEvent, ingestRemoteBatch } from './i
 import { snapshotKeyForEvent } from './snapshot.js';
 import { downloadAllSnapshots } from './snapshot-sync.js';
 import { EVENT_SCOPE } from '../constants.js';
+import { emit, SYNC_PULL_CHANGED } from '../events.js';
 
 const LAST_SEEN_PREFIX = 'kanvana:sync:lastSeenHlc:';
 const STOPPED_PULL_WAIT_MS = 3000;
@@ -123,8 +124,16 @@ async function hydrateFromRemoteSnapshots(isStale) {
 export async function catchUp() {
   if (!isAuthenticated()) return;
   if (_catchingUp) return _catchingUp;
-  _catchingUp = pullRemoteState().finally(() => { _catchingUp = null; });
+  _catchingUp = pullRemoteState().finally(() => {
+    _catchingUp = null;
+    emit(SYNC_PULL_CHANGED);
+  });
+  emit(SYNC_PULL_CHANGED);
   return _catchingUp;
+}
+
+export function isPullingRemoteChanges() {
+  return _catchingUp !== null;
 }
 
 // A running pull may predate this request or have been cut short by a stop, so this one starts after it.
