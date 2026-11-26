@@ -133,7 +133,7 @@ All canonical specs live under `docs/spec/`. Start here when adding, changing, o
 - `sync-queue.js` - outbound push queue: drains unsynced events to PocketBase in HLC order (in-flight cap, debounce, three-tier retry); `getSyncStatus()` for the indicator
 - `realtime.js` - inbound SSE subscription + catch-up pull, run by the session; `isRealtimeActive()`
 - `snapshot.js` / `snapshot-sync.js` - client-side board snapshots, upload to PocketBase, and event GC
-- `sync-indicator.js` - header sync-state indicator (`Live` / `Syncing… (N)` / `⚠ N unsynced` / `Offline`)
+- `sync-indicator.js` - board sync-state indicator (`Syncing changes` / `Live` / `Syncing… (N)` / `⚠ N unsynced` / `Offline`)
 
 ## Data Flow
 

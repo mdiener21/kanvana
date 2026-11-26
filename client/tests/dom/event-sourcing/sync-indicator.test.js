@@ -22,8 +22,10 @@ vi.mock('../../../src/modules/event-sourcing/sync-session.js', () => ({
 import {
   initSyncIndicator,
   getSyncStateLabel,
+  renderSyncIndicator,
   _resetSyncIndicatorForTesting,
 } from '../../../src/modules/event-sourcing/sync-indicator.js';
+import { getSyncStatus } from '../../../src/modules/event-sourcing/sync-queue.js';
 import { emit, on, off, DATA_CHANGED, SYNC_INDICATOR_CHANGED } from '../../../src/modules/events.js';
 
 const FIXTURE = '<div id="sync-indicator"></div>';
@@ -80,17 +82,43 @@ describe('sync state indicator', () => {
     });
   });
 
-  it('catching up with an empty queue still reads Live (the labels do not change, #219)', async () => {
+  it('shows incoming sync progress with an empty queue and goes live after catch-up', async () => {
     fake.session = 'catching-up';
     initSyncIndicator();
+    await waitFor(() => {
+      expect(el().textContent).toBe('Syncing changes');
+      expect(getSyncStateLabel()).toBe('Syncing changes');
+    });
+
+    fake.session = 'live';
+    window.dispatchEvent(new CustomEvent('sync:status-changed'));
     await waitFor(() => expect(el().textContent).toContain('Live'));
   });
 
-  it('catching up with queued events reads Syncing (N)', async () => {
+  it('shows the outgoing queue count after incoming sync finishes', async () => {
     fake.session = 'catching-up';
     fake.status = { depth: 2, retrying: false };
     initSyncIndicator();
+    await waitFor(() => expect(el().textContent).toBe('Syncing changes'));
+
+    fake.session = 'live';
+    window.dispatchEvent(new CustomEvent('sync:status-changed'));
     await waitFor(() => expect(el().textContent).toContain('Syncing… (2)'));
+  });
+
+  it('keeps incoming sync visible when an earlier queue check finishes late', async () => {
+    initSyncIndicator();
+    const queueStatus = Promise.withResolvers();
+    vi.mocked(getSyncStatus).mockReturnValueOnce(queueStatus.promise);
+    const earlierRender = renderSyncIndicator();
+
+    fake.session = 'catching-up';
+    window.dispatchEvent(new CustomEvent('sync:status-changed'));
+    await waitFor(() => expect(el().textContent).toBe('Syncing changes'));
+
+    queueStatus.resolve({ depth: 0, retrying: false });
+    await earlierRender;
+    expect(el().textContent).toBe('Syncing changes');
   });
 
   it('paused with no network reads Offline, even with queued events', async () => {

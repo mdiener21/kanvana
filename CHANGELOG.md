@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Board: “Syncing changes” appears while the board pulls updates from other devices (#362).
+
 ## [3.4.28] - 2026-11-24
 
 ### Changed

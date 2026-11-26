@@ -70,9 +70,9 @@ audit UI, all with no third-party CRDT dependency.
   list, board and global settings, and the HLC node id (`kanvana:hlc:node`).
 - **Offline-first is non-negotiable.** Any change that makes a server connection mandatory is out of
   scope by design.
-- **Header sync-state indicator (#115)** replaces the manual Sync button; it derives `Live` /
-  `Syncing… (N)` / `⚠ N unsynced` / `Offline` from queue depth, retry/pause state, and auth/online
-  status.
+- **Board sync-state indicator (#115)** replaces the manual Sync button. It shows `Syncing changes`
+  during catch-up and derives `Live` / `Syncing… (N)` / `⚠ N unsynced` / `Offline` from queue depth,
+  retry/pause state, and auth/online status.
 - **Legacy PocketBase collections** are locked read-only (`boards` too, #216); removal is pending
   (issue #116).
 
